@@ -1,0 +1,73 @@
+<!-- templates/errors/404.html -->
+{% extends "base.html" %} {% block title %}Page Not Found - QR Code Management{%
+endblock %} {% block content %}
+<div class="error-page">
+  <div class="error-container">
+    <div class="error-code">404</div>
+    <div class="error-message">
+      <h1>Page Not Found</h1>
+      <p>The page you're looking for doesn't exist or has been moved.</p>
+    </div>
+    <div class="error-actions">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+        <i class="fas fa-home"></i>
+        Go to Dashboard
+      </a>
+      <a href="javascript:history.back()" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i>
+        Go Back
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .error-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: var(--spacing-8);
+  }
+
+  .error-container {
+    text-align: center;
+    max-width: 600px;
+  }
+
+  .error-code {
+    font-size: 8rem;
+    font-weight: 900;
+    color: var(--primary-color);
+    line-height: 1;
+    margin-bottom: var(--spacing-4);
+    background: linear-gradient(
+      135deg,
+      var(--primary-color),
+      var(--primary-hover)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .error-message h1 {
+    font-size: var(--font-size-3xl);
+    color: var(--gray-900);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .error-message p {
+    font-size: var(--font-size-lg);
+    color: var(--gray-600);
+    margin-bottom: var(--spacing-8);
+  }
+
+  .error-actions {
+    display: flex;
+    gap: var(--spacing-4);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}

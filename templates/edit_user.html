@@ -1,0 +1,742 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User - QR Code Management{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <div class="form-card">
+        <div class="form-header">
+            <h1>Edit User</h1>
+            <p>Update user information and permissions</p>
+        </div>
+
+        <!-- Current User Info Display -->
+        <div class="current-user-info">
+            <div class="user-avatar-section">
+                <div class="user-avatar large">
+                    <i class="fas fa-user"></i>
+                    <div class="avatar-status {{ user.role }}">
+                        <i class="fas {{ 'fa-crown' if user.role == 'admin' else 'fa-user-tie' }}"></i>
+                    </div>
+                </div>
+                <div class="user-basic-info">
+                    <h3>{{ user.full_name }}</h3>
+                    <p>@{{ user.username }}</p>
+                    <span class="role-badge {{ user.role }}">
+                        {{ user.role.title() }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="user-stats-quick">
+                <div class="stat-quick">
+                    <span class="stat-number">{{ user.created_qr_codes.count() }}</span>
+                    <span class="stat-label">QR Codes</span>
+                </div>
+                <div class="stat-quick">
+                    <span class="stat-number">{{ user.created_date.strftime('%b %Y') }}</span>
+                    <span class="stat-label">Joined</span>
+                </div>
+                <div class="stat-quick">
+                    <span class="stat-number">
+                        {% if user.last_login_date %}
+                        {{ user.last_login_date.strftime('%m/%d') }}
+                        {% else %}
+                        Never
+                        {% endif %}
+                    </span>
+                    <span class="stat-label">Last Login</span>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" class="form" id="editUserForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="full_name">
+                        <i class="fas fa-id-card"></i>
+                        Full Name
+                    </label>
+                    <input type="text" id="full_name" name="full_name" 
+                           value="{{ user.full_name }}" required>
+                    <small class="form-help">User's display name in the system</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">
+                        <i class="fas fa-envelope"></i>
+                        Email Address
+                    </label>
+                    <input type="email" id="email" name="email" 
+                           value="{{ user.email }}" required>
+                    <small class="form-help">Primary email for notifications</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username_display">
+                        <i class="fas fa-user"></i>
+                        Username
+                    </label>
+                    <input type="text" id="username_display" 
+                           value="{{ user.username }}" disabled>
+                    <small class="form-help">Username cannot be changed</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="role">
+                        <i class="fas fa-user-shield"></i>
+                        User Role
+                    </label>
+                    <select id="role" name="role" required>
+                        <option value="staff" {{ 'selected' if user.role == 'staff' else '' }}>Staff User</option>
+                        <option value="admin" {{ 'selected' if user.role == 'admin' else '' }}>Administrator</option>
+                    </select>
+                    <small class="form-help">Changes role permissions immediately</small>
+                </div>
+            </div>
+
+            <!-- Role Change Warning -->
+            <div class="role-warning" id="roleWarning" style="display: none;">
+                <div class="warning-header">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Role Change Warning</span>
+                </div>
+                <div class="warning-content" id="warningContent">
+                    <!-- Dynamic warning content -->
+                </div>
+            </div>
+
+            <!-- Password Section -->
+            <div class="password-section">
+                <h3>
+                    <i class="fas fa-key"></i>
+                    Password Management
+                </h3>
+                
+                <div class="form-group">
+                    <label for="new_password">
+                        <i class="fas fa-lock"></i>
+                        New Password (Optional)
+                    </label>
+                    <input type="password" id="new_password" name="new_password" 
+                           minlength="6" placeholder="Leave blank to keep current password">
+                    <div class="password-strength" id="passwordStrength"></div>
+                    <small class="form-help">Only enter a password if you want to change it</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">
+                        <i class="fas fa-check-circle"></i>
+                        Confirm New Password
+                    </label>
+                    <input type="password" id="confirm_password" name="confirm_password">
+                    <div class="password-match" id="passwordMatch"></div>
+                </div>
+            </div>
+
+            <!-- Account Status Section -->
+            <div class="status-section">
+                <h3>
+                    <i class="fas fa-info-circle"></i>
+                    Account Status
+                </h3>
+                
+                <div class="status-display">
+                    <div class="status-item">
+                        <strong>Current Status:</strong>
+                        <span class="status-badge {{ 'active' if user.active_status else 'inactive' }}">
+                            <i class="fas {{ 'fa-check-circle' if user.active_status else 'fa-times-circle' }}"></i>
+                            {{ 'Active' if user.active_status else 'Inactive' }}
+                        </span>
+                    </div>
+                    
+                    <div class="status-item">
+                        <strong>Account Created:</strong>
+                        <span>{{ user.created_date.strftime('%B %d, %Y at %H:%M') }}</span>
+                    </div>
+                    
+                    {% if user.creator %}
+                    <div class="status-item">
+                        <strong>Created By:</strong>
+                        <span>{{ user.creator.full_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Users
+                </a>
+                
+                {% if not user.active_status %}
+                <a href="{{ url_for('reactivate_user', user_id=user.id) }}" 
+                   class="btn btn-success"
+                   onclick="return confirm('Reactivate this user account?')">
+                    <i class="fas fa-user-check"></i>
+                    Reactivate User
+                </a>
+                {% endif %}
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('editUserForm');
+        const roleSelect = document.getElementById('role');
+        const roleWarning = document.getElementById('roleWarning');
+        const warningContent = document.getElementById('warningContent');
+        const newPasswordInput = document.getElementById('new_password');
+        const confirmPasswordInput = document.getElementById('confirm_password');
+        const passwordStrength = document.getElementById('passwordStrength');
+        const passwordMatch = document.getElementById('passwordMatch');
+        
+        const originalRole = '{{ user.role }}';
+        const isCurrentUser = {{ 'true' if user.id == session.user_id else 'false' }};
+        
+        // Role change detection and warnings
+        roleSelect.addEventListener('change', function() {
+            const newRole = this.value;
+            
+            if (newRole !== originalRole) {
+                let warningMessage = '';
+                
+                if (originalRole === 'admin' && newRole === 'staff') {
+                    if (isCurrentUser) {
+                        warningMessage = `
+                            <strong>⚠️ You are demoting yourself!</strong><br>
+                            This will remove your admin privileges and you will lose access to:
+                            <ul>
+                                <li>User management</li>
+                                <li>System administration</li>
+                                <li>Advanced settings</li>
+                            </ul>
+                            <strong>You will need another admin to restore your privileges.</strong>
+                        `;
+                    } else {
+                        warningMessage = `
+                            <strong>Demoting Admin to Staff</strong><br>
+                            This user will lose admin privileges and access to:
+                            <ul>
+                                <li>User management</li>
+                                <li>System administration</li>
+                                <li>Advanced settings</li>
+                            </ul>
+                        `;
+                    }
+                } else if (originalRole === 'staff' && newRole === 'admin') {
+                    warningMessage = `
+                        <strong>Promoting Staff to Admin</strong><br>
+                        This user will gain full system access including:
+                        <ul>
+                            <li>User management</li>
+                            <li>System administration</li>
+                            <li>All QR code operations</li>
+                        </ul>
+                    `;
+                }
+                
+                warningContent.innerHTML = warningMessage;
+                roleWarning.style.display = 'block';
+                setTimeout(() => roleWarning.classList.add('fade-in'), 10);
+            } else {
+                roleWarning.style.display = 'none';
+                roleWarning.classList.remove('fade-in');
+            }
+        });
+        
+        // Password strength checker
+        newPasswordInput.addEventListener('input', function() {
+            const password = this.value;
+            
+            if (!password) {
+                passwordStrength.textContent = '';
+                passwordStrength.className = 'password-strength';
+                return;
+            }
+            
+            let strength = 0;
+            let feedback = [];
+            
+            if (password.length >= 6) strength++;
+            else feedback.push('At least 6 characters');
+            
+            if (password.length >= 8) strength++;
+            else if (password.length >= 6) feedback.push('8+ characters recommended');
+            
+            if (/[A-Z]/.test(password)) strength++;
+            else feedback.push('One uppercase letter');
+            
+            if (/[a-z]/.test(password)) strength++;
+            else feedback.push('One lowercase letter');
+            
+            if (/[0-9]/.test(password)) strength++;
+            else feedback.push('One number');
+            
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            else feedback.push('One special character');
+            
+            let strengthText = '';
+            let strengthClass = '';
+            
+            if (strength < 3) {
+                strengthText = 'Weak';
+                strengthClass = 'weak';
+            } else if (strength < 5) {
+                strengthText = 'Medium';
+                strengthClass = 'medium';
+            } else {
+                strengthText = 'Strong';
+                strengthClass = 'strong';
+            }
+            
+            passwordStrength.className = `password-strength ${strengthClass}`;
+            passwordStrength.textContent = `Strength: ${strengthText}`;
+            
+            if (feedback.length > 0) {
+                passwordStrength.textContent += ` (Missing: ${feedback.join(', ')})`;
+            }
+            
+            checkPasswordMatch();
+        });
+        
+        // Password match checker
+        function checkPasswordMatch() {
+            if (confirmPasswordInput.value && newPasswordInput.value) {
+                if (newPasswordInput.value === confirmPasswordInput.value) {
+                    passwordMatch.textContent = '✓ Passwords match';
+                    passwordMatch.className = 'password-match match';
+                } else {
+                    passwordMatch.textContent = '✗ Passwords do not match';
+                    passwordMatch.className = 'password-match no-match';
+                }
+            } else {
+                passwordMatch.textContent = '';
+                passwordMatch.className = 'password-match';
+            }
+        }
+        
+        confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+        
+        // Form validation
+        form.addEventListener('submit', function(e) {
+            const newPassword = newPasswordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            
+            // Password validation if provided
+            if (newPassword) {
+                if (newPassword.length < 6) {
+                    e.preventDefault();
+                    alert('New password must be at least 6 characters long.');
+                    newPasswordInput.focus();
+                    return;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    e.preventDefault();
+                    alert('New passwords do not match.');
+                    confirmPasswordInput.focus();
+                    return;
+                }
+            }
+            
+            // Role change confirmation
+            const newRole = roleSelect.value;
+            if (newRole !== originalRole) {
+                const roleChangeConfirm = isCurrentUser && newRole === 'staff' 
+                    ? confirm('⚠️ You are about to demote yourself from admin to staff. You will lose admin privileges. Are you sure?')
+                    : confirm(`Change user role from ${originalRole} to ${newRole}?`);
+                
+                if (!roleChangeConfirm) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            // Show loading state
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Changes...';
+            submitBtn.disabled = true;
+        });
+        
+        // Auto-capitalize full name
+        const fullNameInput = document.getElementById('full_name');
+        fullNameInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\b\w/g, l => l.toUpperCase());
+        });
+    });
+</script>
+
+<style>
+/* Additional styles for edit user form */
+.current-user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, var(--gray-50), var(--white));
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+}
+
+.user-avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-avatar.large {
+    width: 80px;
+    height: 80px;
+    background: var(--gray-200);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--gray-600);
+    position: relative;
+}
+
+.avatar-status {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    border: 2px solid var(--white);
+}
+
+.avatar-status.admin {
+    background: #fbbf24;
+    color: #92400e;
+}
+
+.avatar-status.staff {
+    background: var(--gray-400);
+    color: var(--white);
+}
+
+.user-basic-info h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.25rem;
+}
+
+.user-basic-info p {
+    color: var(--gray-500);
+    margin-bottom: 0.5rem;
+}
+
+.user-stats-quick {
+    display: flex;
+    gap: 2rem;
+}
+
+.stat-quick {
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.role-warning {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid #f59e0b;
+    border-radius: var(--radius-lg);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+}
+
+.role-warning.fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.warning-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: #d97706;
+    margin-bottom: 0.75rem;
+}
+
+.warning-content {
+    color: #92400e;
+    font-size: 0.875rem;
+}
+
+.warning-content ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.warning-content li {
+    margin-bottom: 0.25rem;
+}
+
+.password-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-200);
+}
+
+.password-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 1.5rem;
+}
+
+.status-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-200);
+}
+
+.status-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 1.5rem;
+}
+
+.status-display {
+    display: grid;
+    gap: 1rem;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--white);
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+}
+
+.status-item strong {
+    color: var(--gray-700);
+    font-weight: 500;
+}
+
+.status-item span {
+    color: var(--gray-900);
+    font-weight: 500;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.active {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+}
+
+.status-badge.inactive {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+}
+
+.role-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.role-badge.admin {
+    background: rgba(251, 191, 36, 0.1);
+    color: #d97706;
+}
+
+.role-badge.staff {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--gray-600);
+}
+
+.password-strength {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    transition: var(--transition);
+}
+
+.password-strength.weak {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+}
+
+.password-strength.medium {
+    background-color: rgba(217, 119, 6, 0.1);
+    color: var(--warning-color);
+}
+
+.password-strength.strong {
+    background-color: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+}
+
+.password-match {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+}
+
+.password-match.match {
+    background-color: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+}
+
+.password-match.no-match {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-base);
+    transition: var(--transition);
+    background-color: var(--white);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group input:disabled {
+    background-color: var(--gray-100);
+    color: var(--gray-500);
+    cursor: not-allowed;
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--gray-500);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+@media (max-width: 768px) {
+    .current-user-info {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .user-stats-quick {
+        justify-content: center;
+        gap: 1rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .status-item {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,609 @@
+{% extends "base.html" %} {% block title %}Confirm Delete - QR Code Management{%
+endblock %} {% block extra_head %}
+<style>
+  .confirmation-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    padding: var(--spacing-8) 0;
+  }
+
+  .confirmation-card {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    max-width: 600px;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
+  }
+
+  .confirmation-header {
+    background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+    color: var(--white);
+    padding: var(--spacing-8);
+    text-align: center;
+    position: relative;
+  }
+
+  .warning-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--spacing-4);
+    font-size: 2rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .confirmation-header h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    margin: 0;
+    color: var(--white);
+  }
+
+  .confirmation-body {
+    padding: var(--spacing-8);
+  }
+
+  .qr-details-section {
+    display: flex;
+    gap: var(--spacing-6);
+    margin-bottom: var(--spacing-8);
+    align-items: flex-start;
+  }
+
+  .qr-preview {
+    flex-shrink: 0;
+  }
+
+  .qr-preview img {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--gray-200);
+    box-shadow: var(--shadow-md);
+  }
+
+  .deletion-details {
+    flex: 1;
+  }
+
+  .deletion-details h3 {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: var(--spacing-4);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .detail-item {
+    display: flex;
+    margin-bottom: var(--spacing-3);
+    padding: var(--spacing-3);
+    background: var(--gray-50);
+    border-radius: var(--radius);
+    border-left: 4px solid var(--primary-color);
+  }
+
+  .detail-label {
+    font-weight: 600;
+    color: var(--gray-600);
+    min-width: 100px;
+    margin-right: var(--spacing-3);
+    font-size: var(--font-size-sm);
+  }
+
+  .detail-value {
+    color: var(--gray-900);
+    font-size: var(--font-size-sm);
+  }
+
+  .warning-message {
+    background: linear-gradient(135deg, var(--danger-light), #fecaca);
+    border: 2px solid var(--danger-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-6);
+    margin-bottom: var(--spacing-6);
+  }
+
+  .warning-message p {
+    margin: 0 0 var(--spacing-3) 0;
+    color: var(--danger-color);
+    font-weight: 600;
+  }
+
+  .warning-message p:first-child {
+    font-size: var(--font-size-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .warning-message ul {
+    margin: var(--spacing-4) 0 0 0;
+    padding-left: var(--spacing-6);
+    color: var(--gray-700);
+  }
+
+  .warning-message li {
+    margin-bottom: var(--spacing-2);
+    font-size: var(--font-size-sm);
+  }
+
+  .confirmation-actions {
+    background: var(--gray-50);
+    padding: var(--spacing-6);
+    display: flex;
+    gap: var(--spacing-4);
+    justify-content: flex-end;
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .btn-delete-confirm {
+    background: var(--danger-color);
+    color: var(--white);
+    border: 2px solid var(--danger-color);
+    padding: var(--spacing-4) var(--spacing-8);
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-delete-confirm:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .btn-delete-confirm::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s;
+  }
+
+  .btn-delete-confirm:hover::before {
+    left: 100%;
+  }
+
+  .qr-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1) var(--spacing-2);
+    border-radius: var(--radius);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+
+  .qr-status-badge.active {
+    background: var(--success-light);
+    color: var(--success-color);
+  }
+
+  .qr-status-badge.inactive {
+    background: var(--danger-light);
+    color: var(--danger-color);
+  }
+
+  .countdown-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--font-size-sm);
+    color: var(--gray-600);
+    margin-top: var(--spacing-4);
+  }
+
+  .countdown-number {
+    background: var(--primary-color);
+    color: var(--white);
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: var(--font-size-xs);
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .confirmation-page {
+      padding: var(--spacing-4);
+      min-height: 60vh;
+    }
+
+    .qr-details-section {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .qr-preview {
+      align-self: center;
+    }
+
+    .confirmation-actions {
+      flex-direction: column-reverse;
+    }
+
+    .confirmation-actions .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .detail-item {
+      flex-direction: column;
+      gap: var(--spacing-1);
+    }
+
+    .detail-label {
+      min-width: auto;
+      margin-right: 0;
+      font-weight: 700;
+    }
+  }
+
+  /* Animation for page entry */
+  .confirmation-card {
+    animation: slideInScale 0.4s ease-out;
+  }
+
+  @keyframes slideInScale {
+    from {
+      opacity: 0;
+      transform: translateY(30px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="confirmation-page">
+  <div class="confirmation-card">
+    <div class="confirmation-header">
+      <div class="warning-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <h2>Confirm QR Code Deletion</h2>
+    </div>
+
+    <div class="confirmation-body">
+      <div class="qr-details-section">
+        <div class="qr-preview">
+          <img
+            src="data:image/png;base64,{{ qr_code.qr_code_image }}"
+            alt="QR Code for {{ qr_code.name }}"
+          />
+        </div>
+
+        <div class="deletion-details">
+          <h3>
+            {{ qr_code.name }}
+            <span
+              class="qr-status-badge {{ 'active' if qr_code.active_status else 'inactive' }}"
+            >
+              <i
+                class="fas {{ 'fa-check-circle' if qr_code.active_status else 'fa-times-circle' }}"
+              ></i>
+              {{ 'Active' if qr_code.active_status else 'Inactive' }}
+            </span>
+          </h3>
+
+          <div class="detail-item">
+            <span class="detail-label">Location:</span>
+            <span class="detail-value">{{ qr_code.location }}</span>
+          </div>
+
+          {% if qr_code.location_address %}
+          <div class="detail-item">
+            <span class="detail-label">Address:</span>
+            <span class="detail-value">{{ qr_code.location_address }}</span>
+          </div>
+          {% endif %} {% if qr_code.location_event %}
+          <div class="detail-item">
+            <span class="detail-label">Event:</span>
+            <span class="detail-value">{{ qr_code.location_event }}</span>
+          </div>
+          {% endif %}
+
+          <div class="detail-item">
+            <span class="detail-label">Created:</span>
+            <span class="detail-value"
+              >{{ qr_code.created_date.strftime('%B %d, %Y at %H:%M') }}</span
+            >
+          </div>
+
+          <div class="detail-item">
+            <span class="detail-label">Created by:</span>
+            <span class="detail-value">{{ qr_code.creator.full_name }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="detail-label">QR Code ID:</span>
+            <span class="detail-value">#{{ qr_code.id }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="warning-message">
+        <p>
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Warning: This action cannot be undone!</strong>
+        </p>
+        <p>Permanently deleting this QR code will:</p>
+        <ul>
+          <li>Remove the QR code completely from the database</li>
+          <li>Make the QR code link permanently inaccessible</li>
+          <li>Delete all associated scan data and statistics</li>
+          <li>Remove any references to this QR code in reports</li>
+        </ul>
+        <p style="margin-top: var(--spacing-4); font-style: italic">
+          <strong>Alternative:</strong> Consider deactivating the QR code
+          instead if you might need it later.
+        </p>
+      </div>
+    </div>
+
+    <div class="confirmation-actions">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i>
+        Cancel & Go Back
+      </a>
+
+      <a
+        href="{{ url_for('deactivate_qr_code', qr_id=qr_code.id) }}"
+        class="btn btn-warning"
+      >
+        <i class="fas fa-pause"></i>
+        Deactivate Instead
+      </a>
+
+      <form method="POST" style="display: inline" id="deleteForm">
+        <button type="button" class="btn btn-delete-confirm" id="deleteBtn">
+          <i class="fas fa-trash"></i>
+          Delete Permanently
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Enhanced Confirmation Modal -->
+<div id="finalConfirmModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 style="color: var(--danger-color)">
+        <i class="fas fa-exclamation-triangle"></i>
+        Final Confirmation Required
+      </h3>
+    </div>
+    <div class="modal-body">
+      <p>
+        <strong
+          >Are you absolutely sure you want to delete "{{ qr_code.name
+          }}"?</strong
+        >
+      </p>
+      <p>
+        This action is <strong>irreversible</strong> and will permanently remove
+        all data associated with this QR code.
+      </p>
+
+      <div class="confirmation-input">
+        <label for="confirmText" class="form-label">
+          Type <strong>"DELETE {{ qr_code.name.upper() }}"</strong> to confirm:
+        </label>
+        <input
+          type="text"
+          id="confirmText"
+          class="form-input"
+          placeholder="Type DELETE {{ qr_code.name.upper() }}"
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="countdown-timer" id="countdownTimer" style="display: none">
+        <span class="countdown-number" id="countdownNumber">5</span>
+        <span
+          >Deletion will be enabled in
+          <span id="countdownText">5</span> seconds...</span
+        >
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        onclick="closeFinalConfirmModal()"
+      >
+        Cancel
+      </button>
+      <button type="button" class="btn btn-danger" id="finalDeleteBtn" disabled>
+        <i class="fas fa-trash"></i>
+        Confirm Deletion
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const deleteBtn = document.getElementById("deleteBtn");
+    const deleteForm = document.getElementById("deleteForm");
+    const finalConfirmModal = document.getElementById("finalConfirmModal");
+    const confirmText = document.getElementById("confirmText");
+    const finalDeleteBtn = document.getElementById("finalDeleteBtn");
+    const countdownTimer = document.getElementById("countdownTimer");
+    const countdownNumber = document.getElementById("countdownNumber");
+    const countdownText = document.getElementById("countdownText");
+
+    const expectedText = "DELETE {{ qr_code.name.upper() }}";
+    let countdownInterval;
+    let countdownValue = 5;
+
+    // Show final confirmation modal
+    deleteBtn.addEventListener("click", function () {
+      finalConfirmModal.style.display = "flex";
+      setTimeout(() => finalConfirmModal.classList.add("show"), 10);
+
+      // Start countdown
+      startCountdown();
+
+      // Focus on input
+      setTimeout(() => confirmText.focus(), 100);
+    });
+
+    // Close modal function
+    window.closeFinalConfirmModal = function () {
+      finalConfirmModal.classList.remove("show");
+      setTimeout(() => {
+        finalConfirmModal.style.display = "none";
+        resetModal();
+      }, 300);
+    };
+
+    // Start countdown timer
+    function startCountdown() {
+      countdownValue = 5;
+      countdownTimer.style.display = "flex";
+      updateCountdownDisplay();
+
+      countdownInterval = setInterval(() => {
+        countdownValue--;
+        updateCountdownDisplay();
+
+        if (countdownValue <= 0) {
+          clearInterval(countdownInterval);
+          countdownTimer.style.display = "none";
+          checkConfirmationText();
+        }
+      }, 1000);
+    }
+
+    function updateCountdownDisplay() {
+      countdownNumber.textContent = countdownValue;
+      countdownText.textContent = countdownValue;
+    }
+
+    // Reset modal state
+    function resetModal() {
+      confirmText.value = "";
+      finalDeleteBtn.disabled = true;
+      countdownTimer.style.display = "none";
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    }
+
+    // Check confirmation text
+    function checkConfirmationText() {
+      const isTextCorrect = confirmText.value.trim() === expectedText;
+      const isCountdownFinished = countdownValue <= 0;
+
+      finalDeleteBtn.disabled = !(isTextCorrect && isCountdownFinished);
+
+      if (isTextCorrect && isCountdownFinished) {
+        finalDeleteBtn.classList.add("btn-danger");
+        finalDeleteBtn.classList.remove("btn-secondary");
+      } else {
+        finalDeleteBtn.classList.remove("btn-danger");
+        finalDeleteBtn.classList.add("btn-secondary");
+      }
+    }
+
+    // Monitor text input
+    confirmText.addEventListener("input", function () {
+      if (countdownValue <= 0) {
+        checkConfirmationText();
+      }
+    });
+
+    // Handle final deletion
+    finalDeleteBtn.addEventListener("click", function () {
+      if (!finalDeleteBtn.disabled) {
+        // Show loading state
+        finalDeleteBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        finalDeleteBtn.disabled = true;
+
+        // Submit the form
+        deleteForm.submit();
+      }
+    });
+
+    // Close modal on escape key
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && finalConfirmModal.style.display === "flex") {
+        closeFinalConfirmModal();
+      }
+    });
+
+    // Close modal when clicking outside
+    finalConfirmModal.addEventListener("click", function (e) {
+      if (e.target === finalConfirmModal) {
+        closeFinalConfirmModal();
+      }
+    });
+  });
+</script>
+
+<style>
+  .confirmation-input {
+    margin: var(--spacing-6) 0;
+  }
+
+  .confirmation-input .form-input {
+    font-family: "Courier New", monospace;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  .confirmation-input .form-input:focus {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  #finalDeleteBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  #finalDeleteBtn:not(:disabled) {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+    }
+  }
+</style>
+{% endblock %}

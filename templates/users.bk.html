@@ -1,0 +1,2102 @@
+{% extends "base.html" %} {% block title %}User Management - QR Code
+Management{% endblock %} {% block content %}
+<div class="users-page">
+  <div class="users-header">
+    <div class="header-content">
+      <h1>
+        <i class="fas fa-users"></i>
+        User Management
+      </h1>
+      <p>Manage system users and their access permissions</p>
+    </div>
+
+    <div class="header-actions">
+      <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+        <i class="fas fa-user-plus"></i>
+        Add New User
+      </a>
+    </div>
+  </div>
+
+  <!-- User Statistics -->
+  <div class="users-stats">
+    <div class="stat-card">
+      <div class="stat-icon admin">
+        <i class="fas fa-crown"></i>
+      </div>
+      <div class="stat-info">
+        <h3>
+          {{ users|selectattr('role', 'equalto',
+          'admin')|selectattr('active_status', 'equalto', True)|list|length }}
+        </h3>
+        <p>Active Administrators</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon staff">
+        <i class="fas fa-users"></i>
+      </div>
+      <div class="stat-info">
+        <h3>
+          {{ users|selectattr('role', 'equalto',
+          'staff')|selectattr('active_status', 'equalto', True)|list|length }}
+        </h3>
+        <p>Active Staff Members</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon active">
+        <i class="fas fa-user-check"></i>
+      </div>
+      <div class="stat-info">
+        <h3>
+          {{ users|selectattr('active_status', 'equalto', True)|list|length }}
+        </h3>
+        <p>Total Active Users</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon inactive">
+        <i class="fas fa-user-times"></i>
+      </div>
+      <div class="stat-info">
+        <h3>
+          {{ users|selectattr('active_status', 'equalto', False)|list|length }}
+        </h3>
+        <p>Inactive Users</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters and Search -->
+  <div class="users-controls">
+    <div class="search-filters">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input
+          type="text"
+          id="searchUsers"
+          placeholder="Search users by name, email, or username..."
+        />
+      </div>
+
+      <div class="filter-group">
+        <select id="roleFilter" class="filter-select">
+          <option value="">All Roles</option>
+          <option value="admin">Administrators</option>
+          <option value="staff">Staff Members</option>
+        </select>
+
+        <select id="statusFilter" class="filter-select">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="view-options">
+      <button class="btn btn-secondary btn-sm" onclick="refreshUserList()">
+        <i class="fas fa-sync-alt"></i>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="users-container">
+    <div class="users-table">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User Information</th>
+            <th>Contact</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>QR Codes</th>
+            <th>Created</th>
+            <th>Last Login</th>
+            <th style="width: 200px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          {% for user in users %}
+          <tr
+            class="user-row"
+            data-name="{{ user.full_name.lower() }}"
+            data-email="{{ user.email.lower() }}"
+            data-username="{{ user.username.lower() }}"
+            data-role="{{ user.role }}"
+            data-status="{{ 'active' if user.active_status else 'inactive' }}"
+            data-user-id="{{ user.id }}"
+          >
+            <td>{{ loop.index }}</td>
+
+            <!-- User Information -->
+            <td>
+              <div class="user-info">
+                <div class="user-avatar">
+                  <i class="fas fa-user"></i>
+                  {% if user.role == 'admin' %}
+                  <div class="avatar-badge admin">
+                    <i class="fas fa-crown"></i>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="user-details">
+                  <div class="user-name">{{ user.full_name }}</div>
+                  <div class="user-username">@{{ user.username }}</div>
+                  {% if user.id == session.user_id %}
+                  <span class="current-user-badge">You</span>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+
+            <!-- Contact Information -->
+            <td>
+              <div class="contact-info">
+                <div class="user-email">
+                  <i class="fas fa-envelope"></i>
+                  {{ user.email }}
+                </div>
+              </div>
+            </td>
+
+            <!-- Role -->
+            <td>
+              <span class="role-badge {{ user.role }}">
+                <i
+                  class="fas {{ 'fa-crown' if user.role == 'admin' else 'fa-user-tie' }}"
+                ></i>
+                {{ user.role.title() }}
+              </span>
+            </td>
+
+            <!-- Status -->
+            <td>
+              <span
+                class="status-badge {{ 'active' if user.active_status else 'inactive' }}"
+              >
+                <i
+                  class="fas {{ 'fa-check-circle' if user.active_status else 'fa-times-circle' }}"
+                ></i>
+                {{ 'Active' if user.active_status else 'Inactive' }}
+              </span>
+            </td>
+
+            <!-- QR Codes Count -->
+            <td>
+              <div class="qr-count">
+                <div class="qr-total">
+                  <strong>{{ user.created_qr_codes.count() }}</strong>
+                  <small>total</small>
+                </div>
+                <div class="qr-active">
+                  <span
+                    >{{
+                    user.created_qr_codes.filter_by(active_status=True).count()
+                    }}</span
+                  >
+                  <small>active</small>
+                </div>
+              </div>
+            </td>
+
+            <!-- Created Date -->
+            <td>
+              <div class="date-info">
+                <div class="date">
+                  {{ user.created_date.strftime('%Y-%m-%d') }}
+                </div>
+                <div class="time">
+                  {{ user.created_date.strftime('%H:%M') }}
+                </div>
+              </div>
+            </td>
+
+            <!-- Last Login -->
+            <td>
+              {% if user.last_login_date %}
+              <div class="date-info">
+                <div class="date">
+                  {{ user.last_login_date.strftime('%Y-%m-%d') }}
+                </div>
+                <div class="time">
+                  {{ user.last_login_date.strftime('%H:%M') }}
+                </div>
+              </div>
+              {% else %}
+              <span class="text-muted">
+                <i class="fas fa-minus-circle"></i>
+                Never
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td>
+              <div class="user-actions">
+                <!-- Edit Button -->
+                <a
+                  href="{{ url_for('edit_user', user_id=user.id) }}"
+                  class="action-btn btn-edit"
+                  title="Edit User"
+                >
+                  <i class="fas fa-edit"></i>
+                </a>
+
+                <!-- Role Actions -->
+                {% if user.role == 'staff' %}
+                <a
+                  href="{{ url_for('promote_user', user_id=user.id) }}"
+                  class="action-btn btn-promote"
+                  title="Promote to Admin"
+                  onclick="return confirmPromoteUser('{{ user.full_name }}')"
+                >
+                  <i class="fas fa-arrow-up"></i>
+                </a>
+                {% elif user.role == 'admin' and user.id != session.user_id %}
+                <a
+                  href="{{ url_for('demote_user', user_id=user.id) }}"
+                  class="action-btn btn-demote"
+                  title="Demote to Staff"
+                  onclick="return confirmDemoteUser('{{ user.full_name }}')"
+                >
+                  <i class="fas fa-arrow-down"></i>
+                </a>
+                {% endif %}
+
+                <!-- Status Actions -->
+                {% if user.active_status %} {% if user.id != session.user_id %}
+                <a
+                  href="{{ url_for('delete_user', user_id=user.id) }}"
+                  class="action-btn btn-deactivate"
+                  title="Deactivate User"
+                  onclick="return confirmDeactivateUser('{{ user.full_name }}', '{{ user.role }}')"
+                >
+                  <i class="fas fa-user-times"></i>
+                </a>
+                {% else %}
+                <span
+                  class="action-btn btn-disabled"
+                  title="Cannot deactivate yourself"
+                >
+                  <i class="fas fa-lock"></i>
+                </span>
+                {% endif %} {% else %}
+                <a
+                  href="{{ url_for('reactivate_user', user_id=user.id) }}"
+                  class="action-btn btn-activate"
+                  title="Reactivate User"
+                  onclick="return confirm('Reactivate {{ user.full_name }}?')"
+                >
+                  <i class="fas fa-user-check"></i>
+                </a>
+                {% endif %}
+
+                <!-- Permanent Delete Action (Only for inactive users) -->
+                {% if not user.active_status and user.id != session.user_id %}
+                <a
+                  href="{{ url_for('permanently_delete_user', user_id=user.id) }}"
+                  class="action-btn btn-delete"
+                  title="Permanently Delete User"
+                  onclick="return confirmPermanentDelete('{{ user.full_name }}')"
+                >
+                  <i class="fas fa-trash"></i>
+                </a>
+                {% endif %}
+
+                <!-- More Options Dropdown -->
+                <div class="dropdown">
+                  <button
+                    class="action-btn btn-more dropdown-toggle"
+                    title="More Options"
+                    onclick="toggleDropdown(event, this)"
+                  >
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <div class="dropdown-menu">
+                    <button
+                      onclick="viewUserDetails({{ user.id }})"
+                      class="dropdown-item"
+                    >
+                      <i class="fas fa-eye"></i> View Details
+                    </button>
+                    {% if user.id != session.user_id %}
+                    <button
+                      onclick="resetUserPassword({{ user.id }}, '{{ user.full_name }}')"
+                      class="dropdown-item"
+                    >
+                      <i class="fas fa-key"></i> Reset Password
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button
+                      onclick="viewUserQRCodes({{ user.id }})"
+                      class="dropdown-item"
+                    >
+                      <i class="fas fa-qrcode"></i> View QR Codes
+                    </button>
+                    {% if not user.active_status %}
+                    <div class="dropdown-divider"></div>
+                    <a
+                      href="{{ url_for('permanently_delete_user', user_id=user.id) }}"
+                      class="dropdown-item danger-item"
+                      onclick="return confirmPermanentDelete('{{ user.full_name }}')"
+                    >
+                      <i class="fas fa-trash"></i> Permanently Delete
+                    </a>
+                    {% endif %} {% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %} {% if not users %}
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 3rem">
+              <div class="empty-icon">
+                <i
+                  class="fas fa-users"
+                  style="
+                    font-size: 3rem;
+                    color: var(--gray-400);
+                    margin-bottom: 1rem;
+                  "
+                ></i>
+              </div>
+              <h3 style="color: var(--gray-900); margin-bottom: 0.5rem">
+                No Users Found
+              </h3>
+              <p style="color: var(--gray-500); margin-bottom: 1rem">
+                There are no users in the system yet.
+              </p>
+              <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i>
+                Create First User
+              </a>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Empty State for Filtered Results -->
+  <div class="empty-state" id="emptyState" style="display: none">
+    <div class="empty-icon">
+      <i class="fas fa-search"></i>
+    </div>
+    <h3>No Users Found</h3>
+    <p>Try adjusting your search criteria or filters</p>
+    <button onclick="clearFilters()" class="btn btn-secondary">
+      <i class="fas fa-refresh"></i>
+      Clear Filters
+    </button>
+  </div>
+</div>
+
+<!-- User Details Modal -->
+<div id="userDetailsModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="userModalTitle">User Details</h3>
+      <button class="modal-close" onclick="closeUserDetailsModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="userModalBody">
+      <div class="loading-content">
+        <i class="fas fa-spinner fa-spin"></i>
+        Loading user details...
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeUserDetailsModal()" class="btn btn-secondary">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Password Reset Modal -->
+<div id="passwordResetModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Reset User Password</h3>
+      <button class="modal-close" onclick="closePasswordResetModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p>
+        This feature would typically integrate with your password reset system.
+      </p>
+      <p>
+        For security, consider implementing email-based password reset instead
+        of direct admin reset.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closePasswordResetModal()" class="btn btn-secondary">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    initializeUserManagement();
+  });
+
+  function initializeUserManagement() {
+    initializeSearch();
+    initializeFilters();
+    setupEventListeners();
+  }
+
+  // Search and Filter Functions
+  function initializeSearch() {
+    const searchInput = document.getElementById("searchUsers");
+    let searchTimeout;
+
+    if (searchInput) {
+      searchInput.addEventListener("input", function () {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          filterUsers();
+        }, 300);
+      });
+    }
+  }
+
+  function initializeFilters() {
+    const roleFilter = document.getElementById("roleFilter");
+    const statusFilter = document.getElementById("statusFilter");
+
+    if (roleFilter) roleFilter.addEventListener("change", filterUsers);
+    if (statusFilter) statusFilter.addEventListener("change", filterUsers);
+  }
+
+  function filterUsers() {
+    const searchTerm = document
+      .getElementById("searchUsers")
+      .value.toLowerCase();
+    const roleFilter = document.getElementById("roleFilter").value;
+    const statusFilter = document.getElementById("statusFilter").value;
+    const userRows = document.querySelectorAll(".user-row");
+    const emptyState = document.getElementById("emptyState");
+    const usersTable = document.querySelector(".users-table");
+
+    let visibleCount = 0;
+
+    userRows.forEach((row) => {
+      const name = row.dataset.name || "";
+      const email = row.dataset.email || "";
+      const username = row.dataset.username || "";
+      const role = row.dataset.role || "";
+      const status = row.dataset.status || "";
+
+      const matchesSearch =
+        !searchTerm ||
+        name.includes(searchTerm) ||
+        email.includes(searchTerm) ||
+        username.includes(searchTerm);
+      const matchesRole = !roleFilter || role === roleFilter;
+      const matchesStatus = !statusFilter || status === statusFilter;
+
+      if (matchesSearch && matchesRole && matchesStatus) {
+        row.style.display = "";
+        visibleCount++;
+      } else {
+        row.style.display = "none";
+      }
+    });
+
+    // Show/hide empty state
+    if (visibleCount === 0 && (searchTerm || roleFilter || statusFilter)) {
+      if (emptyState) emptyState.style.display = "block";
+      if (usersTable) usersTable.style.display = "none";
+    } else {
+      if (emptyState) emptyState.style.display = "none";
+      if (usersTable) usersTable.style.display = "block";
+    }
+  }
+
+  function clearFilters() {
+    document.getElementById("searchUsers").value = "";
+    document.getElementById("roleFilter").value = "";
+    document.getElementById("statusFilter").value = "";
+    filterUsers();
+  }
+
+  function refreshUserList() {
+    window.location.reload();
+  }
+
+  // Event Listeners
+  function setupEventListeners() {
+    // Close dropdowns when clicking outside
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".dropdown")) {
+        document.querySelectorAll(".dropdown-menu.show").forEach((menu) => {
+          menu.classList.remove("show");
+        });
+      }
+    });
+
+    // Close modals when clicking outside
+    const modals = document.querySelectorAll(".modal");
+    modals.forEach((modal) => {
+      modal.addEventListener("click", function (e) {
+        if (e.target === this) {
+          this.style.display = "none";
+        }
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", function (e) {
+      // ESC to close modals
+      if (e.key === "Escape") {
+        closeUserDetailsModal();
+        closePasswordResetModal();
+      }
+
+      // Ctrl/Cmd + F to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        const searchInput = document.getElementById("searchUsers");
+        if (searchInput) searchInput.focus();
+      }
+    });
+  }
+
+  // Dropdown Functions
+  function toggleDropdown(event, button) {
+    event.stopPropagation();
+
+    const dropdown = button.closest(".dropdown");
+    const menu = dropdown.querySelector(".dropdown-menu");
+
+    // Close all other dropdowns
+    document.querySelectorAll(".dropdown-menu").forEach((otherMenu) => {
+      if (otherMenu !== menu) {
+        otherMenu.classList.remove("show");
+      }
+    });
+
+    // Toggle current dropdown
+    menu.classList.toggle("show");
+  }
+
+  // Confirmation Functions
+  function confirmDeactivateUser(userName, userRole) {
+    let message = `Are you sure you want to deactivate ${userName}?\n\n`;
+
+    if (userRole === "admin") {
+      message += "This will:\n";
+      message += "• Remove admin privileges\n";
+      message += "• Disable their login access\n";
+      message += "• Preserve their data\n";
+      message += "• Allow reactivation later\n\n";
+      message +=
+        "Note: System will prevent deactivation if this is the last admin.";
+    } else {
+      message += "This will:\n";
+      message += "• Disable their login access\n";
+      message += "• Preserve their QR codes\n";
+      message += "• Allow reactivation later";
+    }
+
+    return confirm(message);
+  }
+
+  function confirmPromoteUser(userName) {
+    return confirm(
+      `Promote ${userName} to admin?\n\n` +
+        "This will give them full system access including:\n" +
+        "• User management\n" +
+        "• System settings\n" +
+        "• All QR code operations"
+    );
+  }
+
+  function confirmDemoteUser(userName) {
+    return confirm(
+      `Demote ${userName} from admin to staff?\n\n` +
+        "This will:\n" +
+        "• Remove admin privileges\n" +
+        "• Limit access to QR code management only\n" +
+        "• Preserve their account and data"
+    );
+  }
+
+  // Permanent Delete Functions
+  function confirmPermanentDelete(userName) {
+    return confirm(
+      `⚠️ PERMANENTLY DELETE ${userName}?\n\n` +
+        "This action CANNOT be undone and will:\n" +
+        "• Permanently remove the user account\n" +
+        "• Delete all associated QR codes\n" +
+        "• Remove all user data from database\n\n" +
+        "Are you absolutely sure?"
+    );
+  }
+
+  // Modal Functions
+  function viewUserDetails(userId) {
+    const modal = document.getElementById("userDetailsModal");
+    const modalTitle = document.getElementById("userModalTitle");
+    const modalBody = document.getElementById("userModalBody");
+
+    if (!modal || !modalTitle || !modalBody) return;
+
+    modalTitle.textContent = "User Details";
+    modalBody.innerHTML = `
+        <div class="loading-content">
+            <i class="fas fa-spinner fa-spin"></i>
+            Loading user information...
+        </div>
+    `;
+
+    modal.style.display = "flex";
+
+    // Find user data from the table
+    const userRow = document.querySelector(`[data-user-id="${userId}"]`);
+    if (userRow) {
+      const userName = userRow.querySelector(".user-name").textContent;
+      const userEmail = userRow
+        .querySelector(".user-email")
+        .textContent.replace(
+          /^\s*[\u2709\u2709\uFE0F\u2196\u2197\u2198\u2199]*\s*/,
+          ""
+        )
+        .trim();
+      const userRole = userRow.dataset.role;
+      const userStatus = userRow.dataset.status;
+      const qrCount = userRow.querySelector(".qr-total strong").textContent;
+      const activeQrCount =
+        userRow.querySelector(".qr-active span").textContent;
+
+      setTimeout(() => {
+        modalTitle.textContent = `User Details - ${userName}`;
+        modalBody.innerHTML = `
+                <div class="user-detail-view">
+                    <div class="detail-header">
+                        <div class="detail-avatar">
+                            <i class="fas fa-user"></i>
+                            ${
+                              userRole === "admin"
+                                ? '<div class="avatar-badge admin"><i class="fas fa-crown"></i></div>'
+                                : ""
+                            }
+                        </div>
+                        <div class="detail-info">
+                            <h3>${userName}</h3>
+                            <p>${userEmail}</p>
+                            <span class="role-badge ${userRole}">
+                                <i class="fas ${
+                                  userRole === "admin"
+                                    ? "fa-crown"
+                                    : "fa-user-tie"
+                                }"></i>
+                                ${
+                                  userRole.charAt(0).toUpperCase() +
+                                  userRole.slice(1)
+                                }
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-sections">
+                        <div class="detail-section">
+                            <h4><i class="fas fa-info-circle"></i> Account Information</h4>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <strong>Status:</strong>
+                                    <span class="status-badge ${userStatus}">
+                                        <i class="fas ${
+                                          userStatus === "active"
+                                            ? "fa-check-circle"
+                                            : "fa-times-circle"
+                                        }"></i>
+                                        ${
+                                          userStatus.charAt(0).toUpperCase() +
+                                          userStatus.slice(1)
+                                        }
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <strong>Role:</strong>
+                                    <span>${
+                                      userRole.charAt(0).toUpperCase() +
+                                      userRole.slice(1)
+                                    }</span>
+                                </div>
+                                <div class="detail-item">
+                                    <strong>User ID:</strong>
+                                    <span>${userId}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h4><i class="fas fa-qrcode"></i> QR Code Activity</h4>
+                            <div class="activity-stats">
+                                <div class="activity-item">
+                                    <span class="activity-number">${qrCount}</span>
+                                    <span class="activity-label">Total QR Codes</span>
+                                </div>
+                                <div class="activity-item">
+                                    <span class="activity-number">${activeQrCount}</span>
+                                    <span class="activity-label">Active QR Codes</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+      }, 500);
+    }
+  }
+
+  function closeUserDetailsModal() {
+    const modal = document.getElementById("userDetailsModal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function resetUserPassword(userId, userName) {
+    const modal = document.getElementById("passwordResetModal");
+    if (modal) modal.style.display = "flex";
+  }
+
+  function closePasswordResetModal() {
+    const modal = document.getElementById("passwordResetModal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function viewUserQRCodes(userId) {
+    // This would navigate to a page showing the user's QR codes
+    alert(
+      `This would show QR codes for user ID: ${userId}\nYou can implement this by creating a route like /users/${userId}/qr-codes`
+    );
+  }
+
+  // Utility Functions
+  function showToast(message, type = "info") {
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i class="fas ${getToastIcon(type)}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 1rem;
+        z-index: 1000;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+        border-left: 4px solid ${getToastColor(type)};
+        max-width: 400px;
+    `;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateX(0)";
+    }, 100);
+
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(100%)";
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 4000);
+  }
+
+  function getToastIcon(type) {
+    const icons = {
+      success: "fa-check-circle",
+      error: "fa-exclamation-circle",
+      warning: "fa-exclamation-triangle",
+      info: "fa-info-circle",
+    };
+    return icons[type] || icons.info;
+  }
+
+  function getToastColor(type) {
+    const colors = {
+      success: "#059669",
+      error: "#dc2626",
+      warning: "#d97706",
+      info: "#0891b2",
+    };
+    return colors[type] || colors.info;
+  }
+</script>
+
+<style>
+  /* Users Page Styles */
+  .users-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .users-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding: 2rem;
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+  }
+
+  .header-content h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.5rem;
+  }
+
+  .header-content p {
+    color: var(--gray-500);
+    font-size: 1rem;
+  }
+
+  .users-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: var(--white);
+    padding: 1.5rem;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: var(--transition);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: var(--white);
+  }
+
+  .stat-icon.admin {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  }
+
+  .stat-icon.staff {
+    background: linear-gradient(135deg, var(--gray-500), var(--gray-600));
+  }
+
+  .stat-icon.active {
+    background: linear-gradient(135deg, var(--success-color), #047857);
+  }
+
+  .stat-icon.inactive {
+    background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+  }
+
+  .stat-info h3 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-info p {
+    color: var(--gray-500);
+    font-size: 0.875rem;
+  }
+
+  .users-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 1.5rem;
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+  }
+
+  .search-filters {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-box i {
+    position: absolute;
+    left: 0.75rem;
+    color: var(--gray-400);
+    z-index: 1;
+  }
+
+  .search-box input {
+    padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+    width: 300px;
+    transition: var(--transition);
+  }
+
+  .search-box input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .filter-group {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .filter-select {
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+    background-color: var(--white);
+    cursor: pointer;
+    transition: var(--transition);
+    min-width: 140px;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .users-container {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .users-table {
+    overflow-x: auto;
+  }
+
+  .users-table table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1000px;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: middle;
+  }
+
+  .users-table th {
+    background-color: var(--gray-50);
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: 0.875rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .users-table tbody tr {
+    transition: var(--transition);
+  }
+
+  .users-table tbody tr:hover {
+    background-color: var(--gray-50);
+  }
+
+  /* User Information Styles */
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .user-avatar {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    background: var(--gray-200);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-500);
+    font-size: 1.125rem;
+  }
+
+  .avatar-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.625rem;
+    border: 2px solid var(--white);
+  }
+
+  .avatar-badge.admin {
+    background: #fbbf24;
+    color: #92400e;
+  }
+
+  .user-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-weight: 600;
+    color: var(--gray-900);
+    font-size: 0.875rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .user-username {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-bottom: 0.25rem;
+  }
+
+  .current-user-badge {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  /* Contact Information */
+  .contact-info {
+    min-width: 0;
+  }
+
+  .user-email {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--gray-600);
+  }
+
+  .user-email i {
+    color: var(--gray-400);
+    font-size: 0.75rem;
+  }
+
+  /* Role Badge */
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  .role-badge.admin {
+    background: rgba(251, 191, 36, 0.1);
+    color: #d97706;
+  }
+
+  .role-badge.staff {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--gray-600);
+  }
+
+  /* Status Badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .status-badge.active {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+  }
+
+  .status-badge.inactive {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+  }
+
+  /* QR Count */
+  .qr-count {
+    text-align: center;
+  }
+
+  .qr-total {
+    margin-bottom: 0.25rem;
+  }
+
+  .qr-total strong {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+
+  .qr-total small,
+  .qr-active small {
+    font-size: 0.625rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .qr-active span {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--success-color);
+  }
+
+  /* Date Information */
+  .date-info {
+    text-align: center;
+  }
+
+  .date {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--gray-900);
+    margin-bottom: 0.125rem;
+  }
+
+  .time {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+
+  .text-muted {
+    color: var(--gray-400);
+    font-size: 0.875rem;
+  }
+
+  /* Action Buttons */
+  .user-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-edit {
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--info-color);
+  }
+
+  .btn-edit:hover {
+    background: rgba(8, 145, 178, 0.2);
+  }
+
+  .btn-promote {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+  }
+
+  .btn-promote:hover {
+    background: rgba(5, 150, 105, 0.2);
+  }
+
+  .btn-demote {
+    background: rgba(217, 119, 6, 0.1);
+    color: var(--warning-color);
+  }
+
+  .btn-demote:hover {
+    background: rgba(217, 119, 6, 0.2);
+  }
+
+  .btn-deactivate {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+  }
+
+  .btn-deactivate:hover {
+    background: rgba(220, 38, 38, 0.2);
+  }
+
+  .btn-activate {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--success-color);
+  }
+
+  .btn-activate:hover {
+    background: rgba(5, 150, 105, 0.2);
+  }
+
+  .btn-more {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--gray-600);
+  }
+
+  .btn-more:hover {
+    background: rgba(100, 116, 139, 0.2);
+  }
+
+  .btn-disabled {
+    background: rgba(156, 163, 175, 0.1);
+    color: var(--gray-400);
+    cursor: not-allowed;
+  }
+
+  .btn-disabled:hover {
+    transform: none;
+  }
+
+  .btn-delete {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+  }
+
+  .btn-delete:hover {
+    background: rgba(220, 38, 38, 0.2);
+  }
+
+  /* Dropdown Styles */
+  .dropdown {
+    position: relative;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    min-width: 180px;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: var(--transition);
+    padding: 0.5rem 0;
+  }
+
+  .dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--gray-700);
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: var(--transition);
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .dropdown-item:hover {
+    background-color: var(--gray-50);
+    color: var(--gray-900);
+  }
+
+  .dropdown-item i {
+    width: 16px;
+    color: var(--gray-400);
+  }
+
+  .dropdown-item.danger-item {
+    color: var(--danger-color);
+  }
+
+  .dropdown-item.danger-item:hover {
+    background-color: rgba(220, 38, 38, 0.1);
+    color: var(--danger-color);
+  }
+
+  .dropdown-item.danger-item i {
+    color: var(--danger-color);
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    background: var(--gray-200);
+    margin: 0.5rem 0;
+  }
+
+  /* Modal Styles */
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-content {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideUp 0.3s ease-out;
+  }
+
+  @keyframes modalSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .modal-header h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-900);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--gray-500);
+    transition: var(--transition);
+  }
+
+  .modal-close:hover {
+    background-color: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--gray-200);
+  }
+
+  /* User Detail View */
+  .user-detail-view {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+  }
+
+  .detail-avatar {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    background: var(--gray-200);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-500);
+    font-size: 1.5rem;
+  }
+
+  .detail-info h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.25rem;
+  }
+
+  .detail-info p {
+    color: var(--gray-500);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .detail-sections {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 1rem;
+  }
+
+  .detail-grid {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+  }
+
+  .detail-item strong {
+    color: var(--gray-700);
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .activity-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .activity-item {
+    text-align: center;
+    padding: 1rem;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+  }
+
+  .activity-number {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.25rem;
+  }
+
+  .activity-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .loading-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    color: var(--gray-500);
+  }
+
+  .loading-content i {
+    font-size: 1.25rem;
+  }
+
+  /* Delete Warning Modal Styles */
+  .delete-warning {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .warning-icon {
+    width: 50px;
+    height: 50px;
+    background: rgba(220, 38, 38, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--danger-color);
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .warning-content {
+    flex: 1;
+  }
+
+  .warning-content h4 {
+    color: var(--danger-color);
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+
+  .warning-content p {
+    color: var(--gray-700);
+    margin-bottom: 1rem;
+  }
+
+  .warning-details {
+    background: rgba(220, 38, 38, 0.05);
+    padding: 1rem;
+    border-radius: var(--radius);
+    border-left: 4px solid var(--danger-color);
+    margin-bottom: 1.5rem;
+  }
+
+  .warning-details h5 {
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .warning-details ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .warning-details li {
+    padding: 0.25rem 0;
+    color: var(--gray-700);
+    font-size: 0.875rem;
+    position: relative;
+    padding-left: 1rem;
+  }
+
+  .warning-details li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--danger-color);
+    font-weight: bold;
+  }
+
+  .confirmation-section {
+    background: var(--gray-50);
+    padding: 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+  }
+
+  .confirmation-section p {
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+    color: var(--gray-700);
+  }
+
+  .delete-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--gray-300);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: var(--white);
+  }
+
+  .delete-input:focus {
+    outline: none;
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .btn-danger {
+    background: var(--danger-color);
+    color: var(--white);
+    border: none;
+  }
+
+  .btn-danger:hover {
+    background: #b91c1c;
+  }
+
+  .btn-danger:disabled {
+    background: var(--gray-400);
+    cursor: not-allowed;
+  }
+
+  .btn-danger-enabled {
+    background: var(--danger-color) !important;
+    cursor: pointer !important;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+  }
+
+  .empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--gray-100), var(--gray-200));
+    color: var(--gray-400);
+    border-radius: 50%;
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.75rem;
+  }
+
+  .empty-state p {
+    color: var(--gray-500);
+    margin-bottom: 1.5rem;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 1200px) {
+    .users-page {
+      padding: 0 0.5rem;
+    }
+
+    .search-box input {
+      width: 250px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .users-header {
+      flex-direction: column;
+      gap: 1rem;
+      text-align: center;
+    }
+
+    .users-stats {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .users-controls {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .search-filters {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .filter-group {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .search-box input {
+      width: 100%;
+    }
+
+    .filter-select {
+      width: 100%;
+    }
+
+    .users-table {
+      font-size: 0.875rem;
+    }
+
+    .users-table th,
+    .users-table td {
+      padding: 0.75rem 0.5rem;
+    }
+
+    .user-actions {
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+
+    .action-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.75rem;
+    }
+
+    .modal-content {
+      margin: 0.5rem;
+      max-height: calc(100vh - 1rem);
+    }
+
+    .detail-header {
+      flex-direction: column;
+      text-align: center;
+      gap: 0.75rem;
+    }
+
+    .activity-stats {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .users-stats {
+      grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+      padding: 1rem;
+    }
+
+    .users-table table {
+      min-width: 800px;
+    }
+
+    .user-info {
+      flex-direction: column;
+      gap: 0.5rem;
+      text-align: center;
+    }
+  }
+
+  /* Accessibility and utility classes */
+  .text-center {
+    text-align: center;
+  }
+  .text-left {
+    text-align: left;
+  }
+  .text-right {
+    text-align: right;
+  }
+
+  .mb-1 {
+    margin-bottom: 0.25rem;
+  }
+  .mb-2 {
+    margin-bottom: 0.5rem;
+  }
+  .mb-3 {
+    margin-bottom: 0.75rem;
+  }
+  .mb-4 {
+    margin-bottom: 1rem;
+  }
+
+  .mt-1 {
+    margin-top: 0.25rem;
+  }
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+  .mt-3 {
+    margin-top: 0.75rem;
+  }
+  .mt-4 {
+    margin-top: 1rem;
+  }
+
+  .p-1 {
+    padding: 0.25rem;
+  }
+  .p-2 {
+    padding: 0.5rem;
+  }
+  .p-3 {
+    padding: 0.75rem;
+  }
+  .p-4 {
+    padding: 1rem;
+  }
+
+  /* Loading states */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--gray-200);
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Success/Error states */
+  .success {
+    color: var(--success-color);
+  }
+  .error {
+    color: var(--danger-color);
+  }
+  .warning {
+    color: var(--warning-color);
+  }
+  .info {
+    color: var(--info-color);
+  }
+
+  /* Hidden utility */
+  .hidden {
+    display: none !important;
+  }
+  .sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  /* Focus states for accessibility */
+  .action-btn:focus,
+  .dropdown-toggle:focus,
+  .btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .stat-icon.admin {
+      background: #000;
+      color: #fff;
+    }
+    .stat-icon.staff {
+      background: #666;
+      color: #fff;
+    }
+    .stat-icon.active {
+      background: #0a5a2e;
+      color: #fff;
+    }
+    .stat-icon.inactive {
+      background: #a01e1e;
+      color: #fff;
+    }
+
+    .role-badge.admin {
+      background: #000;
+      color: #fff;
+    }
+    .role-badge.staff {
+      background: #666;
+      color: #fff;
+    }
+
+    .status-badge.active {
+      background: #0a5a2e;
+      color: #fff;
+    }
+    .status-badge.inactive {
+      background: #a01e1e;
+      color: #fff;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    .stat-card:hover,
+    .action-btn:hover {
+      transform: none;
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    .users-controls,
+    .header-actions,
+    .user-actions,
+    .modal,
+    .empty-state {
+      display: none !important;
+    }
+
+    .users-page {
+      max-width: none;
+      padding: 0;
+    }
+
+    .users-header {
+      box-shadow: none;
+      border: 1px solid #000;
+    }
+
+    .users-table {
+      box-shadow: none;
+      border: 1px solid #000;
+    }
+
+    .users-table th,
+    .users-table td {
+      border: 1px solid #000;
+      padding: 0.5rem;
+    }
+
+    .stat-card {
+      break-inside: avoid;
+      box-shadow: none;
+      border: 1px solid #000;
+    }
+  }
+
+  /* Dark mode support (if implemented) */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --white: #1a1a1a;
+      --gray-50: #262626;
+      --gray-100: #2d2d2d;
+      --gray-200: #404040;
+      --gray-300: #525252;
+      --gray-400: #737373;
+      --gray-500: #a3a3a3;
+      --gray-600: #d4d4d4;
+      --gray-700: #e5e5e5;
+      --gray-800: #f5f5f5;
+      --gray-900: #ffffff;
+    }
+  }
+</style>
+{% endblock %}

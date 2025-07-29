@@ -1,0 +1,77 @@
+<!-- templates/errors/500.html -->
+{% extends "base.html" %} {% block title %}Server Error - QR Code Management{%
+endblock %} {% block content %}
+<div class="error-page">
+  <div class="error-container">
+    <div class="error-code">500</div>
+    <div class="error-message">
+      <h1>Internal Server Error</h1>
+      <p>Something went wrong on our end. We're working to fix it.</p>
+      <p class="error-detail">Please try again in a few moments.</p>
+    </div>
+    <div class="error-actions">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+        <i class="fas fa-home"></i>
+        Go to Dashboard
+      </a>
+      <button onclick="location.reload()" class="btn btn-secondary">
+        <i class="fas fa-redo"></i>
+        Try Again
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .error-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    padding: var(--spacing-8);
+  }
+
+  .error-container {
+    text-align: center;
+    max-width: 600px;
+  }
+
+  .error-code {
+    font-size: 8rem;
+    font-weight: 900;
+    color: var(--danger-color);
+    line-height: 1;
+    margin-bottom: var(--spacing-4);
+    background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .error-message h1 {
+    font-size: var(--font-size-3xl);
+    color: var(--gray-900);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .error-message p {
+    font-size: var(--font-size-lg);
+    color: var(--gray-600);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .error-detail {
+    font-size: var(--font-size-sm);
+    color: var(--danger-color);
+    font-weight: 600;
+    margin-bottom: var(--spacing-8) !important;
+  }
+
+  .error-actions {
+    display: flex;
+    gap: var(--spacing-4);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}

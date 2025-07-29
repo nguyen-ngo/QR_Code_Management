@@ -1,0 +1,392 @@
+{% extends "base.html" %} {% block title %}Dashboard - QR Code Management{%
+endblock %} {% block extra_head %}
+<!-- Dashboard-specific CSS -->
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/dashboard.css') }}"
+/>
+{% endblock %} {% block content %}
+<div class="dashboard-container">
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <div class="welcome-section">
+      <h1>Welcome back, {{ session.full_name }}!</h1>
+      <p>Manage your QR codes and monitor system activity</p>
+      <div class="user-info-badge">
+        <div class="role-indicator {{ session.role }}">
+          <i
+            class="fas {{ 'fa-crown' if session.role == 'admin' else 'fa-user' }}"
+          ></i>
+          {{ session.role.title() }}
+        </div>
+        {% if session.last_login_date %}
+        <div class="last-login">
+          <i class="fas fa-clock"></i>
+          Last login: {{ session.last_login_date.strftime('%b %d, %Y at %H:%M')
+          }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="quick-actions">
+      <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary btn-lg">
+        <i class="fas fa-plus"></i>
+        Create QR Code
+      </a>
+      {% if session.role == 'admin' %}
+      <a href="{{ url_for('users') }}" class="btn btn-secondary btn-lg">
+        <i class="fas fa-users"></i>
+        Manage Users
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Statistics Section -->
+  {% if session.role == 'admin' %}
+  <div class="stats-section">
+    <div class="stats-grid">
+      <div class="stat-card primary">
+        <div class="stat-icon">
+          <i class="fas fa-qrcode"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ qr_codes|length }}</h3>
+          <p>Total QR Codes</p>
+        </div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stat-content">
+          <h3>
+            {{ qr_codes|selectattr('active_status', 'equalto', True)|list|length
+            }}
+          </h3>
+          <p>Active QR Codes</p>
+        </div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ total_users or 0 }}</h3>
+          <p>Total Users</p>
+        </div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-icon">
+          <i class="fas fa-pause-circle"></i>
+        </div>
+        <div class="stat-content">
+          <h3>
+            {{ qr_codes|selectattr('active_status', 'equalto',
+            False)|list|length }}
+          </h3>
+          <p>Inactive QR Codes</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- QR Codes Section -->
+  <div class="qr-codes-section">
+    <div class="section-header">
+      <h2>Your QR Codes</h2>
+      <div class="section-controls">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input
+            type="text"
+            id="qrSearch"
+            placeholder="Search QR codes..."
+            data-container="qrGrid"
+          />
+        </div>
+        <select id="statusFilter" class="filter-select">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <div class="results-counter">{{ qr_codes|length }} results</div>
+        {% if session.role == 'admin' %}
+        <button id="expandAllToggle" class="btn btn-outline">
+          <i class="fas fa-expand-alt"></i>
+          Expand All
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if qr_codes %}
+    <!-- Bulk Actions Bar (initially hidden) -->
+    <div id="bulkActionsBar" class="bulk-actions-bar">
+      <div class="bulk-actions-info">
+        <i class="fas fa-check-square"></i>
+        <span id="selectedCount">0</span> QR codes selected
+      </div>
+      <div class="bulk-actions-buttons">
+        {% if session.role == 'admin' %}
+        <button id="bulkDeleteBtn" class="btn btn-danger btn-sm">
+          <i class="fas fa-trash"></i>
+          Delete Selected
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- QR Codes Grid -->
+    <div class="qr-grid" id="qrGrid">
+      {% for qr in qr_codes %}
+      <div
+        class="qr-item"
+        data-qr-id="{{ qr.id }}"
+        data-name="{{ qr.name.lower() }}"
+        data-location="{{ qr.location.lower() }}"
+        data-status="{{ 'active' if qr.active_status else 'inactive' }}"
+        onclick="toggleQRItem(this)"
+      >
+        <!-- QR Item Header -->
+        <div class="qr-item-header">
+          {% if session.role == 'admin' %}
+          <input
+            type="checkbox"
+            class="qr-checkbox"
+            value="{{ qr.id }}"
+            onclick="event.stopPropagation()"
+          />
+          {% endif %}
+          <div
+            class="qr-code-preview"
+            onclick="event.stopPropagation(); openQRModal({
+            name: '{{ qr.name }}',
+            image: '{{ qr.qr_code_image }}'
+          })"
+          >
+            <img
+              src="data:image/png;base64,{{ qr.qr_code_image }}"
+              alt="QR Code for {{ qr.name }}"
+            />
+          </div>
+          <div class="qr-item-info">
+            <div class="qr-item-title">
+              {{ qr.name }}
+              <span
+                class="qr-status {{ 'active' if qr.active_status else 'inactive' }}"
+              >
+                <i
+                  class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-times-circle' }}"
+                ></i>
+                {{ 'Active' if qr.active_status else 'Inactive' }}
+              </span>
+            </div>
+            <div class="qr-item-meta">
+              <span>
+                <i class="fas fa-calendar"></i>
+                {{ qr.created_date.strftime('%b %d, %Y') }}
+              </span>
+              <span>
+                <i class="fas fa-map-marker-alt"></i>
+                {{ qr.location }}
+              </span>
+              <span>
+                <i class="fas fa-user"></i>
+                {{ qr.creator.full_name }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="qr-item-actions">
+          <div class="quick-actions">
+            {% if session.role == 'admin' %}
+            <button
+              class="action-btn btn-status {{ 'btn-deactivate' if qr.active_status else 'btn-activate' }}"
+              onclick="event.stopPropagation(); toggleQRCodeStatus('{{ qr.id }}')"
+              title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
+              id="toggle-btn-{{ qr.id }}"
+            >
+              <i
+                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+                id="toggle-icon-{{ qr.id }}"
+              ></i>
+            </button>
+            {% endif %}
+
+            <button
+              class="action-btn btn-download"
+              onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')"
+              title="Download QR Code"
+            >
+              <i class="fas fa-download"></i>
+            </button>
+
+            <a
+              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              class="action-btn btn-edit"
+              onclick="event.stopPropagation()"
+              title="Edit QR Code"
+            >
+              <i class="fas fa-edit"></i>
+            </a>
+
+            {% if session.role == 'admin' %}
+            <button
+              class="action-btn btn-delete"
+              onclick="event.stopPropagation(); deleteQRCode('{{ qr.id }}', '{{ qr.name }}')"
+              title="Delete QR Code"
+            >
+              <i class="fas fa-trash"></i>
+            </button>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Expanded Details (initially hidden) -->
+        <div class="qr-item-details">
+          <div class="qr-details-content">
+            <div class="qr-details-info">
+              <div class="info-item">
+                <span class="label">Location Address:</span>
+                <span class="value"
+                  >{{ qr.location_address or 'Not specified' }}</span
+                >
+              </div>
+              <div class="info-item">
+                <span class="label">Event:</span>
+                <span class="value"
+                  >{{ qr.location_event or 'Not specified' }}</span
+                >
+              </div>
+              <div class="info-item">
+                <span class="label">Created by:</span>
+                <span class="value">{{ qr.creator.full_name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">Created on:</span>
+                <span class="value"
+                  >{{ qr.created_date.strftime('%B %d, %Y at %H:%M') }}</span
+                >
+              </div>
+              <div class="info-item">
+                <span class="label">QR ID:</span>
+                <span class="value">#{{ qr.id }}</span>
+              </div>
+            </div>
+            <div class="qr-details-preview">
+              <div
+                class="qr-details-image"
+                onclick="openQRModal({
+                name: '{{ qr.name }}',
+                image: '{{ qr.qr_code_image }}'
+              })"
+              >
+                <img
+                  src="data:image/png;base64,{{ qr.qr_code_image }}"
+                  alt="QR Code for {{ qr.name }}"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Detail Actions -->
+          <div class="details-actions">
+            {% if session.role == 'admin' %}
+            <button
+              onclick="toggleQRCodeStatus({{ qr.id }})"
+              class="btn {{ 'btn-warning' if qr.active_status else 'btn-success' }}"
+              id="detail-toggle-btn-{{ qr.id }}"
+            >
+              <i
+                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+              ></i>
+              {{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code
+            </button>
+            {% endif %}
+
+            <button
+              onclick="downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')"
+              class="btn btn-primary"
+            >
+              <i class="fas fa-download"></i>
+              Download QR Code
+            </button>
+
+            <a
+              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              class="btn btn-secondary"
+            >
+              <i class="fas fa-edit"></i>
+              Edit Details
+            </a>
+
+            <button
+              onclick="copyQRData('{{ qr.name }}', '{{ qr.location }}', '{{ qr.location_address }}', '{{ qr.location_event }}')"
+              class="btn btn-outline"
+            >
+              <i class="fas fa-copy"></i>
+              Copy Info
+            </button>
+
+            {% if session.role == 'admin' %}
+            <button
+              onclick="deleteQRCode({{ qr.id }}, '{{ qr.name }}')"
+              class="btn btn-danger"
+            >
+              <i class="fas fa-trash"></i>
+              Delete QR Code
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="empty-state">
+      <div class="empty-icon">
+        <i class="fas fa-qrcode"></i>
+      </div>
+      <h3>No QR Codes Yet</h3>
+      <p>Get started by creating your first QR code</p>
+      <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i>
+        Create Your First QR Code
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- QR Code Modal -->
+<div id="qrModal" class="modal">
+  <div class="modal-content qr-modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">QR Code Preview</h3>
+      <button class="modal-close" onclick="closeQRModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="qr-modal-image">
+        <img id="modalQRImage" src="" alt="QR Code" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="downloadModalQR()" class="btn btn-primary">
+        <i class="fas fa-download"></i>
+        Download
+      </button>
+      <button onclick="closeQRModal()" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_scripts %}
+<!-- Dashboard-specific JavaScript -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

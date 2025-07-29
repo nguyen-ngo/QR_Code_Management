@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check In - {{ qr_code.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/qr_destination.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+    <div class="destination-container">
+        <!-- Header Section -->
+        <div class="destination-header">
+            <div class="header-icon">
+                <i class="fas fa-qrcode"></i>
+            </div>
+            <h1>{{ qr_code.location_event }}</h1>
+            <p class="location-info">
+                <i class="fas fa-map-marker-alt"></i>
+                {{ qr_code.location }}
+            </p>
+        </div>
+
+        <!-- QR Code Info Card -->
+        <div class="info-card">
+            <div class="info-header">
+                <h2>
+                    <i class="fas fa-info-circle"></i>
+                    Event Information
+                </h2>
+            </div>
+            
+            <div class="info-details">
+                <div class="detail-item">
+                    <div class="detail-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="detail-content">
+                        <strong>Event:</strong>
+                        <span>{{ qr_code.location_event }}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="detail-content">
+                        <strong>Location:</strong>
+                        <span>{{ qr_code.location }}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">
+                        <i class="fas fa-home"></i>
+                    </div>
+                    <div class="detail-content">
+                        <strong>Address:</strong>
+                        <span>{{ qr_code.location_address }}</span>
+                    </div>
+                </div>
+                
+                <div class="detail-item">
+                    <div class="detail-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="detail-content">
+                        <strong>Current Time:</strong>
+                        <span id="currentTime">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Check-in Form -->
+        <div class="checkin-card">
+            <div class="checkin-header">
+                <h2>
+                    <i class="fas fa-user-check"></i>
+                    Staff Check-In
+                </h2>
+                <p>Please enter your Employee ID to check in</p>
+            </div>
+
+            <form id="checkinForm" class="checkin-form">
+                <div class="form-group">
+                    <label for="employee_id">
+                        <i class="fas fa-id-badge"></i>
+                        Employee ID
+                    </label>
+                    <input type="text" 
+                           id="employee_id" 
+                           name="employee_id" 
+                           required 
+                           placeholder="Enter your Employee ID"
+                           autocomplete="off"
+                           maxlength="20">
+                    <small class="form-help">Use your official employee ID (3-20 characters)</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-content">
+                            <i class="fas fa-check"></i>
+                            Check In Now
+                        </span>
+                        <div class="btn-loader" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            Processing...
+                        </div>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Status Messages -->
+            <div id="statusMessage" class="status-message" style="display: none;">
+                <!-- Dynamic status messages will appear here -->
+            </div>
+        </div>
+
+        <!-- Success Card (Hidden by default) -->
+        <div id="successCard" class="success-card" style="display: none;">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>Check-In Successful!</h2>
+            <div class="success-details">
+                <div class="success-item">
+                    <strong>Employee ID:</strong>
+                    <span id="successEmployeeId">-</span>
+                </div>
+                <div class="success-item">
+                    <strong>Location:</strong>
+                    <span id="successLocation">-</span>
+                </div>
+                <div class="success-item">
+                    <strong>Event:</strong>
+                    <span id="successEvent">-</span>
+                </div>
+                <div class="success-item">
+                    <strong>Time:</strong>
+                    <span id="successTime">-</span>
+                </div>
+                <div class="success-item">
+                    <strong>Date:</strong>
+                    <span id="successDate">-</span>
+                </div>
+            </div>
+            
+            <div class="success-actions">
+                <button onclick="checkInAnother()" class="btn btn-secondary">
+                    <i class="fas fa-plus"></i>
+                    Check In Another Employee
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="destination-footer">
+            <p>
+                <i class="fas fa-shield-alt"></i>
+                Secure attendance tracking system
+            </p>
+            <small>© 2025 QR Management System</small>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processing check-in...</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
+    <script>
+        // Initialize page with QR code URL
+        window.qrUrl = '{{ qr_code.qr_url }}';
+        window.locationName = '{{ qr_code.location }}';
+        window.eventName = '{{ qr_code.location_event }}';
+    </script>
+</body>
+</html>

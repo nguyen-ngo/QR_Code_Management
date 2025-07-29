@@ -1,0 +1,73 @@
+{% extends "base.html" %} {% block title %}Login - QR Code Management{% endblock
+%} {% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">
+        <i class="fas fa-qrcode"></i>
+      </div>
+      <h1>QR Manager</h1>
+      <p>Sign in to your account</p>
+    </div>
+
+    <form method="POST" class="auth-form">
+      <div class="form-group">
+        <label for="username">
+          <i class="fas fa-user"></i>
+          Username
+        </label>
+        <input type="text" id="username" name="username" required />
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          <i class="fas fa-lock"></i>
+          Password
+        </label>
+        <input type="password" id="password" name="password" required />
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full">
+        <i class="fas fa-sign-in-alt"></i>
+        Sign In
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>
+        Don't have an account?
+        <a href="{{ url_for('register') }}" class="auth-link">Register here</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_scripts %}
+<script>
+  // Add form validation and user experience improvements
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.querySelector(".auth-form");
+    const inputs = form.querySelectorAll("input");
+
+    // Add focus effects
+    inputs.forEach((input) => {
+      input.addEventListener("focus", function () {
+        this.parentElement.classList.add("focused");
+      });
+
+      input.addEventListener("blur", function () {
+        if (!this.value) {
+          this.parentElement.classList.remove("focused");
+        }
+      });
+    });
+
+    // Form submission with loading state
+    form.addEventListener("submit", function () {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+      submitBtn.disabled = true;
+    });
+  });
+</script>
+{% endblock %}

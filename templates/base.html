@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}QR Code Management System{% endblock %}</title>
+
+    <!-- Main CSS -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Page-specific CSS -->
+    {% block extra_head %}{% endblock %}
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename='favicon.ico') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    {% if session.user_id %}
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-brand">
+          <i class="fas fa-qrcode"></i>
+          <span>QR Manager</span>
+        </div>
+
+        <div class="nav-menu" id="navMenu">
+          <a href="{{ url_for('dashboard') }}" class="nav-link">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+          </a>
+
+          {% if session.role == 'admin' %}
+          <a href="{{ url_for('users') }}" class="nav-link">
+            <i class="fas fa-users"></i> Users
+          </a>
+          <a href="{{ url_for('attendance_report') }}" class="nav-link">
+            <i class="fas fa-chart-line"></i> Reports
+          </a>
+          {% endif %}
+
+          <a href="{{ url_for('create_qr_code') }}" class="nav-link">
+            <i class="fas fa-plus"></i> Create QR
+          </a>
+
+          <a href="{{ url_for('profile') }}" class="nav-link">
+            <i class="fas fa-user"></i> Profile
+          </a>
+
+          <!-- Theme Toggle -->
+          <button
+            id="themeToggle"
+            class="nav-link"
+            style="background: none; border: none"
+          >
+            <i class="fas fa-moon"></i>
+          </button>
+
+          <a href="{{ url_for('logout') }}" class="nav-link logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </a>
+        </div>
+
+        <!-- Mobile Menu Button -->
+        <div class="nav-toggle" id="mobile-menu">
+          <span class="bar"></span>
+          <span class="bar"></span>
+          <span class="bar"></span>
+        </div>
+      </div>
+    </nav>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+          <i
+            class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% elif category == 'info' %}fa-info-circle{% else %}fa-exclamation-triangle{% endif %}"
+          ></i>
+          {{ message }}
+          <button
+            class="alert-close"
+            onclick="this.parentElement.style.display='none'"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %}
+
+      <!-- Page Content -->
+      <div class="container">{% block content %}{% endblock %}</div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <p>&copy; 2025 QR Code Management System. All rights reserved.</p>
+          <div class="footer-links">
+            <a href="#" class="footer-link">Privacy Policy</a>
+            <a href="#" class="footer-link">Terms of Service</a>
+            <a href="#" class="footer-link">Support</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Main JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+    <!-- Page-specific JavaScript -->
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- Global JavaScript Variables -->
+    <script>
+      // Pass Flask session data to JavaScript
+      window.qrConfig = {
+        currentUserId: {{ session.user_id|default('null') }},
+        currentUserRole: '{{ session.role|default('') }}',
+        currentUserName: '{{ session.full_name|default('') }}',
+        csrfToken: '{{ csrf_token() if csrf_token else '' }}'
+      };
+    </script>
+  </body>
+</html>
