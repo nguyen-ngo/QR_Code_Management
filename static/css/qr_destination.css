@@ -777,7 +777,7 @@ body {
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
     :root {
         --white: #1a1a1a;
         --gray-50: #262626;
