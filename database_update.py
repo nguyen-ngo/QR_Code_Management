@@ -16,7 +16,7 @@ def create_app():
     app = Flask(__name__)
     
     # Database configuration
-    database_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:Ratkhonho123@localhost/qr_management')
+    database_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres1411@localhost/qr_management')
     
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

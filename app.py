@@ -15,7 +15,7 @@ from user_agents import parse
 # Initialize Flask application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:Ratkhonho123@localhost/qr_management'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres1411@localhost/qr_management'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database
