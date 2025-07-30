@@ -2,8 +2,16 @@
 
 {% block title %}Attendance Report - QR Code Management{% endblock %}
 
+{% block extra_head %}
+<!-- Attendance-specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+<!-- Chart.js for analytics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="attendance-page">
+    <!-- Header Section -->
     <div class="attendance-header">
         <div class="header-content">
             <h1>
@@ -68,7 +76,7 @@
                 <div class="stat-content">
                     <h3>{{ stats.today_checkins or 0 }}</h3>
                     <p>Today's Check-ins</p>
-                    <span class="stat-trend">{{ "now"|strftime('%B %d') }}</span>
+                    <span class="stat-trend">{{ current_date_formatted or 'Today' }}</span>
                 </div>
             </div>
         </div>
@@ -95,7 +103,7 @@
                                id="date" 
                                name="date" 
                                value="{{ date_filter }}"
-                               max="{{ 'now'|strftime('%Y-%m-%d') }}">
+                               max="{{ today_date or '' }}">
                     </div>
                     
                     <div class="filter-group">
@@ -322,6 +330,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script src="{{ url_for('static', filename='js/attendance_report.js') }}"></script>
 {% endblock %}
