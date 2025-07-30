@@ -1,5 +1,12 @@
-{% extends "base.html" %} {% block title %}Login - QR Code Management{% endblock
-%} {% block content %}
+{% extends "base.html" %} 
+{% block title %}Login - QR Code Management{% endblock %}
+
+{% block extra_styles %}
+<!-- Include the new authentication styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
 <div class="auth-container">
   <div class="auth-card">
     <div class="auth-header">
@@ -33,22 +40,19 @@
       </button>
     </form>
 
-    <div class="auth-footer">
-      <p>
-        Don't have an account?
-        <a href="{{ url_for('register') }}" class="auth-link">Register here</a>
-      </p>
-    </div>
+    <!-- Register link removed as requested -->
   </div>
 </div>
-{% endblock %} {% block extra_scripts %}
+{% endblock %} 
+
+{% block extra_scripts %}
 <script>
-  // Add form validation and user experience improvements
+  // Enhanced form validation and user experience improvements
   document.addEventListener("DOMContentLoaded", function () {
     const form = document.querySelector(".auth-form");
     const inputs = form.querySelectorAll("input");
 
-    // Add focus effects
+    // Add focus effects with improved visual feedback
     inputs.forEach((input) => {
       input.addEventListener("focus", function () {
         this.parentElement.classList.add("focused");
@@ -59,15 +63,44 @@
           this.parentElement.classList.remove("focused");
         }
       });
+
+      // Keep focus state if input has value
+      if (input.value) {
+        input.parentElement.classList.add("focused");
+      }
     });
 
-    // Form submission with loading state
+    // Enhanced form submission with loading state
     form.addEventListener("submit", function () {
       const submitBtn = form.querySelector('button[type="submit"]');
-      submitBtn.innerHTML =
-        '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+      const originalContent = submitBtn.innerHTML;
+      
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
       submitBtn.disabled = true;
+      
+      // Re-enable button after 10 seconds as fallback
+      setTimeout(() => {
+        if (submitBtn.disabled) {
+          submitBtn.innerHTML = originalContent;
+          submitBtn.disabled = false;
+        }
+      }, 10000);
     });
+
+    // Add keyboard navigation enhancement
+    inputs.forEach((input, index) => {
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && index < inputs.length - 1) {
+          e.preventDefault();
+          inputs[index + 1].focus();
+        }
+      });
+    });
+
+    // Auto-focus first input
+    if (inputs.length > 0) {
+      inputs[0].focus();
+    }
   });
 </script>
 {% endblock %}
