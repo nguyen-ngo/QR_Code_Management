@@ -147,22 +147,7 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
-'''
-def admin_required(f):
-    """Decorator to ensure user has admin privileges"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please log in to access this page.', 'error')
-            return redirect(url_for('login'))
-        
-        user = User.query.get(session['user_id'])
-        if not user or not user.is_admin():
-            flash('Admin privileges required for this action.', 'error')
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-'''
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -198,6 +183,24 @@ def generate_qr_code(data):
     
     return img_str
 
+@app.template_filter('strftime')
+def strftime_filter(value, format='%Y-%m-%d'):
+    """Format datetime/date/string as strftime"""
+    if isinstance(value, str):
+        if value.lower() == 'now':
+            return datetime.now().strftime(format)
+        try:
+            # Try to parse string as datetime
+            dt = datetime.fromisoformat(value)
+            return dt.strftime(format)
+        except (ValueError, TypeError):
+            return value
+    
+    if hasattr(value, 'strftime'):
+        return value.strftime(format)
+    
+    return str(value)
+
 # Routes
 @app.route('/')
 def index():
@@ -205,32 +208,6 @@ def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
-'''
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """User authentication endpoint"""
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        user = User.query.filter_by(username=username, active_status=True).first()
-        
-        if user and user.check_password(password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            
-            # Update last login date
-            user.last_login_date = datetime.utcnow()
-            db.session.commit()
-            
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password.', 'error')
-    
-    return render_template('login.html')
-'''
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -1360,13 +1337,19 @@ def attendance_report():
         """))
         stats = stats_query.fetchone()
         
+        # Add today's date for template
+        today_date = datetime.now().strftime('%Y-%m-%d')
+        current_date_formatted = datetime.now().strftime('%B %d')
+        
         return render_template('attendance_report.html', 
                              attendance_records=attendance_records,
                              locations=locations,
                              stats=stats,
                              date_filter=date_filter,
                              location_filter=location_filter,
-                             employee_filter=employee_filter)
+                             employee_filter=employee_filter,
+                             today_date=today_date,
+                             current_date_formatted=current_date_formatted)
         
     except Exception as e:
         print(f"Error loading attendance report: {e}")
