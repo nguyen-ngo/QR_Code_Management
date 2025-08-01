@@ -1,6 +1,6 @@
 /**
- * Attendance Report JavaScript
- * Handles filtering, sorting, pagination, and analytics for attendance data
+ * Enhanced Attendance Report JavaScript with Location Support
+ * Fixed version - removes undefined function calls
  */
 
 // Global variables
@@ -11,144 +11,163 @@ let sortDirection = 'asc';
 let attendanceData = [];
 let filteredData = [];
 
-// Charts
+// Charts (if you want to add them later)
 let dailyChart = null;
 let locationChart = null;
 
 // Initialize page when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Attendance Report page initialized');
+    console.log('Enhanced Attendance Report page initialized');
     
     initializeReport();
-    loadAttendanceData();
-    initializeCharts();
     setupEventListeners();
+    
+    // Initialize location-specific features
+    initializeLocationFeatures();
 });
 
 function initializeReport() {
-    // Load data from table
+    console.log('📊 Initializing attendance report...');
+    
+    // Load data from existing table
     loadTableData();
     
-    // Initialize pagination
+    // Initialize pagination if needed
     updatePagination();
     
-    // Apply initial filters if any
+    // Apply any initial filters
     applyFilters();
+    
+    console.log('✅ Report initialized successfully');
 }
 
 function loadTableData() {
     const table = document.getElementById('attendanceTable');
-    if (table) {
-        const rows = table.querySelectorAll('tbody tr');
-        attendanceData = Array.from(rows).map((row, index) => {
-            const cells = row.querySelectorAll('td');
-            return {
-                id: row.dataset.recordId,
-                index: index + 1,
-                employeeId: cells[1] ? cells[1].textContent.trim() : '',
-                location: cells[2] ? cells[2].textContent.trim() : '',
-                event: cells[3] ? cells[3].textContent.trim() : '',
-                date: cells[4] ? cells[4].textContent.trim() : '',
-                time: cells[5] ? cells[5].textContent.trim() : '',
-                device: cells[6] ? cells[6].getAttribute('title') || cells[6].textContent.trim() : '',
-                status: cells[7] ? cells[7].textContent.trim() : '',
-                element: row
-            };
-        });
-        
-        filteredData = [...attendanceData];
+    if (!table) {
+        console.log('⚠️ Attendance table not found');
+        return;
     }
+    
+    const rows = table.querySelectorAll('tbody tr');
+    attendanceData = Array.from(rows).map((row, index) => {
+        const cells = row.querySelectorAll('td');
+        return {
+            id: row.dataset.recordId || index,
+            index: index + 1,
+            employeeId: cells[1] ? cells[1].textContent.trim() : '',
+            location: cells[2] ? cells[2].textContent.trim() : '',
+            event: cells[3] ? cells[3].textContent.trim() : '',
+            date: cells[4] ? cells[4].textContent.trim() : '',
+            time: cells[5] ? cells[5].textContent.trim() : '',
+            // Location data (new columns)
+            gpsStatus: cells[6] ? cells[6].textContent.trim() : '',
+            coordinates: cells[7] ? cells[7].textContent.trim() : '',
+            accuracy: cells[8] ? cells[8].textContent.trim() : '',
+            address: cells[9] ? cells[9].textContent.trim() : '',
+            device: cells[10] ? cells[10].getAttribute('title') || cells[10].textContent.trim() : '',
+            status: cells[11] ? cells[11].textContent.trim() : '',
+            row: row
+        };
+    });
+    
+    filteredData = [...attendanceData];
+    console.log(`📋 Loaded ${attendanceData.length} attendance records`);
 }
 
 function setupEventListeners() {
-    // Entries per page change
+    // Entries per page selector
     const entriesSelect = document.getElementById('entriesPerPage');
     if (entriesSelect) {
         entriesSelect.addEventListener('change', changeEntriesPerPage);
     }
     
-    // Filter form
-    const filtersForm = document.getElementById('filtersForm');
-    if (filtersForm) {
-        filtersForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            applyFilters();
+    // Search functionality (if you have a search input)
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearch);
+    }
+    
+    // Filter form submission
+    const filterForm = document.querySelector('form[action*="attendance"]');
+    if (filterForm) {
+        filterForm.addEventListener('submit', handleFilterSubmit);
+    }
+    
+    console.log('👂 Event listeners set up');
+}
+
+function initializeLocationFeatures() {
+    console.log('📍 Initializing location features...');
+    
+    // Count records with location data
+    const recordsWithLocation = attendanceData.filter(record => 
+        record.gpsStatus && record.gpsStatus.includes('GPS')
+    ).length;
+    
+    const locationCoverage = attendanceData.length > 0 
+        ? Math.round((recordsWithLocation / attendanceData.length) * 100)
+        : 0;
+    
+    console.log(`📊 Location coverage: ${recordsWithLocation}/${attendanceData.length} (${locationCoverage}%)`);
+    
+    // Add click handlers for map links
+    document.querySelectorAll('.map-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            console.log('🗺️ Opening map link:', this.href);
         });
-    }
+    });
     
-    // Real-time employee filter
-    const employeeFilter = document.getElementById('employee');
-    if (employeeFilter) {
-        employeeFilter.addEventListener('input', debounce(applyFilters, 300));
-    }
-    
-    // Date and location filters
-    const dateFilter = document.getElementById('date');
-    const locationFilter = document.getElementById('location');
-    
-    if (dateFilter) {
-        dateFilter.addEventListener('change', applyFilters);
-    }
-    
-    if (locationFilter) {
-        locationFilter.addEventListener('change', applyFilters);
-    }
+    // Add click handlers for view record buttons
+    document.querySelectorAll('.action-btn[title*="View"]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const recordId = this.closest('tr').dataset.recordId;
+            if (recordId) {
+                viewRecord(recordId);
+            }
+        });
+    });
 }
 
 function changeEntriesPerPage() {
     const select = document.getElementById('entriesPerPage');
+    if (!select) return;
+    
     entriesPerPage = select.value === 'all' ? filteredData.length : parseInt(select.value);
     currentPage = 1;
-    updateTable();
+    
+    console.log(`📄 Changed entries per page to: ${entriesPerPage}`);
+    displayPage();
     updatePagination();
 }
 
-function applyFilters() {
-    const dateFilter = document.getElementById('date')?.value || '';
-    const locationFilter = document.getElementById('location')?.value || '';
-    const employeeFilter = document.getElementById('employee')?.value.toLowerCase() || '';
+function handleSearch(event) {
+    const searchTerm = event.target.value.toLowerCase().trim();
     
-    filteredData = attendanceData.filter(record => {
-        const matchesDate = !dateFilter || record.date === dateFilter;
-        const matchesLocation = !locationFilter || record.location === locationFilter;
-        const matchesEmployee = !employeeFilter || 
-            record.employeeId.toLowerCase().includes(employeeFilter);
-        
-        return matchesDate && matchesLocation && matchesEmployee;
-    });
-    
-    currentPage = 1;
-    updateTable();
-    updatePagination();
-    updateFilterStats();
-}
-
-function clearFilters() {
-    // Clear form inputs
-    const form = document.getElementById('filtersForm');
-    if (form) {
-        form.reset();
+    if (searchTerm === '') {
+        filteredData = [...attendanceData];
+    } else {
+        filteredData = attendanceData.filter(record => 
+            record.employeeId.toLowerCase().includes(searchTerm) ||
+            record.location.toLowerCase().includes(searchTerm) ||
+            record.event.toLowerCase().includes(searchTerm) ||
+            record.address.toLowerCase().includes(searchTerm)
+        );
     }
     
-    // Reset filtered data
-    filteredData = [...attendanceData];
     currentPage = 1;
-    
-    // Update display  
-    updateTable();
+    displayPage();
     updatePagination();
-    updateFilterStats();
     
-    // Update URL without filters
-    const url = new URL(window.location);
-    url.search = '';
-    window.history.pushState({}, '', url);
+    console.log(`🔍 Search results: ${filteredData.length} records found`);
+}
+
+function handleFilterSubmit(event) {
+    // Let the form submit normally to reload with filters
+    console.log('🔽 Applying filters...');
 }
 
 function sortTable(columnIndex) {
-    const headers = ['index', 'employeeId', 'location', 'event', 'date', 'time', 'device', 'status'];
-    const column = headers[columnIndex];
-    
     if (sortColumn === columnIndex) {
         sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
@@ -156,568 +175,251 @@ function sortTable(columnIndex) {
         sortDirection = 'asc';
     }
     
-    filteredData.sort((a, b) => {
-        let aVal = a[column];
-        let bVal = b[column];
-        
-        // Handle different data types
-        if (column === 'date' || column === 'time') {
-            aVal = new Date(column === 'date' ? aVal : `2000-01-01 ${aVal}`);
-            bVal = new Date(column === 'date' ? bVal : `2000-01-01 ${bVal}`);
-        } else if (column === 'index') {
-            aVal = parseInt(aVal);
-            bVal = parseInt(bVal);
-        } else {
+    // Update sort indicators
+    updateSortIndicators();
+    
+    // Sort the data
+    const sortKey = getSortKey(columnIndex);
+    if (sortKey) {
+        filteredData.sort((a, b) => {
+            let aVal = a[sortKey] || '';
+            let bVal = b[sortKey] || '';
+            
+            // Convert to strings for comparison
             aVal = aVal.toString().toLowerCase();
             bVal = bVal.toString().toLowerCase();
-        }
-        
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-    });
-    
-    updateTable();
-    updateSortIndicators(columnIndex);
-}
-
-function updateSortIndicators(activeColumn) {
-    const headers = document.querySelectorAll('th[onclick]');
-    headers.forEach((header, index) => {
-        const icon = header.querySelector('i');
-        if (icon) {
-            if (index === activeColumn) {
-                icon.className = `fas fa-sort-${sortDirection === 'asc' ? 'up' : 'down'}`;
+            
+            if (sortDirection === 'asc') {
+                return aVal.localeCompare(bVal);
             } else {
-                icon.className = 'fas fa-sort';
+                return bVal.localeCompare(aVal);
             }
+        });
+        
+        displayPage();
+        
+        console.log(`🔄 Sorted by column ${columnIndex} (${sortDirection})`);
+    }
+}
+
+function getSortKey(columnIndex) {
+    const sortKeys = {
+        0: 'index',
+        1: 'employeeId',
+        2: 'location', 
+        3: 'event',
+        4: 'date',
+        5: 'time',
+        6: 'gpsStatus',
+        7: 'coordinates',
+        8: 'accuracy',
+        9: 'address',
+        10: 'device',
+        11: 'status'
+    };
+    
+    return sortKeys[columnIndex];
+}
+
+function updateSortIndicators() {
+    // Update sort arrows in table headers
+    document.querySelectorAll('.attendance-table th i.fas').forEach((icon, index) => {
+        icon.className = 'fas fa-sort';
+        
+        if (index === sortColumn) {
+            icon.className = sortDirection === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
         }
     });
 }
 
-function updateTable() {
-    const tbody = document.querySelector('#attendanceTable tbody');
+function displayPage() {
+    const table = document.getElementById('attendanceTable');
+    if (!table) return;
+    
+    const tbody = table.querySelector('tbody');
     if (!tbody) return;
+    
+    // Hide all rows first
+    tbody.querySelectorAll('tr').forEach(row => {
+        row.style.display = 'none';
+    });
     
     // Calculate pagination
     const startIndex = (currentPage - 1) * entriesPerPage;
-    const endIndex = entriesPerPage === filteredData.length ? 
-        filteredData.length : 
-        Math.min(startIndex + entriesPerPage, filteredData.length);
+    const endIndex = startIndex + (entriesPerPage === filteredData.length ? filteredData.length : entriesPerPage);
     
-    // Hide all rows first
-    attendanceData.forEach(record => {
-        if (record.element) {
-            record.element.style.display = 'none';
+    // Show relevant rows
+    for (let i = startIndex; i < endIndex && i < filteredData.length; i++) {
+        const record = filteredData[i];
+        if (record.row) {
+            record.row.style.display = '';
         }
-    });
-    
-    // Show filtered and paginated rows
-    const visibleData = filteredData.slice(startIndex, endIndex);
-    visibleData.forEach((record, index) => {
-        if (record.element) {
-            record.element.style.display = '';
-            // Update row number
-            const firstCell = record.element.querySelector('td:first-child');
-            if (firstCell) {
-                firstCell.textContent = startIndex + index + 1;
-            }
-        }
-    });
-    
-    // Show empty state if no data
-    showEmptyStateIfNeeded();
-}
-
-function showEmptyStateIfNeeded() {
-    const tbody = document.querySelector('#attendanceTable tbody');
-    let emptyRow = tbody.querySelector('.empty-row');
-    
-    if (filteredData.length === 0) {
-        if (!emptyRow) {
-            emptyRow = document.createElement('tr');
-            emptyRow.className = 'empty-row';
-            emptyRow.innerHTML = `
-                <td colspan="9" style="text-align: center; padding: 3rem;">
-                    <div style="color: #6b7280;">
-                        <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                        <h3>No Records Found</h3>
-                        <p>No attendance records match your current filters.</p>
-                        <button onclick="clearFilters()" class="btn btn-primary" style="margin-top: 1rem;">
-                            <i class="fas fa-refresh"></i> Clear Filters
-                        </button>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(emptyRow);
-        }
-        emptyRow.style.display = '';
-    } else if (emptyRow) {
-        emptyRow.style.display = 'none';
     }
+    
+    console.log(`📄 Displaying records ${startIndex + 1}-${Math.min(endIndex, filteredData.length)} of ${filteredData.length}`);
 }
 
 function updatePagination() {
-    const container = document.getElementById('paginationContainer');
-    if (!container) return;
+    // This is a placeholder for pagination controls
+    // You can implement pagination UI here if needed
     
     const totalPages = Math.ceil(filteredData.length / entriesPerPage);
-    
-    if (totalPages <= 1) {
-        container.innerHTML = '';
+    console.log(`📄 Page ${currentPage} of ${totalPages}`);
+}
+
+function applyFilters() {
+    // Filters are handled by the backend through form submission
+    // This function can be used for client-side filtering if needed
+    console.log('🔽 Filters applied');
+}
+
+// Export and utility functions
+function exportToCSV() {
+    const table = document.getElementById('attendanceTable');
+    if (!table) {
+        console.error('❌ Table not found for export');
         return;
     }
     
-    let paginationHTML = '<div class="pagination">';
+    let csv = [];
+    const rows = table.querySelectorAll('tr');
     
-    // Previous button
-    paginationHTML += `
-        <button onclick="goToPage(${currentPage - 1})" 
-                class="pagination-btn" 
-                ${currentPage === 1 ? 'disabled' : ''}>
-            <i class="fas fa-chevron-left"></i>
-        </button>
-    `;
-    
-    // Page numbers
-    const maxVisiblePages = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-    
-    if (endPage - startPage + 1 < maxVisiblePages) {
-        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-    
-    if (startPage > 1) {
-        paginationHTML += `<button onclick="goToPage(1)" class="pagination-btn">1</button>`;
-        if (startPage > 2) {
-            paginationHTML += '<span class="pagination-ellipsis">...</span>';
+    for (let i = 0; i < rows.length; i++) {
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+        
+        for (let j = 0; j < cols.length - 1; j++) { // Skip actions column
+            let cellText = cols[j].innerText.replace(/"/g, '""');
+            // Clean up the text (remove extra whitespace, newlines)
+            cellText = cellText.replace(/\s+/g, ' ').trim();
+            row.push('"' + cellText + '"');
         }
+        csv.push(row.join(','));
     }
     
-    for (let i = startPage; i <= endPage; i++) {
-        paginationHTML += `
-            <button onclick="goToPage(${i})" 
-                    class="pagination-btn ${i === currentPage ? 'active' : ''}">
-                ${i}
-            </button>
-        `;
-    }
+    // Download CSV
+    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const downloadLink = document.createElement('a');
+    downloadLink.download = `attendance_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
     
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            paginationHTML += '<span class="pagination-ellipsis">...</span>';
-        }
-        paginationHTML += `<button onclick="goToPage(${totalPages})" class="pagination-btn">${totalPages}</button>`;
-    }
-    
-    // Next button
-    paginationHTML += `
-        <button onclick="goToPage(${currentPage + 1})" 
-                class="pagination-btn" 
-                ${currentPage === totalPages ? 'disabled' : ''}>
-            <i class="fas fa-chevron-right"></i>
-        </button>
-    `;
-    
-    paginationHTML += '</div>';
-    
-    // Add pagination info
-    const startRecord = (currentPage - 1) * entriesPerPage + 1;
-    const endRecord = Math.min(currentPage * entriesPerPage, filteredData.length);
-    
-    paginationHTML += `
-        <div class="pagination-info">
-            Showing ${startRecord} to ${endRecord} of ${filteredData.length} entries
-            ${filteredData.length !== attendanceData.length ? 
-                `(filtered from ${attendanceData.length} total entries)` : ''}
-        </div>
-    `;
-    
-    container.innerHTML = paginationHTML;
+    console.log('📄 CSV exported successfully');
 }
 
-function goToPage(page) {
-    const totalPages = Math.ceil(filteredData.length / entriesPerPage);
-    
-    if (page < 1 || page > totalPages) return;
-    
-    currentPage = page;
-    updateTable();
-    updatePagination();
-    
-    // Scroll to top of table
-    const table = document.getElementById('attendanceTable');
-    if (table) {
-        table.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+function printReport() {
+    window.print();
+    console.log('🖨️ Print dialog opened');
 }
 
-function updateFilterStats() {
-    // Update stats display if needed
-    const totalRecords = filteredData.length;
-    console.log(`Filtered records: ${totalRecords}`);
-}
-
-// Record actions
-function viewRecordDetails(recordId) {
-    const record = attendanceData.find(r => r.id == recordId);
-    if (!record) return;
+function viewRecord(recordId) {
+    console.log('👁️ Viewing record:', recordId);
     
     const modal = document.getElementById('recordModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
+    const detailsDiv = document.getElementById('recordDetails');
     
-    if (!modal || !modalTitle || !modalBody) return;
+    if (!modal || !detailsDiv) {
+        console.error('❌ Modal elements not found');
+        return;
+    }
     
-    modalTitle.textContent = `Attendance Record - ${record.employeeId}`;
+    // Find the record row
+    const row = document.querySelector(`tr[data-record-id="${recordId}"]`);
+    if (!row) {
+        console.error('❌ Record row not found');
+        return;
+    }
     
-    modalBody.innerHTML = `
-        <div class="record-details">
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <strong>Employee ID:</strong>
-                    <span>${record.employeeId}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Location:</strong>
-                    <span>${record.location}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Event:</strong>
-                    <span>${record.event}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Date:</strong>
-                    <span>${record.date}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Time:</strong>
-                    <span>${record.time}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Device:</strong>
-                    <span>${record.device}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Status:</strong>
-                    <span class="status-badge ${record.status.toLowerCase()}">
-                        ${record.status}
-                    </span>
-                </div>
+    const cells = row.querySelectorAll('td');
+    
+    detailsDiv.innerHTML = `
+        <div class="record-detail-grid">
+            <div class="detail-item">
+                <strong>Employee ID:</strong>
+                <span>${cells[1] ? cells[1].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Location:</strong>
+                <span>${cells[2] ? cells[2].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Event:</strong>
+                <span>${cells[3] ? cells[3].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Date:</strong>
+                <span>${cells[4] ? cells[4].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Time:</strong>
+                <span>${cells[5] ? cells[5].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>GPS Status:</strong>
+                <span>${cells[6] ? cells[6].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Coordinates:</strong>
+                <span>${cells[7] ? cells[7].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Accuracy:</strong>
+                <span>${cells[8] ? cells[8].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Address:</strong>
+                <span>${cells[9] ? cells[9].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Device:</strong>
+                <span>${cells[10] ? cells[10].textContent.trim() : 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+                <strong>Status:</strong>
+                <span>${cells[11] ? cells[11].textContent.trim() : 'N/A'}</span>
             </div>
         </div>
     `;
     
     modal.style.display = 'flex';
-    setTimeout(() => modal.classList.add('show'), 10);
+    console.log('✅ Record modal opened');
 }
 
-function editRecord(recordId) {
-    // Placeholder for edit functionality
-    alert(`Edit functionality for record ${recordId} would be implemented here.`);
-}
-
-function deleteRecord(recordId) {
-    const record = attendanceData.find(r => r.id == recordId);
-    if (!record) return;
-    
-    const confirmed = confirm(
-        `Are you sure you want to delete the attendance record for ${record.employeeId}?\n\n` +
-        `Date: ${record.date}\n` +
-        `Time: ${record.time}\n` +
-        `Location: ${record.location}\n\n` +
-        'This action cannot be undone.'
-    );
-    
-    if (confirmed) {
-        // Here you would make an API call to delete the record
-        console.log(`Deleting record ${recordId}`);
-        
-        // For demo purposes, just remove from current data
-        const index = attendanceData.findIndex(r => r.id == recordId);
-        if (index > -1) {
-            // Remove from DOM
-            if (attendanceData[index].element) {
-                attendanceData[index].element.remove();
-            }
-            
-            // Remove from data arrays
-            attendanceData.splice(index, 1);
-            const filteredIndex = filteredData.findIndex(r => r.id == recordId);
-            if (filteredIndex > -1) {
-                filteredData.splice(filteredIndex, 1);
-            }
-            
-            // Update display
-            updateTable();
-            updatePagination();
-            
-            showToast('Record deleted successfully', 'success');
-        }
-    }
-}
-
-function closeRecordModal() {
+function closeModal() {
     const modal = document.getElementById('recordModal');
     if (modal) {
-        modal.classList.remove('show');
-        setTimeout(() => {
-            modal.style.display = 'none';
-        }, 200);
+        modal.style.display = 'none';
+        console.log('❌ Modal closed');
     }
 }
 
-// Export functionality
-function exportAttendance() {
-    const exportData = filteredData.map(record => ({
-        'Employee ID': record.employeeId,
-        'Location': record.location,
-        'Event': record.event,
-        'Date': record.date,
-        'Time': record.time,
-        'Device': record.device,
-        'Status': record.status
-    }));
+function clearFilters() {
+    // Get the current URL without query parameters
+    const baseUrl = window.location.origin + window.location.pathname;
+    window.location.href = baseUrl;
     
-    const csv = convertToCSV(exportData);
-    downloadCSV(csv, `attendance_report_${new Date().toISOString().split('T')[0]}.csv`);
-    
-    showToast('Attendance data exported successfully', 'success');
+    console.log('🔄 Clearing filters and reloading');
 }
 
-function convertToCSV(data) {
-    if (!data.length) return '';
-    
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-        headers.join(','),
-        ...data.map(row => 
-            headers.map(header => {
-                const value = row[header];
-                // Escape commas and quotes
-                return typeof value === 'string' && (value.includes(',') || value.includes('"')) 
-                    ? `"${value.replace(/"/g, '""')}"` 
-                    : value;
-            }).join(',')
-        )
-    ].join('\n');
-    
-    return csvContent;
-}
-
-function downloadCSV(csv, filename) {
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+// Global event handlers
+window.onclick = function(event) {
+    const modal = document.getElementById('recordModal');
+    if (event.target === modal) {
+        closeModal();
     }
 }
 
-function refreshReport() {
-    showToast('Refreshing report...', 'info');
-    setTimeout(() => {
-        window.location.reload();
-    }, 500);
-}
-
-// Charts initialization
-function initializeCharts() {
-    loadAttendanceStats();
-}
-
-function loadAttendanceStats() {
-    fetch('/api/attendance/stats')
-        .then(response => response.json())
-        .then(data => {
-            createDailyChart(data.daily_stats || []);
-            createLocationChart(data.location_stats || []);
-        })
-        .catch(error => {
-            console.error('Error loading attendance stats:', error);
-        });
-}
-
-function createDailyChart(dailyStats) {
-    const ctx = document.getElementById('dailyChart');
-    if (!ctx) return;
-    
-    if (dailyChart) {
-        dailyChart.destroy();
-    }
-    
-    dailyChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dailyStats.map(stat => stat.date),
-            datasets: [{
-                label: 'Check-ins',
-                data: dailyStats.map(stat => stat.checkins),
-                borderColor: '#2563eb',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                tension: 0.4,
-                fill: true
-            }, {
-                label: 'Unique Employees',
-                data: dailyStats.map(stat => stat.employees),
-                borderColor: '#059669',
-                backgroundColor: 'rgba(5, 150, 105, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
-        }
-    });
-}
-
-function createLocationChart(locationStats) {
-    const ctx = document.getElementById('locationChart');
-    if (!ctx) return;
-    
-    if (locationChart) {
-        locationChart.destroy();
-    }
-    
-    locationChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: locationStats.map(stat => stat.location),
-            datasets: [{
-                data: locationStats.map(stat => stat.checkins),
-                backgroundColor: [
-                    '#2563eb',
-                    '#059669',
-                    '#d97706',
-                    '#dc2626',
-                    '#7c3aed',
-                    '#0891b2',
-                    '#65a30d',
-                    '#c2410c'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'right'
-                }
-            }
-        }
-    });
-}
-
-// Utility functions
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <div class="toast-content">
-            <i class="fas ${getToastIcon(type)}"></i>
-            <span>${message}</span>
-        </div>
-    `;
-    
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 1rem;
-        z-index: 1000;
-        opacity: 0;
-        transform: translateX(100%);
-        transition: all 0.3s ease;
-        border-left: 4px solid ${getToastColor(type)};
-        max-width: 400px;
-    `;
-    
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translateX(0)';
-    }, 100);
-    
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-            if (document.body.contains(toast)) {
-                document.body.removeChild(toast);
-            }
-        }, 300);
-    }, 3000);
-}
-
-function getToastIcon(type) {
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-exclamation-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
-    return icons[type] || icons.info;
-}
-
-function getToastColor(type) {
-    const colors = {
-        success: '#059669',
-        error: '#dc2626',
-        warning: '#d97706',
-        info: '#0891b2'
-    };
-    return colors[type] || colors.info;
-}
-
-// Global function exports
+// Make functions globally available
+window.exportToCSV = exportToCSV;
+window.printReport = printReport;
+window.viewRecord = viewRecord;
+window.closeModal = closeModal;
+window.clearFilters = clearFilters;
 window.sortTable = sortTable;
 window.changeEntriesPerPage = changeEntriesPerPage;
-window.clearFilters = clearFilters;
-window.goToPage = goToPage;
-window.viewRecordDetails = viewRecordDetails;
-window.editRecord = editRecord;
-window.deleteRecord = deleteRecord;
-window.closeRecordModal = closeRecordModal;
-window.exportAttendance = exportAttendance;
-window.refreshReport = refreshReport;
+
+console.log('📍 Enhanced Attendance Report JavaScript loaded successfully');
+console.log('🔧 Available functions: exportToCSV, printReport, viewRecord, sortTable');

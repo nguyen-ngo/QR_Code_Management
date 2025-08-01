@@ -1,5 +1,5 @@
 /**
- * QR Code Destination Page JavaScript - Complete with Geolocation
+ * QR Code Destination Page JavaScript
  * Handles staff check-in functionality and form interactions
  */
 
@@ -7,29 +7,13 @@
 let isSubmitting = false;
 let currentTime = new Date();
 
-// NEW: Geolocation variables
-let userLocation = {
-    latitude: null,
-    longitude: null,
-    accuracy: null,
-    altitude: null,
-    timestamp: null,
-    source: 'manual',
-    address: null
-};
-let locationRequestActive = false;
-let locationWatchId = null;
-
 // Initialize page when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('QR Destination page initialized with geolocation');
+    console.log('QR Destination page initialized');
     
     initializePage();
     setupEventListeners();
     startTimeUpdater();
-    
-    // NEW: Initialize geolocation
-    initializeGeolocation();
 });
 
 function initializePage() {
@@ -70,381 +54,6 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
-// NEW: Initialize geolocation functionality
-function initializeGeolocation() {
-    console.log('📍 Initializing geolocation...');
-    
-    if (!navigator.geolocation) {
-        console.warn('❌ Geolocation not supported');
-        showLocationStatus('error', 'Location not supported by this browser');
-        return;
-    }
-    
-    console.log('✅ Geolocation supported');
-    
-    // Check permissions first
-    checkLocationPermission();
-    
-    // Request location
-    requestUserLocation();
-}
-
-// NEW: Check location permissions
-function checkLocationPermission() {
-    if (navigator.permissions) {
-        navigator.permissions.query({name: 'geolocation'}).then(function(result) {
-            console.log('🔐 Location permission status:', result.state);
-            
-            if (result.state === 'granted') {
-                console.log('✅ Location permission granted');
-            } else if (result.state === 'prompt') {
-                console.log('❓ Location permission will be requested');
-            } else if (result.state === 'denied') {
-                console.log('❌ Location permission denied');
-                showLocationStatus('error', 'Location permission denied - enable in browser settings');
-            }
-        }).catch(function(error) {
-            console.log('⚠️ Permission query failed:', error);
-        });
-    }
-}
-
-// NEW: Request user's current location
-function requestUserLocation() {
-    if (locationRequestActive) {
-        console.log('⏭️ Location request already active');
-        return;
-    }
-    
-    locationRequestActive = true;
-    showLocationStatus('loading', 'Getting your location...');
-    
-    const options = {
-        enableHighAccuracy: true,    // Use GPS for better accuracy
-        timeout: 15000,              // Wait up to 15 seconds
-        maximumAge: 300000           // Accept cached location up to 5 minutes old
-    };
-    
-    console.log('📡 Requesting location with options:', options);
-    
-    navigator.geolocation.getCurrentPosition(
-        handleLocationSuccess,
-        handleLocationError,
-        options
-    );
-    
-    // Set backup timeout
-    setTimeout(() => {
-        if (locationRequestActive && !userLocation.latitude) {
-            console.log('⏰ Location request backup timeout');
-            handleLocationError({ code: 3, message: 'Request timed out' });
-        }
-    }, 16000);
-}
-
-// NEW: Handle successful location retrieval
-function handleLocationSuccess(position) {
-    locationRequestActive = false;
-    
-    const coords = position.coords;
-    console.log('✅ Location obtained:', coords);
-    
-    // Store location data
-    userLocation = {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        accuracy: coords.accuracy,
-        altitude: coords.altitude,
-        timestamp: position.timestamp,
-        source: 'gps',
-        address: null
-    };
-    
-    // Update form fields
-    updateLocationFormFields();
-    
-    // Update display
-    updateLocationDisplay();
-    
-    // Show success status
-    const accuracyText = coords.accuracy ? Math.round(coords.accuracy) : 'unknown';
-    const accuracyLevel = getAccuracyLevel(coords.accuracy);
-    
-    showLocationStatus('success', 
-        `Location captured (±${accuracyText}m - ${accuracyLevel} accuracy)`
-    );
-    
-    console.log('📍 Location stored:', userLocation);
-    
-    // Try to get address from coordinates
-    reverseGeocodeLocation(coords.latitude, coords.longitude);
-    
-    // Start watching for better accuracy (optional)
-    startLocationWatching();
-}
-
-// NEW: Handle location errors
-function handleLocationError(error) {
-    locationRequestActive = false;
-    
-    console.error('❌ Location error:', error);
-    
-    let message = 'Unable to get location';
-    let details = 'Check-in will work without location';
-    
-    switch(error.code) {
-        case error.PERMISSION_DENIED:
-            message = 'Location access denied';
-            details = 'Enable location permission in browser settings';
-            break;
-        case error.POSITION_UNAVAILABLE:
-            message = 'Location unavailable';
-            details = 'GPS signal is weak or unavailable';
-            break;
-        case error.TIMEOUT:
-            message = 'Location request timed out';
-            details = 'Try refreshing or check connection';
-            break;
-        default:
-            message = 'Location error occurred';
-            details = 'Please try again';
-            break;
-    }
-    
-    showLocationStatus('error', `${message} - ${details}`);
-    
-    // Set location source to manual
-    userLocation.source = 'manual';
-    updateLocationFormFields();
-}
-
-// NEW: Start watching location for continuous updates
-function startLocationWatching() {
-    if (locationWatchId !== null) {
-        console.log('👁️ Already watching location');
-        return;
-    }
-    
-    console.log('👁️ Starting location watching for better accuracy...');
-    
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 60000
-    };
-    
-    locationWatchId = navigator.geolocation.watchPosition(
-        function(position) {
-            // Only update if accuracy is better
-            if (!userLocation.accuracy || position.coords.accuracy < userLocation.accuracy) {
-                console.log('📍 Location updated with better accuracy:', position.coords.accuracy);
-                handleLocationSuccess(position);
-            }
-        },
-        function(error) {
-            console.log('⚠️ Location watch error:', error);
-        },
-        options
-    );
-}
-
-// NEW: Stop watching location
-function stopLocationWatching() {
-    if (locationWatchId !== null) {
-        navigator.geolocation.clearWatch(locationWatchId);
-        locationWatchId = null;
-        console.log('⏹️ Stopped watching location');
-    }
-}
-
-// NEW: Update form fields with location data
-function updateLocationFormFields() {
-    const fields = {
-        'latitude': userLocation.latitude || '',
-        'longitude': userLocation.longitude || '',
-        'accuracy': userLocation.accuracy || '',
-        'altitude': userLocation.altitude || '',
-        'locationSource': userLocation.source || 'manual',
-        'address': userLocation.address || ''
-    };
-    
-    Object.keys(fields).forEach(fieldId => {
-        const field = document.getElementById(fieldId);
-        if (field) {
-            field.value = fields[fieldId];
-        }
-    });
-    
-    console.log('📝 Updated form fields with location data');
-}
-
-// NEW: Update location display
-function updateLocationDisplay() {
-    if (userLocation.latitude && userLocation.longitude) {
-        const elements = {
-            'displayLatitude': userLocation.latitude.toFixed(6),
-            'displayLongitude': userLocation.longitude.toFixed(6),
-            'displayAccuracy': userLocation.accuracy ? `±${Math.round(userLocation.accuracy)}m` : 'Unknown',
-            'displayAddress': userLocation.address || 'Loading...'
-        };
-        
-        Object.keys(elements).forEach(elementId => {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = elements[elementId];
-            }
-        });
-    }
-}
-
-// NEW: Reverse geocode coordinates to get address
-function reverseGeocodeLocation(lat, lng) {
-    console.log('🏠 Getting address from coordinates...');
-    
-    // Try multiple geocoding services for better reliability
-    const services = [
-        {
-            name: 'BigDataCloud',
-            url: `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
-            parser: (data) => data.locality || data.city || data.neighbourhood || ''
-        },
-        {
-            name: 'OpenStreetMap',
-            url: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-            parser: (data) => data.display_name ? data.display_name.split(',')[0] : ''
-        }
-    ];
-    
-    tryGeocodingService(0, services);
-}
-
-function tryGeocodingService(index, services) {
-    if (index >= services.length) {
-        console.log('⚠️ All geocoding services failed');
-        const displayAddress = document.getElementById('displayAddress');
-        if (displayAddress) {
-            displayAddress.textContent = 'Address not available';
-        }
-        return;
-    }
-    
-    const service = services[index];
-    
-    fetch(service.url)
-        .then(response => response.json())
-        .then(data => {
-            const address = service.parser(data);
-            
-            if (address) {
-                userLocation.address = address;
-                document.getElementById('address').value = address;
-                
-                const displayAddress = document.getElementById('displayAddress');
-                if (displayAddress) {
-                    displayAddress.textContent = address;
-                }
-                
-                console.log(`🏠 Address found using ${service.name}:`, address);
-                return;
-            }
-            
-            // Try next service
-            tryGeocodingService(index + 1, services);
-        })
-        .catch(error => {
-            console.log(`⚠️ ${service.name} geocoding failed:`, error);
-            // Try next service
-            tryGeocodingService(index + 1, services);
-        });
-}
-
-// NEW: Show location status to user
-function showLocationStatus(type, message) {
-    const statusElement = document.getElementById('locationStatus');
-    const messageElement = document.getElementById('locationMessage');
-    
-    if (!statusElement || !messageElement) {
-        console.log('📍 Location status elements not found');
-        return;
-    }
-    
-    statusElement.className = `location-status ${type}`;
-    statusElement.style.display = 'flex';
-    
-    let icon = '📡';
-    if (type === 'success') icon = '✅';
-    if (type === 'error') icon = '⚠️';
-    
-    messageElement.innerHTML = `${icon} ${message}`;
-    
-    // Auto-hide after 8 seconds unless it's loading
-    if (type !== 'loading') {
-        setTimeout(() => {
-            statusElement.style.display = 'none';
-        }, 8000);
-    }
-}
-
-// NEW: Get accuracy level description
-function getAccuracyLevel(accuracy) {
-    if (!accuracy) return 'unknown';
-    if (accuracy <= 50) return 'high';
-    if (accuracy <= 100) return 'medium';
-    return 'low';
-}
-
-// NEW: Toggle location info display
-function toggleLocationInfo() {
-    const locationInfo = document.getElementById('locationInfo');
-    if (!locationInfo) return;
-    
-    if (locationInfo.style.display === 'none' || !locationInfo.style.display) {
-        updateLocationDisplay();
-        locationInfo.style.display = 'block';
-    } else {
-        locationInfo.style.display = 'none';
-    }
-}
-
-// NEW: Retry location request
-function retryLocationRequest() {
-    console.log('🔄 Retrying location request...');
-    
-    // Stop any existing watch
-    stopLocationWatching();
-    
-    // Reset location data
-    userLocation = {
-        latitude: null,
-        longitude: null,
-        accuracy: null,
-        altitude: null,
-        timestamp: null,
-        source: 'manual',
-        address: null
-    };
-    
-    // Clear form fields
-    updateLocationFormFields();
-    
-    // Request location again
-    requestUserLocation();
-}
-
-// NEW: Get current location data for external use
-function getCurrentLocationData() {
-    return {
-        hasLocation: !!(userLocation.latitude && userLocation.longitude),
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        accuracy: userLocation.accuracy,
-        altitude: userLocation.altitude,
-        source: userLocation.source,
-        timestamp: userLocation.timestamp,
-        address: userLocation.address
-    };
-}
-
 function handleFormSubmit(e) {
     e.preventDefault();
     
@@ -457,9 +66,6 @@ function handleFormSubmit(e) {
     if (!validateEmployeeId()) {
         return false;
     }
-    
-    // NEW: Ensure location data is up to date before submission
-    updateLocationFormFields();
     
     submitCheckin(employeeId);
 }
@@ -512,7 +118,7 @@ function validateEmployeeId() {
     }
     
     if (employeeId.length > 20) {
-        showValidationError(employeeInput, 'Employee ID must be 20 characters or less');
+        showValidationError(employeeInput, 'Employee ID must be less than 20 characters');
         return false;
     }
     
@@ -521,66 +127,46 @@ function validateEmployeeId() {
         return false;
     }
     
-    clearValidationError(employeeInput);
+    // Clear validation error
+    employeeInput.classList.remove('error');
+    employeeInput.classList.add('success');
+    hideStatusMessage();
+    
     return true;
 }
 
 function isValidEmployeeId(id) {
-    return /^[A-Za-z0-9]+$/.test(id);
+    return /^[A-Za-z0-9]{3,20}$/.test(id);
 }
 
 function showValidationError(input, message) {
     input.classList.add('error');
+    input.classList.remove('success');
     showStatusMessage(message, 'error');
     shakeInput(input);
     input.focus();
 }
 
-function clearValidationError(input) {
-    input.classList.remove('error');
-    input.classList.add('success');
-}
-
 function shakeInput(input) {
-    input.style.animation = 'shake 0.5s';
+    input.classList.add('shake');
     setTimeout(() => {
-        input.style.animation = '';
+        input.classList.remove('shake');
     }, 500);
 }
 
 function submitCheckin(employeeId) {
-    console.log('🚀 Submitting check-in for:', employeeId);
-    
-    // NEW: Log location data being submitted
-    const locationData = getCurrentLocationData();
-    console.log('📍 Location data:', locationData);
+    if (isSubmitting) return;
     
     isSubmitting = true;
-    updateSubmitButton(true);
-    showStatusMessage('Processing check-in...', 'info');
-    
-    // NEW: Ensure all location data is in the form
-    updateLocationFormFields();
+    showLoadingState();
+    showLoadingOverlay();
     
     // Prepare form data
     const formData = new FormData();
     formData.append('employee_id', employeeId);
     
-    // NEW: Add location data to form submission
-    formData.append('latitude', userLocation.latitude || '');
-    formData.append('longitude', userLocation.longitude || '');
-    formData.append('accuracy', userLocation.accuracy || '');
-    formData.append('altitude', userLocation.altitude || '');
-    formData.append('location_source', userLocation.source || 'manual');
-    formData.append('address', userLocation.address || '');
-    
-    // Get the current URL for the check-in endpoint
-    const currentUrl = window.location.pathname;
-    const checkinUrl = `${currentUrl}/checkin`;
-    
-    console.log('📤 Submitting to:', checkinUrl);
-    
-    fetch(checkinUrl, {
+    // Submit to server
+    fetch(`/qr/${window.qrUrl}/checkin`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -589,139 +175,235 @@ function submitCheckin(employeeId) {
     })
     .then(response => response.json())
     .then(data => {
-        isSubmitting = false;
-        updateSubmitButton(false);
-        
-        if (data.success) {
-            showSuccessPage(data);
-            console.log('✅ Check-in successful:', data);
-            
-            // Stop location watching after successful check-in
-            stopLocationWatching();
-        } else {
-            showStatusMessage(data.message || 'Check-in failed', 'error');
-            console.log('❌ Check-in failed:', data.message);
-        }
+        handleCheckinResponse(data);
     })
     .catch(error => {
+        console.error('Check-in error:', error);
+        handleCheckinError('Network error. Please check your connection and try again.');
+    })
+    .finally(() => {
         isSubmitting = false;
-        updateSubmitButton(false);
-        showStatusMessage('Network error. Please check your connection and try again.', 'error');
-        console.error('❌ Check-in error:', error);
+        hideLoadingState();
+        hideLoadingOverlay();
     });
 }
 
-function showSuccessPage(data) {
-    // Hide the check-in form and location status
-    const checkinCard = document.querySelector('.checkin-card');
-    const locationStatus = document.getElementById('locationStatus');
-    const locationInfo = document.getElementById('locationInfo');
-    const locationControls = document.querySelector('.location-controls');
-    
-    if (checkinCard) checkinCard.style.display = 'none';
-    if (locationStatus) locationStatus.style.display = 'none';
-    if (locationInfo) locationInfo.style.display = 'none';
-    if (locationControls) locationControls.style.display = 'none';
-    
-    // Show success card
-    const successCard = document.getElementById('successCard');
-    if (successCard) {
-        successCard.style.display = 'block';
+function handleCheckinResponse(data) {
+    if (data.success) {
+        showSuccessCard(data.data);
+        logSuccessfulCheckin(data.data);
         
-        // Populate success details
-        const elements = {
-            'successEmployeeId': data.employee_id || '-',
-            'successLocation': data.location || window.locationName || '-',
-            'successEvent': data.event || window.eventName || '-',
-            'successTime': data.time || new Date().toLocaleTimeString(),
-            'successDate': data.date || new Date().toLocaleDateString()
-        };
-        
-        Object.keys(elements).forEach(elementId => {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = elements[elementId];
-            }
-        });
-        
-        // NEW: Show location info in success card if available
-        const successLocationInfo = document.getElementById('successLocationInfo');
-        const successGpsInfo = document.getElementById('successGpsInfo');
-        
-        if (data.has_location && userLocation.latitude && userLocation.longitude) {
-            let locationText = `Captured (±${Math.round(userLocation.accuracy || 0)}m)`;
-            if (userLocation.address) {
-                locationText += ` - ${userLocation.address}`;
-            }
-            
-            if (successGpsInfo) successGpsInfo.textContent = locationText;
-            if (successLocationInfo) successLocationInfo.style.display = 'block';
+        // Optional: Analytics tracking
+        if (typeof gtag !== 'undefined') {
+            gtag('event', 'checkin_success', {
+                'location': window.locationName,
+                'event_name': window.eventName
+            });
         }
-        
-        // Scroll to success card
-        successCard.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        handleCheckinError(data.message);
     }
-    
-    // Auto-refresh page after 30 seconds
-    setTimeout(() => {
-        console.log('🔄 Auto-refreshing page...');
-        window.location.reload();
-    }, 30000);
 }
 
-function showStatusMessage(message, type) {
-    const statusElement = document.getElementById('statusMessage');
-    if (!statusElement) return;
+function handleCheckinError(message) {
+    showStatusMessage(message, 'error');
     
-    statusElement.className = `status-message ${type}`;
-    statusElement.innerHTML = `
-        <div class="status-content">
-            <i class="fas ${getStatusIcon(type)}"></i>
-            <span>${message}</span>
-        </div>
-    `;
-    statusElement.style.display = 'block';
-    
-    // Auto-hide info messages
-    if (type === 'info') {
+    // Shake the form to draw attention
+    const form = document.getElementById('checkinForm');
+    if (form) {
+        form.classList.add('shake');
         setTimeout(() => {
-            statusElement.style.display = 'none';
-        }, 3000);
+            form.classList.remove('shake');
+        }, 500);
+    }
+    
+    // Re-focus on input
+    const employeeInput = document.getElementById('employee_id');
+    if (employeeInput) {
+        employeeInput.focus();
+        employeeInput.select();
+    }
+}
+
+function showSuccessCard(data) {
+    // Hide the check-in form
+    const checkinCard = document.querySelector('.checkin-card');
+    if (checkinCard) {
+        checkinCard.style.display = 'none';
+    }
+    
+    // Populate and show success card
+    const successCard = document.getElementById('successCard');
+    if (successCard) {
+        document.getElementById('successEmployeeId').textContent = data.employee_id || '-';
+        document.getElementById('successLocation').textContent = data.location || '-';
+        document.getElementById('successEvent').textContent = data.event || '-';
+        document.getElementById('successTime').textContent = data.time || '-';
+        document.getElementById('successDate').textContent = data.date || '-';
+        
+        successCard.style.display = 'block';
+        successCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // Optional: Auto-hide success card after some time
+    setTimeout(() => {
+        showAutoHideOption();
+    }, 10000); // 10 seconds
+}
+
+function showAutoHideOption() {
+    const successCard = document.getElementById('successCard');
+    if (successCard && successCard.style.display !== 'none') {
+        const actions = successCard.querySelector('.success-actions');
+        if (actions && !actions.querySelector('.auto-hide-btn')) {
+            const autoHideBtn = document.createElement('button');
+            autoHideBtn.className = 'btn btn-outline auto-hide-btn';
+            autoHideBtn.innerHTML = '<i class="fas fa-clock"></i> Auto-hide in <span id="countdown">30</span>s';
+            actions.appendChild(autoHideBtn);
+            
+            startCountdown(30, () => {
+                checkInAnother();
+            });
+        }
+    }
+}
+
+function startCountdown(seconds, callback) {
+    const countdownElement = document.getElementById('countdown');
+    let remaining = seconds;
+    
+    const interval = setInterval(() => {
+        remaining--;
+        if (countdownElement) {
+            countdownElement.textContent = remaining;
+        }
+        
+        if (remaining <= 0) {
+            clearInterval(interval);
+            callback();
+        }
+    }, 1000);
+}
+
+function checkInAnother() {
+    // Show the check-in form again
+    const checkinCard = document.querySelector('.checkin-card');
+    const successCard = document.getElementById('successCard');
+    
+    if (checkinCard) {
+        checkinCard.style.display = 'block';
+    }
+    
+    if (successCard) {
+        successCard.style.display = 'none';
+    }
+    
+    // Reset form
+    const form = document.getElementById('checkinForm');
+    if (form) {
+        form.reset();
+    }
+    
+    // Clear validation states
+    const employeeInput = document.getElementById('employee_id');
+    if (employeeInput) {
+        employeeInput.classList.remove('error', 'success');
+        employeeInput.focus();
+    }
+    
+    hideStatusMessage();
+    
+    // Scroll back to form
+    checkinCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function showLoadingState() {
+    const btn = document.querySelector('.btn-primary');
+    if (btn) {
+        const content = btn.querySelector('.btn-content');
+        const loader = btn.querySelector('.btn-loader');
+        
+        if (content) content.style.display = 'none';
+        if (loader) loader.style.display = 'flex';
+        
+        btn.disabled = true;
+    }
+}
+
+function hideLoadingState() {
+    const btn = document.querySelector('.btn-primary');
+    if (btn) {
+        const content = btn.querySelector('.btn-content');
+        const loader = btn.querySelector('.btn-loader');
+        
+        if (content) content.style.display = 'flex';
+        if (loader) loader.style.display = 'none';
+        
+        btn.disabled = false;
+    }
+}
+
+function showLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        setTimeout(() => {
+            overlay.classList.add('show');
+        }, 10);
+    }
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.style.display = 'none';
+        }, 200);
+    }
+}
+
+function showStatusMessage(message, type = 'info') {
+    const statusDiv = document.getElementById('statusMessage');
+    if (statusDiv) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status-message ${type}`;
+        statusDiv.style.display = 'block';
+        
+        // Auto-hide success messages
+        if (type === 'success') {
+            setTimeout(() => {
+                hideStatusMessage();
+            }, 5000);
+        }
+        
+        // Scroll to message
+        statusDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
 function hideStatusMessage() {
-    const statusElement = document.getElementById('statusMessage');
-    if (statusElement) {
-        statusElement.style.display = 'none';
+    const statusDiv = document.getElementById('statusMessage');
+    if (statusDiv) {
+        statusDiv.style.display = 'none';
     }
 }
 
-function getStatusIcon(type) {
-    switch(type) {
-        case 'success': return 'fa-check-circle';
-        case 'error': return 'fa-exclamation-triangle';
-        case 'info': return 'fa-info-circle';
-        case 'warning': return 'fa-exclamation-circle';
-        default: return 'fa-info-circle';
-    }
-}
-
-function updateSubmitButton(isLoading) {
-    const submitBtn = document.getElementById('submitBtn') || document.querySelector('button[type="submit"]');
-    if (!submitBtn) return;
-    
-    const btnContent = submitBtn.querySelector('.btn-content');
-    const btnLoader = submitBtn.querySelector('.btn-loader');
-    
-    if (isLoading) {
-        submitBtn.disabled = true;
-        if (btnContent) btnContent.style.display = 'none';
-        if (btnLoader) btnLoader.style.display = 'flex';
-    } else {
-        submitBtn.disabled = false;
-        if (btnContent) btnContent.style.display = 'flex';
-        if (btnLoader) btnLoader.style.display = 'none';
+function updateCurrentTime() {
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        const now = new Date();
+        const options = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        };
+        
+        timeElement.textContent = now.toLocaleDateString('en-US', options);
     }
 }
 
@@ -730,65 +412,179 @@ function startTimeUpdater() {
     setInterval(updateCurrentTime, 1000);
 }
 
-function updateCurrentTime() {
-    const now = new Date();
-    const timeString = now.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    
-    const timeElement = document.getElementById('currentTime');
-    if (timeElement) {
-        timeElement.textContent = timeString;
-    }
-    
-    currentTime = now;
-}
-
 function handleVisibilityChange() {
-    if (!document.hidden) {
-        // Page became visible, update time immediately
+    if (document.hidden) {
+        // Page is hidden - pause operations
+        console.log('Page hidden - pausing operations');
+    } else {
+        // Page is visible - resume operations
+        console.log('Page visible - resuming operations');
         updateCurrentTime();
         
-        // NEW: Request location again if we don't have it and haven't submitted yet
-        if (!userLocation.latitude && !isSubmitting) {
-            console.log('🔄 Page visible again, retrying location...');
-            setTimeout(requestUserLocation, 1000);
+        // Re-focus on input if form is visible
+        const checkinCard = document.querySelector('.checkin-card');
+        const employeeInput = document.getElementById('employee_id');
+        
+        if (checkinCard && checkinCard.style.display !== 'none' && employeeInput) {
+            setTimeout(() => {
+                employeeInput.focus();
+            }, 100);
         }
     }
 }
 
-function checkInAnother() {
-    // Stop location watching
-    stopLocationWatching();
+function logSuccessfulCheckin(data) {
+    console.log('Successful check-in:', {
+        employee_id: data.employee_id,
+        location: data.location,
+        event: data.event,
+        time: data.time,
+        date: data.date
+    });
+}
+
+// Utility functions
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function throttle(func, limit) {
+    let inThrottle;
+    return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+            func.apply(context, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    }
+}
+
+// Export functions for global access
+window.checkInAnother = checkInAnother;
+window.validateEmployeeId = validateEmployeeId;
+
+// Service Worker registration for offline support (optional)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+                console.log('ServiceWorker registration successful');
+            })
+            .catch(function(err) {
+                console.log('ServiceWorker registration failed: ', err);
+            });
+    });
+}
+
+// Error handling for unhandled promises
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    handleCheckinError('An unexpected error occurred. Please try again.');
+    event.preventDefault();
+});
+
+// Handle online/offline status
+window.addEventListener('online', function() {
+    showStatusMessage('Connection restored', 'success');
+});
+
+window.addEventListener('offline', function() {
+    showStatusMessage('No internet connection. Please check your network.', 'warning');
+});
+
+// Performance monitoring
+if ('performance' in window) {
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            const perfData = performance.getEntriesByType('navigation')[0];
+            console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
+        }, 0);
+    });
+}
+
+// Accessibility enhancements
+document.addEventListener('keydown', function(e) {
+    // Escape key to reset form
+    if (e.key === 'Escape') {
+        const successCard = document.getElementById('successCard');
+        if (successCard && successCard.style.display !== 'none') {
+            checkInAnother();
+        } else {
+            // Reset form
+            const form = document.getElementById('checkinForm');
+            if (form) {
+                form.reset();
+                hideStatusMessage();
+                
+                const employeeInput = document.getElementById('employee_id');
+                if (employeeInput) {
+                    employeeInput.classList.remove('error', 'success');
+                    employeeInput.focus();
+                }
+            }
+        }
+    }
     
-    // Reload page
-    window.location.reload();
+    // Ctrl+R to refresh (prevent default and reload page cleanly)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        window.location.reload();
+    }
+});
+
+// Touch device optimizations
+if ('ontouchstart' in window) {
+    // Add touch-friendly classes
+    document.body.classList.add('touch-device');
+    
+    // Prevent zoom on input focus for iOS
+    const inputs = document.querySelectorAll('input[type="text"]');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1.0');
+            }
+        });
+    });
 }
 
-// NEW: Cleanup function for page unload
-function cleanup() {
-    stopLocationWatching();
-    console.log('🧹 Cleaned up geolocation resources');
+// Auto-refresh page if idle for too long (optional)
+let idleTimer;
+const IDLE_TIME = 30 * 60 * 1000; // 30 minutes
+
+function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+        if (confirm('This page has been idle for 30 minutes. Would you like to refresh it?')) {
+            window.location.reload();
+        } else {
+            resetIdleTimer(); // Reset timer if user chooses not to refresh
+        }
+    }, IDLE_TIME);
 }
 
-// NEW: Setup cleanup handlers
-window.addEventListener('beforeunload', cleanup);
-window.addEventListener('pagehide', cleanup);
+// Track user activity
+['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'].forEach(event => {
+    document.addEventListener(event, resetIdleTimer, true);
+});
 
-// NEW: Export geolocation functions for global use
-window.requestUserLocation = requestUserLocation;
-window.getCurrentLocationData = getCurrentLocationData;
-window.retryLocationRequest = retryLocationRequest;
-window.toggleLocationInfo = toggleLocationInfo;
-window.stopLocationWatching = stopLocationWatching;
-window.startLocationWatching = startLocationWatching;
-
-console.log('📍 QR Destination with Geolocation loaded successfully!');
-console.log('🔧 Available functions: requestUserLocation(), getCurrentLocationData(), retryLocationRequest(), toggleLocationInfo()');
-console.log('📊 Location tracking ready for check-ins!');
+// Initialize idle timer
+resetIdleTimer();
