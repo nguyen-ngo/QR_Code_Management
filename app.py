@@ -74,9 +74,7 @@ class QRCode(db.Model):
     qr_url = db.Column(db.String(255), unique=True, nullable=True)
 
 class AttendanceData(db.Model):
-    """
-    Enhanced attendance tracking model with comprehensive location support
-    """
+    """Enhanced attendance tracking model with location support"""
     __tablename__ = 'attendance_data'
     
     # Existing fields
@@ -93,13 +91,13 @@ class AttendanceData(db.Model):
     created_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     updated_timestamp = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # NEW: Location tracking fields
-    latitude = db.Column(db.Float, nullable=True, comment='GPS latitude coordinate')
-    longitude = db.Column(db.Float, nullable=True, comment='GPS longitude coordinate')
-    accuracy = db.Column(db.Float, nullable=True, comment='GPS accuracy in meters')
-    altitude = db.Column(db.Float, nullable=True, comment='GPS altitude in meters')
-    location_source = db.Column(db.String(50), default='manual', comment='Source: gps, network, manual')
-    address = db.Column(db.String(500), nullable=True, comment='Reverse geocoded address')
+    # LOCATION FIELDS - Add these if missing
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
+    accuracy = db.Column(db.Float, nullable=True)
+    altitude = db.Column(db.Float, nullable=True)
+    location_source = db.Column(db.String(50), default='manual')
+    address = db.Column(db.String(500), nullable=True)
     
     # Relationships
     qr_code = db.relationship('QRCode', backref=db.backref('attendance_records', lazy='dynamic'))
@@ -1152,7 +1150,7 @@ def qr_destination(qr_url):
 
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
 def qr_checkin(qr_url):
-    """Enhanced staff check-in submission with comprehensive location support"""
+    """Enhanced staff check-in with proper location handling"""
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
@@ -1166,17 +1164,26 @@ def qr_checkin(qr_url):
         # Get form data
         employee_id = request.form.get('employee_id', '').strip()
         
-        # Enhanced location data extraction
-        location_data = {
-            'latitude': request.form.get('latitude', '').strip(),
-            'longitude': request.form.get('longitude', '').strip(),
-            'accuracy': request.form.get('accuracy', '').strip(),
-            'altitude': request.form.get('altitude', '').strip(),
-            'location_source': request.form.get('locationSource', 'manual').strip(),
-            'address': request.form.get('address', '').strip()
-        }
+        # FIXED: Get location data with correct field names and validation
+        latitude = request.form.get('latitude', '').strip()
+        longitude = request.form.get('longitude', '').strip()
+        accuracy = request.form.get('accuracy', '').strip()
+        altitude = request.form.get('altitude', '').strip()
+        location_source = request.form.get('location_source', 'manual').strip()
+        address = request.form.get('address', '').strip()
         
-        print(f"📍 Location data received: {location_data}")
+        # CRITICAL DEBUG: Log all received form data
+        print(f"\n{'='*50}")
+        print(f"📥 QR CHECK-IN DATA RECEIVED:")
+        print(f"{'='*50}")
+        print(f"Employee ID: '{employee_id}'")
+        print(f"Latitude: '{latitude}' (type: {type(latitude)})")
+        print(f"Longitude: '{longitude}' (type: {type(longitude)})")
+        print(f"Accuracy: '{accuracy}' (type: {type(accuracy)})")
+        print(f"Altitude: '{altitude}' (type: {type(altitude)})")
+        print(f"Location Source: '{location_source}' (type: {type(location_source)})")
+        print(f"Address: '{address}' (type: {type(address)})")
+        print(f"{'='*50}\n")
         
         if not employee_id:
             return jsonify({
@@ -1185,7 +1192,7 @@ def qr_checkin(qr_url):
             }), 400
         
         # Validate employee ID format
-        if not re.match(r'^[A-Za-z0-9]{3,20}$', employee_id):
+        if not re.match(r'^[A-Za-z0-9]{3,20}', employee_id):
             return jsonify({
                 'success': False,
                 'message': 'Invalid employee ID format. Use 3-20 alphanumeric characters.'
@@ -1219,10 +1226,74 @@ def qr_checkin(qr_url):
         if client_ip and ',' in client_ip:
             client_ip = client_ip.split(',')[0].strip()
         
-        # Process and validate location data
-        processed_location = process_location_data(location_data)
+        # FIXED: Process location data with enhanced validation
+        lat_value = None
+        lng_value = None
+        acc_value = None
+        alt_value = None
         
-        # Create enhanced attendance record
+        # Process latitude
+        if latitude and latitude.strip() and latitude not in ['null', '', 'undefined']:
+            try:
+                lat_value = float(latitude)
+                if not (-90 <= lat_value <= 90):
+                    print(f"⚠️ Invalid latitude range: {lat_value}")
+                    lat_value = None
+                else:
+                    print(f"✅ Valid latitude: {lat_value}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Latitude parsing error: {e}")
+        
+        # Process longitude
+        if longitude and longitude.strip() and longitude not in ['null', '', 'undefined']:
+            try:
+                lng_value = float(longitude)
+                if not (-180 <= lng_value <= 180):
+                    print(f"⚠️ Invalid longitude range: {lng_value}")
+                    lng_value = None
+                else:
+                    print(f"✅ Valid longitude: {lng_value}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Longitude parsing error: {e}")
+        
+        # Process accuracy
+        if accuracy and accuracy.strip() and accuracy not in ['null', '', 'undefined']:
+            try:
+                acc_value = float(accuracy)
+                if acc_value < 0:
+                    print(f"⚠️ Invalid accuracy (negative): {acc_value}")
+                    acc_value = None
+                else:
+                    print(f"✅ Valid accuracy: {acc_value}m")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Accuracy parsing error: {e}")
+        
+        # Process altitude
+        if altitude and altitude.strip() and altitude not in ['null', '', 'undefined']:
+            try:
+                alt_value = float(altitude)
+                print(f"✅ Valid altitude: {alt_value}m")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Altitude parsing error: {e}")
+        
+        # Validate location source
+        valid_sources = ['gps', 'network', 'manual']
+        if location_source not in valid_sources:
+            location_source = 'manual'
+        
+        # Truncate address if too long
+        if address and len(address) > 500:
+            address = address[:500]
+        
+        print(f"📊 PROCESSED LOCATION DATA:")
+        print(f"   Latitude: {lat_value}")
+        print(f"   Longitude: {lng_value}")
+        print(f"   Accuracy: {acc_value}")
+        print(f"   Altitude: {alt_value}")
+        print(f"   Source: {location_source}")
+        print(f"   Address: {address[:50]}..." if address and len(address) > 50 else f"   Address: {address}")
+        
+        # Create attendance record
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
@@ -1233,19 +1304,37 @@ def qr_checkin(qr_url):
             ip_address=client_ip,
             location_name=qr_code.location,
             status='present',
-            # Location data
-            latitude=processed_location.get('latitude'),
-            longitude=processed_location.get('longitude'),
-            accuracy=processed_location.get('accuracy'),
-            altitude=processed_location.get('altitude'),
-            location_source=processed_location.get('source', 'manual'),
-            address=processed_location.get('address')
+            # FIXED: Add location data directly to constructor
+            latitude=lat_value,
+            longitude=lng_value,
+            accuracy=acc_value,
+            altitude=alt_value,
+            location_source=location_source,
+            address=address
         )
+        
+        print(f"💾 SAVING ATTENDANCE RECORD:")
+        print(f"   Employee: {attendance.employee_id}")
+        print(f"   Location: {attendance.location_name}")
+        print(f"   GPS: {attendance.latitude}, {attendance.longitude}")
+        print(f"   Accuracy: {attendance.accuracy}")
+        print(f"   Source: {attendance.location_source}")
         
         db.session.add(attendance)
         db.session.commit()
         
-        # Enhanced response with location info
+        # VERIFICATION: Re-fetch the saved record to confirm data persistence
+        saved_record = AttendanceData.query.get(attendance.id)
+        has_location = saved_record.latitude is not None and saved_record.longitude is not None
+        
+        print(f"✅ VERIFICATION - Record saved with ID: {saved_record.id}")
+        print(f"✅ Has location data: {has_location}")
+        if has_location:
+            print(f"✅ Saved coordinates: {saved_record.latitude}, {saved_record.longitude}")
+            print(f"✅ Saved accuracy: {saved_record.accuracy}")
+            print(f"✅ Saved source: {saved_record.location_source}")
+        
+        # Enhanced response with location verification
         response_data = {
             'success': True,
             'message': 'Check-in successful!',
@@ -1255,22 +1344,23 @@ def qr_checkin(qr_url):
                 'event': qr_code.location_event,
                 'check_in_time': attendance.check_in_time.strftime('%H:%M'),
                 'check_in_date': attendance.check_in_date.strftime('%B %d, %Y'),
-                'has_location': attendance.has_location_data,
+                'has_location': has_location,
                 'location_info': {
-                    'coordinates': attendance.coordinates_display,
-                    'accuracy': f"±{attendance.accuracy:.0f}m" if attendance.accuracy else "Unknown",
-                    'source': attendance.location_source.title(),
-                    'address': attendance.address or "Not available"
-                } if attendance.has_location_data else None
+                    'coordinates': f"{saved_record.latitude:.6f}, {saved_record.longitude:.6f}" if has_location else "No GPS data",
+                    'accuracy': f"±{saved_record.accuracy:.0f}m" if saved_record.accuracy else "Unknown",
+                    'source': saved_record.location_source.title() if saved_record.location_source else "Manual",
+                    'address': saved_record.address or "Not available"
+                } if has_location else None
             }
         }
         
-        print(f"✅ Check-in successful for {employee_id.upper()} with location: {attendance.has_location_data}")
+        print(f"📤 SENDING RESPONSE: {response_data['data']['has_location']} location data")
         
         return jsonify(response_data)
-        
     except Exception as e:
-        print(f"❌ Check-in error: {str(e)}")
+        print(f"❌ CHECK-IN ERROR: {str(e)}")
+        import traceback
+        print(f"❌ TRACEBACK: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({
             'success': False,

@@ -70,23 +70,41 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
-// NEW: Initialize geolocation functionality
+// Initialize geolocation functionality
 function initializeGeolocation() {
-    console.log('📍 Initializing geolocation...');
+    console.log('📍 Initializing geolocation system...');
     
     if (!navigator.geolocation) {
-        console.warn('❌ Geolocation not supported');
-        showLocationStatus('error', 'Location not supported by this browser');
+        console.log('⚠️ Geolocation not supported by this browser');
+        showLocationStatus('error', 'Location services not supported');
         return;
     }
     
-    console.log('✅ Geolocation supported');
+    console.log('✅ Geolocation API available');
     
-    // Check permissions first
-    checkLocationPermission();
-    
-    // Request location
+    // Request location immediately
     requestUserLocation();
+    
+    // Set up continuous watching for better accuracy
+    if ('permissions' in navigator) {
+        navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+            console.log('📍 Geolocation permission status:', result.state);
+            
+            if (result.state === 'granted') {
+                startLocationWatching();
+            }
+            
+            result.onchange = function() {
+                console.log('📍 Geolocation permission changed to:', result.state);
+                if (result.state === 'granted') {
+                    requestUserLocation();
+                    startLocationWatching();
+                } else {
+                    stopLocationWatching();
+                }
+            };
+        });
+    }
 }
 
 // NEW: Check location permissions
@@ -109,7 +127,7 @@ function checkLocationPermission() {
     }
 }
 
-// NEW: Request user's current location
+// Request user's current location
 function requestUserLocation() {
     if (locationRequestActive) {
         console.log('⏭️ Location request already active');
@@ -142,83 +160,120 @@ function requestUserLocation() {
     }, 16000);
 }
 
-// NEW: Handle successful location retrieval
+// Ensure location form fields exist
+function ensureLocationFormFields() {
+    const form = document.getElementById('checkinForm');
+    if (!form) {
+        console.log('⚠️ Check-in form not found');
+        return;
+    }
+    
+    const locationFields = ['latitude', 'longitude', 'accuracy', 'altitude', 'location_source', 'address'];
+    
+    locationFields.forEach(fieldName => {
+        if (!document.getElementById(fieldName)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.id = fieldName;
+            input.name = fieldName;
+            input.value = '';
+            form.appendChild(input);
+            console.log(`✅ Created hidden field: ${fieldName}`);
+        }
+    });
+}
+
+// Handle successful location retrieval
 function handleLocationSuccess(position) {
     locationRequestActive = false;
     
     const coords = position.coords;
-    console.log('✅ Location obtained:', coords);
-    
-    // Store location data
-    userLocation = {
+    console.log('✅ Location obtained:', {
         latitude: coords.latitude,
         longitude: coords.longitude,
         accuracy: coords.accuracy,
         altitude: coords.altitude,
+        timestamp: position.timestamp
+    });
+    
+    // Validate coordinates
+    if (!coords.latitude || !coords.longitude) {
+        console.log('⚠️ Invalid coordinates received');
+        handleLocationError({ code: 2, message: 'Invalid coordinates' });
+        return;
+    }
+    
+    // Store location data with validation
+    userLocation = {
+        latitude: Number(coords.latitude).toFixed(6),  // Limit precision
+        longitude: Number(coords.longitude).toFixed(6),
+        accuracy: coords.accuracy ? Math.round(coords.accuracy) : null,
+        altitude: coords.altitude ? Math.round(coords.altitude) : null,
         timestamp: position.timestamp,
         source: 'gps',
         address: null
     };
     
-    // Update form fields
+    console.log('💾 Stored location data:', userLocation);
+    
+    // Update form fields immediately
     updateLocationFormFields();
     
     // Update display
     updateLocationDisplay();
     
     // Show success status
-    const accuracyText = coords.accuracy ? Math.round(coords.accuracy) : 'unknown';
-    const accuracyLevel = getAccuracyLevel(coords.accuracy);
+    const accuracyText = coords.accuracy ? `±${Math.round(coords.accuracy)}m` : 'unknown';
+    showLocationStatus('success', `Location captured (${accuracyText} accuracy)`);
     
-    showLocationStatus('success', 
-        `Location captured (±${accuracyText}m - ${accuracyLevel} accuracy)`
-    );
-    
-    console.log('📍 Location stored:', userLocation);
-    
-    // Try to get address from coordinates
+    // Try to get address
     reverseGeocodeLocation(coords.latitude, coords.longitude);
-    
-    // Start watching for better accuracy (optional)
-    startLocationWatching();
 }
 
-// NEW: Handle location errors
+// Handle location errors
 function handleLocationError(error) {
     locationRequestActive = false;
     
-    console.error('❌ Location error:', error);
-    
     let message = 'Unable to get location';
-    let details = 'Check-in will work without location';
+    
+    console.log('❌ Location error:', error);
     
     switch(error.code) {
         case error.PERMISSION_DENIED:
-            message = 'Location access denied';
-            details = 'Enable location permission in browser settings';
+            message = 'Location access denied - please enable in browser settings';
             break;
         case error.POSITION_UNAVAILABLE:
-            message = 'Location unavailable';
-            details = 'GPS signal is weak or unavailable';
+            message = 'Location unavailable - GPS signal weak';
             break;
         case error.TIMEOUT:
             message = 'Location request timed out';
-            details = 'Try refreshing or check connection';
             break;
         default:
             message = 'Location error occurred';
-            details = 'Please try again';
-            break;
     }
     
-    showLocationStatus('error', `${message} - ${details}`);
-    
-    // Set location source to manual
+    showLocationStatus('error', `${message} - check-in will continue without location`);
     userLocation.source = 'manual';
     updateLocationFormFields();
 }
 
-// NEW: Start watching location for continuous updates
+// Enhanced form initialization
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 QR Destination page initialized with enhanced location tracking');
+    
+    // Initialize the page
+    initializePage();
+    setupEventListeners();
+    startTimeUpdater();
+    
+    // Initialize geolocation
+    initializeGeolocation();
+    
+    // Add hidden form fields for location data
+    ensureLocationFormFields();
+});
+
+// Start watching location for continuous updates
 function startLocationWatching() {
     if (locationWatchId !== null) {
         console.log('👁️ Already watching location');
@@ -257,25 +312,32 @@ function stopLocationWatching() {
     }
 }
 
-// NEW: Update form fields with location data
+// Update form fields with location data
 function updateLocationFormFields() {
     const fields = {
         'latitude': userLocation.latitude || '',
         'longitude': userLocation.longitude || '',
         'accuracy': userLocation.accuracy || '',
         'altitude': userLocation.altitude || '',
-        'locationSource': userLocation.source || 'manual',
+        'location_source': userLocation.source || 'manual',  // FIXED: was 'locationSource'
         'address': userLocation.address || ''
     };
     
+    // Update hidden form fields
     Object.keys(fields).forEach(fieldId => {
-        const field = document.getElementById(fieldId);
-        if (field) {
-            field.value = fields[fieldId];
+        let field = document.getElementById(fieldId);
+        if (!field) {
+            // Create hidden input if it doesn't exist
+            field = document.createElement('input');
+            field.type = 'hidden';
+            field.id = fieldId;
+            field.name = fieldId;
+            document.getElementById('checkinForm').appendChild(field);
         }
+        field.value = fields[fieldId];
     });
     
-    console.log('📝 Updated form fields with location data');
+    console.log('📝 Updated form fields with location data:', fields);
 }
 
 // NEW: Update location display
@@ -549,24 +611,25 @@ function shakeInput(input) {
 }
 
 function submitCheckin(employeeId) {
-    console.log('🚀 Submitting check-in for:', employeeId);
-    
-    // NEW: Log location data being submitted
-    const locationData = getCurrentLocationData();
-    console.log('📍 Location data:', locationData);
+    if (isSubmitting) {
+        console.log('⏭️ Already submitting, ignoring duplicate request');
+        return false;
+    }
     
     isSubmitting = true;
     updateSubmitButton(true);
-    showStatusMessage('Processing check-in...', 'info');
+    hideStatusMessage();
     
-    // NEW: Ensure all location data is in the form
+    console.log('📤 Starting check-in submission for:', employeeId);
+    console.log('📍 Current location data:', userLocation);
+    
+    // Ensure location data is in the form
     updateLocationFormFields();
     
-    // Prepare form data
+    // Prepare form data with CORRECT field names
     const formData = new FormData();
     formData.append('employee_id', employeeId);
     
-    // NEW: Add location data to form submission
     formData.append('latitude', userLocation.latitude || '');
     formData.append('longitude', userLocation.longitude || '');
     formData.append('accuracy', userLocation.accuracy || '');
@@ -574,11 +637,17 @@ function submitCheckin(employeeId) {
     formData.append('location_source', userLocation.source || 'manual');
     formData.append('address', userLocation.address || '');
     
+    // DEBUG: Log exactly what we're sending
+    console.log('📤 Form data being submitted:');
+    for (let [key, value] of formData.entries()) {
+        console.log(`   ${key}: "${value}"`);
+    }
+    
     // Get the current URL for the check-in endpoint
     const currentUrl = window.location.pathname;
     const checkinUrl = `${currentUrl}/checkin`;
     
-    console.log('📤 Submitting to:', checkinUrl);
+    console.log('🎯 Submitting to URL:', checkinUrl);
     
     fetch(checkinUrl, {
         method: 'POST',
@@ -587,14 +656,19 @@ function submitCheckin(employeeId) {
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('📡 Server response status:', response.status);
+        return response.json();
+    })
     .then(data => {
         isSubmitting = false;
         updateSubmitButton(false);
         
+        console.log('📥 Server response:', data);
+        
         if (data.success) {
             showSuccessPage(data);
-            console.log('✅ Check-in successful:', data);
+            console.log('✅ Check-in successful with location:', data.data?.has_location || false);
             
             // Stop location watching after successful check-in
             stopLocationWatching();
@@ -607,7 +681,7 @@ function submitCheckin(employeeId) {
         isSubmitting = false;
         updateSubmitButton(false);
         showStatusMessage('Network error. Please check your connection and try again.', 'error');
-        console.error('❌ Check-in error:', error);
+        console.error('❌ Network error:', error);
     });
 }
 
