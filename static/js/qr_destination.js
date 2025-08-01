@@ -33,41 +33,20 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializePage() {
+    console.log('🚀 Initializing page...');
     // Focus on employee ID input
     const employeeInput = document.getElementById('employee_id');
     if (employeeInput) {
         employeeInput.focus();
     }
-    
-    // Initialize current time display
-    updateCurrentTime();
-    
-    // Add page load animation
-    document.body.classList.add('page-loaded');
 }
 
 function setupEventListeners() {
+    console.log('🎧 Setting up event listeners...');
     const form = document.getElementById('checkinForm');
-    const employeeInput = document.getElementById('employee_id');
-    
     if (form) {
         form.addEventListener('submit', handleFormSubmit);
     }
-    
-    if (employeeInput) {
-        // Real-time input validation
-        employeeInput.addEventListener('input', handleInputChange);
-        employeeInput.addEventListener('blur', validateEmployeeId);
-        employeeInput.addEventListener('keypress', handleKeyPress);
-        
-        // Auto-uppercase input
-        employeeInput.addEventListener('input', function() {
-            this.value = this.value.toUpperCase();
-        });
-    }
-    
-    // Handle page visibility changes
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
 // Initialize geolocation functionality
@@ -203,10 +182,10 @@ function handleLocationSuccess(position) {
         return;
     }
     
-    // Store location data with validation
+    // Store location data with validation (keep as numbers, not strings)
     userLocation = {
-        latitude: Number(coords.latitude).toFixed(6),  // Limit precision
-        longitude: Number(coords.longitude).toFixed(6),
+        latitude: Number(coords.latitude),  // Keep as number for calculations
+        longitude: Number(coords.longitude),
         accuracy: coords.accuracy ? Math.round(coords.accuracy) : null,
         altitude: coords.altitude ? Math.round(coords.altitude) : null,
         timestamp: position.timestamp,
@@ -275,48 +254,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Start watching location for continuous updates
 function startLocationWatching() {
-    if (locationWatchId !== null) {
-        console.log('👁️ Already watching location');
+    if (!navigator.geolocation || locationWatchId !== null) {
         return;
     }
     
-    console.log('👁️ Starting location watching for better accuracy...');
-    
-    const options = {
+    const watchOptions = {
         enableHighAccuracy: true,
         timeout: 30000,
-        maximumAge: 60000
+        maximumAge: 600000  // 10 minutes
     };
     
     locationWatchId = navigator.geolocation.watchPosition(
-        function(position) {
-            // Only update if accuracy is better
-            if (!userLocation.accuracy || position.coords.accuracy < userLocation.accuracy) {
-                console.log('📍 Location updated with better accuracy:', position.coords.accuracy);
-                handleLocationSuccess(position);
-            }
-        },
-        function(error) {
+        handleLocationSuccess,
+        (error) => {
             console.log('⚠️ Location watch error:', error);
+            // Don't show error for watch failures, just log them
         },
-        options
+        watchOptions
     );
+    
+    console.log('👁️ Started location watching');
 }
 
-// NEW: Stop watching location
+// Stop watching location
 function stopLocationWatching() {
     if (locationWatchId !== null) {
         navigator.geolocation.clearWatch(locationWatchId);
         locationWatchId = null;
-        console.log('⏹️ Stopped watching location');
+        console.log('⏹️ Stopped location watching');
     }
 }
 
 // Update form fields with location data
 function updateLocationFormFields() {
+    // CRITICAL FIX: Use correct field names that match server expectations
     const fields = {
-        'latitude': userLocation.latitude || '',
-        'longitude': userLocation.longitude || '',
+        'latitude': userLocation.latitude ? userLocation.latitude.toFixed(6) : '',  // Convert to string with precision here
+        'longitude': userLocation.longitude ? userLocation.longitude.toFixed(6) : '',
         'accuracy': userLocation.accuracy || '',
         'altitude': userLocation.altitude || '',
         'location_source': userLocation.source || 'manual',  // FIXED: was 'locationSource'
@@ -340,7 +314,7 @@ function updateLocationFormFields() {
     console.log('📝 Updated form fields with location data:', fields);
 }
 
-// NEW: Update location display
+// Update location display
 function updateLocationDisplay() {
     if (userLocation.latitude && userLocation.longitude) {
         const elements = {
@@ -356,28 +330,46 @@ function updateLocationDisplay() {
                 element.textContent = elements[elementId];
             }
         });
+        
+        console.log('🖥️ Updated location display');
     }
 }
 
-// NEW: Reverse geocode coordinates to get address
+// Reverse geocode coordinates to get address
 function reverseGeocodeLocation(lat, lng) {
     console.log('🏠 Getting address from coordinates...');
     
-    // Try multiple geocoding services for better reliability
-    const services = [
-        {
-            name: 'BigDataCloud',
-            url: `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
-            parser: (data) => data.locality || data.city || data.neighbourhood || ''
-        },
-        {
-            name: 'OpenStreetMap',
-            url: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-            parser: (data) => data.display_name ? data.display_name.split(',')[0] : ''
-        }
-    ];
+    // Use a free geocoding service
+    const geocodeUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`;
     
-    tryGeocodingService(0, services);
+    fetch(geocodeUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data && (data.locality || data.city || data.principalSubdivision)) {
+                const address = [
+                    data.locality || data.city,
+                    data.principalSubdivision,
+                    data.countryName
+                ].filter(Boolean).join(', ');
+                
+                userLocation.address = address;
+                updateLocationFormFields();
+                updateLocationDisplay();
+                
+                console.log('🏠 Address found:', address);
+            } else {
+                console.log('🏠 No address found');
+                userLocation.address = 'Address not available';
+                updateLocationFormFields();
+                updateLocationDisplay();
+            }
+        })
+        .catch(error => {
+            console.log('⚠️ Geocoding error:', error);
+            userLocation.address = 'Address lookup failed';
+            updateLocationFormFields();
+            updateLocationDisplay();
+        });
 }
 
 function tryGeocodingService(index, services) {
@@ -420,31 +412,26 @@ function tryGeocodingService(index, services) {
         });
 }
 
-// NEW: Show location status to user
+// Show location status to user
 function showLocationStatus(type, message) {
     const statusElement = document.getElementById('locationStatus');
     const messageElement = document.getElementById('locationMessage');
     
-    if (!statusElement || !messageElement) {
-        console.log('📍 Location status elements not found');
-        return;
+    if (statusElement && messageElement) {
+        statusElement.className = `location-status ${type}`;
+        messageElement.textContent = message;
+        
+        // Auto-hide success messages after 3 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        } else {
+            statusElement.style.display = 'block';
+        }
     }
     
-    statusElement.className = `location-status ${type}`;
-    statusElement.style.display = 'flex';
-    
-    let icon = '📡';
-    if (type === 'success') icon = '✅';
-    if (type === 'error') icon = '⚠️';
-    
-    messageElement.innerHTML = `${icon} ${message}`;
-    
-    // Auto-hide after 8 seconds unless it's loading
-    if (type !== 'loading') {
-        setTimeout(() => {
-            statusElement.style.display = 'none';
-        }, 8000);
-    }
+    console.log(`📍 Location status: ${type} - ${message}`);
 }
 
 // NEW: Get accuracy level description
@@ -455,7 +442,7 @@ function getAccuracyLevel(accuracy) {
     return 'low';
 }
 
-// NEW: Toggle location info display
+// Toggle location info display
 function toggleLocationInfo() {
     const locationInfo = document.getElementById('locationInfo');
     if (!locationInfo) return;
@@ -468,7 +455,7 @@ function toggleLocationInfo() {
     }
 }
 
-// NEW: Retry location request
+// Retry location request
 function retryLocationRequest() {
     console.log('🔄 Retrying location request...');
     
@@ -493,7 +480,7 @@ function retryLocationRequest() {
     requestUserLocation();
 }
 
-// NEW: Get current location data for external use
+// Get current location data for external use
 function getCurrentLocationData() {
     return {
         hasLocation: !!(userLocation.latitude && userLocation.longitude),
@@ -516,11 +503,17 @@ function handleFormSubmit(e) {
     
     const employeeId = document.getElementById('employee_id').value.trim();
     
-    if (!validateEmployeeId()) {
+    if (!employeeId) {
+        showStatusMessage('Please enter your Employee ID', 'error');
         return false;
     }
     
-    // NEW: Ensure location data is up to date before submission
+    if (!employeeId.match(/^[A-Za-z0-9]{3,20}$/)) {
+        showStatusMessage('Invalid Employee ID format. Use 3-20 alphanumeric characters.', 'error');
+        return false;
+    }
+    
+    // Ensure location data is up to date before submission
     updateLocationFormFields();
     
     submitCheckin(employeeId);
@@ -630,11 +623,12 @@ function submitCheckin(employeeId) {
     const formData = new FormData();
     formData.append('employee_id', employeeId);
     
-    formData.append('latitude', userLocation.latitude || '');
-    formData.append('longitude', userLocation.longitude || '');
+    // CRITICAL FIX: Use exact field names that server expects
+    formData.append('latitude', userLocation.latitude ? userLocation.latitude.toFixed(6) : '');
+    formData.append('longitude', userLocation.longitude ? userLocation.longitude.toFixed(6) : '');
     formData.append('accuracy', userLocation.accuracy || '');
     formData.append('altitude', userLocation.altitude || '');
-    formData.append('location_source', userLocation.source || 'manual');
+    formData.append('location_source', userLocation.source || 'manual');  // FIXED: was locationSource
     formData.append('address', userLocation.address || '');
     
     // DEBUG: Log exactly what we're sending
@@ -686,88 +680,80 @@ function submitCheckin(employeeId) {
 }
 
 function showSuccessPage(data) {
-    // Hide the check-in form and location status
-    const checkinCard = document.querySelector('.checkin-card');
-    const locationStatus = document.getElementById('locationStatus');
-    const locationInfo = document.getElementById('locationInfo');
-    const locationControls = document.querySelector('.location-controls');
+    console.log('🎉 Showing success page with data:', data);
     
-    if (checkinCard) checkinCard.style.display = 'none';
-    if (locationStatus) locationStatus.style.display = 'none';
-    if (locationInfo) locationInfo.style.display = 'none';
-    if (locationControls) locationControls.style.display = 'none';
-    
-    // Show success card
-    const successCard = document.getElementById('successCard');
-    if (successCard) {
-        successCard.style.display = 'block';
-        
-        // Populate success details
-        const elements = {
-            'successEmployeeId': data.employee_id || '-',
-            'successLocation': data.location || window.locationName || '-',
-            'successEvent': data.event || window.eventName || '-',
-            'successTime': data.time || new Date().toLocaleTimeString(),
-            'successDate': data.date || new Date().toLocaleDateString()
-        };
-        
-        Object.keys(elements).forEach(elementId => {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.textContent = elements[elementId];
-            }
-        });
-        
-        // NEW: Show location info in success card if available
-        const successLocationInfo = document.getElementById('successLocationInfo');
-        const successGpsInfo = document.getElementById('successGpsInfo');
-        
-        if (data.has_location && userLocation.latitude && userLocation.longitude) {
-            let locationText = `Captured (±${Math.round(userLocation.accuracy || 0)}m)`;
-            if (userLocation.address) {
-                locationText += ` - ${userLocation.address}`;
-            }
-            
-            if (successGpsInfo) successGpsInfo.textContent = locationText;
-            if (successLocationInfo) successLocationInfo.style.display = 'block';
-        }
-        
-        // Scroll to success card
-        successCard.scrollIntoView({ behavior: 'smooth' });
+    // Hide the form
+    const form = document.getElementById('checkinForm');
+    if (form) {
+        form.style.display = 'none';
     }
     
-    // Auto-refresh page after 30 seconds
+    // Show success message
+    showStatusMessage(`Check-in successful for ${data.data.employee_id}!`, 'success');
+    
+    // You can customize this to show a proper success page
+    // For now, just show the success message and reload after 3 seconds
     setTimeout(() => {
-        console.log('🔄 Auto-refreshing page...');
-        window.location.reload();
-    }, 30000);
-}
+        location.reload();
+    }, 3000);;
+let locationRequestActive = false;
+let locationWatchId = null;
 
-function showStatusMessage(message, type) {
-    const statusElement = document.getElementById('statusMessage');
-    if (!statusElement) return;
+// Utility function to show status messages
+function showStatusMessage(message, type = 'info') {
+    // This function should exist in your original code
+    // If not, here's a simple implementation
+    console.log(`Status: ${type} - ${message}`);
     
-    statusElement.className = `status-message ${type}`;
-    statusElement.innerHTML = `
-        <div class="status-content">
-            <i class="fas ${getStatusIcon(type)}"></i>
-            <span>${message}</span>
-        </div>
-    `;
-    statusElement.style.display = 'block';
-    
-    // Auto-hide info messages
-    if (type === 'info') {
-        setTimeout(() => {
-            statusElement.style.display = 'none';
-        }, 3000);
+    // Try to find existing status display element
+    let statusEl = document.getElementById('statusMessage');
+    if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.id = 'statusMessage';
+        statusEl.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-weight: 500;
+        `;
+        document.body.appendChild(statusEl);
     }
+    
+    statusEl.textContent = message;
+    statusEl.className = `status-message ${type}`;
+    
+    // Style based on type
+    if (type === 'error') {
+        statusEl.style.backgroundColor = '#fee2e2';
+        statusEl.style.color = '#dc2626';
+        statusEl.style.border = '1px solid #fecaca';
+    } else if (type === 'success') {
+        statusEl.style.backgroundColor = '#dcfce7';
+        statusEl.style.color = '#16a34a';
+        statusEl.style.border = '1px solid #bbf7d0';
+    } else {
+        statusEl.style.backgroundColor = '#dbeafe';
+        statusEl.style.color = '#2563eb';
+        statusEl.style.border = '1px solid #bfdbfe';
+    }
+    
+    statusEl.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+    }, 5000);
 }
 
+// Utility function to hide status messages
 function hideStatusMessage() {
-    const statusElement = document.getElementById('statusMessage');
-    if (statusElement) {
-        statusElement.style.display = 'none';
+    const statusEl = document.getElementById('statusMessage');
+    if (statusEl) {
+        statusEl.style.display = 'none';
     }
 }
 
@@ -782,26 +768,27 @@ function getStatusIcon(type) {
 }
 
 function updateSubmitButton(isLoading) {
-    const submitBtn = document.getElementById('submitBtn') || document.querySelector('button[type="submit"]');
-    if (!submitBtn) return;
-    
-    const btnContent = submitBtn.querySelector('.btn-content');
-    const btnLoader = submitBtn.querySelector('.btn-loader');
-    
-    if (isLoading) {
-        submitBtn.disabled = true;
-        if (btnContent) btnContent.style.display = 'none';
-        if (btnLoader) btnLoader.style.display = 'flex';
-    } else {
-        submitBtn.disabled = false;
-        if (btnContent) btnContent.style.display = 'flex';
-        if (btnLoader) btnLoader.style.display = 'none';
+    const submitBtn = document.querySelector('#checkinForm button[type="submit"]');
+    if (submitBtn) {
+        if (isLoading) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-check"></i> Check In';
+        }
     }
 }
 
 function startTimeUpdater() {
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
+    console.log('⏰ Starting time updater...');
+    // Update current time display
+    setInterval(() => {
+        const timeElement = document.getElementById('currentTime');
+        if (timeElement) {
+            timeElement.textContent = new Date().toLocaleTimeString();
+        }
+    }, 1000);
 }
 
 function updateCurrentTime() {
