@@ -7,6 +7,91 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/qr_destination.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <meta name="robots" content="noindex, nofollow">
+    <style>
+        /* Additional styles for location tracking */
+        .location-status {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 15px 0;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .location-status.loading {
+            background: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        
+        .location-status.success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .location-status.error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .location-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+            font-size: 13px;
+        }
+        
+        .location-info h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .coord-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .coord-row:last-child {
+            border-bottom: none;
+        }
+        
+        .coord-value {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .location-controls {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .btn-small {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 0 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-small:hover {
+            background: #545b62;
+        }
+    </style>
 </head>
 <body>
     <div class="destination-container">
@@ -74,6 +159,43 @@
             </div>
         </div>
 
+        <!-- LOCATION STATUS - NEW ADDITION -->
+        <div id="locationStatus" class="location-status">
+            <i class="fas fa-location-arrow"></i>
+            <span id="locationMessage">Getting your location...</span>
+        </div>
+
+        <!-- LOCATION DETAILS - NEW ADDITION -->
+        <div id="locationInfo" class="location-info">
+            <h4><i class="fas fa-map-marker-alt"></i> Location Details</h4>
+            <div class="coord-row">
+                <span>Latitude:</span>
+                <span class="coord-value" id="displayLatitude">-</span>
+            </div>
+            <div class="coord-row">
+                <span>Longitude:</span>
+                <span class="coord-value" id="displayLongitude">-</span>
+            </div>
+            <div class="coord-row">
+                <span>Accuracy:</span>
+                <span class="coord-value" id="displayAccuracy">-</span>
+            </div>
+            <div class="coord-row">
+                <span>Address:</span>
+                <span class="coord-value" id="displayAddress">-</span>
+            </div>
+        </div>
+
+        <!-- LOCATION CONTROLS - NEW ADDITION -->
+        <div class="location-controls">
+            <button type="button" class="btn-small" onclick="retryLocationRequest()">
+                <i class="fas fa-redo"></i> Retry Location
+            </button>
+            <button type="button" class="btn-small" onclick="toggleLocationInfo()">
+                <i class="fas fa-info-circle"></i> Show Details
+            </button>
+        </div>
+
         <!-- Check-in Form -->
         <div class="checkin-card">
             <div class="checkin-header">
@@ -85,6 +207,14 @@
             </div>
 
             <form id="checkinForm" class="checkin-form">
+                <!-- HIDDEN LOCATION FIELDS - NEW ADDITION -->
+                <input type="hidden" id="latitude" name="latitude">
+                <input type="hidden" id="longitude" name="longitude">
+                <input type="hidden" id="accuracy" name="accuracy">
+                <input type="hidden" id="altitude" name="altitude">
+                <input type="hidden" id="locationSource" name="location_source" value="manual">
+                <input type="hidden" id="address" name="address">
+
                 <div class="form-group">
                     <label for="employee_id">
                         <i class="fas fa-id-badge"></i>
@@ -147,6 +277,11 @@
                     <strong>Date:</strong>
                     <span id="successDate">-</span>
                 </div>
+                <!-- NEW LOCATION SUCCESS INFO -->
+                <div class="success-item" id="successLocationInfo" style="display: none;">
+                    <strong>GPS Location:</strong>
+                    <span id="successGpsInfo">-</span>
+                </div>
             </div>
             
             <div class="success-actions">
@@ -177,10 +312,238 @@
 
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
     <script>
-        // Initialize page with QR code URL
+        // Initialize page with QR code URL (EXISTING CODE)
         window.qrUrl = '{{ qr_code.qr_url }}';
         window.locationName = '{{ qr_code.location }}';
         window.eventName = '{{ qr_code.location_event }}';
+
+        // GEOLOCATION INTEGRATION - NEW CODE
+        let userLocation = {
+            latitude: null,
+            longitude: null,
+            accuracy: null,
+            altitude: null,
+            timestamp: null,
+            source: 'manual',
+            address: null
+        };
+
+        let locationRequestActive = false;
+
+        // Add geolocation to existing page initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📍 Adding geolocation to existing QR system...');
+            
+            // Check if geolocation is supported
+            if (navigator.geolocation) {
+                requestUserLocation();
+            } else {
+                showLocationStatus('error', 'Location not supported by this browser');
+            }
+        });
+
+        /**
+         * Request user location
+         */
+        function requestUserLocation() {
+            if (locationRequestActive) return;
+            
+            locationRequestActive = true;
+            showLocationStatus('loading', 'Getting your location...');
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 300000
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                handleLocationSuccess,
+                handleLocationError,
+                options
+            );
+        }
+
+        /**
+         * Handle successful location
+         */
+        function handleLocationSuccess(position) {
+            locationRequestActive = false;
+            
+            const coords = position.coords;
+            console.log('✅ Location obtained:', coords);
+            
+            // Store location data
+            userLocation = {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracy: coords.accuracy,
+                altitude: coords.altitude,
+                timestamp: position.timestamp,
+                source: 'gps',
+                address: null
+            };
+            
+            // Update hidden form fields
+            updateLocationFormFields();
+            
+            // Update display
+            updateLocationDisplay();
+            
+            // Show success status
+            const accuracyText = coords.accuracy ? Math.round(coords.accuracy) : 'unknown';
+            showLocationStatus('success', `Location captured (±${accuracyText}m accuracy)`);
+            
+            // Try to get address
+            reverseGeocodeLocation(coords.latitude, coords.longitude);
+        }
+
+        /**
+         * Handle location errors
+         */
+        function handleLocationError(error) {
+            locationRequestActive = false;
+            
+            let message = 'Unable to get location';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Location access denied - enable in browser settings';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Location unavailable - GPS signal weak';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Location request timed out';
+                    break;
+            }
+            
+            showLocationStatus('error', `${message} - check-in will work without location`);
+            userLocation.source = 'manual';
+            updateLocationFormFields();
+        }
+
+        /**
+         * Update form fields with location data
+         */
+        function updateLocationFormFields() {
+            document.getElementById('latitude').value = userLocation.latitude || '';
+            document.getElementById('longitude').value = userLocation.longitude || '';
+            document.getElementById('accuracy').value = userLocation.accuracy || '';
+            document.getElementById('altitude').value = userLocation.altitude || '';
+            document.getElementById('locationSource').value = userLocation.source || 'manual';
+            document.getElementById('address').value = userLocation.address || '';
+            
+            console.log('📝 Updated form fields with location data');
+        }
+
+        /**
+         * Update location display
+         */
+        function updateLocationDisplay() {
+            if (userLocation.latitude && userLocation.longitude) {
+                document.getElementById('displayLatitude').textContent = userLocation.latitude.toFixed(6);
+                document.getElementById('displayLongitude').textContent = userLocation.longitude.toFixed(6);
+                document.getElementById('displayAccuracy').textContent = 
+                    userLocation.accuracy ? `±${Math.round(userLocation.accuracy)}m` : 'Unknown';
+                document.getElementById('displayAddress').textContent = userLocation.address || 'Loading...';
+            }
+        }
+
+        /**
+         * Get address from coordinates
+         */
+        function reverseGeocodeLocation(lat, lng) {
+            fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.locality) {
+                        userLocation.address = data.locality;
+                        document.getElementById('address').value = data.locality;
+                        document.getElementById('displayAddress').textContent = data.locality;
+                        console.log('🏠 Address found:', data.locality);
+                    }
+                })
+                .catch(error => {
+                    console.log('⚠️ Address lookup failed:', error);
+                    document.getElementById('displayAddress').textContent = 'Address not available';
+                });
+        }
+
+        /**
+         * Show location status
+         */
+        function showLocationStatus(type, message) {
+            const statusElement = document.getElementById('locationStatus');
+            const messageElement = document.getElementById('locationMessage');
+            
+            statusElement.className = `location-status ${type}`;
+            statusElement.style.display = 'flex';
+            
+            let icon = '📡';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '⚠️';
+            
+            messageElement.innerHTML = `${icon} ${message}`;
+            
+            // Auto-hide after 8 seconds unless it's loading
+            if (type !== 'loading') {
+                setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 8000);
+            }
+        }
+
+        /**
+         * Toggle location info display
+         */
+        function toggleLocationInfo() {
+            const locationInfo = document.getElementById('locationInfo');
+            if (locationInfo.style.display === 'none' || !locationInfo.style.display) {
+                updateLocationDisplay();
+                locationInfo.style.display = 'block';
+            } else {
+                locationInfo.style.display = 'none';
+            }
+        }
+
+        /**
+         * Retry location request
+         */
+        function retryLocationRequest() {
+            userLocation = {
+                latitude: null,
+                longitude: null,
+                accuracy: null,
+                altitude: null,
+                timestamp: null,
+                source: 'manual',
+                address: null
+            };
+            requestUserLocation();
+        }
+
+        // Hook into existing form submission to include location data
+        const originalSubmitCheckin = window.submitCheckin;
+        if (typeof originalSubmitCheckin === 'function') {
+            window.submitCheckin = function(employeeId) {
+                // Ensure form has latest location data
+                updateLocationFormFields();
+                
+                console.log('📤 Submitting with location data:', {
+                    employee_id: employeeId,
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                    accuracy: userLocation.accuracy,
+                    source: userLocation.source
+                });
+                
+                // Call original function
+                return originalSubmitCheckin(employeeId);
+            };
+        }
+
+        console.log('📍 Geolocation integration completed successfully!');
     </script>
 </body>
 </html>

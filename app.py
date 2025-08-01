@@ -1105,7 +1105,7 @@ def qr_destination(qr_url):
 
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
 def qr_checkin(qr_url):
-    """Handle staff check-in submission"""
+    """Handle staff check-in submission with geolocation support"""
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
@@ -1119,13 +1119,21 @@ def qr_checkin(qr_url):
         # Get form data
         employee_id = request.form.get('employee_id', '').strip()
         
+        # NEW: Get location data from form
+        latitude = request.form.get('latitude', '').strip()
+        longitude = request.form.get('longitude', '').strip()
+        accuracy = request.form.get('accuracy', '').strip()
+        altitude = request.form.get('altitude', '').strip()
+        location_source = request.form.get('location_source', 'manual').strip()
+        address = request.form.get('address', '').strip()
+        
         if not employee_id:
             return jsonify({
                 'success': False,
                 'message': 'Employee ID is required.'
             }), 400
         
-        # Validate employee ID format (adjust regex as needed)
+        # Validate employee ID format
         if not re.match(r'^[A-Za-z0-9]{3,20}$', employee_id):
             return jsonify({
                 'success': False,
@@ -1146,10 +1154,34 @@ def qr_checkin(qr_url):
                 'message': f'You have already checked in today at {existing_checkin.check_in_time.strftime("%H:%M")}.'
             }), 409
         
-        # Get device and location info
-        user_agent_string = request.headers.get('User-Agent', '')
-        device_info = detect_device_info(user_agent_string)
-        ip_address = get_client_ip()
+        # Parse user agent
+        user_agent = request.headers.get('User-Agent', '')
+        parsed_agent = parse(user_agent)
+        device_info = f"{parsed_agent.browser.family} on {parsed_agent.os.family}"
+        
+        # Get client IP
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip and ',' in client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
+        # NEW: Process location data safely
+        lat_value = None
+        lng_value = None
+        acc_value = None
+        alt_value = None
+        
+        try:
+            if latitude and latitude != 'null' and latitude != '':
+                lat_value = float(latitude)
+            if longitude and longitude != 'null' and longitude != '':
+                lng_value = float(longitude)
+            if accuracy and accuracy != 'null' and accuracy != '':
+                acc_value = float(accuracy)
+            if altitude and altitude != 'null' and altitude != '':
+                alt_value = float(altitude)
+        except (ValueError, TypeError) as e:
+            print(f"⚠️ Invalid location data: {e}")
+            # Continue without location data
         
         # Create attendance record
         attendance = AttendanceData(
@@ -1158,35 +1190,68 @@ def qr_checkin(qr_url):
             check_in_date=today,
             check_in_time=datetime.now().time(),
             device_info=device_info,
-            user_agent=user_agent_string,
-            ip_address=ip_address,
+            user_agent=user_agent,
+            ip_address=client_ip,
             location_name=qr_code.location,
             status='present'
         )
         
+        # NEW: Add location data if available (safe attribute setting)
+        try:
+            if lat_value is not None:
+                attendance.latitude = lat_value
+            if lng_value is not None:
+                attendance.longitude = lng_value
+            if acc_value is not None:
+                attendance.accuracy = acc_value
+            if alt_value is not None:
+                attendance.altitude = alt_value
+            if location_source:
+                attendance.location_source = location_source
+            if address:
+                attendance.address = address
+        except AttributeError as e:
+            print(f"⚠️ Location columns not available: {e}")
+            # Continue without location data
+        
         db.session.add(attendance)
         db.session.commit()
         
-        print(f"Check-in recorded: {employee_id} at {qr_code.name}")
-        
-        return jsonify({
+        # Prepare response
+        response_data = {
             'success': True,
-            'message': f'Check-in successful! Welcome to {qr_code.location_event}.',
-            'data': {
-                'employee_id': employee_id.upper(),
-                'location': qr_code.location,
-                'event': qr_code.location_event,
-                'time': datetime.now().strftime('%H:%M'),
-                'date': today.strftime('%B %d, %Y')
-            }
-        })
+            'message': 'Check-in successful!',
+            'employee_id': employee_id.upper(),
+            'location': qr_code.location,
+            'event': qr_code.location_event,
+            'time': datetime.now().strftime('%H:%M'),
+            'date': today.strftime('%Y-%m-%d'),
+            'has_location': bool(lat_value and lng_value)
+        }
+        
+        # NEW: Add location info to response
+        if lat_value and lng_value:
+            response_data.update({
+                'location_accuracy': acc_value,
+                'location_address': address
+            })
+        
+        print(f"✅ Check-in successful: {employee_id.upper()} at {qr_code.location}")
+        if lat_value and lng_value:
+            print(f"📍 Location: {lat_value:.6f}, {lng_value:.6f} (±{acc_value}m) - {location_source}")
+            if address:
+                print(f"🏠 Address: {address}")
+        
+        return jsonify(response_data)
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error during check-in: {e}")
+        print(f"❌ Check-in error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
-            'message': 'An error occurred during check-in. Please try again.'
+            'message': 'System error occurred. Please try again.'
         }), 500
     
 @app.route('/qr-codes/<int:qr_id>/toggle-status', methods=['POST'])
@@ -1354,6 +1419,81 @@ def attendance_report():
     except Exception as e:
         print(f"Error loading attendance report: {e}")
         flash('Error loading attendance report.', 'error')
+        return redirect(url_for('dashboard'))
+    
+# 3. ADD NEW ROUTE FOR LOCATION STATISTICS (Optional)
+@app.route('/admin/location-stats')
+@admin_required
+def location_stats():
+    """View location statistics for admin"""
+    try:
+        # Get basic attendance stats
+        total_checkins = AttendanceData.query.count()
+        
+        # Try to get location data (will work only if columns exist)
+        location_checkins = 0
+        recent_locations = []
+        location_accuracy_stats = {
+            'high': 0,
+            'medium': 0, 
+            'low': 0,
+            'unknown': 0
+        }
+        
+        try:
+            # Count check-ins with location data
+            location_checkins = db.session.execute(text("""
+                SELECT COUNT(*) FROM attendance_data 
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+            """)).fetchone()[0]
+            
+            # Get recent locations
+            recent_locations_result = db.session.execute(text("""
+                SELECT employee_id, latitude, longitude, accuracy, address,
+                       check_in_date, check_in_time, location_name, location_source
+                FROM attendance_data 
+                WHERE latitude IS NOT NULL 
+                ORDER BY created_timestamp DESC 
+                LIMIT 20
+            """)).fetchall()
+            
+            recent_locations = []
+            for row in recent_locations_result:
+                recent_locations.append({
+                    'employee_id': row[0],
+                    'latitude': row[1],
+                    'longitude': row[2],
+                    'accuracy': row[3],
+                    'address': row[4],
+                    'check_in_date': row[5].strftime('%Y-%m-%d') if row[5] else '',
+                    'check_in_time': row[6].strftime('%H:%M') if row[6] else '',
+                    'location_name': row[7],
+                    'location_source': row[8]
+                })
+                
+                # Count accuracy stats
+                accuracy = row[3]
+                if accuracy is None:
+                    location_accuracy_stats['unknown'] += 1
+                elif accuracy <= 50:
+                    location_accuracy_stats['high'] += 1
+                elif accuracy <= 100:
+                    location_accuracy_stats['medium'] += 1
+                else:
+                    location_accuracy_stats['low'] += 1
+            
+        except Exception as e:
+            print(f"⚠️ Location stats query failed: {e}")
+        
+        return render_template('location_stats.html', 
+                             total_checkins=total_checkins,
+                             location_checkins=location_checkins,
+                             recent_locations=recent_locations,
+                             accuracy_stats=location_accuracy_stats)
+        
+    except Exception as e:
+        print(f"Error loading location stats: {e}")
+        flash('Error loading location statistics.', 'error')
         return redirect(url_for('dashboard'))
 
 @app.route('/api/attendance/stats')
