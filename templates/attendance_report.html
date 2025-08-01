@@ -1,122 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Attendance Report{% endblock %}
+{% block title %}Attendance Report - QR Code Management{% endblock %}
 
-{% block extra_css %}
+{% block extra_head %}
+<!-- Attendance-specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
-<style>
-    /* Additional styles for location data */
-    .location-data {
-        font-family: 'Courier New', monospace;
-        font-size: 11px;
-        color: #495057;
-        background: #f8f9fa;
-        padding: 4px 6px;
-        border-radius: 4px;
-        margin: 2px 0;
-    }
-    
-    .coordinates {
-        display: block;
-        line-height: 1.3;
-    }
-    
-    .accuracy-badge {
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        margin-top: 2px;
-    }
-    
-    .accuracy-high {
-        background: #d4f4dd;
-        color: #166534;
-    }
-    
-    .accuracy-medium {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    
-    .accuracy-low {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    
-    .location-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 2px 6px;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 600;
-    }
-    
-    .has-gps {
-        background: #d4f4dd;
-        color: #166534;
-    }
-    
-    .no-gps {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    
-    .address-info {
-        font-size: 11px;
-        color: #6c757d;
-        max-width: 150px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        margin-top: 2px;
-    }
-    
-    .map-link {
-        color: #2563eb;
-        text-decoration: none;
-        font-size: 10px;
-        display: inline-flex;
-        align-items: center;
-        gap: 2px;
-        margin-top: 2px;
-    }
-    
-    .map-link:hover {
-        text-decoration: underline;
-    }
-    
-    .location-stats {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-    
-    .location-stats .stat-icon {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-    }
-    
-    /* Mobile responsiveness for location columns */
-    @media (max-width: 768px) {
-        .location-data {
-            font-size: 9px;
-            padding: 2px 4px;
-        }
-        
-        .coordinates {
-            display: none; /* Hide coordinates on mobile */
-        }
-        
-        .address-info {
-            max-width: 80px;
-            font-size: 9px;
-        }
-    }
-</style>
+<!-- Chart.js for analytics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -128,66 +18,65 @@
                 <i class="fas fa-chart-line"></i>
                 Attendance Report
             </h1>
-            <p>Comprehensive attendance tracking with location data for {{ current_date_formatted }}</p>
+            <p>Monitor and analyze staff attendance across all locations</p>
         </div>
+        
         <div class="header-actions">
-            <button onclick="exportToCSV()" class="btn btn-outline">
+            <button onclick="exportAttendance()" class="btn btn-success">
                 <i class="fas fa-download"></i>
-                Export CSV
+                Export Data
             </button>
-            <button onclick="printReport()" class="btn btn-outline">
-                <i class="fas fa-print"></i>
-                Print Report
+            <button onclick="refreshReport()" class="btn btn-secondary">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
             </button>
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i>
-                Back to Dashboard
-            </a>
         </div>
     </div>
 
-    <!-- Statistics Section -->
+    <!-- Statistics Cards -->
     <div class="stats-section">
         <div class="stats-grid">
             <div class="stat-card primary">
                 <div class="stat-icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.total_checkins }}</h3>
-                    <p>Total Check-ins</p>
-                </div>
-            </div>
-            
-            <div class="stat-card success">
-                <div class="stat-icon">
                     <i class="fas fa-user-check"></i>
                 </div>
                 <div class="stat-content">
-                    <h3>{{ stats.unique_employees }}</h3>
-                    <p>Unique Employees</p>
+                    <h3>{{ stats.total_checkins or 0 }}</h3>
+                    <p>Total Check-ins</p>
+                    <span class="stat-trend">All time</span>
                 </div>
             </div>
-            
-            <div class="stat-card info">
+
+            <div class="stat-card success">
                 <div class="stat-icon">
-                    <i class="fas fa-calendar-day"></i>
+                    <i class="fas fa-users"></i>
                 </div>
                 <div class="stat-content">
-                    <h3>{{ stats.today_checkins }}</h3>
-                    <p>Today's Check-ins</p>
+                    <h3>{{ stats.unique_employees or 0 }}</h3>
+                    <p>Unique Employees</p>
+                    <span class="stat-trend">Have checked in</span>
                 </div>
             </div>
-            
-            <!-- NEW: Location Statistics Card -->
-            <div class="stat-card location-stats">
+
+            <div class="stat-card info">
                 <div class="stat-icon">
                     <i class="fas fa-map-marker-alt"></i>
                 </div>
                 <div class="stat-content">
-                    <h3>{{ stats.checkins_with_location }}</h3>
-                    <p>With GPS Location</p>
-                    <small>{{ location_coverage }}% coverage</small>
+                    <h3>{{ stats.active_locations or 0 }}</h3>
+                    <p>Active Locations</p>
+                    <span class="stat-trend">With check-ins</span>
+                </div>
+            </div>
+
+            <div class="stat-card warning">
+                <div class="stat-icon">
+                    <i class="fas fa-calendar-day"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.today_checkins or 0 }}</h3>
+                    <p>Today's Check-ins</p>
+                    <span class="stat-trend">{{ current_date_formatted or 'Today' }}</span>
                 </div>
             </div>
         </div>
@@ -203,7 +92,7 @@
                 </h3>
             </div>
             
-            <form method="GET" action="{{ url_for('attendance_report') }}">
+            <form method="GET" class="filters-form" id="filtersForm">
                 <div class="filter-row">
                     <div class="filter-group">
                         <label for="date">
@@ -214,19 +103,19 @@
                                id="date" 
                                name="date" 
                                value="{{ date_filter }}"
-                               max="{{ today_date }}">
+                               max="{{ today_date or '' }}">
                     </div>
                     
                     <div class="filter-group">
                         <label for="location">
-                            <i class="fas fa-map-marker-alt"></i>
+                            <i class="fas fa-building"></i>
                             Location
                         </label>
                         <select id="location" name="location">
                             <option value="">All Locations</option>
                             {% for location in locations %}
                             <option value="{{ location }}" 
-                                    {% if location == location_filter %}selected{% endif %}>
+                                    {{ 'selected' if location == location_filter else '' }}>
                                 {{ location }}
                             </option>
                             {% endfor %}
@@ -266,9 +155,6 @@
             <h3>
                 <i class="fas fa-list"></i>
                 Attendance Records
-                {% if attendance_records %}
-                <span class="record-count">({{ attendance_records|length }} records)</span>
-                {% endif %}
             </h3>
             <div class="table-controls">
                 <div class="entries-per-page">
@@ -295,13 +181,8 @@
                         <th onclick="sortTable(3)">Event <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(4)">Date <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(5)">Time <i class="fas fa-sort"></i></th>
-                        <!-- NEW: Location Data Columns -->
-                        <th onclick="sortTable(6)">GPS Status <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(7)">Coordinates <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(8)">Accuracy <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(9)">Address <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(10)">Device <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(11)">Status <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)">Device <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(7)">Status <i class="fas fa-sort"></i></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -335,86 +216,37 @@
                                 {{ record.check_in_time.strftime('%H:%M') }}
                             </div>
                         </td>
-                        
-                        <!-- NEW: GPS Status Column -->
                         <td>
-                            {% if record.latitude and record.longitude %}
-                            <span class="location-indicator has-gps">
-                                <i class="fas fa-satellite"></i>
-                                GPS
-                            </span>
-                            {% else %}
-                            <span class="location-indicator no-gps">
-                                <i class="fas fa-times"></i>
-                                No GPS
-                            </span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- NEW: Coordinates Column -->
-                        <td>
-                            {% if record.latitude and record.longitude %}
-                            <div class="location-data">
-                                <span class="coordinates">
-                                    {{ "%.6f"|format(record.latitude) }}<br>
-                                    {{ "%.6f"|format(record.longitude) }}
+                            <div class="device-info">
+                                <i class="fas fa-mobile-alt"></i>
+                                <span title="{{ record.device_info }}">
+                                    {{ record.device_info[:20] }}{% if record.device_info|length > 20 %}...{% endif %}
                                 </span>
-                            </div>
-                            {% else %}
-                            <span style="color: #6c757d; font-style: italic;">Not available</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- NEW: Accuracy Column -->
-                        <td>
-                            {% if record.location_accuracy %}
-                                {% set accuracy_class = 'high' if record.location_accuracy <= 50 else ('medium' if record.location_accuracy <= 100 else 'low') %}
-                                <span class="accuracy-badge accuracy-{{ accuracy_class }}">
-                                    ±{{ "%.0f"|format(record.location_accuracy) }}m
-                                </span>
-                            {% else %}
-                            <span style="color: #6c757d;">-</span>
-                            {% endif %}
-                        </td>
-                        
-                        <!-- NEW: Address Column -->
-                        <td>
-                            {% if record.address %}
-                            <div class="address-info" title="{{ record.address }}">
-                                {{ record.address }}
-                            </div>
-                            {% else %}
-                            <span style="color: #6c757d; font-style: italic;">Not resolved</span>
-                            {% endif %}
-                        </td>
-                        
-                        <td>
-                            <div class="device-info" title="{{ record.user_agent }}">
-                                <i class="fas fa-{{ 'mobile-alt' if 'Mobile' in record.device_info else 'desktop' }}"></i>
-                                {{ record.device_info }}
                             </div>
                         </td>
                         <td>
                             <span class="status-badge {{ record.status }}">
-                                <i class="fas fa-{{ 'check' if record.status == 'present' else 'times' }}"></i>
+                                <i class="fas {{ 'fa-check-circle' if record.status == 'present' else 'fa-times-circle' }}"></i>
                                 {{ record.status.title() }}
                             </span>
                         </td>
                         <td>
                             <div class="record-actions">
-                                <button onclick="viewRecord('{{ record.id }}')" 
-                                        class="action-btn" 
+                                <button onclick="viewRecordDetails({{ record.id }})" 
+                                        class="action-btn btn-view"
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                {% if record.latitude and record.longitude %}
-                                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" 
-                                   target="_blank" 
-                                   class="map-link" 
-                                   title="View on Map">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </a>
-                                {% endif %}
+                                <button onclick="editRecord({{ record.id }})" 
+                                        class="action-btn btn-edit"
+                                        title="Edit Record">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="deleteRecord({{ record.id }})" 
+                                        class="action-btn btn-delete"
+                                        title="Delete Record">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -423,39 +255,75 @@
             </table>
             {% else %}
             <div class="empty-state">
-                <i class="fas fa-search"></i>
-                <h3>No Records Found</h3>
+                <div class="empty-icon">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <h3>No Attendance Records Found</h3>
                 <p>{% if date_filter or location_filter or employee_filter %}
-                    No attendance records match your current filters.
+                    No records match your current filters. Try adjusting the filter criteria.
                    {% else %}
-                    No attendance records available yet.
+                    No staff have checked in yet. QR codes need to be scanned to generate attendance data.
                    {% endif %}</p>
-                {% if date_filter or location_filter or employee_filter %}
                 <button onclick="clearFilters()" class="btn btn-primary">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-refresh"></i>
                     Clear Filters
                 </button>
-                {% endif %}
             </div>
             {% endif %}
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-container" id="paginationContainer">
+            <!-- Pagination will be dynamically generated -->
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>
+                        <i class="fas fa-chart-bar"></i>
+                        Daily Check-ins (Last 7 Days)
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>
+                        <i class="fas fa-chart-pie"></i>
+                        Check-ins by Location
+                    </h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="locationChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Record Details Modal -->
-<div id="recordModal" class="modal" style="display: none;">
+<div id="recordModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>
-                <i class="fas fa-info-circle"></i>
-                Record Details
-            </h3>
-            <button onclick="closeModal()" class="modal-close">
+            <h3 id="modalTitle">Attendance Record Details</h3>
+            <button class="modal-close" onclick="closeRecordModal()">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div class="modal-body" id="recordDetails">
-            <!-- Record details will be loaded here -->
+        <div class="modal-body" id="modalBody">
+            <!-- Dynamic content will be loaded here -->
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeRecordModal()" class="btn btn-secondary">
+                Close
+            </button>
         </div>
     </div>
 </div>
@@ -463,171 +331,4 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/attendance_report.js') }}"></script>
-<script>
-    // Additional JavaScript for location features
-    
-    function clearFilters() {
-        window.location.href = "{{ url_for('attendance_report') }}";
-    }
-    
-    function exportToCSV() {
-        // Enhanced CSV export with location data
-        const table = document.getElementById('attendanceTable');
-        if (!table) return;
-        
-        let csv = [];
-        const rows = table.querySelectorAll('tr');
-        
-        for (let i = 0; i < rows.length; i++) {
-            const row = [], cols = rows[i].querySelectorAll('td, th');
-            
-            for (let j = 0; j < cols.length - 1; j++) { // Skip actions column
-                let cellText = cols[j].innerText.replace(/"/g, '""');
-                row.push('"' + cellText + '"');
-            }
-            csv.push(row.join(','));
-        }
-        
-        // Download CSV
-        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
-        const downloadLink = document.createElement('a');
-        downloadLink.download = `attendance_report_${new Date().toISOString().slice(0, 10)}.csv`;
-        downloadLink.href = window.URL.createObjectURL(csvFile);
-        downloadLink.style.display = 'none';
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-    }
-    
-    function printReport() {
-        window.print();
-    }
-    
-    function viewRecord(recordId) {
-        // Show record details in modal
-        const modal = document.getElementById('recordModal');
-        const detailsDiv = document.getElementById('recordDetails');
-        
-        // Find the record row
-        const row = document.querySelector(`tr[data-record-id="${recordId}"]`);
-        if (!row) return;
-        
-        const cells = row.querySelectorAll('td');
-        
-        detailsDiv.innerHTML = `
-            <div class="record-detail-grid">
-                <div class="detail-item">
-                    <strong>Employee ID:</strong>
-                    <span>${cells[1].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Location:</strong>
-                    <span>${cells[2].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Event:</strong>
-                    <span>${cells[3].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Date:</strong>
-                    <span>${cells[4].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Time:</strong>
-                    <span>${cells[5].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>GPS Status:</strong>
-                    <span>${cells[6].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Coordinates:</strong>
-                    <span>${cells[7].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Accuracy:</strong>
-                    <span>${cells[8].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Address:</strong>
-                    <span>${cells[9].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Device:</strong>
-                    <span>${cells[10].textContent.trim()}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Status:</strong>
-                    <span>${cells[11].textContent.trim()}</span>
-                </div>
-            </div>
-        `;
-        
-        modal.style.display = 'flex';
-    }
-    
-    function closeModal() {
-        document.getElementById('recordModal').style.display = 'none';
-    }
-    
-    // Close modal when clicking outside
-    window.onclick = function(event) {
-        const modal = document.getElementById('recordModal');
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    }
-    
-    console.log('📍 Enhanced attendance report with location data loaded');
-    console.log('📊 Location coverage: {{ location_coverage }}%');
-    console.log('📍 Records with GPS: {{ stats.checkins_with_location }} / {{ stats.total_checkins }}');
-</script>
-
-<style>
-    /* Additional styles for modal and details */
-    .record-detail-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
-        font-size: 14px;
-    }
-    
-    .detail-item {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-    }
-    
-    .detail-item strong {
-        color: #495057;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .detail-item span {
-        color: #212529;
-        font-weight: 500;
-    }
-    
-    .record-count {
-        font-size: 14px;
-        color: #6c757d;
-        font-weight: normal;
-    }
-    
-    @media (max-width: 768px) {
-        .record-detail-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        /* Hide some columns on mobile for better readability */
-        .attendance-table th:nth-child(8),
-        .attendance-table td:nth-child(8),
-        .attendance-table th:nth-child(10),
-        .attendance-table td:nth-child(10) {
-            display: none;
-        }
-    }
-</style>
 {% endblock %}

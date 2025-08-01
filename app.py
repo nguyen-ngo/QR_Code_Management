@@ -183,7 +183,6 @@ def generate_qr_code(data):
     
     return img_str
 
-
 @app.template_filter('strftime')
 def strftime_filter(value, format='%Y-%m-%d'):
     """Format datetime/date/string as strftime"""
@@ -626,68 +625,6 @@ def user_stats_api():
     except Exception as e:
         print(f"Error fetching user stats: {e}")
         return jsonify({'error': 'Failed to fetch user statistics'}), 500
-
-# Optional: Add a separate endpoint to get location data as JSON for AJAX requests
-@app.route('/api/attendance-location-data')
-@admin_required
-def attendance_location_data():
-    """API endpoint to get attendance data with location information"""
-    try:
-        # Get query parameters
-        limit = request.args.get('limit', 100, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        
-        query_sql = """
-            SELECT 
-                ad.employee_id,
-                ad.check_in_date,
-                ad.check_in_time,
-                ad.latitude,
-                ad.longitude,
-                ad.location_accuracy,
-                ad.address,
-                ad.location_source,
-                ad.location_name,
-                qr.name as qr_name
-            FROM attendance_data ad
-            JOIN qr_codes qr ON ad.qr_code_id = qr.id
-            WHERE ad.latitude IS NOT NULL AND ad.longitude IS NOT NULL
-            ORDER BY ad.created_timestamp DESC
-            LIMIT :limit OFFSET :offset
-        """
-        
-        query = db.session.execute(text(query_sql), {
-            'limit': limit,
-            'offset': offset
-        })
-        
-        records = []
-        for row in query.fetchall():
-            records.append({
-                'employee_id': row.employee_id,
-                'check_in_date': row.check_in_date.strftime('%Y-%m-%d') if row.check_in_date else '',
-                'check_in_time': row.check_in_time.strftime('%H:%M') if row.check_in_time else '',
-                'latitude': row.latitude,
-                'longitude': row.longitude,
-                'accuracy': row.location_accuracy,
-                'address': row.address,
-                'location_source': row.location_source,
-                'location_name': row.location_name,
-                'qr_name': row.qr_name
-            })
-        
-        return jsonify({
-            'success': True,
-            'records': records,
-            'count': len(records)
-        })
-        
-    except Exception as e:
-        print(f"Error getting location data: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/users/<int:user_id>/permanently-delete', methods=['GET', 'POST'])
 @admin_required
@@ -1431,96 +1368,39 @@ def toggle_qr_status_api(qr_id):
             return redirect(url_for('dashboard'))
 
 @app.route('/attendance')
-@admin_required
+#@admin_required
 def attendance_report():
-    """Enhanced attendance report page with location data"""
+    """Attendance report page (Admin only)"""
     try:
         # Get filter parameters
         date_filter = request.args.get('date', '')
         location_filter = request.args.get('location', '')
         employee_filter = request.args.get('employee', '')
         
-        # Enhanced query to include location data
-        query_sql = """
-            SELECT 
-                ad.id,
-                ad.employee_id,
-                ad.check_in_date,
-                ad.check_in_time,
-                ad.device_info,
-                ad.user_agent,
-                ad.ip_address,
-                ad.location_name,
-                ad.status,
-                ad.created_timestamp,
-                -- Location data columns
-                ad.latitude,
-                ad.longitude,
-                ad.location_accuracy,
-                ad.address,
-                ad.location_source,
-                ad.location_timestamp,
-                -- QR code info
-                qr.name as qr_name,
-                qr.location as qr_location,
-                qr.location_event,
-                qr.location_address as qr_address
-            FROM attendance_data ad
-            JOIN qr_codes qr ON ad.qr_code_id = qr.id
-            WHERE 1=1
-        """
+        # Base query using the view
+        query = db.session.execute(text("SELECT * FROM attendance_report WHERE 1=1"))
         
-        # Apply filters to SQL query
-        filter_params = {}
-        
-        if date_filter:
-            query_sql += " AND ad.check_in_date = :date_filter"
-            filter_params['date_filter'] = date_filter
-        
-        if location_filter:
-            query_sql += " AND ad.location_name ILIKE :location_filter"
-            filter_params['location_filter'] = f"%{location_filter}%"
-        
-        if employee_filter:
-            query_sql += " AND ad.employee_id ILIKE :employee_filter"
-            filter_params['employee_filter'] = f"%{employee_filter}%"
-        
-        # Order by latest first
-        query_sql += " ORDER BY ad.created_timestamp DESC"
-        
-        # Execute query
-        query = db.session.execute(text(query_sql), filter_params)
+        # Apply filters (you can enhance this with proper SQLAlchemy filtering)
         attendance_records = query.fetchall()
         
         # Get unique locations for filter dropdown
         locations_query = db.session.execute(text("""
             SELECT DISTINCT location_name 
             FROM attendance_data 
-            WHERE location_name IS NOT NULL
             ORDER BY location_name
         """))
         locations = [row[0] for row in locations_query.fetchall()]
         
-        # Enhanced statistics including location data
+        # Get attendance statistics
         stats_query = db.session.execute(text("""
             SELECT 
                 COUNT(*) as total_checkins,
                 COUNT(DISTINCT employee_id) as unique_employees,
                 COUNT(DISTINCT qr_code_id) as active_locations,
-                COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins,
-                -- Location statistics
-                COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END) as checkins_with_location,
-                COUNT(CASE WHEN location_accuracy <= 50 THEN 1 END) as high_accuracy_checkins,
-                COUNT(CASE WHEN location_accuracy > 50 AND location_accuracy <= 100 THEN 1 END) as medium_accuracy_checkins,
-                COUNT(CASE WHEN location_accuracy > 100 THEN 1 END) as low_accuracy_checkins
+                COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins
             FROM attendance_data
         """))
         stats = stats_query.fetchone()
-        
-        # Calculate location coverage percentage
-        location_coverage = 0
-        if stats.total_checkins > 0:
-            location_coverage = round((stats.checkins_with_location / stats.total_checkins) * 100, 1)
         
         # Add today's date for template
         today_date = datetime.now().strftime('%Y-%m-%d')
@@ -1530,7 +1410,6 @@ def attendance_report():
                              attendance_records=attendance_records,
                              locations=locations,
                              stats=stats,
-                             location_coverage=location_coverage,
                              date_filter=date_filter,
                              location_filter=location_filter,
                              employee_filter=employee_filter,
@@ -1539,8 +1418,6 @@ def attendance_report():
         
     except Exception as e:
         print(f"Error loading attendance report: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error loading attendance report.', 'error')
         return redirect(url_for('dashboard'))
     
@@ -1779,41 +1656,8 @@ def update_existing_qr_codes():
         print(f"Error updating existing QR codes: {e}")
         db.session.rollback()
 
-def ensure_location_columns():
-    """Ensure location columns exist in attendance_data table"""
-    try:
-        # Check if location columns exist
-        result = db.session.execute(text("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'attendance_data' 
-            AND column_name IN ('latitude', 'longitude', 'location_accuracy', 
-                               'address', 'location_source', 'location_timestamp')
-        """)).fetchall()
-        
-        existing_columns = [row[0] for row in result]
-        required_columns = ['latitude', 'longitude', 'location_accuracy', 'address', 'location_source', 'location_timestamp']
-        missing_columns = [col for col in required_columns if col not in existing_columns]
-        
-        if missing_columns:
-            print(f"⚠️ Missing location columns: {', '.join(missing_columns)}")
-            print("   Run the location migration script first!")
-            return False
-        else:
-            print(f"✅ All location columns exist")
-            return True
-            
-    except Exception as e:
-        print(f"⚠️ Could not check location columns: {e}")
-        return False
-
 if __name__ == '__main__':
     with app.app_context():
         create_tables()
         update_existing_qr_codes()
-
-        # Check location columns
-        if not ensure_location_columns():
-            print("\n🚨 Location columns missing! Run location migration first:")
-            print("python location_migration.py")
     app.run(debug=True, host="0.0.0.0")
