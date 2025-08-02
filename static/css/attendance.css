@@ -965,6 +965,182 @@
   color: var(--gray-600);
 }
 
+.location-accuracy-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.location-accuracy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  flex-direction: column;
+  text-align: center;
+  min-width: 80px;
+}
+
+.location-accuracy-badge small {
+  font-size: 0.6rem;
+  font-weight: 500;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Location accuracy level colors - based on distance */
+.location-accuracy-badge.accuracy-excellent {
+  background: var(--success-light);
+  color: var(--success-color);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.location-accuracy-badge.accuracy-good {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.location-accuracy-badge.accuracy-fair {
+  background: var(--warning-light);
+  color: var(--warning-color);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.location-accuracy-badge.accuracy-poor {
+  background: var(--danger-light);
+  color: var(--danger-color);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.location-accuracy-badge.accuracy-unknown {
+  background: var(--gray-100);
+  color: var(--gray-500);
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* Distance ruler icon styling */
+.location-accuracy-badge .fa-ruler {
+  font-size: var(--font-size-xs);
+}
+
+/* Enhanced table header for location accuracy */
+.attendance-table th:nth-child(9) {
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Responsive adjustments for location accuracy column */
+@media (max-width: 1200px) {
+  .location-accuracy-badge {
+    min-width: 70px;
+    font-size: 0.625rem;
+  }
+
+  .location-accuracy-badge small {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Hide location accuracy column on mobile to save space */
+  .attendance-table th:nth-child(9),
+  .attendance-table td:nth-child(9) {
+    display: none;
+  }
+}
+
+/* Enhanced modal details for location accuracy */
+.location-accuracy-details {
+  background: var(--gray-50);
+  padding: var(--spacing-4);
+  border-radius: var(--radius-lg);
+  margin: var(--spacing-3) 0;
+}
+
+.location-accuracy-details h5 {
+  color: var(--gray-800);
+  margin-bottom: var(--spacing-2);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.location-accuracy-details .fa-ruler {
+  color: var(--primary-color);
+}
+
+.accuracy-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-3);
+}
+
+.accuracy-comparison .location-point {
+  text-align: center;
+  padding: var(--spacing-3);
+  background: var(--white);
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+}
+
+.accuracy-comparison .location-point i {
+  font-size: 1.5rem;
+  margin-bottom: var(--spacing-2);
+}
+
+.accuracy-comparison .qr-point i {
+  color: var(--success-color);
+}
+
+.accuracy-comparison .checkin-point i {
+  color: var(--info-color);
+}
+
+.distance-display {
+  text-align: center;
+  margin: var(--spacing-4) 0;
+  padding: var(--spacing-4);
+  background: linear-gradient(
+    135deg,
+    var(--primary-light),
+    var(--success-light)
+  );
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--primary-color);
+}
+
+.distance-display .distance-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-1);
+}
+
+.distance-display .distance-label {
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+/* Print styles for location accuracy */
+@media print {
+  .location-accuracy-badge {
+    background: transparent !important;
+    border: 1px solid #ccc !important;
+    color: #000 !important;
+  }
+
+  .location-accuracy-badge small {
+    display: inline;
+  }
+}
+
 /* Print styles for new columns */
 @media print {
   .address-info,

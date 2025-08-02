@@ -18,7 +18,7 @@
                 <i class="fas fa-chart-line"></i>
                 Attendance Report
             </h1>
-            <p>Monitor and analyze staff attendance with location accuracy tracking</p>
+            <p>Monitor and analyze staff attendance with enhanced location tracking</p>
         </div>
         
         <div class="header-actions">
@@ -80,7 +80,7 @@
                 </div>
             </div>
 
-            <!-- New GPS accuracy stats -->
+            <!-- GPS tracking stats -->
             <div class="stat-card info">
                 <div class="stat-icon">
                     <i class="fas fa-satellite"></i>
@@ -92,88 +92,110 @@
                 </div>
             </div>
 
+            <!-- Location accuracy stats (conditional) -->
+            {% if has_location_accuracy_feature %}
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="fas fa-ruler"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ "%.2f"|format(stats.avg_location_accuracy or 0) }}mi</h3>
+                    <p>Avg. Location Accuracy</p>
+                    <span class="stat-trend">Distance precision</span>
+                </div>
+            </div>
+            {% else %}
             <div class="stat-card success">
                 <div class="stat-icon">
                     <i class="fas fa-crosshairs"></i>
                 </div>
                 <div class="stat-content">
-                    <h3>{{ "%.1f"|format(stats.avg_accuracy or 0) }}m</h3>
-                    <p>Avg. Accuracy</p>
-                    <span class="stat-trend">Location precision</span>
+                    <h3>GPS</h3>
+                    <p>Tracking Mode</p>
+                    <span class="stat-trend">Current system</span>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Enhanced Filters Section with Date Range -->
     <div class="filters-section">
-        <div class="filters-container">
-            <form method="GET" action="{{ url_for('attendance_report') }}">
-                <div class="filter-row">
-                    <!-- Date Range Filters -->
-                    <div class="filter-group">
-                        <label for="date_from">
-                            <i class="fas fa-calendar-alt"></i>
-                            From Date
-                        </label>
-                        <input type="date" 
-                               id="date_from" 
-                               name="date_from" 
-                               value="{{ date_from }}"
-                               max="{{ today_date }}">
+        <div class="filters-card">
+            <div class="filters-header">
+                <h3>
+                    <i class="fas fa-filter"></i>
+                    Filter Records
+                </h3>
+            </div>
+            <div class="filters-form">
+                <form method="GET" action="{{ url_for('attendance_report') }}">
+                    <div class="filter-row">
+                        <!-- Date Range Filters -->
+                        <div class="filter-group">
+                            <label for="date_from">
+                                <i class="fas fa-calendar-alt"></i>
+                                From Date
+                            </label>
+                            <input type="date" 
+                                   id="date_from" 
+                                   name="date_from" 
+                                   value="{{ date_from }}"
+                                   max="{{ today_date }}">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="date_to">
+                                <i class="fas fa-calendar-alt"></i>
+                                To Date
+                            </label>
+                            <input type="date" 
+                                   id="date_to" 
+                                   name="date_to" 
+                                   value="{{ date_to }}"
+                                   max="{{ today_date }}">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="location">
+                                <i class="fas fa-map-marker-alt"></i>
+                                Location
+                            </label>
+                            <select id="location" name="location">
+                                <option value="">All Locations</option>
+                                {% for location in locations %}
+                                <option value="{{ location }}" {{ 'selected' if location == location_filter else '' }}>
+                                    {{ location }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="employee">
+                                <i class="fas fa-id-badge"></i>
+                                Employee ID
+                            </label>
+                            <input type="text" 
+                                   id="employee" 
+                                   name="employee" 
+                                   value="{{ employee_filter }}"
+                                   placeholder="Enter Employee ID">
+                        </div>
+                        
+                        <div class="filter-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i>
+                                Apply Filters
+                            </button>
+                            <button type="button" onclick="clearFilters()" class="btn btn-outline">
+                                <i class="fas fa-times"></i>
+                                Clear
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div class="filter-group">
-                        <label for="date_to">
-                            <i class="fas fa-calendar-alt"></i>
-                            To Date
-                        </label>
-                        <input type="date" 
-                               id="date_to" 
-                               name="date_to" 
-                               value="{{ date_to }}"
-                               max="{{ today_date }}">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="location">
-                            <i class="fas fa-map-marker-alt"></i>
-                            Location
-                        </label>
-                        <select id="location" name="location">
-                            <option value="">All Locations</option>
-                            {% for location in locations %}
-                            <option value="{{ location }}" {{ 'selected' if location == location_filter else '' }}>
-                                {{ location }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label for="employee">
-                            <i class="fas fa-id-badge"></i>
-                            Employee ID
-                        </label>
-                        <input type="text" 
-                               id="employee" 
-                               name="employee" 
-                               value="{{ employee_filter }}"
-                               placeholder="Enter Employee ID">
-                    </div>
-                    
-                    <div class="filter-actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-search"></i>
-                            Apply Filters
-                        </button>
-                        <button type="button" onclick="clearFilters()" class="btn btn-outline">
-                            <i class="fas fa-times"></i>
-                            Clear
-                        </button>
-                    </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -212,9 +234,12 @@
                         <th onclick="sortTable(3)">Event <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(4)">Date <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(5)">Time <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(6)">QR Address <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(7)">Check-in Address <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(8)">GPS Accuracy <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)" class="address-column">QR Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(7)" class="address-column">Check-in Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(8)">
+                            {% if has_location_accuracy_feature %}Location Accuracy{% else %}GPS Accuracy{% endif %} 
+                            <i class="fas fa-sort"></i>
+                        </th>
                         <th onclick="sortTable(9)">Device <i class="fas fa-sort"></i></th>
                         <th>Actions</th>
                     </tr>
@@ -249,7 +274,7 @@
                                 {{ record.check_in_time.strftime('%H:%M') }}
                             </div>
                         </td>
-                        <td>
+                        <td class="address-column">
                             <div class="address-info qr-address">
                                 <i class="fas fa-qrcode"></i>
                                 <span title="{{ record.qr_address }}">
@@ -257,7 +282,7 @@
                                 </span>
                             </div>
                         </td>
-                        <td>
+                        <td class="address-column">
                             <div class="address-info checkin-address">
                                 <i class="fas fa-location-arrow"></i>
                                 <span title="{{ record.checked_in_address }}">
@@ -266,21 +291,35 @@
                             </div>
                         </td>
                         <td>
-                            <div class="accuracy-info">
-                                {% if record.accuracy %}
-                                <span class="accuracy-badge accuracy-{{ record.accuracy_level }}" 
-                                      title="GPS accuracy: {{ record.accuracy }}m">
-                                    <i class="fas fa-crosshairs"></i>
-                                    {{ "%.1f"|format(record.accuracy) }}m
-                                    <small>({{ record.accuracy_level }})</small>
-                                </span>
-                                {% else %}
-                                <span class="accuracy-badge accuracy-unknown" title="No GPS data available">
-                                    <i class="fas fa-question-circle"></i>
-                                    No GPS
-                                </span>
-                                {% endif %}
-                            </div>
+                            {% if has_location_accuracy_feature and record.location_accuracy %}
+                                <!-- Show location accuracy in miles -->
+                                <div class="location-accuracy-info">
+                                    <span class="location-accuracy-badge accuracy-{{ record.accuracy_level }}" 
+                                          title="Distance between QR location and check-in location: {{ record.location_accuracy }} miles">
+                                        <i class="fas fa-ruler"></i>
+                                        {{ "%.3f"|format(record.location_accuracy) }} mi
+                                        <small>({{ record.accuracy_level }})</small>
+                                    </span>
+                                </div>
+                            {% elif record.gps_accuracy %}
+                                <!-- Fallback to GPS accuracy in meters -->
+                                <div class="accuracy-info">
+                                    <span class="accuracy-badge accuracy-{{ record.accuracy_level }}" 
+                                          title="GPS accuracy: {{ record.gps_accuracy }}m">
+                                        <i class="fas fa-crosshairs"></i>
+                                        {{ "%.1f"|format(record.gps_accuracy) }}m
+                                        <small>(gps)</small>
+                                    </span>
+                                </div>
+                            {% else %}
+                                <!-- No accuracy data -->
+                                <div class="accuracy-info">
+                                    <span class="accuracy-badge accuracy-unknown" title="No accuracy data available">
+                                        <i class="fas fa-question-circle"></i>
+                                        Unknown
+                                    </span>
+                                </div>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="device-info">
@@ -297,12 +336,19 @@
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
+                                {% if record.has_location_data %}
                                 <button onclick="showLocationMap('{{ record.id }}')" 
                                         class="action-btn btn-map"
-                                        title="Show on Map"
-                                        {% if not record.has_location_data %}disabled{% endif %}>
+                                        title="Show on Map">
                                     <i class="fas fa-map"></i>
                                 </button>
+                                {% else %}
+                                <button class="action-btn btn-map" 
+                                        title="No GPS data available"
+                                        disabled>
+                                    <i class="fas fa-map"></i>
+                                </button>
+                                {% endif %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
@@ -372,7 +418,13 @@
             </button>
         </div>
         <div class="modal-body" id="mapModalBody">
-            <div id="locationMap" style="height: 400px; width: 100%;"></div>
+            <div id="locationMap" style="height: 400px; width: 100%;">
+                <div style="text-align: center; padding: 100px; color: #6b7280;">
+                    <i class="fas fa-map-marked-alt" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                    <p><strong>GPS Coordinates will be displayed here</strong></p>
+                    <p><em>Map integration requires additional setup</em></p>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button onclick="closeMapModal()" class="btn btn-secondary">Close</button>
@@ -385,6 +437,8 @@
 <script src="{{ url_for('static', filename='js/attendance_report.js') }}"></script>
 <script>
 // Enhanced JavaScript for new functionality
+const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
+
 function clearFilters() {
     window.location.href = "{{ url_for('attendance_report') }}";
 }
@@ -413,24 +467,34 @@ function showLocationMap(recordId) {
         return;
     }
     
-    // Show map modal (requires Google Maps API or similar)
+    // Show map modal
     document.getElementById('mapModal').style.display = 'block';
     document.getElementById('mapModalTitle').textContent = `Location - ${record.employeeId}`;
     
-    // Initialize map (placeholder - requires actual map implementation)
+    // Update map container with coordinates info
     const mapContainer = document.getElementById('locationMap');
     mapContainer.innerHTML = `
         <div style="text-align: center; padding: 100px;">
             <i class="fas fa-map-marked-alt" style="font-size: 3rem; color: #6b7280; margin-bottom: 1rem;"></i>
             <p><strong>GPS Coordinates:</strong> ${record.coordinates}</p>
-            <p><strong>Accuracy:</strong> ${record.accuracy}m (${record.accuracy_level})</p>
-            <p><em>Map integration requires Google Maps API setup</em></p>
+            <p><strong>Employee:</strong> ${record.employeeId}</p>
+            <p><strong>Location:</strong> ${record.location}</p>
+            <p><strong>Check-in Time:</strong> ${record.date} ${record.time}</p>
+            ${hasLocationAccuracy && record.location_accuracy ? 
+                `<p><strong>Location Accuracy:</strong> ${record.location_accuracy.toFixed(3)} miles (${record.accuracy_level})</p>` : 
+                ''
+            }
+            <p style="margin-top: 2rem; color: #6b7280;"><em>Full map integration requires Google Maps API setup</em></p>
         </div>
     `;
 }
 
 function closeMapModal() {
     document.getElementById('mapModal').style.display = 'none';
+}
+
+function closeModal() {
+    document.getElementById('recordModal').style.display = 'none';
 }
 
 // Enhanced record details view
@@ -445,6 +509,58 @@ function viewRecordDetails(recordId) {
     if (!modal || !modalTitle || !modalBody) return;
     
     modalTitle.textContent = `Attendance Record - ${record.employeeId}`;
+    
+    // Build accuracy section based on available data
+    let accuracySection = '';
+    if (hasLocationAccuracy && record.location_accuracy) {
+        accuracySection = `
+            <div class="detail-section">
+                <h4><i class="fas fa-ruler"></i> Location Accuracy</h4>
+                <div class="detail-item">
+                    <strong>Distance:</strong>
+                    <span>${record.location_accuracy.toFixed(3)} miles</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Accuracy Level:</strong>
+                    <span class="location-accuracy-badge accuracy-${record.accuracy_level}">
+                        ${record.accuracy_level.toUpperCase()}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <strong>QR Address:</strong>
+                    <span>${record.qr_address}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Address:</strong>
+                    <span>${record.checked_in_address}</span>
+                </div>
+            </div>
+        `;
+    } else if (record.gps_accuracy) {
+        accuracySection = `
+            <div class="detail-section">
+                <h4><i class="fas fa-crosshairs"></i> GPS Information</h4>
+                <div class="detail-item">
+                    <strong>GPS Accuracy:</strong>
+                    <span>${record.gps_accuracy}m</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Coordinates:</strong>
+                    <span>${record.coordinates}</span>
+                </div>
+            </div>
+        `;
+    } else {
+        accuracySection = `
+            <div class="detail-section">
+                <h4><i class="fas fa-question-circle"></i> Location Information</h4>
+                <div class="detail-item">
+                    <strong>Status:</strong>
+                    <span>No location data available</span>
+                </div>
+            </div>
+        `;
+    }
     
     modalBody.innerHTML = `
         <div class="record-details-grid">
@@ -475,44 +591,42 @@ function viewRecordDetails(recordId) {
                     <span>${record.event}</span>
                 </div>
                 <div class="detail-item">
-                    <strong>QR Code Address:</strong>
-                    <span>${record.qr_address}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Check-in Address:</strong>
-                    <span>${record.checked_in_address}</span>
-                </div>
-            </div>
-            
-            <div class="detail-section">
-                <h4><i class="fas fa-satellite"></i> GPS Information</h4>
-                <div class="detail-item">
-                    <strong>Coordinates:</strong>
-                    <span>${record.coordinates}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Accuracy:</strong>
-                    <span>${record.accuracy ? record.accuracy + 'm (' + record.accuracy_level + ')' : 'No GPS data'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Location Status:</strong>
-                    <span class="status-badge ${record.has_location_data ? 'success' : 'warning'}">
-                        ${record.has_location_data ? 'GPS Available' : 'No GPS Data'}
-                    </span>
-                </div>
-            </div>
-            
-            <div class="detail-section">
-                <h4><i class="fas fa-mobile-alt"></i> Device Information</h4>
-                <div class="detail-item">
                     <strong>Device:</strong>
                     <span>${record.device}</span>
                 </div>
             </div>
+            
+            ${accuracySection}
         </div>
     `;
     
     modal.style.display = 'block';
 }
+
+function editRecord(recordId) {
+    console.log(`Edit record: ${recordId}`);
+    alert('Edit functionality to be implemented');
+}
+
+// Close modals when clicking outside
+window.addEventListener('click', function(event) {
+    const recordModal = document.getElementById('recordModal');
+    const mapModal = document.getElementById('mapModal');
+    
+    if (event.target === recordModal) {
+        closeModal();
+    }
+    if (event.target === mapModal) {
+        closeMapModal();
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeModal();
+        closeMapModal();
+    }
+});
 </script>
 {% endblock %}

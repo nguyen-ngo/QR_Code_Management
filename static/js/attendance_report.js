@@ -557,3 +557,441 @@ function debounce(func, wait) {
     timeout = setTimeout(later, wait);
   };
 }
+
+// Enhanced JavaScript functions for location accuracy features
+
+function loadTableData() {
+  const table = document.getElementById("attendanceTable");
+  if (table) {
+    const rows = table.querySelectorAll("tbody tr");
+    attendanceData = Array.from(rows).map((row, index) => {
+      const cells = row.querySelectorAll("td");
+      return {
+        id: row.dataset.recordId,
+        index: index + 1,
+        employeeId: cells[1] ? cells[1].textContent.trim() : "",
+        location: cells[2] ? cells[2].textContent.trim() : "",
+        event: cells[3] ? cells[3].textContent.trim() : "",
+        date: cells[4] ? cells[4].textContent.trim() : "",
+        time: cells[5] ? cells[5].textContent.trim() : "",
+        qr_address: cells[6]
+          ? cells[6].getAttribute("title") || cells[6].textContent.trim()
+          : "",
+        checked_in_address: cells[7]
+          ? cells[7].getAttribute("title") || cells[7].textContent.trim()
+          : "",
+        location_accuracy: cells[8] ? extractLocationAccuracy(cells[8]) : null,
+        accuracy_level: cells[8]
+          ? extractLocationAccuracyLevel(cells[8])
+          : "unknown",
+        device: cells[9]
+          ? cells[9].getAttribute("title") || cells[9].textContent.trim()
+          : "",
+        has_location_data: cells[8]
+          ? !cells[8].textContent.includes("Unknown")
+          : false,
+        coordinates: extractCoordinates(cells[8]),
+      };
+    });
+
+    filteredData = [...attendanceData];
+    console.log(
+      `Loaded ${attendanceData.length} attendance records with location accuracy`
+    );
+  }
+}
+
+function extractLocationAccuracy(cell) {
+  const text = cell.textContent;
+  const match = text.match(/(\d+\.?\d*)\s*mi/);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function extractLocationAccuracyLevel(cell) {
+  const text = cell.textContent;
+  if (text.includes("excellent")) return "excellent";
+  if (text.includes("good")) return "good";
+  if (text.includes("fair")) return "fair";
+  if (text.includes("poor")) return "poor";
+  return "unknown";
+}
+
+function createTableRow(record, displayIndex) {
+  const row = document.createElement("tr");
+  row.dataset.recordId = record.id;
+
+  // Create location accuracy badge HTML
+  const locationAccuracyBadge =
+    record.location_accuracy !== null
+      ? `<span class="location-accuracy-badge accuracy-${
+          record.accuracy_level
+        }" 
+                title="Distance between QR location and check-in location: ${
+                  record.location_accuracy
+                } miles">
+            <i class="fas fa-ruler"></i>
+            ${record.location_accuracy.toFixed(3)} mi
+            <small>(${record.accuracy_level})</small>
+         </span>`
+      : `<span class="location-accuracy-badge accuracy-unknown" title="Location accuracy could not be calculated">
+            <i class="fas fa-question-circle"></i>
+            Unknown
+         </span>`;
+
+  row.innerHTML = `
+        <td>${displayIndex}</td>
+        <td>
+            <div class="employee-info">
+                <span class="employee-id">${record.employeeId}</span>
+            </div>
+        </td>
+        <td>
+            <div class="location-info">
+                <i class="fas fa-map-marker-alt"></i>
+                ${record.location}
+            </div>
+        </td>
+        <td>
+            <div class="event-info">
+                ${record.event}
+            </div>
+        </td>
+        <td>
+            <div class="date-info">
+                ${record.date}
+            </div>
+        </td>
+        <td>
+            <div class="time-info">
+                ${record.time}
+            </div>
+        </td>
+        <td>
+            <div class="address-info qr-address">
+                <i class="fas fa-qrcode"></i>
+                <span title="${record.qr_address}">
+                    ${
+                      record.qr_address.length > 50
+                        ? record.qr_address.substring(0, 50) + "..."
+                        : record.qr_address
+                    }
+                </span>
+            </div>
+        </td>
+        <td>
+            <div class="address-info checkin-address">
+                <i class="fas fa-location-arrow"></i>
+                <span title="${record.checked_in_address}">
+                    ${
+                      record.checked_in_address.length > 50
+                        ? record.checked_in_address.substring(0, 50) + "..."
+                        : record.checked_in_address
+                    }
+                </span>
+            </div>
+        </td>
+        <td>
+            <div class="location-accuracy-info">
+                ${locationAccuracyBadge}
+            </div>
+        </td>
+        <td>
+            <div class="device-info">
+                <i class="fas fa-mobile-alt"></i>
+                <span title="${record.device}">
+                    ${
+                      record.device.length > 20
+                        ? record.device.substring(0, 20) + "..."
+                        : record.device
+                    }
+                </span>
+            </div>
+        </td>
+        <td>
+            <div class="record-actions">
+                <button onclick="viewRecordDetails('${record.id}')" 
+                        class="action-btn btn-view"
+                        title="View Details">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button onclick="showLocationMap('${record.id}')" 
+                        class="action-btn btn-map"
+                        title="Show on Map"
+                        ${!record.has_location_data ? "disabled" : ""}>
+                    <i class="fas fa-map"></i>
+                </button>
+                <button onclick="editRecord('${record.id}')" 
+                        class="action-btn btn-edit"
+                        title="Edit Record">
+                    <i class="fas fa-edit"></i>
+                </button>
+            </div>
+        </td>
+    `;
+
+  return row;
+}
+
+function getSortKey(columnIndex) {
+  const sortKeys = [
+    "index",
+    "employeeId",
+    "location",
+    "event",
+    "date",
+    "time",
+    "qr_address",
+    "checked_in_address",
+    "location_accuracy",
+    "device",
+  ];
+  return sortKeys[columnIndex] || "index";
+}
+
+// Enhanced record details view with location accuracy
+function viewRecordDetails(recordId) {
+  const record = attendanceData.find((r) => r.id == recordId);
+  if (!record) return;
+
+  const modal = document.getElementById("recordModal");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalBody = document.getElementById("modalBody");
+
+  if (!modal || !modalTitle || !modalBody) return;
+
+  modalTitle.textContent = `Attendance Record - ${record.employeeId}`;
+
+  // Build location accuracy details
+  const locationAccuracySection =
+    record.location_accuracy !== null
+      ? `
+        <div class="location-accuracy-details">
+            <h5><i class="fas fa-ruler"></i> Location Accuracy Analysis</h5>
+            <div class="accuracy-comparison">
+                <div class="location-point qr-point">
+                    <i class="fas fa-qrcode"></i>
+                    <h6>QR Code Location</h6>
+                    <p>${record.qr_address}</p>
+                </div>
+                <div class="location-point checkin-point">
+                    <i class="fas fa-location-arrow"></i>
+                    <h6>Check-in Location</h6>
+                    <p>${record.checked_in_address}</p>
+                </div>
+            </div>
+            <div class="distance-display">
+                <div class="distance-value">${record.location_accuracy.toFixed(
+                  3
+                )} miles</div>
+                <div class="distance-label">Distance between locations</div>
+                <div class="accuracy-level-display">
+                    <span class="location-accuracy-badge accuracy-${
+                      record.accuracy_level
+                    }">
+                        <i class="fas fa-ruler"></i>
+                        ${record.accuracy_level.toUpperCase()} ACCURACY
+                    </span>
+                </div>
+            </div>
+        </div>
+    `
+      : `
+        <div class="location-accuracy-details">
+            <h5><i class="fas fa-ruler"></i> Location Accuracy Analysis</h5>
+            <div class="distance-display">
+                <div class="distance-value">Unable to Calculate</div>
+                <div class="distance-label">Location accuracy could not be determined</div>
+                <p style="color: var(--gray-600); margin-top: var(--spacing-2);">
+                    This may be due to missing address information or geocoding limitations.
+                </p>
+            </div>
+        </div>
+    `;
+
+  modalBody.innerHTML = `
+        <div class="record-details-grid">
+            <div class="detail-section">
+                <h4><i class="fas fa-user"></i> Employee Information</h4>
+                <div class="detail-item">
+                    <strong>Employee ID:</strong>
+                    <span>${record.employeeId}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Date:</strong>
+                    <span>${record.date}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Time:</strong>
+                    <span>${record.time}</span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4><i class="fas fa-map-marker-alt"></i> Location Information</h4>
+                <div class="detail-item">
+                    <strong>Location Name:</strong>
+                    <span>${record.location}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Event:</strong>
+                    <span>${record.event}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>QR Code Address:</strong>
+                    <span>${record.qr_address}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Address:</strong>
+                    <span>${record.checked_in_address}</span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4><i class="fas fa-mobile-alt"></i> Device Information</h4>
+                <div class="detail-item">
+                    <strong>Device:</strong>
+                    <span>${record.device}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>GPS Coordinates:</strong>
+                    <span>${record.coordinates}</span>
+                </div>
+            </div>
+        </div>
+        
+        ${locationAccuracySection}
+    `;
+
+  modal.style.display = "block";
+}
+
+// Enhanced sorting for location accuracy (numeric sorting)
+function sortTable(columnIndex) {
+  if (sortColumn === columnIndex) {
+    sortDirection = sortDirection === "asc" ? "desc" : "asc";
+  } else {
+    sortColumn = columnIndex;
+    sortDirection = "asc";
+  }
+
+  const sortKey = getSortKey(columnIndex);
+
+  filteredData.sort((a, b) => {
+    let aVal = a[sortKey];
+    let bVal = b[sortKey];
+
+    // Handle numeric values for location accuracy
+    if (columnIndex === 8 && aVal !== null && bVal !== null) {
+      aVal = parseFloat(aVal);
+      bVal = parseFloat(bVal);
+    }
+
+    // Handle null values - put them at the end
+    if (aVal === null || aVal === undefined) {
+      return sortDirection === "asc" ? 1 : -1;
+    }
+    if (bVal === null || bVal === undefined) {
+      return sortDirection === "asc" ? -1 : 1;
+    }
+
+    if (typeof aVal === "string") {
+      aVal = aVal.toLowerCase();
+      bVal = bVal.toLowerCase();
+    }
+
+    let result;
+    if (aVal < bVal) result = -1;
+    else if (aVal > bVal) result = 1;
+    else result = 0;
+
+    return sortDirection === "asc" ? result : -result;
+  });
+
+  updateTable();
+  updateSortIndicators(columnIndex);
+}
+
+// Enhanced statistics display for location accuracy
+function updateFilterStats() {
+  const totalRecords = filteredData.length;
+  const recordsWithAccuracy = filteredData.filter(
+    (r) => r.location_accuracy !== null
+  ).length;
+  const avgAccuracy =
+    recordsWithAccuracy > 0
+      ? filteredData
+          .filter((r) => r.location_accuracy !== null)
+          .reduce((sum, r) => sum + r.location_accuracy, 0) /
+        recordsWithAccuracy
+      : 0;
+
+  console.log(`Filtered records: ${totalRecords}`);
+  console.log(`Records with location accuracy: ${recordsWithAccuracy}`);
+  console.log(`Average location accuracy: ${avgAccuracy.toFixed(3)} miles`);
+}
+
+// Function to get accuracy level color for charts or displays
+function getAccuracyLevelColor(level) {
+  const colors = {
+    excellent: "#059669", // green
+    good: "#10b981", // lighter green
+    fair: "#f59e0b", // yellow
+    poor: "#dc2626", // red
+    unknown: "#6b7280", // gray
+  };
+  return colors[level] || colors["unknown"];
+}
+
+// Enhanced export function to include location accuracy
+function exportAttendanceWithAccuracy() {
+  // Build CSV header with location accuracy
+  const headers = [
+    "Employee ID",
+    "Location",
+    "Event",
+    "Date",
+    "Time",
+    "QR Address",
+    "Check-in Address",
+    "Location Accuracy (miles)",
+    "Accuracy Level",
+    "Device",
+  ];
+
+  // Build CSV rows
+  const rows = filteredData.map((record) => [
+    record.employeeId,
+    record.location,
+    record.event,
+    record.date,
+    record.time,
+    record.qr_address,
+    record.checked_in_address,
+    record.location_accuracy !== null
+      ? record.location_accuracy.toFixed(3)
+      : "Unknown",
+    record.accuracy_level,
+    record.device,
+  ]);
+
+  // Create CSV content
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((field) => `"${field}"`).join(","))
+    .join("\n");
+
+  // Download CSV
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute(
+    "download",
+    `attendance_report_with_accuracy_${
+      new Date().toISOString().split("T")[0]
+    }.csv`
+  );
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
