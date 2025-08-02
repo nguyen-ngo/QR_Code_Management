@@ -145,7 +145,6 @@ class AttendanceData(db.Model):
             'location_source': self.location_source
         }
 
-
 def generate_qr_url(name, qr_id):
     """Generate a unique URL for QR code destination"""
     # Clean the name for URL use
@@ -369,7 +368,7 @@ def users():
 @app.route('/users/create', methods=['GET', 'POST'])
 @admin_required
 def create_user():
-    """Create new user (Admin only) - Fixed validation"""
+    """Create new user (Admin only)"""
     if request.method == 'POST':
         try:
             full_name = request.form.get('full_name', '').strip()
@@ -1150,7 +1149,7 @@ def qr_destination(qr_url):
 
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
 def qr_checkin(qr_url):
-    """FIXED: Enhanced staff check-in with guaranteed location saving"""
+    """Enhanced staff check-in with guaranteed location saving"""
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
@@ -1227,7 +1226,7 @@ def qr_checkin(qr_url):
         if client_ip and ',' in client_ip:
             client_ip = client_ip.split(',')[0].strip()
         
-        # CRITICAL FIX: Enhanced location data processing with validation
+        # Enhanced location data processing with validation
         lat_value = None
         lng_value = None
         acc_value = None
@@ -1315,7 +1314,7 @@ def qr_checkin(qr_url):
         has_coordinates = lat_value is not None and lng_value is not None
         print(f"   Has Valid Coordinates: {has_coordinates}")
         
-        # CRITICAL: Create attendance record with explicit location field assignment
+        # Create attendance record with explicit location field assignment
         print(f"\n💾 CREATING ATTENDANCE RECORD:")
         
         attendance = AttendanceData(
@@ -1452,45 +1451,6 @@ def qr_checkin(qr_url):
             'error': str(e) if app.debug else None
         }), 500
     
-# =====================================================================
-# ADDITIONAL DEBUGGING ROUTE (Add this to your app.py for testing)
-# =====================================================================
-
-@app.route('/debug/attendance/<int:attendance_id>')
-@admin_required
-def debug_attendance(attendance_id):
-    """Debug route to inspect a specific attendance record"""
-    
-    try:
-        record = AttendanceData.query.get_or_404(attendance_id)
-        
-        debug_info = {
-            'id': record.id,
-            'employee_id': record.employee_id,
-            'location_name': record.location_name,
-            'check_in_date': record.check_in_date.isoformat(),
-            'check_in_time': record.check_in_time.isoformat(),
-            'latitude': record.latitude,
-            'longitude': record.longitude,
-            'accuracy': record.accuracy,
-            'altitude': record.altitude,
-            'location_source': record.location_source,
-            'address': record.address,
-            'has_coordinates': record.latitude is not None and record.longitude is not None,
-            'created_timestamp': record.created_timestamp.isoformat() if record.created_timestamp else None
-        }
-        
-        return jsonify({
-            'success': True,
-            'attendance_record': debug_info
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
 def process_location_data(location_data):
     """
     Process and validate location data from form
@@ -1655,7 +1615,7 @@ def toggle_qr_status_api(qr_id):
             return redirect(url_for('dashboard'))
 
 @app.route('/attendance')
-#@admin_required
+@admin_required
 def attendance_report():
     """Attendance report page (Admin only)"""
     try:
@@ -1708,52 +1668,6 @@ def attendance_report():
         flash('Error loading attendance report.', 'error')
         return redirect(url_for('dashboard'))
     
-@app.route('/admin/location-stats')
-@admin_required
-def location_stats():
-    """View location statistics and analytics"""
-    try:
-        # Basic stats
-        total_checkins = AttendanceData.query.count()
-        location_checkins = AttendanceData.query.filter(
-            AttendanceData.latitude.is_not(None),
-            AttendanceData.longitude.is_not(None)
-        ).count()
-        
-        # Recent check-ins with location data
-        recent_locations = AttendanceData.query.filter(
-            AttendanceData.latitude.is_not(None)
-        ).order_by(AttendanceData.created_timestamp.desc()).limit(20).all()
-        
-        # Accuracy statistics
-        accuracy_stats = {
-            'high': AttendanceData.query.filter(AttendanceData.accuracy <= 50).count(),
-            'medium': AttendanceData.query.filter(
-                AttendanceData.accuracy > 50, 
-                AttendanceData.accuracy <= 100
-            ).count(),
-            'low': AttendanceData.query.filter(AttendanceData.accuracy > 100).count(),
-            'unknown': AttendanceData.query.filter(AttendanceData.accuracy.is_(None)).count()
-        }
-        
-        # Location source breakdown
-        source_stats = db.session.query(
-            AttendanceData.location_source,
-            db.func.count(AttendanceData.id).label('count')
-        ).group_by(AttendanceData.location_source).all()
-        
-        return render_template('location_stats.html',
-                             total_checkins=total_checkins,
-                             location_checkins=location_checkins,
-                             recent_locations=recent_locations,
-                             accuracy_stats=accuracy_stats,
-                             source_stats=source_stats)
-        
-    except Exception as e:
-        print(f"Error loading location stats: {e}")
-        flash('Error loading location statistics.', 'error')
-        return redirect(url_for('dashboard'))
-
 @app.route('/api/attendance/stats')
 @admin_required
 def attendance_stats_api():
