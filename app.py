@@ -1150,7 +1150,7 @@ def qr_destination(qr_url):
 
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
 def qr_checkin(qr_url):
-    """Enhanced staff check-in with proper location handling"""
+    """FIXED: Enhanced staff check-in with guaranteed location saving"""
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
@@ -1164,7 +1164,7 @@ def qr_checkin(qr_url):
         # Get form data
         employee_id = request.form.get('employee_id', '').strip()
         
-        # FIXED: Get location data with correct field names and validation
+        # CRITICAL: Get location data with debug logging
         latitude = request.form.get('latitude', '').strip()
         longitude = request.form.get('longitude', '').strip()
         accuracy = request.form.get('accuracy', '').strip()
@@ -1172,18 +1172,20 @@ def qr_checkin(qr_url):
         location_source = request.form.get('location_source', 'manual').strip()
         address = request.form.get('address', '').strip()
         
-        # CRITICAL DEBUG: Log all received form data
-        print(f"\n{'='*50}")
-        print(f"📥 QR CHECK-IN DATA RECEIVED:")
-        print(f"{'='*50}")
+        # COMPREHENSIVE DEBUG: Log all received form data
+        print(f"\n{'='*60}")
+        print(f"🔍 QR CHECK-IN DEBUG - FORM DATA RECEIVED")
+        print(f"{'='*60}")
         print(f"Employee ID: '{employee_id}'")
-        print(f"Latitude: '{latitude}' (type: {type(latitude)})")
-        print(f"Longitude: '{longitude}' (type: {type(longitude)})")
-        print(f"Accuracy: '{accuracy}' (type: {type(accuracy)})")
-        print(f"Altitude: '{altitude}' (type: {type(altitude)})")
+        print(f"Latitude: '{latitude}' (length: {len(latitude)}, type: {type(latitude)})")
+        print(f"Longitude: '{longitude}' (length: {len(longitude)}, type: {type(longitude)})")
+        print(f"Accuracy: '{accuracy}' (length: {len(accuracy)}, type: {type(accuracy)})")
+        print(f"Altitude: '{altitude}' (length: {len(altitude)}, type: {type(altitude)})")
         print(f"Location Source: '{location_source}' (type: {type(location_source)})")
-        print(f"Address: '{address}' (type: {type(address)})")
-        print(f"{'='*50}\n")
+        print(f"Address: '{address}' (length: {len(address) if address else 0})")
+        print(f"QR Code ID: {qr_code.id}")
+        print(f"QR Location: {qr_code.location}")
+        print(f"{'='*60}\n")
         
         if not employee_id:
             return jsonify({
@@ -1192,7 +1194,7 @@ def qr_checkin(qr_url):
             }), 400
         
         # Validate employee ID format
-        if not re.match(r'^[A-Za-z0-9]{3,20}', employee_id):
+        if not re.match(r'^[A-Za-z0-9]{3,20}$', employee_id):
             return jsonify({
                 'success': False,
                 'message': 'Invalid employee ID format. Use 3-20 alphanumeric characters.'
@@ -1215,7 +1217,6 @@ def qr_checkin(qr_url):
         # Parse user agent for device info
         user_agent = request.headers.get('User-Agent', '')
         try:
-            from user_agents import parse
             parsed_agent = parse(user_agent)
             device_info = f"{parsed_agent.browser.family} on {parsed_agent.os.family}"
         except:
@@ -1226,66 +1227,84 @@ def qr_checkin(qr_url):
         if client_ip and ',' in client_ip:
             client_ip = client_ip.split(',')[0].strip()
         
-        # FIXED: Process location data with enhanced validation
+        # CRITICAL FIX: Enhanced location data processing with validation
         lat_value = None
         lng_value = None
         acc_value = None
         alt_value = None
         
-        # Process latitude
-        if latitude and latitude.strip() and latitude not in ['null', '', 'undefined']:
+        print(f"🔄 PROCESSING LOCATION DATA:")
+        
+        # Process latitude with comprehensive validation
+        if latitude and latitude.strip() and latitude not in ['null', '', 'undefined', 'NaN']:
             try:
                 lat_value = float(latitude)
-                if not (-90 <= lat_value <= 90):
-                    print(f"⚠️ Invalid latitude range: {lat_value}")
-                    lat_value = None
-                else:
+                if -90 <= lat_value <= 90:
                     print(f"✅ Valid latitude: {lat_value}")
+                else:
+                    print(f"⚠️ Invalid latitude range: {lat_value} (must be -90 to 90)")
+                    lat_value = None
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Latitude parsing error: {e}")
+                print(f"❌ Latitude parsing error: {e}")
+                lat_value = None
+        else:
+            print(f"📍 No latitude data: '{latitude}'")
         
-        # Process longitude
-        if longitude and longitude.strip() and longitude not in ['null', '', 'undefined']:
+        # Process longitude with comprehensive validation
+        if longitude and longitude.strip() and longitude not in ['null', '', 'undefined', 'NaN']:
             try:
                 lng_value = float(longitude)
-                if not (-180 <= lng_value <= 180):
-                    print(f"⚠️ Invalid longitude range: {lng_value}")
-                    lng_value = None
-                else:
+                if -180 <= lng_value <= 180:
                     print(f"✅ Valid longitude: {lng_value}")
+                else:
+                    print(f"⚠️ Invalid longitude range: {lng_value} (must be -180 to 180)")
+                    lng_value = None
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Longitude parsing error: {e}")
+                print(f"❌ Longitude parsing error: {e}")
+                lng_value = None
+        else:
+            print(f"📍 No longitude data: '{longitude}'")
         
         # Process accuracy
-        if accuracy and accuracy.strip() and accuracy not in ['null', '', 'undefined']:
+        if accuracy and accuracy.strip() and accuracy not in ['null', '', 'undefined', 'NaN']:
             try:
                 acc_value = float(accuracy)
-                if acc_value < 0:
+                if acc_value >= 0:
+                    print(f"✅ Valid accuracy: {acc_value}m")
+                else:
                     print(f"⚠️ Invalid accuracy (negative): {acc_value}")
                     acc_value = None
-                else:
-                    print(f"✅ Valid accuracy: {acc_value}m")
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Accuracy parsing error: {e}")
+                print(f"❌ Accuracy parsing error: {e}")
+                acc_value = None
+        else:
+            print(f"📍 No accuracy data: '{accuracy}'")
         
         # Process altitude
-        if altitude and altitude.strip() and altitude not in ['null', '', 'undefined']:
+        if altitude and altitude.strip() and altitude not in ['null', '', 'undefined', 'NaN']:
             try:
                 alt_value = float(altitude)
                 print(f"✅ Valid altitude: {alt_value}m")
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Altitude parsing error: {e}")
+                print(f"❌ Altitude parsing error: {e}")
+                alt_value = None
+        else:
+            print(f"📍 No altitude data: '{altitude}'")
         
-        # Validate location source
+        # Validate and clean location source
         valid_sources = ['gps', 'network', 'manual']
         if location_source not in valid_sources:
+            print(f"⚠️ Invalid location source '{location_source}', defaulting to 'manual'")
             location_source = 'manual'
+        else:
+            print(f"✅ Valid location source: {location_source}")
         
         # Truncate address if too long
         if address and len(address) > 500:
             address = address[:500]
+            print(f"⚠️ Address truncated to 500 characters")
         
-        print(f"📊 PROCESSED LOCATION DATA:")
+        print(f"\n📊 FINAL PROCESSED LOCATION DATA:")
         print(f"   Latitude: {lat_value}")
         print(f"   Longitude: {lng_value}")
         print(f"   Accuracy: {acc_value}")
@@ -1293,7 +1312,12 @@ def qr_checkin(qr_url):
         print(f"   Source: {location_source}")
         print(f"   Address: {address[:50]}..." if address and len(address) > 50 else f"   Address: {address}")
         
-        # Create attendance record
+        has_coordinates = lat_value is not None and lng_value is not None
+        print(f"   Has Valid Coordinates: {has_coordinates}")
+        
+        # CRITICAL: Create attendance record with explicit location field assignment
+        print(f"\n💾 CREATING ATTENDANCE RECORD:")
+        
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
@@ -1303,69 +1327,168 @@ def qr_checkin(qr_url):
             user_agent=user_agent,
             ip_address=client_ip,
             location_name=qr_code.location,
-            status='present',
-            # FIXED: Add location data directly to constructor
-            latitude=lat_value,
-            longitude=lng_value,
-            accuracy=acc_value,
-            altitude=alt_value,
-            location_source=location_source,
-            address=address
+            status='present'
         )
         
-        print(f"💾 SAVING ATTENDANCE RECORD:")
+        # EXPLICIT LOCATION FIELD ASSIGNMENT
+        if lat_value is not None:
+            attendance.latitude = lat_value
+            print(f"✅ Set latitude: {attendance.latitude}")
+        
+        if lng_value is not None:
+            attendance.longitude = lng_value
+            print(f"✅ Set longitude: {attendance.longitude}")
+        
+        if acc_value is not None:
+            attendance.accuracy = acc_value
+            print(f"✅ Set accuracy: {attendance.accuracy}")
+        
+        if alt_value is not None:
+            attendance.altitude = alt_value
+            print(f"✅ Set altitude: {attendance.altitude}")
+        
+        if location_source:
+            attendance.location_source = location_source
+            print(f"✅ Set location_source: {attendance.location_source}")
+        
+        if address:
+            attendance.address = address
+            print(f"✅ Set address: {attendance.address[:50]}...")
+        
+        print(f"\n💾 SAVING TO DATABASE:")
+        print(f"   Record ID will be generated...")
         print(f"   Employee: {attendance.employee_id}")
-        print(f"   Location: {attendance.location_name}")
-        print(f"   GPS: {attendance.latitude}, {attendance.longitude}")
+        print(f"   Location Name: {attendance.location_name}")
+        print(f"   Coordinates: {attendance.latitude}, {attendance.longitude}")
         print(f"   Accuracy: {attendance.accuracy}")
         print(f"   Source: {attendance.location_source}")
         
+        # Add to session and commit
         db.session.add(attendance)
-        db.session.commit()
+        
+        try:
+            db.session.commit()
+            print(f"✅ Database commit successful!")
+        except Exception as commit_error:
+            print(f"❌ Database commit failed: {commit_error}")
+            db.session.rollback()
+            raise
         
         # VERIFICATION: Re-fetch the saved record to confirm data persistence
-        saved_record = AttendanceData.query.get(attendance.id)
-        has_location = saved_record.latitude is not None and saved_record.longitude is not None
+        print(f"\n🔍 VERIFICATION - Re-fetching saved record:")
         
-        print(f"✅ VERIFICATION - Record saved with ID: {saved_record.id}")
-        print(f"✅ Has location data: {has_location}")
-        if has_location:
-            print(f"✅ Saved coordinates: {saved_record.latitude}, {saved_record.longitude}")
-            print(f"✅ Saved accuracy: {saved_record.accuracy}")
-            print(f"✅ Saved source: {saved_record.location_source}")
+        try:
+            saved_record = AttendanceData.query.get(attendance.id)
+            if saved_record:
+                print(f"✅ Record found with ID: {saved_record.id}")
+                print(f"✅ Employee ID: {saved_record.employee_id}")
+                print(f"✅ Saved latitude: {saved_record.latitude}")
+                print(f"✅ Saved longitude: {saved_record.longitude}")
+                print(f"✅ Saved accuracy: {saved_record.accuracy}")
+                print(f"✅ Saved altitude: {saved_record.altitude}")
+                print(f"✅ Saved location_source: {saved_record.location_source}")
+                print(f"✅ Saved address: {saved_record.address}")
+                
+                has_location_final = saved_record.latitude is not None and saved_record.longitude is not None
+                print(f"✅ Final has_location status: {has_location_final}")
+                
+                # DATABASE VERIFICATION QUERY
+                verification_query = f"""
+                SELECT id, employee_id, latitude, longitude, accuracy, altitude, location_source, address
+                FROM attendance_data 
+                WHERE id = {saved_record.id}
+                """
+                print(f"\n🔍 Database verification query:")
+                print(f"   {verification_query}")
+                
+            else:
+                print(f"❌ ERROR: Could not re-fetch saved record!")
+                saved_record = attendance  # Fallback to original object
+                
+        except Exception as verify_error:
+            print(f"❌ Verification error: {verify_error}")
+            saved_record = attendance  # Fallback to original object
         
-        # Enhanced response with location verification
+        # Build response with verification data
         response_data = {
             'success': True,
             'message': 'Check-in successful!',
-            'data': {
-                'employee_id': employee_id.upper(),
-                'location': qr_code.location,
-                'event': qr_code.location_event,
-                'check_in_time': attendance.check_in_time.strftime('%H:%M'),
-                'check_in_date': attendance.check_in_date.strftime('%B %d, %Y'),
-                'has_location': has_location,
-                'location_info': {
-                    'coordinates': f"{saved_record.latitude:.6f}, {saved_record.longitude:.6f}" if has_location else "No GPS data",
-                    'accuracy': f"±{saved_record.accuracy:.0f}m" if saved_record.accuracy else "Unknown",
-                    'source': saved_record.location_source.title() if saved_record.location_source else "Manual",
-                    'address': saved_record.address or "Not available"
-                } if has_location else None
-            }
+            'employee_id': employee_id.upper(),
+            'location': qr_code.location,
+            'event': qr_code.location_event,
+            'time': attendance.check_in_time.strftime('%H:%M'),
+            'date': attendance.check_in_date.strftime('%Y-%m-%d'),
+            'has_location': saved_record.latitude is not None and saved_record.longitude is not None,
+            'location_coordinates': f"{saved_record.latitude},{saved_record.longitude}" if saved_record.latitude and saved_record.longitude else None,
+            'location_accuracy': saved_record.accuracy,
+            'location_address': saved_record.address,
+            'location_source': saved_record.location_source
         }
         
-        print(f"📤 SENDING RESPONSE: {response_data['data']['has_location']} location data")
+        print(f"\n📤 SENDING RESPONSE:")
+        print(f"   Success: {response_data['success']}")
+        print(f"   Has Location: {response_data['has_location']}")
+        print(f"   Coordinates: {response_data['location_coordinates']}")
+        print(f"   Accuracy: {response_data['location_accuracy']}")
+        print(f"{'='*60}\n")
         
         return jsonify(response_data)
+        
     except Exception as e:
-        print(f"❌ CHECK-IN ERROR: {str(e)}")
+        print(f"\n❌ CRITICAL ERROR in qr_checkin:")
+        print(f"❌ Error type: {type(e).__name__}")
+        print(f"❌ Error message: {str(e)}")
+        
+        # Print full traceback for debugging
         import traceback
-        print(f"❌ TRACEBACK: {traceback.format_exc()}")
+        print(f"❌ Full traceback:")
+        print(traceback.format_exc())
+        
         db.session.rollback()
+        
         return jsonify({
             'success': False,
-            'message': 'Check-in failed. Please try again.',
+            'message': 'Check-in failed due to server error. Please try again.',
             'error': str(e) if app.debug else None
+        }), 500
+    
+# =====================================================================
+# ADDITIONAL DEBUGGING ROUTE (Add this to your app.py for testing)
+# =====================================================================
+
+@app.route('/debug/attendance/<int:attendance_id>')
+@admin_required
+def debug_attendance(attendance_id):
+    """Debug route to inspect a specific attendance record"""
+    
+    try:
+        record = AttendanceData.query.get_or_404(attendance_id)
+        
+        debug_info = {
+            'id': record.id,
+            'employee_id': record.employee_id,
+            'location_name': record.location_name,
+            'check_in_date': record.check_in_date.isoformat(),
+            'check_in_time': record.check_in_time.isoformat(),
+            'latitude': record.latitude,
+            'longitude': record.longitude,
+            'accuracy': record.accuracy,
+            'altitude': record.altitude,
+            'location_source': record.location_source,
+            'address': record.address,
+            'has_coordinates': record.latitude is not None and record.longitude is not None,
+            'created_timestamp': record.created_timestamp.isoformat() if record.created_timestamp else None
+        }
+        
+        return jsonify({
+            'success': True,
+            'attendance_record': debug_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 def process_location_data(location_data):
