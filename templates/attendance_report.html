@@ -18,7 +18,7 @@
                 <i class="fas fa-chart-line"></i>
                 Attendance Report
             </h1>
-            <p>Monitor and analyze staff attendance across all locations</p>
+            <p>Monitor and analyze staff attendance with location accuracy tracking</p>
         </div>
         
         <div class="header-actions">
@@ -33,7 +33,7 @@
         </div>
     </div>
 
-    <!-- Statistics Cards -->
+    <!-- Enhanced Statistics Cards -->
     <div class="stats-section">
         <div class="stats-grid">
             <div class="stat-card primary">
@@ -65,7 +65,7 @@
                 <div class="stat-content">
                     <h3>{{ stats.active_locations or 0 }}</h3>
                     <p>Active Locations</p>
-                    <span class="stat-trend">With check-ins</span>
+                    <span class="stat-trend">QR codes deployed</span>
                 </div>
             </div>
 
@@ -76,46 +76,74 @@
                 <div class="stat-content">
                     <h3>{{ stats.today_checkins or 0 }}</h3>
                     <p>Today's Check-ins</p>
-                    <span class="stat-trend">{{ current_date_formatted or 'Today' }}</span>
+                    <span class="stat-trend">{{ current_date_formatted }}</span>
+                </div>
+            </div>
+
+            <!-- New GPS accuracy stats -->
+            <div class="stat-card info">
+                <div class="stat-icon">
+                    <i class="fas fa-satellite"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.records_with_gps or 0 }}</h3>
+                    <p>GPS Records</p>
+                    <span class="stat-trend">Location captured</span>
+                </div>
+            </div>
+
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="fas fa-crosshairs"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ "%.1f"|format(stats.avg_accuracy or 0) }}m</h3>
+                    <p>Avg. Accuracy</p>
+                    <span class="stat-trend">Location precision</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Filters Section -->
+    <!-- Enhanced Filters Section with Date Range -->
     <div class="filters-section">
-        <div class="filters-card">
-            <div class="filters-header">
-                <h3>
-                    <i class="fas fa-filter"></i>
-                    Filter Records
-                </h3>
-            </div>
-            
-            <form method="GET" class="filters-form" id="filtersForm">
+        <div class="filters-container">
+            <form method="GET" action="{{ url_for('attendance_report') }}">
                 <div class="filter-row">
+                    <!-- Date Range Filters -->
                     <div class="filter-group">
-                        <label for="date">
-                            <i class="fas fa-calendar"></i>
-                            Date
+                        <label for="date_from">
+                            <i class="fas fa-calendar-alt"></i>
+                            From Date
                         </label>
                         <input type="date" 
-                               id="date" 
-                               name="date" 
-                               value="{{ date_filter }}"
-                               max="{{ today_date or '' }}">
+                               id="date_from" 
+                               name="date_from" 
+                               value="{{ date_from }}"
+                               max="{{ today_date }}">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="date_to">
+                            <i class="fas fa-calendar-alt"></i>
+                            To Date
+                        </label>
+                        <input type="date" 
+                               id="date_to" 
+                               name="date_to" 
+                               value="{{ date_to }}"
+                               max="{{ today_date }}">
                     </div>
                     
                     <div class="filter-group">
                         <label for="location">
-                            <i class="fas fa-building"></i>
+                            <i class="fas fa-map-marker-alt"></i>
                             Location
                         </label>
                         <select id="location" name="location">
                             <option value="">All Locations</option>
                             {% for location in locations %}
-                            <option value="{{ location }}" 
-                                    {{ 'selected' if location == location_filter else '' }}>
+                            <option value="{{ location }}" {{ 'selected' if location == location_filter else '' }}>
                                 {{ location }}
                             </option>
                             {% endfor %}
@@ -149,12 +177,15 @@
         </div>
     </div>
 
-    <!-- Attendance Table -->
+    <!-- Enhanced Attendance Table -->
     <div class="attendance-table-section">
         <div class="table-header">
             <h3>
                 <i class="fas fa-list"></i>
                 Attendance Records
+                {% if date_from or date_to or location_filter or employee_filter %}
+                <span class="filter-indicator">(Filtered)</span>
+                {% endif %}
             </h3>
             <div class="table-controls">
                 <div class="entries-per-page">
@@ -181,8 +212,10 @@
                         <th onclick="sortTable(3)">Event <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(4)">Date <i class="fas fa-sort"></i></th>
                         <th onclick="sortTable(5)">Time <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(6)">Device <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(7)">Status <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)">QR Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(7)">Check-in Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(8)">GPS Accuracy <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(9)">Device <i class="fas fa-sort"></i></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -217,6 +250,39 @@
                             </div>
                         </td>
                         <td>
+                            <div class="address-info qr-address">
+                                <i class="fas fa-qrcode"></i>
+                                <span title="{{ record.qr_address }}">
+                                    {{ record.qr_address[:50] }}{% if record.qr_address|length > 50 %}...{% endif %}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="address-info checkin-address">
+                                <i class="fas fa-location-arrow"></i>
+                                <span title="{{ record.checked_in_address }}">
+                                    {{ record.checked_in_address[:50] }}{% if record.checked_in_address|length > 50 %}...{% endif %}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="accuracy-info">
+                                {% if record.accuracy %}
+                                <span class="accuracy-badge accuracy-{{ record.accuracy_level }}" 
+                                      title="GPS accuracy: {{ record.accuracy }}m">
+                                    <i class="fas fa-crosshairs"></i>
+                                    {{ "%.1f"|format(record.accuracy) }}m
+                                    <small>({{ record.accuracy_level }})</small>
+                                </span>
+                                {% else %}
+                                <span class="accuracy-badge accuracy-unknown" title="No GPS data available">
+                                    <i class="fas fa-question-circle"></i>
+                                    No GPS
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
                             <div class="device-info">
                                 <i class="fas fa-mobile-alt"></i>
                                 <span title="{{ record.device_info }}">
@@ -225,27 +291,22 @@
                             </div>
                         </td>
                         <td>
-                            <span class="status-badge {{ record.status }}">
-                                <i class="fas {{ 'fa-check-circle' if record.status == 'present' else 'fa-times-circle' }}"></i>
-                                {{ record.status.title() }}
-                            </span>
-                        </td>
-                        <td>
                             <div class="record-actions">
-                                <button onclick="viewRecordDetails({{ record.id }})" 
+                                <button onclick="viewRecordDetails('{{ record.id }}')" 
                                         class="action-btn btn-view"
                                         title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <button onclick="editRecord({{ record.id }})" 
+                                <button onclick="showLocationMap('{{ record.id }}')" 
+                                        class="action-btn btn-map"
+                                        title="Show on Map"
+                                        {% if not record.has_location_data %}disabled{% endif %}>
+                                    <i class="fas fa-map"></i>
+                                </button>
+                                <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
                                     <i class="fas fa-edit"></i>
-                                </button>
-                                <button onclick="deleteRecord({{ record.id }})" 
-                                        class="action-btn btn-delete"
-                                        title="Delete Record">
-                                    <i class="fas fa-trash"></i>
                                 </button>
                             </div>
                         </td>
@@ -259,71 +320,62 @@
                     <i class="fas fa-clipboard-list"></i>
                 </div>
                 <h3>No Attendance Records Found</h3>
-                <p>{% if date_filter or location_filter or employee_filter %}
+                <p>{% if date_from or date_to or location_filter or employee_filter %}
                     No records match your current filters. Try adjusting the filter criteria.
                    {% else %}
                     No staff have checked in yet. QR codes need to be scanned to generate attendance data.
                    {% endif %}</p>
+                {% if date_from or date_to or location_filter or employee_filter %}
                 <button onclick="clearFilters()" class="btn btn-primary">
-                    <i class="fas fa-refresh"></i>
-                    Clear Filters
+                    <i class="fas fa-times"></i>
+                    Clear All Filters
                 </button>
+                {% endif %}
             </div>
             {% endif %}
         </div>
 
         <!-- Pagination -->
+        {% if attendance_records %}
         <div class="pagination-container" id="paginationContainer">
-            <!-- Pagination will be dynamically generated -->
+            <!-- Pagination will be generated by JavaScript -->
         </div>
-    </div>
-
-    <!-- Charts Section -->
-    <div class="charts-section">
-        <div class="charts-grid">
-            <div class="chart-card">
-                <div class="chart-header">
-                    <h3>
-                        <i class="fas fa-chart-bar"></i>
-                        Daily Check-ins (Last 7 Days)
-                    </h3>
-                </div>
-                <div class="chart-container">
-                    <canvas id="dailyChart"></canvas>
-                </div>
-            </div>
-            
-            <div class="chart-card">
-                <div class="chart-header">
-                    <h3>
-                        <i class="fas fa-chart-pie"></i>
-                        Check-ins by Location
-                    </h3>
-                </div>
-                <div class="chart-container">
-                    <canvas id="locationChart"></canvas>
-                </div>
-            </div>
-        </div>
+        {% endif %}
     </div>
 </div>
 
-<!-- Record Details Modal -->
+<!-- Enhanced Record Details Modal -->
 <div id="recordModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 id="modalTitle">Attendance Record Details</h3>
-            <button class="modal-close" onclick="closeRecordModal()">
+            <h3 id="modalTitle">Record Details</h3>
+            <button onclick="closeModal()" class="modal-close">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <div class="modal-body" id="modalBody">
-            <!-- Dynamic content will be loaded here -->
+            <!-- Content will be populated by JavaScript -->
         </div>
         <div class="modal-footer">
-            <button onclick="closeRecordModal()" class="btn btn-secondary">
-                Close
+            <button onclick="closeModal()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Map Modal for Location Viewing -->
+<div id="mapModal" class="modal">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3 id="mapModalTitle">Location Map</h3>
+            <button onclick="closeMapModal()" class="modal-close">
+                <i class="fas fa-times"></i>
             </button>
+        </div>
+        <div class="modal-body" id="mapModalBody">
+            <div id="locationMap" style="height: 400px; width: 100%;"></div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeMapModal()" class="btn btn-secondary">Close</button>
         </div>
     </div>
 </div>
@@ -331,4 +383,136 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/attendance_report.js') }}"></script>
+<script>
+// Enhanced JavaScript for new functionality
+function clearFilters() {
+    window.location.href = "{{ url_for('attendance_report') }}";
+}
+
+function exportAttendance() {
+    // Build export URL with current filters
+    const params = new URLSearchParams();
+    if ('{{ date_from }}') params.append('date_from', '{{ date_from }}');
+    if ('{{ date_to }}') params.append('date_to', '{{ date_to }}');
+    if ('{{ location_filter }}') params.append('location', '{{ location_filter }}');
+    if ('{{ employee_filter }}') params.append('employee', '{{ employee_filter }}');
+    params.append('export', 'csv');
+    
+    window.open(`{{ url_for('attendance_report') }}?${params.toString()}`);
+}
+
+function refreshReport() {
+    window.location.reload();
+}
+
+function showLocationMap(recordId) {
+    // Find the record data
+    const record = attendanceData.find(r => r.id == recordId);
+    if (!record || !record.has_location_data) {
+        alert('No GPS data available for this record');
+        return;
+    }
+    
+    // Show map modal (requires Google Maps API or similar)
+    document.getElementById('mapModal').style.display = 'block';
+    document.getElementById('mapModalTitle').textContent = `Location - ${record.employeeId}`;
+    
+    // Initialize map (placeholder - requires actual map implementation)
+    const mapContainer = document.getElementById('locationMap');
+    mapContainer.innerHTML = `
+        <div style="text-align: center; padding: 100px;">
+            <i class="fas fa-map-marked-alt" style="font-size: 3rem; color: #6b7280; margin-bottom: 1rem;"></i>
+            <p><strong>GPS Coordinates:</strong> ${record.coordinates}</p>
+            <p><strong>Accuracy:</strong> ${record.accuracy}m (${record.accuracy_level})</p>
+            <p><em>Map integration requires Google Maps API setup</em></p>
+        </div>
+    `;
+}
+
+function closeMapModal() {
+    document.getElementById('mapModal').style.display = 'none';
+}
+
+// Enhanced record details view
+function viewRecordDetails(recordId) {
+    const record = attendanceData.find(r => r.id == recordId);
+    if (!record) return;
+    
+    const modal = document.getElementById('recordModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    
+    if (!modal || !modalTitle || !modalBody) return;
+    
+    modalTitle.textContent = `Attendance Record - ${record.employeeId}`;
+    
+    modalBody.innerHTML = `
+        <div class="record-details-grid">
+            <div class="detail-section">
+                <h4><i class="fas fa-user"></i> Employee Information</h4>
+                <div class="detail-item">
+                    <strong>Employee ID:</strong>
+                    <span>${record.employeeId}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Date:</strong>
+                    <span>${record.date}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Time:</strong>
+                    <span>${record.time}</span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4><i class="fas fa-map-marker-alt"></i> Location Information</h4>
+                <div class="detail-item">
+                    <strong>Location Name:</strong>
+                    <span>${record.location}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Event:</strong>
+                    <span>${record.event}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>QR Code Address:</strong>
+                    <span>${record.qr_address}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Check-in Address:</strong>
+                    <span>${record.checked_in_address}</span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4><i class="fas fa-satellite"></i> GPS Information</h4>
+                <div class="detail-item">
+                    <strong>Coordinates:</strong>
+                    <span>${record.coordinates}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Accuracy:</strong>
+                    <span>${record.accuracy ? record.accuracy + 'm (' + record.accuracy_level + ')' : 'No GPS data'}</span>
+                </div>
+                <div class="detail-item">
+                    <strong>Location Status:</strong>
+                    <span class="status-badge ${record.has_location_data ? 'success' : 'warning'}">
+                        ${record.has_location_data ? 'GPS Available' : 'No GPS Data'}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4><i class="fas fa-mobile-alt"></i> Device Information</h4>
+                <div class="detail-item">
+                    <strong>Device:</strong>
+                    <span>${record.device}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.style.display = 'block';
+}
+</script>
 {% endblock %}

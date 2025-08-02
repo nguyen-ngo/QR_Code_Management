@@ -1617,18 +1617,86 @@ def toggle_qr_status_api(qr_id):
 @app.route('/attendance')
 @admin_required
 def attendance_report():
-    """Attendance report page (Admin only)"""
+    """Enhanced attendance report page with date range filtering and location data (Admin only)"""
     try:
         # Get filter parameters
-        date_filter = request.args.get('date', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
         location_filter = request.args.get('location', '')
         employee_filter = request.args.get('employee', '')
         
-        # Base query using the view
-        query = db.session.execute(text("SELECT * FROM attendance_report WHERE 1=1"))
+        # Build base query with enhanced location data
+        base_query = """
+            SELECT 
+                ad.id,
+                ad.employee_id,
+                ad.check_in_date,
+                ad.check_in_time,
+                ad.location_name,
+                qc.location_event,
+                qc.location_address as qr_address,
+                ad.address as checked_in_address,
+                ad.latitude,
+                ad.longitude,
+                ad.accuracy,
+                ad.device_info
+            FROM attendance_data ad
+            LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
+            WHERE 1=1
+        """
         
-        # Apply filters (you can enhance this with proper SQLAlchemy filtering)
-        attendance_records = query.fetchall()
+        conditions = []
+        params = {}
+        
+        # Apply date range filter
+        if date_from:
+            conditions.append("ad.check_in_date >= :date_from")
+            params['date_from'] = date_from
+        
+        if date_to:
+            conditions.append("ad.check_in_date <= :date_to")
+            params['date_to'] = date_to
+        
+        # Apply location filter
+        if location_filter:
+            conditions.append("ad.location_name ILIKE :location")
+            params['location'] = f"%{location_filter}%"
+        
+        # Apply employee filter
+        if employee_filter:
+            conditions.append("ad.employee_id ILIKE :employee")
+            params['employee'] = f"%{employee_filter}%"
+        
+        # Add conditions to query
+        if conditions:
+            base_query += " AND " + " AND ".join(conditions)
+        
+        # Add ordering
+        base_query += " ORDER BY ad.check_in_date DESC, ad.check_in_time DESC"
+        
+        # Execute query
+        query_result = db.session.execute(text(base_query), params)
+        attendance_records = query_result.fetchall()
+        
+        # Process records to add calculated fields
+        processed_records = []
+        for record in attendance_records:
+            record_dict = {
+                'id': record.id,
+                'employee_id': record.employee_id,
+                'check_in_date': record.check_in_date,
+                'check_in_time': record.check_in_time,
+                'location_name': record.location_name,
+                'location_event': record.location_event,
+                'qr_address': record.qr_address or 'Not available',
+                'checked_in_address': record.checked_in_address or 'Location not captured',
+                'device_info': record.device_info,
+                'accuracy': record.accuracy,
+                'accuracy_level': get_accuracy_level(record.accuracy),
+                'has_location_data': record.latitude is not None and record.longitude is not None,
+                'coordinates': f"{record.latitude:.6f}, {record.longitude:.6f}" if record.latitude and record.longitude else "No GPS data"
+            }
+            processed_records.append(record_dict)
         
         # Get unique locations for filter dropdown
         locations_query = db.session.execute(text("""
@@ -1644,7 +1712,9 @@ def attendance_report():
                 COUNT(*) as total_checkins,
                 COUNT(DISTINCT employee_id) as unique_employees,
                 COUNT(DISTINCT qr_code_id) as active_locations,
-                COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins
+                COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins,
+                COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END) as records_with_gps,
+                AVG(accuracy) as avg_accuracy
             FROM attendance_data
         """))
         stats = stats_query.fetchone()
@@ -1654,10 +1724,11 @@ def attendance_report():
         current_date_formatted = datetime.now().strftime('%B %d')
         
         return render_template('attendance_report.html', 
-                             attendance_records=attendance_records,
+                             attendance_records=processed_records,
                              locations=locations,
                              stats=stats,
-                             date_filter=date_filter,
+                             date_from=date_from,
+                             date_to=date_to,
                              location_filter=location_filter,
                              employee_filter=employee_filter,
                              today_date=today_date,
@@ -1665,8 +1736,19 @@ def attendance_report():
         
     except Exception as e:
         print(f"Error loading attendance report: {e}")
-        flash('Error loading attendance report.', 'error')
+        flash('Error loading attendance report. Please try again.', 'error')
         return redirect(url_for('dashboard'))
+
+def get_accuracy_level(accuracy):
+    """Get human-readable accuracy level"""
+    if not accuracy:
+        return 'unknown'
+    elif accuracy <= 50:
+        return 'high'
+    elif accuracy <= 100:
+        return 'medium'
+    else:
+        return 'low'
     
 @app.route('/api/attendance/stats')
 @admin_required
