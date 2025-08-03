@@ -379,17 +379,6 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="record-actions">
-                <button onclick="viewRecordDetails('${record.id}')" 
-                        class="action-btn btn-view"
-                        title="View Details">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button onclick="showLocationMap('${record.id}')" 
-                        class="action-btn btn-map"
-                        title="Show on Map"
-                        ${!record.has_location_data ? "disabled" : ""}>
-                    <i class="fas fa-map"></i>
-                </button>
                 <button onclick="editRecord('${record.id}')" 
                         class="action-btn btn-edit"
                         title="Edit Record">
@@ -709,17 +698,6 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="record-actions">
-                <button onclick="viewRecordDetails('${record.id}')" 
-                        class="action-btn btn-view"
-                        title="View Details">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button onclick="showLocationMap('${record.id}')" 
-                        class="action-btn btn-map"
-                        title="Show on Map"
-                        ${!record.has_location_data ? "disabled" : ""}>
-                    <i class="fas fa-map"></i>
-                </button>
                 <button onclick="editRecord('${record.id}')" 
                         class="action-btn btn-edit"
                         title="Edit Record">
@@ -746,123 +724,6 @@ function getSortKey(columnIndex) {
     "device",
   ];
   return sortKeys[columnIndex] || "index";
-}
-
-// Enhanced record details view with location accuracy
-function viewRecordDetails(recordId) {
-  const record = attendanceData.find((r) => r.id == recordId);
-  if (!record) return;
-
-  const modal = document.getElementById("recordModal");
-  const modalTitle = document.getElementById("modalTitle");
-  const modalBody = document.getElementById("modalBody");
-
-  if (!modal || !modalTitle || !modalBody) return;
-
-  modalTitle.textContent = `Attendance Record - ${record.employeeId}`;
-
-  // Build location accuracy details
-  const locationAccuracySection =
-    record.location_accuracy !== null
-      ? `
-        <div class="location-accuracy-details">
-            <h5><i class="fas fa-ruler"></i> Location Accuracy Analysis</h5>
-            <div class="accuracy-comparison">
-                <div class="location-point qr-point">
-                    <i class="fas fa-qrcode"></i>
-                    <h6>QR Code Location</h6>
-                    <p>${record.qr_address}</p>
-                </div>
-                <div class="location-point checkin-point">
-                    <i class="fas fa-location-arrow"></i>
-                    <h6>Check-in Location</h6>
-                    <p>${record.checked_in_address}</p>
-                </div>
-            </div>
-            <div class="distance-display">
-                <div class="distance-value">${record.location_accuracy.toFixed(
-                  3
-                )} miles</div>
-                <div class="distance-label">Distance between locations</div>
-                <div class="accuracy-level-display">
-                    <span class="location-accuracy-badge accuracy-${
-                      record.accuracy_level
-                    }">
-                        <i class="fas fa-ruler"></i>
-                        ${record.accuracy_level.toUpperCase()} ACCURACY
-                    </span>
-                </div>
-            </div>
-        </div>
-    `
-      : `
-        <div class="location-accuracy-details">
-            <h5><i class="fas fa-ruler"></i> Location Accuracy Analysis</h5>
-            <div class="distance-display">
-                <div class="distance-value">Unable to Calculate</div>
-                <div class="distance-label">Location accuracy could not be determined</div>
-                <p style="color: var(--gray-600); margin-top: var(--spacing-2);">
-                    This may be due to missing address information or geocoding limitations.
-                </p>
-            </div>
-        </div>
-    `;
-
-  modalBody.innerHTML = `
-        <div class="record-details-grid">
-            <div class="detail-section">
-                <h4><i class="fas fa-user"></i> Employee Information</h4>
-                <div class="detail-item">
-                    <strong>Employee ID:</strong>
-                    <span>${record.employeeId}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Check-in Date:</strong>
-                    <span>${record.date}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Check-in Time:</strong>
-                    <span>${record.time}</span>
-                </div>
-            </div>
-            
-            <div class="detail-section">
-                <h4><i class="fas fa-map-marker-alt"></i> Location Information</h4>
-                <div class="detail-item">
-                    <strong>Location Name:</strong>
-                    <span>${record.location}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Event:</strong>
-                    <span>${record.event}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>QR Code Address:</strong>
-                    <span>${record.qr_address}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Check-in Address:</strong>
-                    <span>${record.checked_in_address}</span>
-                </div>
-            </div>
-            
-            <div class="detail-section">
-                <h4><i class="fas fa-mobile-alt"></i> Device Information</h4>
-                <div class="detail-item">
-                    <strong>Device:</strong>
-                    <span>${record.device}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>GPS Coordinates:</strong>
-                    <span>${record.coordinates}</span>
-                </div>
-            </div>
-        </div>
-        
-        ${locationAccuracySection}
-    `;
-
-  modal.style.display = "block";
 }
 
 // Enhanced sorting for location accuracy (numeric sorting)

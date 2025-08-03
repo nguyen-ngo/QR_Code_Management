@@ -34,90 +34,7 @@
     </div>
 
     <!-- Enhanced Statistics Cards -->
-    <div class="stats-section">
-        <div class="stats-grid">
-            <div class="stat-card primary">
-                <div class="stat-icon">
-                    <i class="fas fa-user-check"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.total_checkins or 0 }}</h3>
-                    <p>Total Check-ins</p>
-                    <span class="stat-trend">All time</span>
-                </div>
-            </div>
-
-            <div class="stat-card success">
-                <div class="stat-icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.unique_employees or 0 }}</h3>
-                    <p>Unique Employees</p>
-                    <span class="stat-trend">Have checked in</span>
-                </div>
-            </div>
-
-            <div class="stat-card info">
-                <div class="stat-icon">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.active_locations or 0 }}</h3>
-                    <p>Active Locations</p>
-                    <span class="stat-trend">QR codes deployed</span>
-                </div>
-            </div>
-
-            <div class="stat-card warning">
-                <div class="stat-icon">
-                    <i class="fas fa-calendar-day"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.today_checkins or 0 }}</h3>
-                    <p>Today's Check-ins</p>
-                    <span class="stat-trend">{{ current_date_formatted }}</span>
-                </div>
-            </div>
-
-            <!-- GPS tracking stats -->
-            <div class="stat-card info">
-                <div class="stat-icon">
-                    <i class="fas fa-satellite"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ stats.records_with_gps or 0 }}</h3>
-                    <p>GPS Records</p>
-                    <span class="stat-trend">Location captured</span>
-                </div>
-            </div>
-
-            <!-- Location accuracy stats (conditional) -->
-            {% if has_location_accuracy_feature %}
-            <div class="stat-card success">
-                <div class="stat-icon">
-                    <i class="fas fa-ruler"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>{{ "%.2f"|format(stats.avg_location_accuracy or 0) }}mi</h3>
-                    <p>Avg. Location Accuracy</p>
-                    <span class="stat-trend">Distance precision</span>
-                </div>
-            </div>
-            {% else %}
-            <div class="stat-card success">
-                <div class="stat-icon">
-                    <i class="fas fa-crosshairs"></i>
-                </div>
-                <div class="stat-content">
-                    <h3>GPS</h3>
-                    <p>Tracking Mode</p>
-                    <span class="stat-trend">Current system</span>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
+    
 
     <!-- Enhanced Filters Section with Date Range -->
     <div class="filters-section">
@@ -331,24 +248,6 @@
                         </td>
                         <td>
                             <div class="record-actions">
-                                <button onclick="viewRecordDetails('{{ record.id }}')" 
-                                        class="action-btn btn-view"
-                                        title="View Details">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                {% if record.has_location_data %}
-                                <button onclick="showLocationMap('{{ record.id }}')" 
-                                        class="action-btn btn-map"
-                                        title="Show on Map">
-                                    <i class="fas fa-map"></i>
-                                </button>
-                                {% else %}
-                                <button class="action-btn btn-map" 
-                                        title="No GPS data available"
-                                        disabled>
-                                    <i class="fas fa-map"></i>
-                                </button>
-                                {% endif %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
