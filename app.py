@@ -61,7 +61,7 @@ class User(db.Model):
 # QR Code Model
 class QRCode(db.Model):
     """
-    QR Code model to manage QR code records and metadata
+    Enhanced QR Code model to manage QR code records and metadata with address coordinates
     """
     __tablename__ = 'qr_codes'
     
@@ -75,6 +75,30 @@ class QRCode(db.Model):
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
     active_status = db.Column(db.Boolean, default=True)
     qr_url = db.Column(db.String(255), unique=True, nullable=True)
+    
+    # NEW: Address Coordinates Fields
+    address_latitude = db.Column(db.Float, nullable=True)
+    address_longitude = db.Column(db.Float, nullable=True)
+    coordinate_accuracy = db.Column(db.String(50), nullable=True, default='geocoded')
+    coordinates_updated_date = db.Column(db.DateTime, nullable=True)
+    
+    @property
+    def has_coordinates(self):
+        """Check if this QR code has address coordinates"""
+        return self.address_latitude is not None and self.address_longitude is not None
+    @property
+    def coordinates_display(self):
+        """Get formatted coordinates for display"""
+        if self.has_coordinates:
+            return f"{self.address_latitude:.6f}, {self.address_longitude:.6f}"
+        return "Coordinates not available"
+
+    def update_coordinates(self, latitude, longitude, accuracy='geocoded'):
+        """Update the address coordinates for this QR code"""
+        self.address_latitude = latitude
+        self.address_longitude = longitude
+        self.coordinate_accuracy = accuracy
+        self.coordinates_updated_date = datetime.utcnow()
 
 class AttendanceData(db.Model):
     """Enhanced attendance tracking model with location support"""
@@ -188,6 +212,62 @@ def get_coordinates_from_address(address):
         print(f"❌ Error geocoding address '{address}': {e}")
         return None, None
 
+def geocode_address_enhanced(address):
+    """
+    Enhanced geocoding function for new coordinate features
+    Returns (lat, lng, accuracy) tuple or (None, None, None) if failed
+    """
+    if not address or address.strip() == '':
+        return None, None, None
+    
+    try:
+        # Using Nominatim (OpenStreetMap) geocoding service
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': address,
+            'format': 'json',
+            'limit': 1,
+            'addressdetails': 1
+        }
+        
+        headers = {
+            'User-Agent': 'QR-Attendance-System/1.0'
+        }
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data and len(data) > 0:
+                result = data[0]
+                lat = float(result['lat'])
+                lng = float(result['lon'])
+                
+                # Determine accuracy based on result type
+                place_type = result.get('type', 'unknown')
+                osm_type = result.get('osm_type', 'unknown')
+                
+                if place_type in ['house', 'building'] or osm_type == 'way':
+                    accuracy = 'high'
+                elif place_type in ['neighbourhood', 'suburb', 'quarter']:
+                    accuracy = 'medium'
+                else:
+                    accuracy = 'low'
+                
+                print(f"✅ Geocoded address: {address}")
+                print(f"   Coordinates: {lat:.6f}, {lng:.6f}")
+                print(f"   Accuracy: {accuracy} ({place_type})")
+                
+                return lat, lng, accuracy
+            
+        print(f"⚠️ No geocoding results for address: {address}")
+        return None, None, None
+        
+    except Exception as e:
+        print(f"❌ Geocoding error: {e}")
+        return None, None, None
+    
 def calculate_distance_miles(lat1, lng1, lat2, lng2):
     """
     Calculate the great circle distance between two points on Earth in miles
@@ -290,7 +370,69 @@ def get_client_ip():
         return request.environ['REMOTE_ADDR']
     else:
         return request.environ['HTTP_X_FORWARDED_FOR']
+
+def get_coordinates_from_address(address):
+    """
+    Enhanced geocoding function to get latitude and longitude from address
+    Returns (lat, lng, accuracy) tuple or (None, None, None) if failed
+    """
+    if not address or address.strip() == '':
+        return None, None, None
     
+    try:
+        # Using Nominatim (OpenStreetMap) geocoding service
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': address,
+            'format': 'json',
+            'limit': 1,
+            'addressdetails': 1
+        }
+        
+        headers = {
+            'User-Agent': 'QR-Attendance-System/1.0'
+        }
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data and len(data) > 0:
+                result = data[0]
+                lat = float(result['lat'])
+                lng = float(result['lon'])
+                
+                # Determine accuracy based on result type
+                place_type = result.get('type', 'unknown')
+                osm_type = result.get('osm_type', 'unknown')
+                
+                if place_type in ['house', 'building'] or osm_type == 'way':
+                    accuracy = 'high'
+                elif place_type in ['neighbourhood', 'suburb', 'quarter']:
+                    accuracy = 'medium'
+                else:
+                    accuracy = 'low'
+                
+                print(f"✅ Geocoded address: {address}")
+                print(f"   Coordinates: {lat:.6f}, {lng:.6f}")
+                print(f"   Accuracy: {accuracy} ({place_type})")
+                
+                return lat, lng, accuracy
+            
+        print(f"⚠️ No geocoding results for address: {address}")
+        return None, None, None
+        
+    except requests.RequestException as e:
+        print(f"❌ Geocoding request error: {e}")
+        return None, None, None
+    except (ValueError, KeyError) as e:
+        print(f"❌ Geocoding parsing error: {e}")
+        return None, None, None
+    except Exception as e:
+        print(f"❌ Unexpected geocoding error: {e}")
+        return None, None, None
+
 # Authentication decorator
 def login_required(f):
     """Decorator to ensure user is logged in"""
@@ -780,6 +922,49 @@ def user_stats_api():
         print(f"Error fetching user stats: {e}")
         return jsonify({'error': 'Failed to fetch user statistics'}), 500
 
+@app.route('/api/geocode', methods=['POST'])
+@login_required  # Add this decorator if you have it
+def geocode_address():
+    """
+    API endpoint to geocode an address and return coordinates
+    """
+    try:
+        data = request.get_json()
+        address = data.get('address', '').strip()
+        
+        if not address:
+            return jsonify({
+                'success': False,
+                'message': 'Address is required'
+            }), 400
+        
+        # Use the enhanced function that returns 3 values
+        lat, lng, accuracy = geocode_address_enhanced(address)
+        
+        if lat is not None and lng is not None:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'latitude': lat,
+                    'longitude': lng,
+                    'accuracy': accuracy,
+                    'coordinates_display': f"{lat:.6f}, {lng:.6f}"
+                },
+                'message': f'Address geocoded successfully with {accuracy} accuracy'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Unable to geocode the provided address. Please verify the address is complete and accurate.'
+            }), 400
+            
+    except Exception as e:
+        print(f"❌ Geocoding API error: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while geocoding the address'
+        }), 500
+
 @app.route('/users/<int:user_id>/permanently-delete', methods=['GET', 'POST'])
 @admin_required
 def permanently_delete_user(user_id):
@@ -1209,12 +1394,17 @@ def get_location_accuracy_level(location_accuracy):
 @app.route('/qr-codes/create', methods=['GET', 'POST'])
 @login_required
 def create_qr_code():
-    """Create new QR code"""
+    """Enhanced create QR code with address coordinates"""
     if request.method == 'POST':
         name = request.form['name']
         location = request.form['location']
         location_address = request.form['location_address']
         location_event = request.form['location_event']
+        
+        # Get coordinates from hidden form fields (set by JavaScript)
+        address_latitude = request.form.get('address_latitude')
+        address_longitude = request.form.get('address_longitude')
+        coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
         
         # Create QR code record first (without QR image and URL)
         new_qr_code = QRCode(
@@ -1226,6 +1416,19 @@ def create_qr_code():
             qr_url='',         # Temporary empty value
             created_by=session['user_id']
         )
+        
+        # Add coordinates if available
+        if address_latitude and address_longitude:
+            try:
+                lat = float(address_latitude)
+                lng = float(address_longitude)
+                new_qr_code.address_latitude = lat
+                new_qr_code.address_longitude = lng
+                new_qr_code.coordinate_accuracy = coordinate_accuracy
+                new_qr_code.coordinates_updated_date = datetime.utcnow()
+                print(f"✅ Added coordinates to QR code: {lat:.6f}, {lng:.6f}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Invalid coordinates provided: {e}")
         
         # Add to session and flush to get the ID
         db.session.add(new_qr_code)
@@ -1245,7 +1448,11 @@ def create_qr_code():
         # Now commit all changes
         db.session.commit()
         
-        flash('QR code created successfully!', 'success')
+        coord_msg = ""
+        if new_qr_code.has_coordinates:
+            coord_msg = f" with coordinates ({new_qr_code.coordinates_display})"
+            
+        flash(f'QR code created successfully{coord_msg}!', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('create_qr_code.html')
@@ -1253,19 +1460,40 @@ def create_qr_code():
 @app.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_qr_code(qr_id):
-    """Edit existing QR code"""
+    """Enhanced edit QR code with address coordinates"""
     qr_code = QRCode.query.get_or_404(qr_id)
     
     if request.method == 'POST':
-        # Store original name for comparison
+        # Store original values for comparison
         original_name = qr_code.name
+        original_address = qr_code.location_address
         
         # Update QR code fields
         new_name = request.form['name']
+        new_address = request.form['location_address']
+        
         qr_code.name = new_name
         qr_code.location = request.form['location']
-        qr_code.location_address = request.form['location_address']
+        qr_code.location_address = new_address
         qr_code.location_event = request.form['location_event']
+        
+        # Handle address coordinates
+        address_latitude = request.form.get('address_latitude')
+        address_longitude = request.form.get('address_longitude')
+        coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
+        
+        # Update coordinates if provided
+        if address_latitude and address_longitude:
+            try:
+                lat = float(address_latitude)
+                lng = float(address_longitude)
+                qr_code.address_latitude = lat
+                qr_code.address_longitude = lng
+                qr_code.coordinate_accuracy = coordinate_accuracy
+                qr_code.coordinates_updated_date = datetime.utcnow()
+                print(f"✅ Updated coordinates for QR code: {lat:.6f}, {lng:.6f}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Invalid coordinates provided during edit: {e}")
 
         # Check if name changed and handle URL regeneration
         if original_name != new_name:
@@ -1290,7 +1518,11 @@ def edit_qr_code(qr_id):
 
         db.session.commit()
         
-        flash('QR code updated successfully!', 'success')
+        coord_msg = ""
+        if qr_code.has_coordinates:
+            coord_msg = f" Coordinates: ({qr_code.coordinates_display})"
+            
+        flash(f'QR code updated successfully!{coord_msg}', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('edit_qr_code.html', qr_code=qr_code)
@@ -2276,8 +2508,54 @@ def update_existing_qr_codes():
         print(f"Error updating existing QR codes: {e}")
         db.session.rollback()
 
+def add_coordinate_columns():
+    """Add coordinate columns to existing qr_codes table"""
+    try:
+        # Check if columns already exist
+        result = db.session.execute(text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='qr_codes' AND column_name IN 
+            ('address_latitude', 'address_longitude', 'coordinate_accuracy', 'coordinates_updated_date')
+        """))
+        
+        existing_columns = [row.column_name for row in result.fetchall()]
+        
+        # Add missing columns
+        if 'address_latitude' not in existing_columns:
+            db.session.execute(text("""
+                ALTER TABLE qr_codes ADD COLUMN address_latitude FLOAT
+            """))
+            print("✅ Added address_latitude column")
+        
+        if 'address_longitude' not in existing_columns:
+            db.session.execute(text("""
+                ALTER TABLE qr_codes ADD COLUMN address_longitude FLOAT
+            """))
+            print("✅ Added address_longitude column")
+        
+        if 'coordinate_accuracy' not in existing_columns:
+            db.session.execute(text("""
+                ALTER TABLE qr_codes ADD COLUMN coordinate_accuracy VARCHAR(50) DEFAULT 'geocoded'
+            """))
+            print("✅ Added coordinate_accuracy column")
+        
+        if 'coordinates_updated_date' not in existing_columns:
+            db.session.execute(text("""
+                ALTER TABLE qr_codes ADD COLUMN coordinates_updated_date TIMESTAMP
+            """))
+            print("✅ Added coordinates_updated_date column")
+        
+        db.session.commit()
+        print("✅ Database migration completed successfully")
+        
+    except Exception as e:
+        print(f"❌ Database migration error: {e}")
+        db.session.rollback()
+
 if __name__ == '__main__':
     with app.app_context():
         create_tables()
+        add_coordinate_columns()
         update_existing_qr_codes()
     app.run(debug=True, host="0.0.0.0")
