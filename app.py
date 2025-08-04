@@ -1804,7 +1804,7 @@ def qr_destination(qr_url):
         return render_template('qr_not_found.html'), 500
 
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
-def qr_checkin_enhanced(qr_url):
+def qr_checkin(qr_url):
     """
     Enhanced staff check-in with improved location accuracy calculation
     """
