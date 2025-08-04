@@ -123,6 +123,7 @@ class AttendanceData(db.Model):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     accuracy = db.Column(db.Float, nullable=True)
+    location_accuracy = db.Column(db.Float, nullable=True)
     altitude = db.Column(db.Float, nullable=True)
     location_source = db.Column(db.String(50), default='manual')
     address = db.Column(db.String(500), nullable=True)
@@ -664,7 +665,8 @@ def process_location_data(location_data):
 
 def process_location_data_enhanced(form_data):
     """
-    Enhanced location data processing with better validation and error handling
+    Enhanced processing of location data from form submission
+    Validates and cleans location data for storage
     """
     processed = {
         'latitude': None,
@@ -676,50 +678,52 @@ def process_location_data_enhanced(form_data):
     }
     
     try:
-        # Enhanced latitude validation
+        # Process latitude
         if form_data.get('latitude') and form_data['latitude'] not in ['null', '', 'undefined']:
             lat = float(form_data['latitude'])
-            if -90 <= lat <= 90:
-                processed['latitude'] = round(lat, 6)  # 6 decimal precision
+            if -90 <= lat <= 90:  # Valid latitude range
+                processed['latitude'] = lat
             else:
-                print(f"⚠️ Invalid latitude range: {lat}")
+                print(f"⚠️ Invalid latitude: {lat}")
         
-        # Enhanced longitude validation  
+        # Process longitude
         if form_data.get('longitude') and form_data['longitude'] not in ['null', '', 'undefined']:
             lng = float(form_data['longitude'])
-            if -180 <= lng <= 180:
-                processed['longitude'] = round(lng, 6)  # 6 decimal precision
+            if -180 <= lng <= 180:  # Valid longitude range
+                processed['longitude'] = lng
             else:
-                print(f"⚠️ Invalid longitude range: {lng}")
+                print(f"⚠️ Invalid longitude: {lng}")
         
-        # Enhanced accuracy validation
+        # Process GPS accuracy
         if form_data.get('accuracy') and form_data['accuracy'] not in ['null', '', 'undefined']:
             acc = float(form_data['accuracy'])
-            if 0 <= acc <= 50000:  # Reasonable accuracy range in meters
-                processed['accuracy'] = round(acc, 1)
+            if acc >= 0:  # Accuracy should be positive
+                processed['accuracy'] = acc
             else:
-                print(f"⚠️ Invalid accuracy value: {acc}")
+                print(f"⚠️ Invalid GPS accuracy: {acc}")
         
-        # Enhanced altitude validation
+        # Process altitude
         if form_data.get('altitude') and form_data['altitude'] not in ['null', '', 'undefined']:
             alt = float(form_data['altitude'])
-            if -1000 <= alt <= 10000:  # Reasonable altitude range in meters
-                processed['altitude'] = round(alt, 1)
-            else:
-                print(f"⚠️ Invalid altitude value: {alt}")
+            processed['altitude'] = alt
         
-        # Enhanced address processing
+        # Process address (limit length for database storage)
         if form_data.get('address'):
             address = form_data['address'].strip()
-            if len(address) > 0:
+            if address and address not in ['null', '', 'undefined']:
                 processed['address'] = address[:500]  # Limit to 500 characters
         
-        print(f"✅ Enhanced location data processed: {processed}")
+        print(f"📍 Processed location data:")
+        print(f"   Coordinates: {processed['latitude']}, {processed['longitude']}")
+        print(f"   GPS Accuracy: {processed['accuracy']}m")
+        print(f"   Source: {processed['source']}")
+        print(f"   Address: {processed['address'][:100] if processed['address'] else 'None'}...")
         
-    except (ValueError, TypeError) as e:
-        print(f"⚠️ Error in enhanced location data processing: {e}")
-    
-    return processed
+        return processed
+        
+    except Exception as e:
+        print(f"❌ Error processing location data: {e}")
+        return processed
 
 def migrate_to_enhanced_location_accuracy():
     """
@@ -1861,7 +1865,8 @@ def qr_destination(qr_url):
 @app.route('/qr/<string:qr_url>/checkin', methods=['POST'])
 def qr_checkin(qr_url):
     """
-    Enhanced staff check-in with improved location accuracy calculation
+    Enhanced staff check-in with location accuracy calculation
+    Calculates distance between QR code address and actual check-in location
     """
     try:
         print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
@@ -1882,7 +1887,7 @@ def qr_checkin(qr_url):
         print(f"   Location: {qr_code.location}")
         print(f"   QR Address: {qr_code.location_address}")
         
-        # Get form data
+        # Get and validate employee ID
         employee_id = request.form.get('employee_id', '').strip()
         
         if not employee_id:
@@ -1906,7 +1911,7 @@ def qr_checkin(qr_url):
                 'message': f'You have already checked in today at {existing_checkin.check_in_time.strftime("%H:%M")}.'
             }), 400
         
-        # Process location data with enhanced validation
+        # Process location data
         location_data = process_location_data_enhanced(request.form)
         
         # Get device and network info
@@ -1919,7 +1924,7 @@ def qr_checkin(qr_url):
         print(f"📍 Location Data: {location_data}")
         
         # Create attendance record
-        print(f"\n💾 CREATING ENHANCED ATTENDANCE RECORD:")
+        print(f"\n💾 CREATING ATTENDANCE RECORD:")
         
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
@@ -1941,11 +1946,12 @@ def qr_checkin(qr_url):
         
         print(f"✅ Created base attendance record")
         
-        # ENHANCED LOCATION ACCURACY CALCULATION
-        print(f"\n🎯 CALCULATING ENHANCED LOCATION ACCURACY...")
+        # CRITICAL: LOCATION ACCURACY CALCULATION
+        print(f"\n🎯 CALCULATING LOCATION ACCURACY...")
         location_accuracy = None
         
         try:
+            # Calculate accuracy using existing enhanced function
             location_accuracy = calculate_location_accuracy_enhanced(
                 qr_address=qr_code.location_address,
                 checkin_address=location_data['address'],
@@ -1954,20 +1960,40 @@ def qr_checkin(qr_url):
             )
             
             if location_accuracy is not None:
+                # Store the calculated accuracy in the database
                 attendance.location_accuracy = location_accuracy
                 accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
-                print(f"✅ Enhanced location accuracy set: {location_accuracy:.4f} miles ({accuracy_level})")
+                print(f"✅ Location accuracy calculated: {location_accuracy:.4f} miles ({accuracy_level})")
             else:
-                print(f"⚠️ Could not calculate enhanced location accuracy")
+                print(f"⚠️ Could not calculate location accuracy")
                 
         except Exception as e:
-            print(f"❌ Error in enhanced location accuracy calculation: {e}")
+            print(f"❌ Error in location accuracy calculation: {e}")
+            # Continue with check-in even if accuracy calculation fails
         
         # Save to database
         try:
             db.session.add(attendance)
             db.session.commit()
-            print(f"✅ Successfully saved enhanced attendance record with ID: {attendance.id}")
+            print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
+            
+            # Prepare success response
+            response_data = {
+                'success': True,
+                'message': f'Successfully checked in at {datetime.now().strftime("%H:%M")}',
+                'employee_id': employee_id.upper(),
+                'location': qr_code.location,
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # Include location accuracy in response if calculated
+            if location_accuracy is not None:
+                response_data['location_accuracy'] = {
+                    'distance_miles': round(location_accuracy, 4),
+                    'level': get_location_accuracy_level_enhanced(location_accuracy)
+                }
+            
+            return jsonify(response_data), 200
             
         except Exception as e:
             print(f"❌ Database error: {e}")
@@ -1976,33 +2002,9 @@ def qr_checkin(qr_url):
                 'success': False,
                 'message': 'Database error occurred. Please try again.'
             }), 500
-        
-        # Build enhanced success response
-        response_data = {
-            'success': True,
-            'message': 'Enhanced check-in successful!',
-            'data': {
-                'employee_id': attendance.employee_id,
-                'location': attendance.location_name,
-                'check_in_time': attendance.check_in_time.strftime('%H:%M'),
-                'has_gps': attendance.latitude is not None and attendance.longitude is not None,
-                'location_accuracy': f"{location_accuracy:.4f} miles" if location_accuracy else "Not calculated",
-                'accuracy_level': get_location_accuracy_level_enhanced(location_accuracy) if location_accuracy else "unknown",
-                'location_source': location_data['source'],
-                'enhanced_features': True
-            }
-        }
-        
-        print(f"✅ ENHANCED CHECK-IN COMPLETED SUCCESSFULLY!")
-        print(f"   Employee: {attendance.employee_id}")
-        print(f"   Location: {attendance.location_name}")
-        print(f"   Accuracy: {location_accuracy:.4f} miles" if location_accuracy else "Not calculated")
-        print(f"   Time: {attendance.check_in_time}")
-        
-        return jsonify(response_data)
-        
+            
     except Exception as e:
-        print(f"❌ Critical error in enhanced check-in: {e}")
+        print(f"❌ Unexpected error in check-in process: {e}")
         return jsonify({
             'success': False,
             'message': 'An unexpected error occurred. Please try again.'
