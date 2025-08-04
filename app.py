@@ -172,7 +172,8 @@ class AttendanceData(db.Model):
             'address': self.address,
             'location_source': self.location_source
         }
-    
+
+# Utility functions    
 def get_coordinates_from_address(address):
     """
     Get latitude and longitude from address using geocoding service
@@ -212,110 +213,6 @@ def get_coordinates_from_address(address):
     except Exception as e:
         print(f"❌ Error geocoding address '{address}': {e}")
         return None, None
-
-'''
-def get_coordinates_from_address(address):
-    """
-    Enhanced geocoding function to get latitude and longitude from address
-    Returns (lat, lng, accuracy) tuple or (None, None, None) if failed
-    """
-    if not address or address.strip() == '':
-        return None, None, None
-    
-    try:
-        # Using Nominatim (OpenStreetMap) geocoding service
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {
-            'q': address,
-            'format': 'json',
-            'limit': 1,
-            'addressdetails': 1
-        }
-        
-        headers = {
-            'User-Agent': 'QR-Attendance-System/1.0'
-        }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if data and len(data) > 0:
-                result = data[0]
-                lat = float(result['lat'])
-                lng = float(result['lon'])
-                
-                # Determine accuracy based on result type
-                place_type = result.get('type', 'unknown')
-                osm_type = result.get('osm_type', 'unknown')
-                
-                if place_type in ['house', 'building'] or osm_type == 'way':
-                    accuracy = 'high'
-                elif place_type in ['neighbourhood', 'suburb', 'quarter']:
-                    accuracy = 'medium'
-                else:
-                    accuracy = 'low'
-                
-                print(f"✅ Geocoded address: {address}")
-                print(f"   Coordinates: {lat:.6f}, {lng:.6f}")
-                print(f"   Accuracy: {accuracy} ({place_type})")
-                
-                return lat, lng, accuracy
-            
-        print(f"⚠️ No geocoding results for address: {address}")
-        return None, None, None
-        
-    except requests.RequestException as e:
-        print(f"❌ Geocoding request error: {e}")
-        return None, None, None
-    except (ValueError, KeyError) as e:
-        print(f"❌ Geocoding parsing error: {e}")
-        return None, None, None
-    except Exception as e:
-        print(f"❌ Unexpected geocoding error: {e}")
-        return None, None, None
-'''
-'''
-def get_coordinates_from_address(address):
-    """
-    Get latitude and longitude from address using geocoding service
-    Returns (lat, lng) tuple or (None, None) if failed
-    """
-    if not address or address.strip() == '':
-        return None, None
-    
-    try:
-        # Using Nominatim/OpenStreetMap for free geocoding
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {
-            'q': address,
-            'format': 'json',
-            'limit': 1,
-            'addressdetails': 1
-        }
-        
-        headers = {
-            'User-Agent': 'QR-Attendance-System/1.0'
-        }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0:
-                lat = float(data[0]['lat'])
-                lng = float(data[0]['lon'])
-                print(f"✅ Geocoded address '{address[:50]}...' to coordinates: {lat}, {lng}")
-                return lat, lng
-        
-        print(f"⚠️ Could not geocode address: {address}")
-        return None, None
-        
-    except Exception as e:
-        print(f"❌ Error geocoding address '{address}': {e}")
-        return None, None
-'''
 
 def get_coordinates_from_address_enhanced(address):
     """
@@ -681,42 +578,6 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         print(f"❌ Error calculating distance: {e}")
         return None
 
-def calculate_location_accuracy(qr_address, checkin_address, checkin_lat=None, checkin_lng=None):
-    """
-    Calculate location accuracy by comparing QR code address with check-in location
-    Returns distance in miles between the two locations
-    """
-    print(f"\n📍 CALCULATING LOCATION ACCURACY:")
-    print(f"   QR Address: {qr_address}")
-    print(f"   Check-in Address: {checkin_address}")
-    print(f"   Check-in Coordinates: {checkin_lat}, {checkin_lng}")
-    
-    # Get QR code coordinates from address
-    qr_lat, qr_lng = get_coordinates_from_address(qr_address)
-    
-    if qr_lat is None or qr_lng is None:
-        print(f"⚠️ Could not geocode QR address, cannot calculate accuracy")
-        return None
-    
-    # Use check-in coordinates if available, otherwise geocode check-in address
-    if checkin_lat is not None and checkin_lng is not None:
-        checkin_coords_lat, checkin_coords_lng = checkin_lat, checkin_lng
-        print(f"✅ Using GPS coordinates for check-in location")
-    else:
-        checkin_coords_lat, checkin_coords_lng = get_coordinates_from_address(checkin_address)
-        if checkin_coords_lat is None or checkin_coords_lng is None:
-            print(f"⚠️ Could not geocode check-in address, cannot calculate accuracy")
-            return None
-        print(f"✅ Using geocoded coordinates for check-in address")
-    
-    # Calculate distance
-    distance = calculate_distance_miles(qr_lat, qr_lng, checkin_coords_lat, checkin_coords_lng)
-    
-    if distance is not None:
-        print(f"✅ Location accuracy calculated: {distance} miles")
-    
-    return distance
-
 def get_location_accuracy_level(location_accuracy):
     """Get human-readable location accuracy level based on distance"""
     if not location_accuracy:
@@ -750,7 +611,7 @@ def get_location_accuracy_level_enhanced(location_accuracy):
         return 'poor'
     else:                            # Greater than 1 mile
         return 'very_poor'
-'''
+
 def process_location_data(location_data):
     """
     Process and validate location data from form
@@ -800,57 +661,7 @@ def process_location_data(location_data):
         print(f"⚠️ Error processing location data: {e}")
     
     return processed
-'''
-def process_location_data(location_data):
-    """
-    Process and validate location data from form
-    Returns clean location data or None values for invalid data
-    """
-    processed = {
-        'latitude': None,
-        'longitude': None,
-        'accuracy': None,
-        'altitude': None,
-        'source': location_data.get('location_source', 'manual'),
-        'address': location_data.get('address', '')[:500] if location_data.get('address') else None
-    }
-    
-    try:
-        # Process latitude
-        if location_data.get('latitude') and location_data['latitude'] not in ['null', '']:
-            lat = float(location_data['latitude'])
-            if -90 <= lat <= 90:  # Valid latitude range
-                processed['latitude'] = lat
-            else:
-                print(f"⚠️ Invalid latitude: {lat}")
-        
-        # Process longitude
-        if location_data.get('longitude') and location_data['longitude'] not in ['null', '']:
-            lng = float(location_data['longitude'])
-            if -180 <= lng <= 180:  # Valid longitude range
-                processed['longitude'] = lng
-            else:
-                print(f"⚠️ Invalid longitude: {lng}")
-        
-        # Process accuracy
-        if location_data.get('accuracy') and location_data['accuracy'] not in ['null', '']:
-            acc = float(location_data['accuracy'])
-            if acc >= 0:  # Accuracy should be positive
-                processed['accuracy'] = acc
-            else:
-                print(f"⚠️ Invalid accuracy: {acc}")
-        
-        # Process altitude
-        if location_data.get('altitude') and location_data['altitude'] not in ['null', '']:
-            alt = float(location_data['altitude'])
-            # Altitude can be negative (below sea level)
-            processed['altitude'] = alt
-            
-    except (ValueError, TypeError) as e:
-        print(f"⚠️ Error processing location data: {e}")
-    
-    return processed
-'''
+
 def process_location_data_enhanced(form_data):
     """
     Enhanced location data processing with better validation and error handling
@@ -909,132 +720,7 @@ def process_location_data_enhanced(form_data):
         print(f"⚠️ Error in enhanced location data processing: {e}")
     
     return processed
-'''
-def process_location_data_enhanced(form_data):
-    """
-    Enhanced location data processing with better validation and error handling
-    """
-    processed = {
-        'latitude': None,
-        'longitude': None,
-        'accuracy': None,
-        'altitude': None,
-        'source': form_data.get('location_source', 'manual'),
-        'address': None
-    }
-    
-    try:
-        # Enhanced latitude validation
-        if form_data.get('latitude') and form_data['latitude'] not in ['null', '', 'undefined']:
-            lat = float(form_data['latitude'])
-            if -90 <= lat <= 90:
-                processed['latitude'] = round(lat, 6)  # 6 decimal precision
-            else:
-                print(f"⚠️ Invalid latitude range: {lat}")
-        
-        # Enhanced longitude validation  
-        if form_data.get('longitude') and form_data['longitude'] not in ['null', '', 'undefined']:
-            lng = float(form_data['longitude'])
-            if -180 <= lng <= 180:
-                processed['longitude'] = round(lng, 6)  # 6 decimal precision
-            else:
-                print(f"⚠️ Invalid longitude range: {lng}")
-        
-        # Enhanced accuracy validation
-        if form_data.get('accuracy') and form_data['accuracy'] not in ['null', '', 'undefined']:
-            acc = float(form_data['accuracy'])
-            if 0 <= acc <= 50000:  # Reasonable accuracy range in meters
-                processed['accuracy'] = round(acc, 1)
-            else:
-                print(f"⚠️ Invalid accuracy value: {acc}")
-        
-        # Enhanced altitude validation
-        if form_data.get('altitude') and form_data['altitude'] not in ['null', '', 'undefined']:
-            alt = float(form_data['altitude'])
-            if -1000 <= alt <= 10000:  # Reasonable altitude range in meters
-                processed['altitude'] = round(alt, 1)
-            else:
-                print(f"⚠️ Invalid altitude value: {alt}")
-        
-        # Enhanced address processing
-        if form_data.get('address'):
-            address = form_data['address'].strip()
-            if len(address) > 0:
-                processed['address'] = address[:500]  # Limit to 500 characters
-        
-        print(f"✅ Enhanced location data processed: {processed}")
-        
-    except (ValueError, TypeError) as e:
-        print(f"⚠️ Error in enhanced location data processing: {e}")
-    
-    return processed
-'''
-def migrate_to_enhanced_location_accuracy():
-    """
-    Migration function to recalculate all existing records with enhanced accuracy
-    """
-    try:
-        print("🔄 Starting enhanced location accuracy migration...")
-        
-        # Get all records that need recalculation
-        records = db.session.execute(text("""
-            SELECT ad.id, qc.location_address, ad.address, ad.latitude, ad.longitude, ad.location_accuracy
-            FROM attendance_data ad
-            LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
-            WHERE qc.location_address IS NOT NULL
-        """)).fetchall()
-        
-        print(f"📊 Found {len(records)} records to process")
-        
-        updated_count = 0
-        improved_count = 0
-        
-        for record in records:
-            try:
-                # Calculate enhanced location accuracy
-                new_accuracy = calculate_location_accuracy_enhanced(
-                    qr_address=record.location_address,
-                    checkin_address=record.address,
-                    checkin_lat=record.latitude,
-                    checkin_lng=record.longitude
-                )
-                
-                if new_accuracy is not None:
-                    # Update the record
-                    db.session.execute(text("""
-                        UPDATE attendance_data 
-                        SET location_accuracy = :accuracy
-                        WHERE id = :record_id
-                    """), {
-                        'accuracy': new_accuracy,
-                        'record_id': record.id
-                    })
-                    
-                    updated_count += 1
-                    
-                    # Check if this is an improvement
-                    if record.location_accuracy is None or abs(new_accuracy - (record.location_accuracy or 0)) > 0.001:
-                        improved_count += 1
-                        print(f"   ✅ Updated record {record.id}: {record.location_accuracy} → {new_accuracy:.4f} miles")
-                
-            except Exception as e:
-                print(f"   ⚠️ Error processing record {record.id}: {e}")
-        
-        # Commit all changes
-        db.session.commit()
-        
-        print(f"✅ Enhanced migration completed!")
-        print(f"   📊 Records processed: {len(records)}")
-        print(f"   ✅ Records updated: {updated_count}")
-        print(f"   📈 Records improved: {improved_count}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Enhanced migration failed: {e}")
-        db.session.rollback()
-        return False
-'''
+
 def migrate_to_enhanced_location_accuracy():
     """
     Migration function to recalculate all existing records with enhanced accuracy
