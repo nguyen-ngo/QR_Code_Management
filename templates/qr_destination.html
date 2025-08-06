@@ -8,7 +8,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <meta name="robots" content="noindex, nofollow">
     <style>
-        /* Additional styles for location tracking */
+        /* Additional styles for location tracking - PRESERVED FROM ORIGINAL */
         .location-status {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -91,12 +91,84 @@
         .btn-small:hover {
             background: #545b62;
         }
+
+        /* Language Selector Styles - ENHANCED */
+        .language-selector {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .language-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            outline: none;
+        }
+
+        .language-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .language-toggle:active {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(0);
+        }
+
+        .language-toggle:focus {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
+        .language-toggle i {
+            font-size: 1rem;
+        }
+
+        /* Smooth transitions - SIMPLIFIED */
+        .fade-transition {
+            transition: opacity 0.15s ease;
+        }
+
+        .fade-transition.active {
+            opacity: 1;
+        }
+
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .language-selector {
+                position: relative;
+                top: 0;
+                right: 0;
+                text-align: center;
+                margin-bottom: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="destination-container">
-        <!-- Header Section -->
-        <div class="destination-header">
+        <!-- Language Selector - ENHANCED -->
+        <div class="language-selector">
+            <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch Language">
+                <i class="fas fa-globe"></i>
+                <span id="languageText">EN</span>
+            </button>
+        </div>
+
+        <!-- Header Section - WITH TRANSLATIONS -->
+        <div class="destination-header fade-transition active">
             <div class="header-icon">
                 <i class="fas fa-qrcode"></i>
             </div>
@@ -107,18 +179,18 @@
             </p>
         </div>
 
-        <!-- Check-in Form -->
-        <div class="checkin-card">
+        <!-- Check-in Form - WITH TRANSLATIONS -->
+        <div class="checkin-card fade-transition active">
             <div class="checkin-header">
                 <h2>
                     <i class="fas fa-user-check"></i>
-                    Staff Check-In
+                    <span data-en="Staff Check-In" data-es="Registro de Personal">Staff Check-In</span>
                 </h2>
-                <p>Please enter your Employee ID to check in</p>
+                <p data-en="Please enter your Employee ID to check in" data-es="Por favor ingrese su ID de Empleado para registrarse">Please enter your Employee ID to check in</p>
             </div>
 
             <form id="checkinForm" class="checkin-form">
-                <!-- HIDDEN LOCATION FIELDS - NEW ADDITION -->
+                <!-- HIDDEN LOCATION FIELDS - PRESERVED FROM ORIGINAL -->
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
                 <input type="hidden" id="accuracy" name="accuracy">
@@ -129,27 +201,33 @@
                 <div class="form-group">
                     <label for="employee_id">
                         <i class="fas fa-id-badge"></i>
-                        Employee ID
+                        <span data-en="Employee ID" data-es="ID de Empleado">Employee ID</span>
                     </label>
                     <input type="text" 
                            id="employee_id" 
                            name="employee_id" 
                            required 
+                           data-placeholder-en="Enter your Employee ID"
+                           data-placeholder-es="Ingrese su ID de Empleado"
                            placeholder="Enter your Employee ID"
                            autocomplete="off"
                            maxlength="20">
-                    <small class="form-help">Use your official employee ID (3-20 characters)</small>
+                    <small class="form-help" 
+                           data-en="Use your official employee ID (3-20 characters)" 
+                           data-es="Use su ID oficial de empleado (3-20 caracteres)">
+                        Use your official employee ID (3-20 characters)
+                    </small>
                 </div>
 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
                         <span class="btn-content">
                             <i class="fas fa-check"></i>
-                            Check In Now
+                            <span data-en="Check In Now" data-es="Registrarse Ahora">Check In Now</span>
                         </span>
                         <div class="btn-loader" style="display: none;">
                             <i class="fas fa-spinner fa-spin"></i>
-                            Processing...
+                            <span data-en="Processing..." data-es="Procesando...">Processing...</span>
                         </div>
                     </button>
                 </div>
@@ -161,36 +239,36 @@
             </div>
         </div>
 
-        <!-- Success Card (Hidden by default) -->
-        <div id="successCard" class="success-card" style="display: none;">
+        <!-- Success Card (Hidden by default) - WITH TRANSLATIONS -->
+        <div id="successCard" class="success-card fade-transition" style="display: none;">
             <div class="success-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
-            <h2>Check-In Successful!</h2>
+            <h2 data-en="Check-In Successful!" data-es="¡Registro Exitoso!">Check-In Successful!</h2>
             <div class="success-details">
                 <div class="success-item">
-                    <strong>Employee ID:</strong>
+                    <strong data-en="Employee ID:" data-es="ID de Empleado:">Employee ID:</strong>
                     <span id="successEmployeeId">-</span>
                 </div>
                 <div class="success-item">
-                    <strong>Location:</strong>
+                    <strong data-en="Location:" data-es="Ubicación:">Location:</strong>
                     <span id="successLocation">-</span>
                 </div>
                 <div class="success-item">
-                    <strong>Event:</strong>
+                    <strong data-en="Event:" data-es="Evento:">Event:</strong>
                     <span id="successEvent">-</span>
                 </div>
                 <div class="success-item">
-                    <strong>Time:</strong>
+                    <strong data-en="Time:" data-es="Hora:">Time:</strong>
                     <span id="successTime">-</span>
                 </div>
                 <div class="success-item">
-                    <strong>Date:</strong>
+                    <strong data-en="Date:" data-es="Fecha:">Date:</strong>
                     <span id="successDate">-</span>
                 </div>
-                <!-- NEW LOCATION SUCCESS INFO -->
+                <!-- LOCATION SUCCESS INFO - PRESERVED FROM ORIGINAL -->
                 <div class="success-item" id="successLocationInfo" style="display: none;">
-                    <strong>GPS Location:</strong>
+                    <strong data-en="GPS Location:" data-es="Ubicación GPS:">GPS Location:</strong>
                     <span id="successGpsInfo">-</span>
                 </div>
             </div>
@@ -198,263 +276,36 @@
             <div class="success-actions">
                 <button onclick="checkInAnother()" class="btn btn-secondary">
                     <i class="fas fa-plus"></i>
-                    Check In Another Employee
+                    <span data-en="Check In Another Employee" data-es="Registrar Otro Empleado">Check In Another Employee</span>
                 </button>
             </div>
         </div>
 
-        <!-- Footer -->
-        <div class="destination-footer">
+        <!-- Footer - WITH TRANSLATIONS -->
+        <div class="destination-footer fade-transition active">
             <p>
                 <i class="fas fa-shield-alt"></i>
-                Secure attendance tracking system
+                <span data-en="Secure attendance tracking system" data-es="Sistema seguro de seguimiento de asistencia">Secure attendance tracking system</span>
             </p>
-            <small>© 2025 QR Management System</small>
+            <small data-en="© 2025 QR Management System" data-es="© 2025 Sistema de Gestión QR">© 2025 QR Management System</small>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay - WITH TRANSLATIONS -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i>
-            <p>Processing check-in...</p>
+            <p data-en="Processing check-in..." data-es="Procesando registro...">Processing check-in...</p>
         </div>
     </div>
 
+    <!-- Load the JavaScript -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
     <script>
-        // Initialize page with QR code URL (EXISTING CODE)
+        // Initialize page with QR code URL (PRESERVED FROM ORIGINAL)
         window.qrUrl = '{{ qr_code.qr_url }}';
         window.locationName = '{{ qr_code.location }}';
         window.eventName = '{{ qr_code.location_event }}';
-
-        // GEOLOCATION INTEGRATION - NEW CODE
-        let userLocation = {
-            latitude: null,
-            longitude: null,
-            accuracy: null,
-            altitude: null,
-            timestamp: null,
-            source: 'manual',
-            address: null
-        };
-
-        let locationRequestActive = false;
-
-        // Add geolocation to existing page initialization
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('📍 Adding geolocation to existing QR system...');
-            
-            // Check if geolocation is supported
-            if (navigator.geolocation) {
-                requestUserLocation();
-            } else {
-                showLocationStatus('error', 'Location not supported by this browser');
-            }
-        });
-
-        /**
-         * Request user location
-         */
-        function requestUserLocation() {
-            if (locationRequestActive) return;
-            
-            locationRequestActive = true;
-            showLocationStatus('loading', 'Getting your location...');
-            
-            const options = {
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 300000
-            };
-            
-            navigator.geolocation.getCurrentPosition(
-                handleLocationSuccess,
-                handleLocationError,
-                options
-            );
-        }
-
-        /**
-         * Handle successful location
-         */
-        function handleLocationSuccess(position) {
-            locationRequestActive = false;
-            
-            const coords = position.coords;
-            console.log('✅ Location obtained:', coords);
-            
-            // Store location data
-            userLocation = {
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                accuracy: coords.accuracy,
-                altitude: coords.altitude,
-                timestamp: position.timestamp,
-                source: 'gps',
-                address: null
-            };
-            
-            // Update hidden form fields
-            updateLocationFormFields();
-            
-            // Update display
-            updateLocationDisplay();
-            
-            // Show success status
-            const accuracyText = coords.accuracy ? Math.round(coords.accuracy) : 'unknown';
-            showLocationStatus('success', `Location captured (±${accuracyText}m accuracy)`);
-            
-            // Try to get address
-            reverseGeocodeLocation(coords.latitude, coords.longitude);
-        }
-
-        /**
-         * Handle location errors
-         */
-        function handleLocationError(error) {
-            locationRequestActive = false;
-            
-            let message = 'Unable to get location';
-            
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message = 'Location access denied - enable in browser settings';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message = 'Location unavailable - GPS signal weak';
-                    break;
-                case error.TIMEOUT:
-                    message = 'Location request timed out';
-                    break;
-            }
-            
-            showLocationStatus('error', `${message} - check-in will work without location`);
-            userLocation.source = 'manual';
-            updateLocationFormFields();
-        }
-
-        /**
-         * Update form fields with location data
-         */
-        function updateLocationFormFields() {
-            document.getElementById('latitude').value = userLocation.latitude || '';
-            document.getElementById('longitude').value = userLocation.longitude || '';
-            document.getElementById('accuracy').value = userLocation.accuracy || '';
-            document.getElementById('altitude').value = userLocation.altitude || '';
-            document.getElementById('locationSource').value = userLocation.source || 'manual';
-            document.getElementById('address').value = userLocation.address || '';
-            
-            console.log('📝 Updated form fields with location data');
-        }
-
-        /**
-         * Update location display
-         */
-        function updateLocationDisplay() {
-            if (userLocation.latitude && userLocation.longitude) {
-                document.getElementById('displayLatitude').textContent = userLocation.latitude.toFixed(6);
-                document.getElementById('displayLongitude').textContent = userLocation.longitude.toFixed(6);
-                document.getElementById('displayAccuracy').textContent = 
-                    userLocation.accuracy ? `±${Math.round(userLocation.accuracy)}m` : 'Unknown';
-                document.getElementById('displayAddress').textContent = userLocation.address || 'Loading...';
-            }
-        }
-
-        /**
-         * Get address from coordinates
-         */
-        function reverseGeocodeLocation(lat, lng) {
-            fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data && data.locality) {
-                        userLocation.address = data.locality;
-                        document.getElementById('address').value = data.locality;
-                        document.getElementById('displayAddress').textContent = data.locality;
-                        console.log('🏠 Address found:', data.locality);
-                    }
-                })
-                .catch(error => {
-                    console.log('⚠️ Address lookup failed:', error);
-                    document.getElementById('displayAddress').textContent = 'Address not available';
-                });
-        }
-
-        /**
-         * Show location status
-         */
-        function showLocationStatus(type, message) {
-            const statusElement = document.getElementById('locationStatus');
-            const messageElement = document.getElementById('locationMessage');
-            
-            statusElement.className = `location-status ${type}`;
-            statusElement.style.display = 'flex';
-            
-            let icon = '📡';
-            if (type === 'success') icon = '✅';
-            if (type === 'error') icon = '⚠️';
-            
-            messageElement.innerHTML = `${icon} ${message}`;
-            
-            // Auto-hide after 8 seconds unless it's loading
-            if (type !== 'loading') {
-                setTimeout(() => {
-                    statusElement.style.display = 'none';
-                }, 8000);
-            }
-        }
-
-        /**
-         * Toggle location info display
-         */
-        function toggleLocationInfo() {
-            const locationInfo = document.getElementById('locationInfo');
-            if (locationInfo.style.display === 'none' || !locationInfo.style.display) {
-                updateLocationDisplay();
-                locationInfo.style.display = 'block';
-            } else {
-                locationInfo.style.display = 'none';
-            }
-        }
-
-        /**
-         * Retry location request
-         */
-        function retryLocationRequest() {
-            userLocation = {
-                latitude: null,
-                longitude: null,
-                accuracy: null,
-                altitude: null,
-                timestamp: null,
-                source: 'manual',
-                address: null
-            };
-            requestUserLocation();
-        }
-
-        // Hook into existing form submission to include location data
-        const originalSubmitCheckin = window.submitCheckin;
-        if (typeof originalSubmitCheckin === 'function') {
-            window.submitCheckin = function(employeeId) {
-                // Ensure form has latest location data
-                updateLocationFormFields();
-                
-                console.log('📤 Submitting with location data:', {
-                    employee_id: employeeId,
-                    latitude: userLocation.latitude,
-                    longitude: userLocation.longitude,
-                    accuracy: userLocation.accuracy,
-                    source: userLocation.source
-                });
-                
-                // Call original function
-                return originalSubmitCheckin(employeeId);
-            };
-        }
-
-        console.log('📍 Geolocation integration completed successfully!');
     </script>
 </body>
 </html>
