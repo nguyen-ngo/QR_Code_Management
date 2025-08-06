@@ -459,8 +459,8 @@ function ensureLocationFormFields() {
 
 function updateLocationFormFields() {
   const fields = {
-    latitude: userLocation.latitude ? userLocation.latitude.toFixed(6) : "",
-    longitude: userLocation.longitude ? userLocation.longitude.toFixed(6) : "",
+    latitude: userLocation.latitude ? userLocation.latitude.toFixed(8) : "",
+    longitude: userLocation.longitude ? userLocation.longitude.toFixed(8) : "",
     accuracy: userLocation.accuracy || "",
     altitude: userLocation.altitude || "",
     locationSource: userLocation.source || "manual",
@@ -493,8 +493,8 @@ function submitCheckin(employeeId) {
 
   const formData = new FormData();
   formData.append("employee_id", employeeId);
-  formData.append("latitude", userLocation.latitude ? userLocation.latitude.toFixed(6) : "");
-  formData.append("longitude", userLocation.longitude ? userLocation.longitude.toFixed(6) : "");
+  formData.append("latitude", userLocation.latitude ? userLocation.latitude.toFixed(8) : "");
+  formData.append("longitude", userLocation.longitude ? userLocation.longitude.toFixed(8) : "");
   formData.append("accuracy", userLocation.accuracy || "");
   formData.append("altitude", userLocation.altitude || "");
   formData.append("location_source", userLocation.source || "manual");

@@ -132,7 +132,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <meta name="robots" content="noindex, nofollow">
     <style>
-        /* Additional styles for location tracking - PRESERVED FROM ORIGINAL */
+        /* Additional styles for location tracking */
         .location-status {
             background: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -216,7 +216,7 @@
             background: #545b62;
         }
 
-        /* Language Selector Styles - ENHANCED */
+        /* Language Selector Styles */
         .language-selector {
             position: absolute;
             top: 1rem;
@@ -260,7 +260,7 @@
             font-size: 1rem;
         }
 
-        /* Smooth transitions - SIMPLIFIED */
+        /* Smooth transitions */
         .fade-transition {
             transition: opacity 0.15s ease;
         }
@@ -283,7 +283,7 @@
 </head>
 <body>
     <div class="destination-container">
-        <!-- Language Selector - ENHANCED -->
+        <!-- Language Selector -->
         <div class="language-selector">
             <button id="languageToggle" class="language-toggle" type="button" aria-label="Switch Language">
                 <i class="fas fa-globe"></i>
@@ -308,13 +308,13 @@
             <div class="checkin-header">
                 <h2>
                     <i class="fas fa-user-check"></i>
-                    <span data-en="Staff Check-In" data-es="Registro de Personal">Staff Check-In</span>
+                    <span data-en="Attendance Tracking" data-es="Seguimiento de asistencia">Attendance Tracking</span>
                 </h2>
                 <p data-en="Please enter your Employee ID to check in" data-es="Por favor ingrese su ID de Empleado para registrarse">Please enter your Employee ID to check in</p>
             </div>
 
             <form id="checkinForm" class="checkin-form">
-                <!-- HIDDEN LOCATION FIELDS - PRESERVED FROM ORIGINAL -->
+                <!-- HIDDEN LOCATION FIELDS -->
                 <input type="hidden" id="latitude" name="latitude">
                 <input type="hidden" id="longitude" name="longitude">
                 <input type="hidden" id="accuracy" name="accuracy">
@@ -347,7 +347,7 @@
                     <button type="submit" class="btn btn-primary">
                         <span class="btn-content">
                             <i class="fas fa-check"></i>
-                            <span data-en="Check In Now" data-es="Registrarse Ahora">Check In Now</span>
+                            <span data-en="Submit" data-es="Someter">Submit</span>
                         </span>
                         <div class="btn-loader" style="display: none;">
                             <i class="fas fa-spinner fa-spin"></i>
@@ -368,14 +368,14 @@
             <div class="success-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
-            <h2 data-en="Check-In Successful!" data-es="¡Registro Exitoso!">Check-In Successful!</h2>
+            <h2 data-en="Submitted Successful!" data-es="Enviado exitosamente!">Submitted Successful!</h2>
             <div class="success-details">
                 <div class="success-item">
                     <strong data-en="Employee ID:" data-es="ID de Empleado:">Employee ID:</strong>
                     <span id="successEmployeeId">-</span>
                 </div>
                 <div class="success-item">
-                    <strong data-en="Location:" data-es="Ubicación:">Location:</strong>
+                    <strong data-en="Location/Building:" data-es="Ubicación/Edificio:">Location/Building:</strong>
                     <span id="successLocation">-</span>
                 </div>
                 <div class="success-item">
@@ -390,7 +390,7 @@
                     <strong data-en="Date:" data-es="Fecha:">Date:</strong>
                     <span id="successDate">-</span>
                 </div>
-                <!-- LOCATION SUCCESS INFO - PRESERVED FROM ORIGINAL -->
+                <!-- LOCATION SUCCESS INFO -->
                 <div class="success-item" id="successLocationInfo" style="display: none;">
                     <strong data-en="GPS Location:" data-es="Ubicación GPS:">GPS Location:</strong>
                     <span id="successGpsInfo">-</span>
@@ -426,7 +426,7 @@
     <!-- Load the JavaScript -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
     <script>
-        // Initialize page with QR code URL (PRESERVED FROM ORIGINAL)
+        // Initialize page with QR code URL
         window.qrUrl = '{{ qr_code.qr_url }}';
         window.locationName = '{{ qr_code.location }}';
         window.eventName = '{{ qr_code.location_event }}';
