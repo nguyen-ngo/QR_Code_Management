@@ -1,4 +1,128 @@
 <!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light only">
+    <title>Check In - {{ qr_code.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/qr_destination.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+        /* Force Light Mode Override */
+        :root {
+            color-scheme: light only !important;
+        }
+        
+        * {
+            color-scheme: light only !important;
+        }
+        
+        body {
+            color-scheme: light only !important;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            color: #0f172a !important;
+        }
+
+        /* Additional styles for location tracking - LIGHT MODE ONLY */
+        .location-status {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 15px 0;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #334155 !important;
+        }
+        
+        .location-status.loading {
+            background: #e0f2fe !important;
+            border-color: #0284c7 !important;
+            color: #0c4a6e !important;
+        }
+        
+        .location-status.success {
+            background: #dcfce7 !important;
+            border-color: #059669 !important;
+            color: #14532d !important;
+        }
+        
+        .location-status.error {
+            background: #fee2e2 !important;
+            border-color: #dc2626 !important;
+            color: #7f1d1d !important;
+        }
+        
+        .location-info {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+            font-size: 13px;
+            color: #334155 !important;
+        }
+        
+        .location-info h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #0f172a !important;
+        }
+        
+        .coord-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #e2e8f0 !important;
+            color: #334155 !important;
+        }
+        
+        .coord-row:last-child {
+            border-bottom: none;
+        }
+        
+        .coord-value {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #0f172a !important;
+        }
+        
+        .location-controls {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .btn-small {
+            background: #64748b !important;
+            color: white !important;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 0 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-small:hover {
+            background: #475569 !important;
+        }
+
+        /* Language Selector Styles - LIGHT THEME */
+        .language-selector {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .language-toggle {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: 2<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
