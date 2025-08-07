@@ -27,63 +27,8 @@
       href="{{ url_for('static', filename='favicon.ico') }}"
     />
   </head>
-  <body>
-    <!-- Navigation Bar -->
-    {% if session.user_id %}
-    <nav class="navbar">
-      <div class="nav-container">
-        <div class="nav-brand">
-          <i class="fas fa-qrcode"></i>
-          <span>QR Manager</span>
-        </div>
-
-        <div class="nav-menu" id="navMenu">
-          <a href="{{ url_for('dashboard') }}" class="nav-link">
-            <i class="fas fa-tachometer-alt"></i> Dashboard
-          </a>
-
-          {% if session.role == 'admin' %}
-          <a href="{{ url_for('users') }}" class="nav-link">
-            <i class="fas fa-users"></i> Users
-          </a>
-          <a href="{{ url_for('attendance_report') }}" class="nav-link">
-            <i class="fas fa-chart-line"></i> Reports
-          </a>
-          {% endif %}
-
-          <a href="{{ url_for('create_qr_code') }}" class="nav-link">
-            <i class="fas fa-plus"></i> Create QR
-          </a>
-
-          <a href="{{ url_for('profile') }}" class="nav-link">
-            <i class="fas fa-user"></i> Profile
-          </a>
-
-          <!-- Theme Toggle -->
-          <button
-            id="themeToggle"
-            class="nav-link"
-            style="background: none; border: none"
-          >
-            <i class="fas fa-moon"></i>
-          </button>
-
-          <a href="{{ url_for('logout') }}" class="nav-link logout">
-            <i class="fas fa-sign-out-alt"></i> Logout
-          </a>
-        </div>
-
-        <!-- Mobile Menu Button -->
-        <div class="nav-toggle" id="mobile-menu">
-          <span class="bar"></span>
-          <span class="bar"></span>
-          <span class="bar"></span>
-        </div>
-      </div>
-    </nav>
-    {% endif %}
-
-    <!-- Main Content -->
+  <body class="login-layout">
+    <!-- Non-authenticated Layout (Login, Register, etc.) -->
     <main class="main-content">
       <!-- Flash Messages -->
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
@@ -107,7 +52,9 @@
       {% endif %} {% endwith %}
 
       <!-- Page Content -->
-      <div class="container">{% block content %}{% endblock %}</div>
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
     </main>
 
     <!-- Footer -->

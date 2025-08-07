@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}QR Code Management System{% endblock %}</title>
+
+    <!-- Main CSS -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Page-specific CSS -->
+    {% block extra_head %}{% endblock %}
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename='favicon.ico') }}"
+    />
+  </head>
+  <body class="has-sidebar">
+    <!-- Authenticated Layout with Sidebar -->
+    <div class="app-layout">
+      <!-- Sidebar -->
+      <nav class="sidebar" id="sidebar">
+        <!-- Brand Section -->
+        <div class="sidebar-brand">
+          <div class="brand-content">
+            <i class="fas fa-qrcode"></i>
+            <span class="brand-text">QR Manager</span>
+          </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="sidebar-menu">
+          <div class="menu-section">
+            <div class="menu-items">
+              <a href="{{ url_for('dashboard') }}" class="menu-item">
+                <i class="fas fa-tachometer-alt"></i>
+                <span class="menu-text">Dashboard</span>
+              </a>
+
+              <a href="{{ url_for('create_qr_code') }}" class="menu-item">
+                <i class="fas fa-plus"></i>
+                <span class="menu-text">Create QR</span>
+              </a>
+
+              {% if session.role == 'admin' %}
+              <a href="{{ url_for('users') }}" class="menu-item">
+                <i class="fas fa-users"></i>
+                <span class="menu-text">Users</span>
+              </a>
+              <a href="{{ url_for('attendance_report') }}" class="menu-item">
+                <i class="fas fa-chart-line"></i>
+                <span class="menu-text">Reports</span>
+              </a>
+              {% endif %}
+
+              <a href="{{ url_for('profile') }}" class="menu-item">
+                <i class="fas fa-user"></i>
+                <span class="menu-text">Profile</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Bottom Section -->
+          <div class="sidebar-bottom">
+            <div class="menu-items">
+              <a href="{{ url_for('logout') }}" class="menu-item logout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="menu-text">Logout</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+      </nav>
+
+      <!-- Mobile Overlay -->
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+      <!-- Main Content Area -->
+      <div class="main-wrapper">
+        <!-- Top Header Bar -->
+        <header class="top-header">
+          <div class="header-left">
+            <button class="mobile-menu-btn" id="mobileMenuBtn">
+              <span class="hamburger-line"></span>
+              <span class="hamburger-line"></span>
+              <span class="hamburger-line"></span>
+            </button>
+            <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+          </div>
+          
+          <div class="header-right">
+            <div class="user-info">
+              <span class="user-name">{{ session.full_name or 'User' }}</span>
+              <span class="user-role">{{ session.role|title }}</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+          <!-- Flash Messages -->
+          {% with messages = get_flashed_messages(with_categories=true) %} {% if
+          messages %}
+          <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <i
+                class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% elif category == 'info' %}fa-info-circle{% else %}fa-exclamation-triangle{% endif %}"
+              ></i>
+              {{ message }}
+              <button
+                class="alert-close"
+                onclick="this.parentElement.style.display='none'"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %} {% endwith %}
+
+          <!-- Page Content -->
+          <div class="container">
+            {% block content %}{% endblock %}
+          </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+          <div class="container">
+            <div class="footer-content">
+              <p>&copy; 2025 QR Code Management System. All rights reserved.</p>
+              <div class="footer-links">
+                <a href="#" class="footer-link">Privacy Policy</a>
+                <a href="#" class="footer-link">Terms of Service</a>
+                <a href="#" class="footer-link">Support</a>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Main JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+    <!-- Page-specific JavaScript -->
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- Global JavaScript Variables -->
+    <script>
+      // Pass Flask session data to JavaScript
+      window.qrConfig = {
+        currentUserId: {{ session.user_id|default('null') }},
+        currentUserRole: '{{ session.role|default('') }}',
+        currentUserName: '{{ session.full_name|default('') }}',
+        csrfToken: '{{ csrf_token() if csrf_token else '' }}'
+      };
+    </script>
+  </body>
+</html>
