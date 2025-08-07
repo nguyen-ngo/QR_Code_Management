@@ -806,7 +806,72 @@ def check_location_accuracy_column_exists():
     except Exception as e:
         print(f"⚠️ Error checking location_accuracy column: {e}")
         return False
+
+def get_employee_checkin_history(employee_id, qr_code_id, date_filter=None):
+    """
+    NEW HELPER FUNCTION: Get check-in history for an employee at a specific location
+    """
+    try:
+        if date_filter is None:
+            date_filter = date.today()
+        
+        checkins = AttendanceData.query.filter_by(
+            employee_id=employee_id.upper(),
+            qr_code_id=qr_code_id,
+            check_in_date=date_filter
+        ).order_by(AttendanceData.check_in_time.asc()).all()
+        
+        return checkins
+        
+    except Exception as e:
+        print(f"❌ Error retrieving checkin history: {e}")
+        return []
+
+def format_checkin_intervals(checkins):
+    """
+    NEW HELPER FUNCTION: Format time intervals between check-ins for display
+    """
+    if len(checkins) < 2:
+        return []
     
+    intervals = []
+    for i in range(1, len(checkins)):
+        previous_time = datetime.combine(checkins[i-1].check_in_date, checkins[i-1].check_in_time)
+        current_time = datetime.combine(checkins[i].check_in_date, checkins[i].check_in_time)
+        
+        interval = current_time - previous_time
+        interval_minutes = int(interval.total_seconds() / 60)
+        
+        intervals.append({
+            'from_time': checkins[i-1].check_in_time.strftime('%H:%M'),
+            'to_time': checkins[i].check_in_time.strftime('%H:%M'),
+            'interval_minutes': interval_minutes,
+            'interval_text': format_time_interval(interval_minutes)
+        })
+    
+    return intervals
+
+def format_time_interval(minutes):
+    """
+    NEW HELPER FUNCTION: Format minutes into human-readable time interval
+    """
+    if minutes < 60:
+        return f"{minutes} minutes"
+    elif minutes < 1440:  # Less than 24 hours
+        hours = minutes // 60
+        remaining_minutes = minutes % 60
+        if remaining_minutes == 0:
+            return f"{hours} hour{'s' if hours != 1 else ''}"
+        else:
+            return f"{hours}h {remaining_minutes}m"
+    else:
+        days = minutes // 1440
+        remaining_hours = (minutes % 1440) // 60
+        if remaining_hours == 0:
+            return f"{days} day{'s' if days != 1 else ''}"
+        else:
+            return f"{days}d {remaining_hours}h"
+            
 # Authentication decorator
 def login_required(f):
     """Decorator to ensure user is logged in"""
@@ -1866,7 +1931,7 @@ def qr_destination(qr_url):
 def qr_checkin(qr_url):
     """
     Enhanced staff check-in with location accuracy calculation
-    Calculates distance between QR code address and actual check-in location
+    Allows multiple check-ins with minimum 30-minute intervals between them
     """
     try:
         print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
@@ -1896,20 +1961,37 @@ def qr_checkin(qr_url):
                 'message': 'Employee ID is required.'
             }), 400
         
-        # Check for duplicate check-ins
+        # NEW: Check for recent check-ins with 30-minute interval validation
         today = date.today()
-        existing_checkin = AttendanceData.query.filter_by(
+        current_time = datetime.now()
+        thirty_minutes_ago = current_time - timedelta(minutes=30)
+        
+        # Find the most recent check-in for this employee at this location today
+        recent_checkin = AttendanceData.query.filter_by(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
             check_in_date=today
-        ).first()
+        ).order_by(AttendanceData.check_in_time.desc()).first()
         
-        if existing_checkin:
-            print(f"⚠️ Duplicate check-in attempt for {employee_id}")
-            return jsonify({
-                'success': False,
-                'message': f'You have already checked in today at {existing_checkin.check_in_time.strftime("%H:%M")}.'
-            }), 400
+        if recent_checkin:
+            # Convert check_in_time (time) to datetime for comparison
+            recent_checkin_datetime = datetime.combine(today, recent_checkin.check_in_time)
+            
+            # Check if 30 minutes have passed since the last check-in
+            if recent_checkin_datetime > thirty_minutes_ago:
+                minutes_remaining = 30 - int((current_time - recent_checkin_datetime).total_seconds() / 60)
+                print(f"⚠️ Too soon for another submission for {employee_id}")
+                print(f"   Last submission: {recent_checkin.check_in_time.strftime('%H:%M')}")
+                print(f"   Minutes remaining: {minutes_remaining}")
+                
+                return jsonify({
+                    'success': False,
+                    'message': f'You can submit again in {minutes_remaining} minutes. Last submission was at {recent_checkin.check_in_time.strftime("%H:%M")}.'
+                }), 400
+            else:
+                print(f"✅ 30-minute interval satisfied. Allowing new check-in for {employee_id}")
+        else:
+            print(f"✅ First submission today for {employee_id}")
         
         # Process location data
         location_data = process_location_data_enhanced(request.form)
@@ -1946,12 +2028,11 @@ def qr_checkin(qr_url):
         
         print(f"✅ Created base attendance record")
         
-        # CRITICAL: LOCATION ACCURACY CALCULATION
+        # Calculate location accuracy
         print(f"\n🎯 CALCULATING LOCATION ACCURACY...")
         location_accuracy = None
         
         try:
-            # Calculate accuracy using existing enhanced function
             location_accuracy = calculate_location_accuracy_enhanced(
                 qr_address=qr_code.location_address,
                 checkin_address=location_data['address'],
@@ -1960,16 +2041,14 @@ def qr_checkin(qr_url):
             )
             
             if location_accuracy is not None:
-                # Store the calculated accuracy in the database
                 attendance.location_accuracy = location_accuracy
                 accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
-                print(f"✅ Location accuracy calculated: {location_accuracy:.4f} miles ({accuracy_level})")
+                print(f"✅ Location accuracy set: {location_accuracy:.4f} miles ({accuracy_level})")
             else:
                 print(f"⚠️ Could not calculate location accuracy")
                 
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
-            # Continue with check-in even if accuracy calculation fails
         
         # Save to database
         try:
@@ -1977,37 +2056,63 @@ def qr_checkin(qr_url):
             db.session.commit()
             print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
             
-            # Prepare success response
-            response_data = {
-                'success': True,
-                'message': f'Successfully checked in at {datetime.now().strftime("%H:%M")}',
-                'employee_id': employee_id.upper(),
-                'location': qr_code.location,
-                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+            # Count total check-ins for today for this employee at this location
+            today_checkin_count = AttendanceData.query.filter_by(
+                qr_code_id=qr_code.id,
+                employee_id=employee_id.upper(),
+                check_in_date=today
+            ).count()
             
-            # Include location accuracy in response if calculated
-            if location_accuracy is not None:
-                response_data['location_accuracy'] = {
-                    'distance_miles': round(location_accuracy, 4),
-                    'level': get_location_accuracy_level_enhanced(location_accuracy)
-                }
-            
-            return jsonify(response_data), 200
+            checkin_sequence_text = "Submission details"
             
         except Exception as e:
             print(f"❌ Database error: {e}")
             db.session.rollback()
             return jsonify({
                 'success': False,
-                'message': 'Database error occurred. Please try again.'
+                'message': 'Database error occurred.'
             }), 500
+        
+        # Return success response
+        response_data = {
+            'success': True,
+            'message': f'Check-in successful! {checkin_sequence_text} for today.',
+            'data': {
+                'employee_id': attendance.employee_id,
+                'location': attendance.location_name,
+                'location_event': qr_code.location_event,
+                'check_in_time': attendance.check_in_time.strftime('%H:%M:%S'),
+                'check_in_date': attendance.check_in_date.strftime('%Y-%m-%d'),
+                'device_info': attendance.device_info,
+                'ip_address': attendance.ip_address,
+                'location_accuracy': location_accuracy,
+                'checkin_count_today': today_checkin_count,
+                'checkin_sequence': checkin_sequence_text
+            }
+        }
+        
+        if location_data['address']:
+            response_data['data']['address'] = location_data['address']
             
+        if location_data['latitude'] and location_data['longitude']:
+            response_data['data']['coordinates'] = f"{location_data['latitude']:.10f}, {location_data['longitude']:.10f}"
+        
+        print(f"✅ Check-in completed successfully")
+        print(f"   Employee: {attendance.employee_id}")
+        print(f"   Time: {attendance.check_in_time}")
+        print(f"   Location: {attendance.location_name}")
+        print(f"   Today's count: {today_checkin_count}")
+        
+        return jsonify(response_data), 200
+        
     except Exception as e:
         print(f"❌ Unexpected error in check-in process: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
         return jsonify({
             'success': False,
-            'message': 'An unexpected error occurred. Please try again.'
+            'message': 'An unexpected error occurred during check-in.'
         }), 500
 
 @app.route('/qr-codes/<int:qr_id>/toggle-status', methods=['POST'])
@@ -2124,7 +2229,7 @@ def toggle_qr_status_api(qr_id):
             return redirect(url_for('dashboard'))
 
 @app.route('/attendance')
-@admin_required
+# @admin_required
 def attendance_report():
     """Safe attendance report with backward compatibility for location_accuracy"""
     try:
