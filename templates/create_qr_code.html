@@ -719,8 +719,8 @@
         const clearBtn = document.getElementById("clearCoordinatesBtn");
 
         if (coordinatesData.latitude && coordinatesData.longitude) {
-          latDisplay.textContent = coordinatesData.latitude.toFixed(8);
-          lngDisplay.textContent = coordinatesData.longitude.toFixed(8);
+          latDisplay.textContent = coordinatesData.latitude.toFixed(10);
+          lngDisplay.textContent = coordinatesData.longitude.toFixed(10);
           clearBtn.style.display = "inline-flex";
         } else {
           latDisplay.textContent = "---.------";
