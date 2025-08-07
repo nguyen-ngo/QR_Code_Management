@@ -325,6 +325,62 @@ class QRManager {
     }, 300);
   }
 
+  // Download QR Code functionality
+  downloadQR(base64Image, filename) {
+    try {
+      const link = document.createElement("a");
+      link.href = `data:image/png;base64,${base64Image}`;
+      link.download = `${filename.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_qr_code.png`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Show success toast
+      this.showToast("QR code downloaded successfully!", "success");
+    } catch (error) {
+      this.showToast("Failed to download QR code", "error");
+      console.error("Download error:", error);
+    }
+  }
+
+  // Download from modal
+  downloadModalQR() {
+    if (window.currentModalQR) {
+      const base64Data = window.currentModalQR.image.split("base64,")[1];
+      this.downloadQR(base64Data, window.currentModalQR.name);
+    }
+  }
+
+  // QR Modal functionality
+  openQRModal(qrData, qrName) {
+    const modal = document.getElementById("qrModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalImage = document.getElementById("modalQRImage");
+
+    if (modal && modalTitle && modalImage) {
+      modalTitle.textContent = `${qrName} - QR Code`;
+      modalImage.src = `data:image/png;base64,${qrData}`;
+      modalImage.alt = `QR Code for ${qrName}`;
+
+      // Store current modal QR for download
+      window.currentModalQR = {
+        name: qrName,
+        image: `data:image/png;base64,${qrData}`,
+      };
+
+      modal.classList.add('show');
+    }
+  }
+
+  closeQRModal() {
+    const modal = document.getElementById("qrModal");
+    if (modal) {
+      modal.classList.remove('show');
+      window.currentModalQR = null;
+    }
+  }
+
   // Utility Methods
   showToast(message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
@@ -517,6 +573,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize main app if sidebar exists (authenticated users)
   if (document.getElementById('sidebar')) {
     window.qrManager = new QRManager();
+    
+    // Make functions globally available for inline event handlers
+    window.downloadQR = (base64Image, filename) => {
+      window.qrManager.downloadQR(base64Image, filename);
+    };
+    
+    window.downloadModalQR = () => {
+      window.qrManager.downloadModalQR();
+    };
+    
+    window.openQRModal = (qrData, qrName) => {
+      window.qrManager.openQRModal(qrData, qrName);
+    };
+    
+    window.closeQRModal = () => {
+      window.qrManager.closeQRModal();
+    };
   } else {
     // Initialize legacy navigation for non-authenticated pages
     window.navigationManager = new NavigationManager();
