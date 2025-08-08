@@ -3,23 +3,20 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from datetime import datetime, date, time, timedelta
-import qrcode
-import io
-import base64
-import os
 from sqlalchemy import text
-import re
-import uuid
 from user_agents import parse
-import requests
-import json
 from math import radians, cos, sin, asin, sqrt
+import io, os, base64, re, uuid, requests, json, qrcode
+from dotenv import load_dotenv
+
+# Load environment variables in .env
+load_dotenv()
 
 # Initialize Flask application
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres1411@localhost/qr_management'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.environ.get('SQLALCHEMY_TRACK_MODIFICATIONS')
 
 # Initialize database
 db = SQLAlchemy(app)
@@ -1067,6 +1064,7 @@ def dashboard():
     
     return render_template('dashboard.html', user=user, qr_codes=qr_codes)
 
+# User management routes
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
@@ -1775,6 +1773,7 @@ def is_admin_user(user_id):
     except:
         return False
 
+# QR code management routes
 @app.route('/qr-codes/create', methods=['GET', 'POST'])
 @login_required
 def create_qr_code():
@@ -1965,12 +1964,6 @@ def delete_qr_code(qr_id):
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard'))
     
-@app.route('/test-delete-simple/<int:qr_id>')
-@admin_required 
-def test_delete_simple(qr_id):
-    print(f"🧪 TEST ROUTE CALLED FOR QR {qr_id}")
-    return f"Test route works! QR ID: {qr_id}, User: {session.get('username')}"
-
 @app.route('/qr/<string:qr_url>')
 def qr_destination(qr_url):
     """QR code destination page where staff check in"""
@@ -2716,4 +2709,6 @@ if __name__ == '__main__':
         create_tables()
         add_coordinate_columns()
         update_existing_qr_codes()
-    app.run(debug=True, host="0.0.0.0")
+    app.run(debug=os.environ.get('DEBUG'), 
+            host=os.environ.get('FLASK_HOST'),
+            port=os.environ.get('FLASK_PORT'))
