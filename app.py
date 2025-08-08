@@ -981,7 +981,7 @@ def generate_qr_code(data):
     return img_str
 
 @app.template_filter('strftime')
-def strftime_filter(value, format='%Y-%m-%d'):
+def strftime_filter(value, format='%m/%d/%Y'):
     """Format datetime/date/string as strftime"""
     if isinstance(value, str):
         if value.lower() == 'now':
@@ -2142,7 +2142,7 @@ def qr_checkin(qr_url):
                 'location': attendance.location_name,
                 'location_event': qr_code.location_event,
                 'check_in_time': attendance.check_in_time.strftime('%H:%M:%S'),
-                'check_in_date': attendance.check_in_date.strftime('%Y-%m-%d'),
+                'check_in_date': attendance.check_in_date.strftime('%m/%d/%Y'),
                 'device_info': attendance.device_info,
                 'ip_address': attendance.ip_address,
                 'location_accuracy': location_accuracy,
@@ -2476,7 +2476,7 @@ def attendance_report():
             })()
         
         # Add today's date for template
-        today_date = datetime.now().strftime('%Y-%m-%d')
+        today_date = datetime.now().strftime('%m/%d/%Y')
         current_date_formatted = datetime.now().strftime('%B %d')
         
         print("✅ Rendering attendance report template")
