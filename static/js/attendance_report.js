@@ -598,10 +598,8 @@ function extractLocationAccuracy(cell) {
 
 function extractLocationAccuracyLevel(cell) {
   const text = cell.textContent;
-  if (text.includes("excellent")) return "excellent";
-  if (text.includes("good")) return "good";
-  if (text.includes("fair")) return "fair";
-  if (text.includes("poor")) return "poor";
+  if (text.includes("excellent") || text.includes("good")) return "accurate";
+  if (text.includes("fair") || text.includes("poor")) return "unaccurate";
   return "unknown";
 }
 
@@ -794,10 +792,8 @@ function updateFilterStats() {
 // Function to get accuracy level color for charts or displays
 function getAccuracyLevelColor(level) {
   const colors = {
-    excellent: "#059669", // green
-    good: "#10b981", // lighter green
-    fair: "#f59e0b", // yellow
-    poor: "#dc2626", // red
+    accurate: "#059669", // green
+    unaccurate: "#dc2626", // red
     unknown: "#6b7280", // gray
   };
   return colors[level] || colors["unknown"];
