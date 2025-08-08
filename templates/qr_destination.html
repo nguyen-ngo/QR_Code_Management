@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ qr_code.location_event }} - Check In</title>
+    <title>{{ qr_code.location_event }}</title>
     <link
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
       rel="stylesheet"
@@ -532,10 +532,10 @@
             >
           </h2>
           <p
-            data-en="Please enter your Employee ID to check in/out"
+            data-en="Please enter your Employee ID to {{ qr_code.location_event }}"
             data-es="Por favor ingrese su ID de empleado para registrar su entrada/salida"
           >
-            Please enter your Employee ID to check in/out
+            Please enter your Employee ID to {{ qr_code.location_event }}
           </p>
         </div>
 
@@ -575,7 +575,7 @@
 
           <button type="submit" id="submitCheckin" class="btn btn-primary">
             <i class="fas fa-user-check"></i>
-            <span data-en="Submit" data-es="Someter">Someter</span>
+            <span data-en="{{ qr_code.location_event }}" data-es="Someter">{{ qr_code.location_event }}</span>
           </button>
         </form>
       </div>
@@ -588,9 +588,9 @@
           </div>
           <h2 class="success-title">
             <span
-              data-en="Submitted Successfully!"
+              data-en="{{ qr_code.location_event }} Successfully!"
               data-es="Enviado exitosamente!"
-              >Submitted Successfully!</span
+              >{{ qr_code.location_event }} Successful!</span
             >
           </h2>
           <p class="success-subtitle">
@@ -604,7 +604,7 @@
 
         <!-- NEW: Check-in Sequence Display -->
         <div id="successCheckinSequence" class="checkin-sequence">
-          Check-in #1
+          {{ qr_code.location_event }} #1
         </div>
 
         <div class="success-details">
@@ -637,7 +637,7 @@
               class="detail-label"
               data-en="Submission Time"
               data-es="Hora de presentación"
-              >Submission Time</span
+              >{{ qr_code.location_event }} Time</span
             >
             <span class="detail-value" id="successCheckInTime">-</span>
           </div>
