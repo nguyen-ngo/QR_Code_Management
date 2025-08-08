@@ -90,7 +90,7 @@ class QRCode(db.Model):
     def coordinates_display(self):
         """Get formatted coordinates for display"""
         if self.has_coordinates:
-            return f"{self.address_latitude:.8f}, {self.address_longitude:.8f}"
+            return f"{self.address_latitude:.10f}, {self.address_longitude:.10f}"
         return "Coordinates not available"
 
     def update_coordinates(self, latitude, longitude, accuracy='geocoded'):
@@ -155,7 +155,7 @@ class AttendanceData(db.Model):
     def coordinates_display(self):
         """Get formatted coordinates for display"""
         if self.has_location_data:
-            return f"{self.latitude:.8f}, {self.longitude:.8f}"
+            return f"{self.latitude:.10f}, {self.longitude:.10f}"
         return "No GPS data"
     
     def to_dict(self):
@@ -268,7 +268,7 @@ def get_coordinates_from_address_enhanced(address):
                     accuracy = 'poor'
                 
                 print(f"✅ Enhanced geocoding successful:")
-                print(f"   Coordinates: {lat:.8f}, {lng:.8f}")
+                print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
                 print(f"   Accuracy: {accuracy}")
                 
                 return lat, lng, accuracy
@@ -324,7 +324,7 @@ def geocode_address_enhanced(address):
                     accuracy = 'low'
                 
                 print(f"✅ Geocoded address: {address}")
-                print(f"   Coordinates: {lat:.8f}, {lng:.8f}")
+                print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
                 print(f"   Accuracy: {accuracy} ({place_type})")
                 
                 return lat, lng, accuracy
@@ -376,8 +376,8 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         distance = round(distance, 4)
         
         print(f"📏 Enhanced distance calculation:")
-        print(f"   Point 1: {lat1*180/3.14159:.8f}, {lng1*180/3.14159:.8f}")
-        print(f"   Point 2: {lat2*180/3.14159:.8f}, {lng2*180/3.14159:.8f}")
+        print(f"   Point 1: {lat1*180/3.14159:.10f}, {lng1*180/3.14159:.10f}")
+        print(f"   Point 2: {lat2*180/3.14159:.10f}, {lng2*180/3.14159:.10f}")
         print(f"   Distance: {distance:.4f} miles")
         
         return distance
@@ -455,7 +455,7 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
         print(f"❌ Could not geocode QR address: {qr_address}")
         return None
     
-    print(f"✅ QR location coordinates: {qr_lat:.8f}, {qr_lng:.8f} (accuracy: {qr_accuracy})")
+    print(f"✅ QR location coordinates: {qr_lat:.10f}, {qr_lng:.10f} (accuracy: {qr_accuracy})")
     
     # Step 2: Determine check-in coordinates
     print(f"\n📱 Step 2: Determining check-in coordinates...")
@@ -475,7 +475,7 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
                 checkin_coords_lat = lat_val
                 checkin_coords_lng = lng_val
                 checkin_source = "gps"
-                print(f"✅ Using GPS coordinates: {lat_val:.8f}, {lng_val:.8f}")
+                print(f"✅ Using GPS coordinates: {lat_val:.10f}, {lng_val:.10f}")
             else:
                 print(f"⚠️ Invalid GPS coordinates: {lat_val}, {lng_val}")
         except (ValueError, TypeError):
@@ -487,7 +487,7 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
         checkin_coords_lat, checkin_coords_lng, checkin_accuracy = get_coordinates_from_address_enhanced(checkin_address)
         if checkin_coords_lat is not None:
             checkin_source = "address"
-            print(f"✅ Using geocoded coordinates: {checkin_coords_lat:.8f}, {checkin_coords_lng:.8f} (accuracy: {checkin_accuracy})")
+            print(f"✅ Using geocoded coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f} (accuracy: {checkin_accuracy})")
     
     # Check if we have valid coordinates for both locations
     if checkin_coords_lat is None or checkin_coords_lng is None:
@@ -502,8 +502,8 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
     
     if distance is not None:
         print(f"✅ Enhanced location accuracy calculated successfully!")
-        print(f"   QR Location: {qr_lat:.8f}, {qr_lng:.8f}")
-        print(f"   Check-in Location: {checkin_coords_lat:.8f}, {checkin_coords_lng:.8f}")
+        print(f"   QR Location: {qr_lat:.10f}, {qr_lng:.10f}")
+        print(f"   Check-in Location: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f}")
         print(f"   Source: {checkin_source}")
         print(f"   Distance: {distance:.4f} miles")
         print(f"   Accuracy Level: {get_location_accuracy_level_enhanced(distance)}")
@@ -1387,7 +1387,7 @@ def geocode_address():
                     'latitude': lat,
                     'longitude': lng,
                     'accuracy': accuracy,
-                    'coordinates_display': f"{lat:.8f}, {lng:.8f}"
+                    'coordinates_display': f"{lat:.10f}, {lng:.10f}"
                 },
                 'message': f'Address geocoded successfully with {accuracy} accuracy'
             })
@@ -1745,7 +1745,7 @@ def create_qr_code():
                 new_qr_code.address_longitude = lng
                 new_qr_code.coordinate_accuracy = coordinate_accuracy
                 new_qr_code.coordinates_updated_date = datetime.utcnow()
-                print(f"✅ Added coordinates to QR code: {lat:.8f}, {lng:.8f}")
+                print(f"✅ Added coordinates to QR code: {lat:.10f}, {lng:.10f}")
             except (ValueError, TypeError) as e:
                 print(f"⚠️ Invalid coordinates provided: {e}")
         
@@ -1810,7 +1810,7 @@ def edit_qr_code(qr_id):
                 qr_code.address_longitude = lng
                 qr_code.coordinate_accuracy = coordinate_accuracy
                 qr_code.coordinates_updated_date = datetime.utcnow()
-                print(f"✅ Updated coordinates for QR code: {lat:.8f}, {lng:.8f}")
+                print(f"✅ Updated coordinates for QR code: {lat:.10f}, {lng:.10f}")
             except (ValueError, TypeError) as e:
                 print(f"⚠️ Invalid coordinates provided during edit: {e}")
 
@@ -2347,7 +2347,7 @@ def attendance_report():
                 'gps_accuracy': gps_accuracy,
                 'accuracy_level': get_location_accuracy_level(location_accuracy) if location_accuracy else 'unknown',
                 'has_location_data': record.latitude is not None and record.longitude is not None,
-                'coordinates': f"{record.latitude:.8f}, {record.longitude:.8f}" if record.latitude and record.longitude else "No GPS data",
+                'coordinates': f"{record.latitude:.10f}, {record.longitude:.10f}" if record.latitude and record.longitude else "No GPS data",
                 'has_location_accuracy_feature': has_location_accuracy
             }
             processed_records.append(record_dict)

@@ -21,58 +21,58 @@ let locationRequestActive = false;
 let locationWatchId = null;
 
 // BILINGUAL FUNCTIONALITY (PRESERVED FROM ORIGINAL)
-let currentLanguage = 'en';
+let currentLanguage = "en";
 const translations = {
   en: {
-    languageText: 'EN',
+    languageText: "EN",
     statusMessages: {
-      processing: 'Processing check-in...',
-      success: 'Check-in successful!',
-      error: 'Check-in failed. Please try again.',
-      duplicate: 'You have already checked in today.',
-      tooSoon: 'Please wait before checking in again.',
-      multipleSuccess: 'Submitted successfully!',
-      invalidId: 'Please enter a valid Employee ID.',
-      locationError: 'Unable to get location data.',
-      networkError: 'Network error. Please check your connection.'
-    }
+      processing: "Processing check-in...",
+      success: "Check-in successful!",
+      error: "Check-in failed. Please try again.",
+      duplicate: "You have already checked in today.",
+      tooSoon: "Please wait before checking in again.",
+      multipleSuccess: "Submitted successfully!",
+      invalidId: "Please enter a valid Employee ID.",
+      locationError: "Unable to get location data.",
+      networkError: "Network error. Please check your connection.",
+    },
   },
   es: {
-    languageText: 'ES',
+    languageText: "ES",
     statusMessages: {
-      processing: 'Procesando registro...',
-      success: '¡Registro exitoso!',
-      error: 'Error en el registro. Por favor intente de nuevo.',
-      duplicate: 'Ya se ha registrado hoy.',
-      tooSoon: 'Por favor espere antes de registrarse nuevamente.',
-      multipleSuccess: 'Submitted successful!!',
-      invalidId: 'Por favor ingrese un ID de empleado válido.',
-      locationError: 'No se pudo obtener datos de ubicación.',
-      networkError: 'Error de red. Verifique su conexión.'
-    }
-  }
+      processing: "Procesando registro...",
+      success: "¡Registro exitoso!",
+      error: "Error en el registro. Por favor intente de nuevo.",
+      duplicate: "Ya se ha registrado hoy.",
+      tooSoon: "Por favor espere antes de registrarse nuevamente.",
+      multipleSuccess: "Submitted successful!!",
+      invalidId: "Por favor ingrese un ID de empleado válido.",
+      locationError: "No se pudo obtener datos de ubicación.",
+      networkError: "Error de red. Verifique su conexión.",
+    },
+  },
 };
 
 // DOM Content Loaded Event (PRESERVED FROM ORIGINAL)
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
   console.log("🎯 QR Destination page loaded");
-  
+
   // Initialize language functionality
   initializeLanguage();
-  
+
   // Initialize form handling
   initializeForm();
-  
+
   // Initialize location services
   initializeLocation();
-  
+
   // Start real-time clock
   startClock();
-  
+
   // Add fade-in animation to elements
   setTimeout(() => {
-    document.querySelectorAll('.fade-transition').forEach(el => {
-      el.classList.add('active');
+    document.querySelectorAll(".fade-transition").forEach((el) => {
+      el.classList.add("active");
     });
   }, 100);
 });
@@ -81,16 +81,16 @@ document.addEventListener("DOMContentLoaded", function() {
 function initializeForm() {
   const form = document.getElementById("checkinForm");
   const submitButton = document.getElementById("submitCheckin");
-  
+
   if (form && submitButton) {
     form.addEventListener("submit", handleFormSubmit);
-    
+
     // Add real-time Employee ID validation
     const employeeIdInput = document.getElementById("employee_id");
     if (employeeIdInput) {
       employeeIdInput.addEventListener("input", validateEmployeeId);
-      employeeIdInput.addEventListener("keypress", function(e) {
-        if (e.key === 'Enter') {
+      employeeIdInput.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
           e.preventDefault();
           handleFormSubmit(e);
         }
@@ -101,29 +101,31 @@ function initializeForm() {
 
 function handleFormSubmit(event) {
   event.preventDefault();
-  
+
   if (isSubmitting) {
-    console.log("⏳ Check-in already in progress, ignoring duplicate submission");
+    console.log(
+      "⏳ Check-in already in progress, ignoring duplicate submission"
+    );
     return;
   }
-  
+
   console.log("🎯 Form submission triggered");
-  
+
   const employeeId = document.getElementById("employee_id")?.value?.trim();
-  
+
   if (!employeeId) {
-    showLocalizedStatusMessage('invalidId', 'error');
+    showLocalizedStatusMessage("invalidId", "error");
     return;
   }
-  
+
   if (employeeId.length < 2) {
-    showLocalizedStatusMessage('invalidId', 'error');
+    showLocalizedStatusMessage("invalidId", "error");
     return;
   }
-  
+
   // Show processing status
-  showLocalizedStatusMessage('processing', 'info');
-  
+  showLocalizedStatusMessage("processing", "info");
+
   // Submit the check-in
   submitCheckin();
 }
@@ -131,32 +133,38 @@ function handleFormSubmit(event) {
 // ENHANCED CHECK-IN SUBMISSION WITH MULTIPLE CHECK-IN SUPPORT
 function submitCheckin() {
   console.log("🚀 Starting check-in submission process");
-  
+
   if (isSubmitting) {
     console.log("⏳ Already submitting, aborting");
     return;
   }
-  
+
   isSubmitting = true;
   updateSubmitButton(true);
-  
+
   const employeeId = document.getElementById("employee_id").value.trim();
-  
+
   if (!employeeId) {
-    showLocalizedStatusMessage('invalidId', 'error');
+    showLocalizedStatusMessage("invalidId", "error");
     isSubmitting = false;
     updateSubmitButton(false);
     return;
   }
-  
+
   console.log(`👤 Employee ID: ${employeeId}`);
   console.log(`📍 User location:`, userLocation);
-  
+
   // Prepare form data
   const formData = new FormData();
   formData.append("employee_id", employeeId);
-  formData.append("latitude", userLocation.latitude ? userLocation.latitude.toFixed(8) : "");
-  formData.append("longitude", userLocation.longitude ? userLocation.longitude.toFixed(8) : "");
+  formData.append(
+    "latitude",
+    userLocation.latitude ? userLocation.latitude.toFixed(10) : ""
+  );
+  formData.append(
+    "longitude",
+    userLocation.longitude ? userLocation.longitude.toFixed(10) : ""
+  );
   formData.append("accuracy", userLocation.accuracy || "");
   formData.append("altitude", userLocation.altitude || "");
   formData.append("location_source", userLocation.source || "manual");
@@ -197,17 +205,20 @@ function handleCheckinResponse(data) {
   if (data.success) {
     handleCheckinSuccess(data);
   } else {
-    const errorMsg = data.message || 'Submission failed';
+    const errorMsg = data.message || "Submission failed";
     console.log("❌ Submission failed:", errorMsg);
-    
+
     // NEW: Handle different types of check-in failures
-    if (errorMsg.toLowerCase().includes('already submitted')) {
-      showLocalizedStatusMessage('duplicate', 'warning');
-    } else if (errorMsg.toLowerCase().includes('submit again in') || errorMsg.toLowerCase().includes('minutes')) {
+    if (errorMsg.toLowerCase().includes("already submitted")) {
+      showLocalizedStatusMessage("duplicate", "warning");
+    } else if (
+      errorMsg.toLowerCase().includes("submit again in") ||
+      errorMsg.toLowerCase().includes("minutes")
+    ) {
       // Handle 30-minute interval message
-      showCustomStatusMessage(errorMsg, 'warning');
+      showCustomStatusMessage(errorMsg, "warning");
     } else {
-      showLocalizedStatusMessage('error', 'error');
+      showLocalizedStatusMessage("error", "error");
     }
   }
 }
@@ -215,18 +226,18 @@ function handleCheckinResponse(data) {
 // ENHANCED SUCCESS HANDLING WITH MULTIPLE CHECK-IN INFO
 function handleCheckinSuccess(data) {
   console.log("✅ Submitted successful!");
-  
+
   const responseData = data.data || data || {};
   const checkinCount = responseData.checkin_count_today || 1;
-  const checkinSequence = responseData.checkin_sequence || 'Check-in';
-  
+  const checkinSequence = responseData.checkin_sequence || "Check-in";
+
   // Show appropriate success message based on check-in count
   if (checkinCount > 1) {
-    showLocalizedStatusMessage('multipleSuccess', 'success');
+    showLocalizedStatusMessage("multipleSuccess", "success");
   } else {
-    showLocalizedStatusMessage('success', 'success');
+    showLocalizedStatusMessage("success", "success");
   }
-  
+
   // Hide form (PRESERVED FROM ORIGINAL)
   const form = document.getElementById("checkinForm");
   if (form) {
@@ -237,7 +248,7 @@ function handleCheckinSuccess(data) {
   const successCard = document.getElementById("successCard");
   if (successCard) {
     successCard.style.display = "block";
-    successCard.classList.add('active');
+    successCard.classList.add("active");
 
     const updateElement = (id, value) => {
       const el = document.getElementById(id);
@@ -248,34 +259,40 @@ function handleCheckinSuccess(data) {
 
     const employeeId = responseData.employee_id || "Unknown";
     const location = responseData.location || "Unknown Location";
-    const event = responseData.event || responseData.location_event || "Check-in";
-    const checkInTime = responseData.check_in_time || new Date().toLocaleTimeString();
-    const checkInDate = responseData.check_in_date || new Date().toLocaleDateString();
+    const event =
+      responseData.event || responseData.location_event || "Check-in";
+    const checkInTime =
+      responseData.check_in_time || new Date().toLocaleTimeString();
+    const checkInDate =
+      responseData.check_in_date || new Date().toLocaleDateString();
 
     updateElement("successEmployeeId", employeeId);
     updateElement("successLocation", location);
     updateElement("successEvent", event);
     updateElement("successCheckInTime", checkInTime);
     updateElement("successCheckInDate", checkInDate);
-    
+
     // NEW: Add check-in sequence information
     updateElement("successCheckinSequence", checkinSequence);
-    
+
     // Update additional info if available
     if (responseData.device_info) {
       updateElement("successDeviceInfo", responseData.device_info);
     }
-    
+
     if (responseData.coordinates) {
       updateElement("successCoordinates", responseData.coordinates);
     }
-    
+
     if (responseData.address) {
       updateElement("successAddress", responseData.address);
     }
-    
+
     if (responseData.location_accuracy) {
-      updateElement("successLocationAccuracy", `${responseData.location_accuracy} miles`);
+      updateElement(
+        "successLocationAccuracy",
+        `${responseData.location_accuracy} miles`
+      );
     }
   }
 
@@ -303,8 +320,8 @@ function addCheckInAgainOption() {
         </button>
       </div>
     `;
-    successCard.insertAdjacentHTML('beforeend', checkInAgainHtml);
-    
+    successCard.insertAdjacentHTML("beforeend", checkInAgainHtml);
+
     // Apply current language translations
     applyTranslations();
   }
@@ -313,30 +330,30 @@ function addCheckInAgainOption() {
 // NEW: Reset form for new check-in
 function resetForNewCheckin() {
   console.log("🔄 Resetting for new check-in");
-  
+
   // Show form again
   const form = document.getElementById("checkinForm");
   if (form) {
     form.style.display = "block";
   }
-  
+
   // Hide success card
   const successCard = document.getElementById("successCard");
   if (successCard) {
     successCard.style.display = "none";
-    successCard.classList.remove('active');
+    successCard.classList.remove("active");
   }
-  
+
   // Clear previous employee ID
   const employeeIdInput = document.getElementById("employee_id");
   if (employeeIdInput) {
-    employeeIdInput.value = '';
+    employeeIdInput.value = "";
     employeeIdInput.focus();
   }
-  
+
   // Clear status messages
   clearStatusMessages();
-  
+
   // Reset location if needed
   if (!userLocation.latitude || !userLocation.longitude) {
     requestLocationData();
@@ -344,7 +361,7 @@ function resetForNewCheckin() {
 }
 
 // NEW: Show custom status message (for interval warnings)
-function showCustomStatusMessage(message, type = 'info') {
+function showCustomStatusMessage(message, type = "info") {
   const statusContainer = document.getElementById("statusMessage");
   if (statusContainer) {
     statusContainer.className = `status-message ${type}`;
@@ -355,7 +372,7 @@ function showCustomStatusMessage(message, type = 'info') {
       </div>
     `;
     statusContainer.style.display = "block";
-    
+
     // Auto-hide after 5 seconds
     setTimeout(() => {
       statusContainer.style.display = "none";
@@ -366,20 +383,25 @@ function showCustomStatusMessage(message, type = 'info') {
 // Helper function to get appropriate icon for status type
 function getStatusIcon(type) {
   switch (type) {
-    case 'success': return 'fa-check-circle';
-    case 'error': return 'fa-exclamation-circle';
-    case 'warning': return 'fa-clock';
-    case 'info': 
-    default: return 'fa-info-circle';
+    case "success":
+      return "fa-check-circle";
+    case "error":
+      return "fa-exclamation-circle";
+    case "warning":
+      return "fa-clock";
+    case "info":
+    default:
+      return "fa-info-circle";
   }
 }
 
 // PRESERVED: All other existing functions remain unchanged
-function showLocalizedStatusMessage(messageKey, type = 'info') {
-  const message = translations[currentLanguage].statusMessages[messageKey] || 
-                 translations['en'].statusMessages[messageKey] || 
-                 'Status update';
-  
+function showLocalizedStatusMessage(messageKey, type = "info") {
+  const message =
+    translations[currentLanguage].statusMessages[messageKey] ||
+    translations["en"].statusMessages[messageKey] ||
+    "Status update";
+
   showCustomStatusMessage(message, type);
 }
 
@@ -392,7 +414,7 @@ function clearStatusMessages() {
 
 function handleCheckinError(error) {
   console.error("❌ Check-in submission error:", error);
-  showLocalizedStatusMessage('networkError', 'error');
+  showLocalizedStatusMessage("networkError", "error");
 }
 
 function updateSubmitButton(isLoading) {
@@ -400,10 +422,12 @@ function updateSubmitButton(isLoading) {
   if (submitButton) {
     if (isLoading) {
       submitButton.disabled = true;
-      submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span data-en="Processing..." data-es="Procesando...">Processing...</span>';
+      submitButton.innerHTML =
+        '<i class="fas fa-spinner fa-spin"></i> <span data-en="Processing..." data-es="Procesando...">Processing...</span>';
     } else {
       submitButton.disabled = false;
-      submitButton.innerHTML = '<i class="fas fa-user-check"></i> <span data-en="Submit" data-es="Someter">Submit</span>';
+      submitButton.innerHTML =
+        '<i class="fas fa-user-check"></i> <span data-en="Submit" data-es="Someter">Submit</span>';
     }
     applyTranslations();
   }
@@ -412,18 +436,18 @@ function updateSubmitButton(isLoading) {
 function validateEmployeeId() {
   const employeeIdInput = document.getElementById("employee_id");
   const submitButton = document.getElementById("submitCheckin");
-  
+
   if (employeeIdInput && submitButton) {
     const isValid = employeeIdInput.value.trim().length >= 2;
     submitButton.disabled = !isValid || isSubmitting;
-    
+
     if (isValid) {
-      employeeIdInput.classList.remove('invalid');
-      employeeIdInput.classList.add('valid');
+      employeeIdInput.classList.remove("invalid");
+      employeeIdInput.classList.add("valid");
     } else {
-      employeeIdInput.classList.remove('valid');
+      employeeIdInput.classList.remove("valid");
       if (employeeIdInput.value.length > 0) {
-        employeeIdInput.classList.add('invalid');
+        employeeIdInput.classList.add("invalid");
       }
     }
   }
@@ -440,22 +464,22 @@ function requestLocationData() {
     console.log("📍 Location request already active, skipping");
     return;
   }
-  
+
   if (!navigator.geolocation) {
     console.log("❌ Geolocation not supported");
     userLocation.source = "manual";
     return;
   }
-  
+
   locationRequestActive = true;
   console.log("📍 Requesting location data...");
-  
+
   const options = {
     enableHighAccuracy: true,
     timeout: 10000,
-    maximumAge: 300000
+    maximumAge: 300000,
   };
-  
+
   navigator.geolocation.getCurrentPosition(
     handleLocationSuccess,
     handleLocationError,
@@ -465,7 +489,7 @@ function requestLocationData() {
 
 function handleLocationSuccess(position) {
   console.log("✅ Location obtained successfully");
-  
+
   userLocation = {
     latitude: position.coords.latitude,
     longitude: position.coords.longitude,
@@ -473,14 +497,14 @@ function handleLocationSuccess(position) {
     altitude: position.coords.altitude,
     timestamp: new Date(),
     source: "gps",
-    address: null
+    address: null,
   };
-  
+
   console.log("📍 Location data:", userLocation);
-  
+
   // Reverse geocode to get address
   reverseGeocode(userLocation.latitude, userLocation.longitude);
-  
+
   locationRequestActive = false;
 }
 
@@ -498,26 +522,26 @@ function reverseGeocode(lat, lng) {
 
 // Language functionality remains unchanged
 function initializeLanguage() {
-  const languageToggle = document.getElementById('languageToggle');
+  const languageToggle = document.getElementById("languageToggle");
   if (languageToggle) {
-    languageToggle.addEventListener('click', toggleLanguage);
+    languageToggle.addEventListener("click", toggleLanguage);
   }
   applyTranslations();
 }
 
 function toggleLanguage() {
-  currentLanguage = currentLanguage === 'en' ? 'es' : 'en';
+  currentLanguage = currentLanguage === "en" ? "es" : "en";
   applyTranslations();
   console.log(`🌐 Language switched to: ${currentLanguage}`);
 }
 
 function applyTranslations() {
-  const languageText = document.getElementById('languageText');
+  const languageText = document.getElementById("languageText");
   if (languageText) {
     languageText.textContent = translations[currentLanguage].languageText;
   }
-  
-  document.querySelectorAll(`[data-${currentLanguage}]`).forEach(element => {
+
+  document.querySelectorAll(`[data-${currentLanguage}]`).forEach((element) => {
     element.textContent = element.getAttribute(`data-${currentLanguage}`);
   });
 }
@@ -525,12 +549,12 @@ function applyTranslations() {
 function startClock() {
   function updateClock() {
     currentTime = new Date();
-    const timeElements = document.querySelectorAll('.current-time');
-    timeElements.forEach(el => {
+    const timeElements = document.querySelectorAll(".current-time");
+    timeElements.forEach((el) => {
       el.textContent = currentTime.toLocaleTimeString();
     });
   }
-  
+
   updateClock();
   setInterval(updateClock, 1000);
 }

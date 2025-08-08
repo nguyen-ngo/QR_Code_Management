@@ -916,12 +916,12 @@
           const clearBtn = document.getElementById('clearCoordinatesBtn');
 
           if (coordinatesData.latitude && coordinatesData.longitude) {
-              latDisplay.textContent = coordinatesData.latitude.toFixed(6);
-              lngDisplay.textContent = coordinatesData.longitude.toFixed(6);
+              latDisplay.textContent = coordinatesData.latitude.toFixed(10);
+              lngDisplay.textContent = coordinatesData.longitude.toFixed(10);
               clearBtn.style.display = 'inline-flex';
           } else {
-              latDisplay.textContent = '---.------';
-              lngDisplay.textContent = '---.------';
+              latDisplay.textContent = '---.----------';
+              lngDisplay.textContent = '---.----------';
               clearBtn.style.display = 'none';
           }
       }
