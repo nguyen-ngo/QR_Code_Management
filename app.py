@@ -1989,7 +1989,7 @@ def qr_destination(qr_url):
 def qr_checkin(qr_url):
     """
     Enhanced staff check-in with location accuracy calculation
-    Allows multiple check-ins with minimum 30-minute intervals between them
+    Allows multiple check-ins with minimum interval between them
     PRESERVES coordinate-to-address conversion functionality
     """
     try:
@@ -2020,10 +2020,11 @@ def qr_checkin(qr_url):
                 'message': 'Employee ID is required.'
             }), 400
         
-        # NEW: Check for recent check-ins with 30-minute interval validation
+        # Check for recent check-ins with 30-minute interval validation
         today = date.today()
         current_time = datetime.now()
-        thirty_minutes_ago = current_time - timedelta(minutes=30)
+        time_interval = int(os.environ.get('TIME_INTERVAL'))
+        the_last_checkin_time = current_time - timedelta(minutes=time_interval)
         
         # Find the most recent check-in for this employee at this location today
         recent_checkin = AttendanceData.query.filter_by(
@@ -2037,8 +2038,8 @@ def qr_checkin(qr_url):
             recent_checkin_datetime = datetime.combine(today, recent_checkin.check_in_time)
             
             # Check if 30 minutes have passed since the last check-in
-            if recent_checkin_datetime > thirty_minutes_ago:
-                minutes_remaining = 30 - int((current_time - recent_checkin_datetime).total_seconds() / 60)
+            if recent_checkin_datetime > the_last_checkin_time:
+                minutes_remaining = time_interval - int((current_time - recent_checkin_datetime).total_seconds() / 60)
                 print(f"⚠️ Too soon for another check-in for {employee_id}")
                 print(f"   Last check-in: {recent_checkin.check_in_time.strftime('%H:%M')}")
                 print(f"   Minutes remaining: {minutes_remaining}")
