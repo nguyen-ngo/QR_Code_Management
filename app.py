@@ -2399,7 +2399,9 @@ def attendance_report():
             # Safe attribute access with fallbacks
             location_accuracy = getattr(record, 'location_accuracy', None)
             gps_accuracy = getattr(record, 'gps_accuracy', None)
-            
+            qr_address = getattr(record, 'qr_address', None)
+            checked_in_address = qr_address if (location_accuracy <= 0.5) else getattr(record, 'checked_in_address', None)
+
             record_dict = {
                 'id': record.id,
                 'employee_id': record.employee_id,
@@ -2407,8 +2409,8 @@ def attendance_report():
                 'check_in_time': record.check_in_time,
                 'location_name': record.location_name,
                 'location_event': getattr(record, 'location_event', ''),
-                'qr_address': getattr(record, 'qr_address', None) or 'Not available',
-                'checked_in_address': getattr(record, 'checked_in_address', None) or 'Location not captured',
+                'qr_address': qr_address or 'Not available',
+                'checked_in_address': checked_in_address or 'Location not captured',
                 'device_info': getattr(record, 'device_info', ''),
                 'location_accuracy': location_accuracy,
                 'gps_accuracy': gps_accuracy,
