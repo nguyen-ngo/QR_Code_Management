@@ -543,30 +543,128 @@ function reverseGeocode(lat, lng) {
     });
 }
 
-// Language functionality remains unchanged
+// ENHANCED LANGUAGE FUNCTIONALITY WITH PERSISTENCE
 function initializeLanguage() {
+  console.log("🌐 Initializing language functionality with persistence");
+  
+  // Load saved language preference from localStorage
+  const savedLanguage = loadLanguagePreference();
+  if (savedLanguage && savedLanguage !== currentLanguage) {
+    currentLanguage = savedLanguage;
+    console.log(`📱 Restored saved language preference: ${currentLanguage}`);
+  }
+
+  // Set up language toggle button event listener
   const languageToggle = document.getElementById("languageToggle");
   if (languageToggle) {
     languageToggle.addEventListener("click", toggleLanguage);
   }
+
+  // Apply initial translations based on loaded language
   applyTranslations();
+  console.log(`✅ Language system initialized with: ${currentLanguage}`);
 }
 
 function toggleLanguage() {
-  currentLanguage = currentLanguage === "en" ? "es" : "en";
+  // Switch between languages
+  const newLanguage = currentLanguage === "en" ? "es" : "en";
+  currentLanguage = newLanguage;
+  
+  // Save new language preference to localStorage
+  saveLanguagePreference(currentLanguage);
+  
+  // Apply translations immediately
   applyTranslations();
-  console.log(`🌐 Language switched to: ${currentLanguage}`);
+  
+  console.log(`🌐 Language switched to: ${currentLanguage} (saved to localStorage)`);
+  
+  // Optional: Show brief confirmation message
+  showLanguageChangeConfirmation();
+}
+
+function loadLanguagePreference() {
+  try {
+    // Retrieve language preference from localStorage
+    const savedLanguage = localStorage.getItem('qr_staff_language');
+    
+    // Validate saved language is supported
+    if (savedLanguage && translations.hasOwnProperty(savedLanguage)) {
+      console.log(`📱 Found saved language preference: ${savedLanguage}`);
+      return savedLanguage;
+    } else if (savedLanguage) {
+      console.log(`⚠️ Invalid saved language preference: ${savedLanguage}, using default`);
+      // Clean up invalid preference
+      localStorage.removeItem('qr_staff_language');
+    } else {
+      console.log("📱 No saved language preference found, using default");
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("❌ Error loading language preference from localStorage:", error);
+    return null;
+  }
+}
+
+function saveLanguagePreference(language) {
+  try {
+    // Validate language before saving
+    if (!translations.hasOwnProperty(language)) {
+      console.error(`❌ Invalid language code: ${language}`);
+      return false;
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('qr_staff_language', language);
+    console.log(`💾 Language preference saved: ${language}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Error saving language preference to localStorage:", error);
+    return false;
+  }
+}
+
+function showLanguageChangeConfirmation() {
+  // Brief visual feedback for language change
+  const languageToggle = document.getElementById("languageToggle");
+  if (languageToggle) {
+    // Add temporary visual feedback
+    languageToggle.style.transform = "scale(1.05)";
+    languageToggle.style.background = "rgba(255, 255, 255, 0.4)";
+    
+    setTimeout(() => {
+      languageToggle.style.transform = "";
+      languageToggle.style.background = "";
+    }, 200);
+  }
 }
 
 function applyTranslations() {
+  // Update language toggle button text
   const languageText = document.getElementById("languageText");
   if (languageText) {
     languageText.textContent = translations[currentLanguage].languageText;
   }
 
+  // Apply translations to all elements with data attributes
   document.querySelectorAll(`[data-${currentLanguage}]`).forEach((element) => {
     element.textContent = element.getAttribute(`data-${currentLanguage}`);
   });
+  
+  // Update any dynamic content that might have been generated after initial load
+  updateDynamicTranslations();
+}
+
+function updateDynamicTranslations() {
+  // Update submit button text if it exists and has been modified
+  const submitButton = document.getElementById("submitCheckin");
+  if (submitButton && submitButton.innerHTML.includes('data-')) {
+    // Re-apply translations to submit button content
+    const spans = submitButton.querySelectorAll(`[data-${currentLanguage}]`);
+    spans.forEach((span) => {
+      span.textContent = span.getAttribute(`data-${currentLanguage}`);
+    });
+  }
 }
 
 function startClock() {
