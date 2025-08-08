@@ -3,11 +3,11 @@
  * Handles staff check-in functionality with GPS location support, language switching, and 30-minute interval validation
  */
 
-// Global variables (PRESERVED FROM ORIGINAL)
+// Global variables
 let isSubmitting = false;
 let currentTime = new Date();
 
-// Location tracking variables (PRESERVED FROM ORIGINAL)
+// Location tracking variables
 let userLocation = {
   latitude: null,
   longitude: null,
@@ -20,11 +20,11 @@ let userLocation = {
 let locationRequestActive = false;
 let locationWatchId = null;
 
-// BILINGUAL FUNCTIONALITY (PRESERVED FROM ORIGINAL)
+// BILINGUAL FUNCTIONALITY
 let currentLanguage = "en";
 const translations = {
   en: {
-    languageText: "EN",
+    languageText: "ES",
     statusMessages: {
       processing: "Processing check-in...",
       success: "Check-in successful!",
@@ -38,7 +38,7 @@ const translations = {
     },
   },
   es: {
-    languageText: "ES",
+    languageText: "EN",
     statusMessages: {
       processing: "Procesando registro...",
       success: "¡Registro exitoso!",
