@@ -663,10 +663,55 @@ def process_location_data(location_data):
     
     return processed
 
+def reverse_geocode_coordinates(latitude, longitude):
+    """
+    Convert GPS coordinates to human-readable address using reverse geocoding
+    Returns address string or None if failed
+    """
+    if not latitude or not longitude:
+        return None
+    
+    try:
+        print(f"🌍 Reverse geocoding coordinates: {latitude}, {longitude}")
+        
+        # Using Nominatim (OpenStreetMap) reverse geocoding service
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {
+            'lat': latitude,
+            'lon': longitude,
+            'format': 'json',
+            'addressdetails': 1,
+            'zoom': 18  # High detail level
+        }
+        
+        headers = {
+            'User-Agent': 'QR-Attendance-System/1.0'
+        }
+        
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data and 'display_name' in data:
+                address = data['display_name']
+                print(f"✅ Reverse geocoded address: {address}")
+                return address
+            else:
+                print(f"⚠️ No address found for coordinates")
+                return None
+        else:
+            print(f"⚠️ Reverse geocoding API returned status: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error in reverse geocoding: {e}")
+        return None
+
 def process_location_data_enhanced(form_data):
     """
     Enhanced processing of location data from form submission
-    Validates and cleans location data for storage
+    Validates and cleans location data for storage, including reverse geocoding
     """
     processed = {
         'latitude': None,
@@ -707,13 +752,33 @@ def process_location_data_enhanced(form_data):
             alt = float(form_data['altitude'])
             processed['altitude'] = alt
         
-        # Process address (limit length for database storage)
+        # Process address - First check if address was provided
         if form_data.get('address'):
             address = form_data['address'].strip()
             if address and address not in ['null', '', 'undefined']:
-                processed['address'] = address[:500]  # Limit to 500 characters
+                # Check if the address is just coordinates (like "38.8104192000, -77.1850240000")
+                if re.match(r'^-?\d+\.\d+,?\s*-?\d+\.\d+$', address.replace(' ', '')):
+                    print(f"🔍 Detected coordinate-format address: {address}")
+                    # This is just coordinates, we need to reverse geocode
+                    processed['address'] = None  # Reset so reverse geocoding will trigger
+                else:
+                    # This is a real address
+                    processed['address'] = address[:500]  # Limit to 500 characters
+                    print(f"✅ Using provided address: {processed['address'][:100]}...")
         
-        print(f"📍 Processed location data:")
+        # CRITICAL: If we have coordinates but no real address, perform reverse geocoding
+        if (processed['latitude'] is not None and processed['longitude'] is not None 
+            and not processed['address']):
+            print(f"🌍 Performing reverse geocoding for coordinates: {processed['latitude']}, {processed['longitude']}")
+            reverse_geocoded_address = reverse_geocode_coordinates(processed['latitude'], processed['longitude'])
+            if reverse_geocoded_address:
+                processed['address'] = reverse_geocoded_address[:500]
+                print(f"✅ Reverse geocoded address: {processed['address']}")
+            else:
+                print(f"⚠️ Could not reverse geocode coordinates, keeping coordinates as fallback")
+                processed['address'] = f"{processed['latitude']:.10f}, {processed['longitude']:.10f}"
+        
+        print(f"📍 Final processed location data:")
         print(f"   Coordinates: {processed['latitude']}, {processed['longitude']}")
         print(f"   GPS Accuracy: {processed['accuracy']}m")
         print(f"   Source: {processed['source']}")
@@ -1932,6 +1997,7 @@ def qr_checkin(qr_url):
     """
     Enhanced staff check-in with location accuracy calculation
     Allows multiple check-ins with minimum 30-minute intervals between them
+    PRESERVES coordinate-to-address conversion functionality
     """
     try:
         print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
@@ -1980,23 +2046,23 @@ def qr_checkin(qr_url):
             # Check if 30 minutes have passed since the last check-in
             if recent_checkin_datetime > thirty_minutes_ago:
                 minutes_remaining = 30 - int((current_time - recent_checkin_datetime).total_seconds() / 60)
-                print(f"⚠️ Too soon for another submission for {employee_id}")
-                print(f"   Last submission: {recent_checkin.check_in_time.strftime('%H:%M')}")
+                print(f"⚠️ Too soon for another check-in for {employee_id}")
+                print(f"   Last check-in: {recent_checkin.check_in_time.strftime('%H:%M')}")
                 print(f"   Minutes remaining: {minutes_remaining}")
                 
                 return jsonify({
                     'success': False,
-                    'message': f'You can submit again in {minutes_remaining} minutes. Last submission was at {recent_checkin.check_in_time.strftime("%H:%M")}.'
+                    'message': f'You can check in again in {minutes_remaining} minutes. Last check-in was at {recent_checkin.check_in_time.strftime("%H:%M")}.'
                 }), 400
             else:
                 print(f"✅ 30-minute interval satisfied. Allowing new check-in for {employee_id}")
         else:
-            print(f"✅ First submission today for {employee_id}")
+            print(f"✅ First check-in today for {employee_id}")
         
-        # Process location data
+        # PRESERVED: Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
         
-        # Get device and network info
+        # PRESERVED: Get device and network info
         user_agent_string = request.headers.get('User-Agent', '')
         device_info = detect_device_info(user_agent_string)
         client_ip = get_client_ip()
@@ -2005,7 +2071,7 @@ def qr_checkin(qr_url):
         print(f"🌐 IP Address: {client_ip}")
         print(f"📍 Location Data: {location_data}")
         
-        # Create attendance record
+        # PRESERVED: Create attendance record
         print(f"\n💾 CREATING ATTENDANCE RECORD:")
         
         attendance = AttendanceData(
@@ -2022,13 +2088,13 @@ def qr_checkin(qr_url):
             accuracy=location_data['accuracy'],
             altitude=location_data['altitude'],
             location_source=location_data['source'],
-            address=location_data['address'],
+            address=location_data['address'],  # This now includes converted address
             status='present'
         )
         
         print(f"✅ Created base attendance record")
         
-        # Calculate location accuracy
+        # PRESERVED: Calculate location accuracy
         print(f"\n🎯 CALCULATING LOCATION ACCURACY...")
         location_accuracy = None
         
@@ -2050,13 +2116,13 @@ def qr_checkin(qr_url):
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
         
-        # Save to database
+        # PRESERVED: Save to database
         try:
             db.session.add(attendance)
             db.session.commit()
             print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
             
-            # Count total check-ins for today for this employee at this location
+            # NEW: Count total check-ins for today for this employee at this location
             today_checkin_count = AttendanceData.query.filter_by(
                 qr_code_id=qr_code.id,
                 employee_id=employee_id.upper(),
@@ -2073,7 +2139,7 @@ def qr_checkin(qr_url):
                 'message': 'Database error occurred.'
             }), 500
         
-        # Return success response
+        # ENHANCED: Return success response with sequence information
         response_data = {
             'success': True,
             'message': f'Check-in successful! {checkin_sequence_text} for today.',
@@ -2101,6 +2167,7 @@ def qr_checkin(qr_url):
         print(f"   Employee: {attendance.employee_id}")
         print(f"   Time: {attendance.check_in_time}")
         print(f"   Location: {attendance.location_name}")
+        print(f"   Address: {attendance.address}")
         print(f"   Today's count: {today_checkin_count}")
         
         return jsonify(response_data), 200

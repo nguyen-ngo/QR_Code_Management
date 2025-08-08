@@ -45,7 +45,7 @@ const translations = {
       error: "Error en el registro. Por favor intente de nuevo.",
       duplicate: "Ya se ha registrado hoy.",
       tooSoon: "Por favor espere antes de registrarse nuevamente.",
-      multipleSuccess: "Submitted successful!!",
+      multipleSuccess: "Submitted successfully!!",
       invalidId: "Por favor ingrese un ID de empleado válido.",
       locationError: "No se pudo obtener datos de ubicación.",
       networkError: "Error de red. Verifique su conexión.",
@@ -225,7 +225,7 @@ function handleCheckinResponse(data) {
 
 // ENHANCED SUCCESS HANDLING WITH MULTIPLE CHECK-IN INFO
 function handleCheckinSuccess(data) {
-  console.log("✅ Submitted successful!");
+  console.log("✅ Submitted successfully!");
 
   const responseData = data.data || data || {};
   const checkinCount = responseData.checkin_count_today || 1;
@@ -515,9 +515,32 @@ function handleLocationError(error) {
 }
 
 function reverseGeocode(lat, lng) {
-  // This would typically use a geocoding service
-  // For now, just set a placeholder
-  userLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+  console.log(`🌍 Starting reverse geocoding for: ${lat}, ${lng}`);
+
+  // Using Nominatim (OpenStreetMap) reverse geocoding service
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+
+  fetch(url, {
+    method: "GET",
+    headers: {
+      "User-Agent": "QR-Attendance-System/1.0",
+    },
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data && data.display_name) {
+        userLocation.address = data.display_name;
+        console.log(`✅ Reverse geocoded address: ${userLocation.address}`);
+      } else {
+        console.log(`⚠️ No address found, using coordinates as fallback`);
+        userLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+      }
+    })
+    .catch((error) => {
+      console.error(`❌ Reverse geocoding error:`, error);
+      // Fallback to coordinates if reverse geocoding fails
+      userLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+    });
 }
 
 // Language functionality remains unchanged
