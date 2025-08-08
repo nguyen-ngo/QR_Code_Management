@@ -57,16 +57,11 @@ const translations = {
 document.addEventListener("DOMContentLoaded", function () {
   console.log("🎯 QR Destination page loaded");
 
-  // Initialize language functionality
+  // CRITICAL: Initialize systems in correct order
   initializeLanguage();
-
-  // Initialize form handling
+  initializeStaffIdPersistence();
   initializeForm();
-
-  // Initialize location services
   initializeLocation();
-
-  // Start real-time clock
   startClock();
 
   // Add fade-in animation to elements
@@ -76,6 +71,62 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }, 100);
 });
+
+// ENHANCED STAFF ID PERSISTENCE FUNCTIONALITY
+function initializeStaffIdPersistence() {
+  console.log("👤 Initializing staff ID persistence functionality");
+  
+  // Load last staff ID from localStorage
+  lastStaffId = loadLastStaffId();
+  if (lastStaffId) {
+    console.log(`📱 Found last staff ID: ${lastStaffId}`);
+    
+    // Automatically fill the last staff ID
+    const employeeIdInput = document.getElementById("employee_id");
+    if (employeeIdInput) {
+      employeeIdInput.value = lastStaffId;
+      validateEmployeeId();
+      console.log(`✅ Auto-filled staff ID: ${lastStaffId}`);
+    }
+  } else {
+    console.log("📱 No previous staff ID found");
+  }
+}
+
+function loadLastStaffId() {
+  try {
+    const saved = localStorage.getItem('qr_last_staff_id');
+    if (saved && saved.trim().length >= 2) {
+      return saved.trim().toUpperCase();
+    }
+    console.log("📱 No valid last staff ID found");
+    return null;
+  } catch (error) {
+    console.error("❌ Error loading last staff ID from localStorage:", error);
+    return null;
+  }
+}
+
+function saveLastStaffId(staffId) {
+  try {
+    if (!staffId || typeof staffId !== 'string' || staffId.trim().length < 2) {
+      console.log("⚠️ Invalid staff ID, not saving");
+      return false;
+    }
+    
+    const cleanId = staffId.trim().toUpperCase();
+    lastStaffId = cleanId;
+    
+    // Save to localStorage
+    localStorage.setItem('qr_last_staff_id', cleanId);
+    console.log(`💾 Last staff ID saved: ${cleanId}`);
+    
+    return true;
+  } catch (error) {
+    console.error("❌ Error saving last staff ID to localStorage:", error);
+    return false;
+  }
+}
 
 // ENHANCED FORM HANDLING FOR MULTIPLE CHECK-INS
 function initializeForm() {
@@ -122,6 +173,9 @@ function handleFormSubmit(event) {
     showLocalizedStatusMessage("invalidId", "error");
     return;
   }
+
+  // Save the staff ID for future use
+  saveLastStaffId(employeeId);
 
   // Show processing status
   showLocalizedStatusMessage("processing", "info");
