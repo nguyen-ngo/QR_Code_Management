@@ -2123,7 +2123,7 @@ def qr_checkin(qr_url):
                 check_in_date=today
             ).count()
             
-            checkin_sequence_text = "Submission details"
+            checkin_sequence_text = f"{qr_code.location_event} details"
             
         except Exception as e:
             print(f"❌ Database error: {e}")
