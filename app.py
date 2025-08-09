@@ -2394,8 +2394,12 @@ def attendance_report():
             location_accuracy = getattr(record, 'location_accuracy', None)
             gps_accuracy = getattr(record, 'gps_accuracy', None)
             qr_address = getattr(record, 'qr_address', None)
-            if location_accuracy != "None":
-                checked_in_address = qr_address if (location_accuracy <= 0.5) else getattr(record, 'checked_in_address', None)
+            if location_accuracy is not None and location_accuracy != "None":
+                try:
+                    accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
+                    checked_in_address = qr_address if (accuracy_value <= 0.5) else getattr(record, 'checked_in_address', None)
+                except (ValueError, TypeError):
+                    checked_in_address = getattr(record, 'checked_in_address', None)
             else:
                 checked_in_address = getattr(record, 'checked_in_address', None)
             record_dict = {
