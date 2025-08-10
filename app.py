@@ -2298,7 +2298,7 @@ def toggle_qr_status_api(qr_id):
 @app.route('/attendance')
 # @admin_required
 def attendance_report():
-    """Safe attendance report with backward compatibility for location_accuracy"""
+    """Safe attendance report with backward compatibility for location_accuracy and fixed datetime handling"""
     try:
         print("📊 Loading attendance report...")
         
@@ -2393,13 +2393,15 @@ def attendance_report():
         
         print(f"✅ Found {len(attendance_records)} attendance records")
         
-        # Process records to add calculated fields
+        # FIXED: Process records to add calculated fields with proper datetime handling
         processed_records = []
         for record in attendance_records:
             # Safe attribute access with fallbacks
             location_accuracy = getattr(record, 'location_accuracy', None)
             gps_accuracy = getattr(record, 'gps_accuracy', None)
             qr_address = getattr(record, 'qr_address', None)
+            
+            # Handle location accuracy for address display logic
             if location_accuracy is not None and location_accuracy != "None":
                 try:
                     accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
@@ -2408,11 +2410,47 @@ def attendance_report():
                     checked_in_address = getattr(record, 'checked_in_address', None)
             else:
                 checked_in_address = getattr(record, 'checked_in_address', None)
+            
+            # CRITICAL FIX: Properly handle check_in_time formatting
+            check_in_time_value = record.check_in_time
+            
+            # Handle different possible types for check_in_time
+            if isinstance(check_in_time_value, timedelta):
+                # Convert timedelta to time object
+                total_seconds = int(check_in_time_value.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                formatted_time = time(hours % 24, minutes, seconds)
+                print(f"⚠️ Converted timedelta to time: {check_in_time_value} -> {formatted_time}")
+            elif isinstance(check_in_time_value, time):
+                # Already a time object, use as-is
+                formatted_time = check_in_time_value
+            elif isinstance(check_in_time_value, datetime):
+                # Extract time component from datetime
+                formatted_time = check_in_time_value.time()
+            elif isinstance(check_in_time_value, str):
+                # Try to parse string to time
+                try:
+                    formatted_time = datetime.strptime(check_in_time_value, '%H:%M:%S').time()
+                except ValueError:
+                    try:
+                        formatted_time = datetime.strptime(check_in_time_value, '%H:%M').time()
+                    except ValueError:
+                        # Fallback to current time if parsing fails
+                        formatted_time = datetime.now().time()
+                        print(f"⚠️ Could not parse time string: {check_in_time_value}, using current time")
+            else:
+                # Fallback to current time for any other type
+                formatted_time = datetime.now().time()
+                print(f"⚠️ Unexpected check_in_time type: {type(check_in_time_value)}, using current time")
+            
+            # Create the record dictionary with properly formatted time
             record_dict = {
                 'id': record.id,
                 'employee_id': record.employee_id,
                 'check_in_date': record.check_in_date,
-                'check_in_time': record.check_in_time,
+                'check_in_time': formatted_time,  # Now guaranteed to be a time object
                 'location_name': record.location_name,
                 'location_event': getattr(record, 'location_event', ''),
                 'qr_address': qr_address or 'Not available',

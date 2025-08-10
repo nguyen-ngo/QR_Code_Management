@@ -599,7 +599,7 @@ function extractLocationAccuracy(cell) {
 function extractLocationAccuracyLevel(cell) {
   const text = cell.textContent;
   if (text.includes("excellent") || text.includes("good")) return "accurate";
-  if (text.includes("fair") || text.includes("poor")) return "unaccurate";
+  if (text.includes("fair") || text.includes("poor")) return "inaccurate";
   return "unknown";
 }
 
@@ -793,7 +793,7 @@ function updateFilterStats() {
 function getAccuracyLevelColor(level) {
   const colors = {
     accurate: "#059669", // green
-    unaccurate: "#dc2626", // red
+    inaccurate: "#dc2626", // red
     unknown: "#6b7280", // gray
   };
   return colors[level] || colors["unknown"];

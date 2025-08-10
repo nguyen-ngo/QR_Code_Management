@@ -188,7 +188,25 @@
                         </td>
                         <td>
                             <div class="time-info">
-                                {{ record.check_in_time.strftime('%H:%M') }}
+                                {% if record.check_in_time %}
+                                    {% set check_in_time = record.check_in_time %}
+                                    {% if check_in_time is string %}
+                                        {{ check_in_time }}
+                                    {% else %}
+                                        {% if check_in_time.strftime is defined %}
+                                            {{ check_in_time.strftime('%H:%M') }}
+                                        {% elif check_in_time.total_seconds is defined %}
+                                            {% set total_seconds = check_in_time.total_seconds() | int %}
+                                            {% set hours = (total_seconds // 3600) % 24 %}
+                                            {% set minutes = (total_seconds % 3600) // 60 %}
+                                            {{ "%02d:%02d"|format(hours, minutes) }}
+                                        {% else %}
+                                            {{ check_in_time }}
+                                        {% endif %}
+                                    {% endif %}
+                                {% else %}
+                                    N/A
+                                {% endif %}
                             </div>
                         </td>
                         <td class="address-column">
