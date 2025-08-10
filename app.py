@@ -68,7 +68,7 @@ class QRCode(db.Model):
     location_address = db.Column(db.Text, nullable=False)
     location_event = db.Column(db.String(200), nullable=False)
     qr_code_image = db.Column(db.Text, nullable=False)  # Base64 encoded image
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
     active_status = db.Column(db.Boolean, default=True)
     qr_url = db.Column(db.String(255), unique=True, nullable=True)
@@ -116,8 +116,6 @@ class AttendanceData(db.Model):
     status = db.Column(db.String(20), default='present')
     created_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     updated_timestamp = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # LOCATION FIELDS - Add these if missing
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     accuracy = db.Column(db.Float, nullable=True)
@@ -1476,7 +1474,7 @@ def geocode_address():
 @app.route('/users/<int:user_id>/permanently-delete', methods=['GET', 'POST'])
 @admin_required
 def permanently_delete_user(user_id):
-    """Permanently delete user and all associated data (Admin only)"""
+    """Permanently delete user but preserve associated QR codes (Admin only)"""
     try:
         user_to_delete = User.query.get_or_404(user_id)
         current_user = User.query.get(session['user_id'])
@@ -1501,8 +1499,10 @@ def permanently_delete_user(user_id):
         user_name = user_to_delete.full_name
         user_qr_count = user_to_delete.created_qr_codes.count()
         
-        # Delete all QR codes created by this user
-        QRCode.query.filter_by(created_by=user_id).delete()
+        # MODIFIED: Preserve QR codes by setting created_by to NULL instead of deleting them
+        orphaned_qr_codes = QRCode.query.filter_by(created_by=user_id).all()
+        for qr_code in orphaned_qr_codes:
+            qr_code.created_by = None
         
         # Update any users that were created by this user (set created_by to None)
         created_users = User.query.filter_by(created_by=user_id).all()
@@ -1513,8 +1513,9 @@ def permanently_delete_user(user_id):
         db.session.delete(user_to_delete)
         db.session.commit()
         
-        flash(f'User "{user_name}" and {user_qr_count} associated QR codes have been permanently deleted.', 'success')
-        print(f"Admin {current_user.username} permanently deleted user: {user_to_delete.username}")
+        # Updated flash message to reflect QR codes are preserved
+        flash(f'User "{user_name}" has been permanently deleted. {user_qr_count} QR codes created by this user are now orphaned but preserved.', 'success')
+        print(f"Admin {current_user.username} permanently deleted user: {user_to_delete.username}, preserved {user_qr_count} QR codes")
         
         return redirect(url_for('users'))
         
@@ -1608,17 +1609,19 @@ def bulk_activate_users():
         print(f"Error in bulk activate: {e}")
         return jsonify({'error': 'Failed to activate users'}), 500
 
-@app.route('/users/bulk/permanently-delete', methods=['POST'])
+@app.route('/users/bulk-permanently-delete', methods=['POST'])
 @admin_required
 def bulk_permanently_delete_users():
-    """Bulk permanently delete multiple users and all associated data (Admin only)"""
+    """Bulk permanently delete users but preserve associated QR codes (Admin only)"""
     try:
-        user_ids = request.json.get('user_ids', [])
         current_user_id = session['user_id']
         current_user = User.query.get(current_user_id)
         
+        # Get user IDs from request
+        user_ids = request.json.get('user_ids', [])
+        
         if not user_ids:
-            return jsonify({'error': 'No users selected'}), 400
+            return jsonify({'error': 'No user IDs provided'}), 400
         
         # Convert string IDs to integers for safety
         try:
@@ -1628,7 +1631,7 @@ def bulk_permanently_delete_users():
         
         # Security validations
         deleted_users = []
-        deleted_qr_count = 0
+        preserved_qr_count = 0  # Changed from deleted_qr_count to preserved_qr_count
         errors = []
         
         for user_id in user_ids:
@@ -1657,10 +1660,12 @@ def bulk_permanently_delete_users():
                 
                 # Count QR codes before deletion for reporting
                 user_qr_count = user_to_delete.created_qr_codes.count()
-                deleted_qr_count += user_qr_count
+                preserved_qr_count += user_qr_count
                 
-                # Delete all QR codes created by this user
-                QRCode.query.filter_by(created_by=user_id).delete()
+                # MODIFIED: Preserve QR codes by setting created_by to NULL instead of deleting them
+                orphaned_qr_codes = QRCode.query.filter_by(created_by=user_id).all()
+                for qr_code in orphaned_qr_codes:
+                    qr_code.created_by = None
                 
                 # Update any users that were created by this user (set created_by to None)
                 created_users = User.query.filter_by(created_by=user_id).all()
@@ -1687,13 +1692,13 @@ def bulk_permanently_delete_users():
             
             # Log the bulk deletion
             deleted_names = [user['name'] for user in deleted_users]
-            print(f"Admin {current_user.username} permanently deleted {len(deleted_users)} users: {', '.join(deleted_names)}")
+            print(f"Admin {current_user.username} permanently deleted {len(deleted_users)} users: {', '.join(deleted_names)}, preserved {preserved_qr_count} QR codes")
         
         # Prepare response message
         if deleted_users and not errors:
-            message = f'Successfully deleted {len(deleted_users)} users and {deleted_qr_count} associated QR codes'
+            message = f'Successfully deleted {len(deleted_users)} users and preserved {preserved_qr_count} associated QR codes'
         elif deleted_users and errors:
-            message = f'Deleted {len(deleted_users)} users and {deleted_qr_count} QR codes. {len(errors)} operations failed'
+            message = f'Deleted {len(deleted_users)} users and preserved {preserved_qr_count} QR codes. {len(errors)} operations failed'
         elif not deleted_users and errors:
             return jsonify({
                 'success': False,
@@ -1710,7 +1715,7 @@ def bulk_permanently_delete_users():
             'success': True,
             'message': message,
             'deleted_count': len(deleted_users),
-            'deleted_qr_count': deleted_qr_count,
+            'preserved_qr_count': preserved_qr_count,  # Changed from deleted_qr_count
             'errors': errors if errors else None
         })
         
