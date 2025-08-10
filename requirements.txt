@@ -1,12 +1,13 @@
 # QR Code Management System - Python Dependencies
-# Production-ready Flask application with PostgreSQL support
+# Production-ready Flask application with MySQL support
 
 # Core Flask Framework
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 
-# Database Support
-psycopg2-binary==2.9.7          # PostgreSQL adapter
+# Database Support - MySQL
+PyMySQL==1.1.0                  # Pure Python MySQL client
+mysql-connector-python==8.2.0   # Official MySQL connector (alternative)
 SQLAlchemy==2.0.21
 
 # Security and Authentication
@@ -16,7 +17,7 @@ Werkzeug==2.3.7                 # Security utilities and password hashing
 qrcode==7.4.2                   # QR code generation library
 Pillow==10.0.1                  # Image processing for QR codes
 
-# User Agent Detection (NEW)
+# User Agent Detection
 user-agents==2.2.0              # Device and browser detection from user agent strings
 
 # URL and Regex Processing
@@ -43,7 +44,7 @@ itsdangerous==2.1.2             # Secure data serialization
 Jinja2==3.1.2                   # Template engine
 MarkupSafe==2.1.3               # Safe string handling
 
-# Data Export and Processing (NEW)
+# Data Export and Processing
 openpyxl==3.1.2                 # Excel file generation for attendance reports
 pandas==2.1.1                   # Data manipulation for reports (optional)
 
@@ -55,3 +56,6 @@ Flask-Caching==2.1.0            # Caching support for Flask
 
 # Logging and Monitoring (optional)
 python-json-logger==2.0.7       # Structured logging support
+
+# Cryptography dependencies (required for some MySQL features)
+cryptography==41.0.7            # Required for MySQL SSL connections

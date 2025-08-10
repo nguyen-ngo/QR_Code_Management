@@ -32,7 +32,7 @@ class User(db.Model):
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='staff')  # admin or staff
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
@@ -83,6 +83,7 @@ class QRCode(db.Model):
     def has_coordinates(self):
         """Check if this QR code has address coordinates"""
         return self.address_latitude is not None and self.address_longitude is not None
+    
     @property
     def coordinates_display(self):
         """Get formatted coordinates for display"""
@@ -854,19 +855,24 @@ def migrate_to_enhanced_location_accuracy():
         return False
 
 def check_location_accuracy_column_exists():
-    """Check if the location_accuracy column exists in the attendance_data table"""
+    """
+    Check if location_accuracy column exists in attendance_data table (MySQL compatible)
+    """
     try:
+        # MySQL-compatible query for checking column existence
         result = db.session.execute(text("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='attendance_data' AND column_name='location_accuracy'
+            SELECT COUNT(*) as count
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'attendance_data' 
+            AND COLUMN_NAME = 'location_accuracy'
         """))
         
-        column_exists = result.fetchone() is not None
-        return column_exists
+        count = result.fetchone().count
+        return count > 0
         
     except Exception as e:
-        print(f"⚠️ Error checking location_accuracy column: {e}")
+        print(f"Error checking location_accuracy column: {e}")
         return False
 
 def get_employee_checkin_history(employee_id, qr_code_id, date_filter=None):
@@ -2667,17 +2673,18 @@ def update_existing_qr_codes():
         db.session.rollback()
 
 def add_coordinate_columns():
-    """Add coordinate columns to existing qr_codes table"""
+    """Add coordinate columns to existing qr_codes table (MySQL compatible)"""
     try:
-        # Check if columns already exist
+        # Check if columns already exist - MySQL compatible query
         result = db.session.execute(text("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='qr_codes' AND column_name IN 
-            ('address_latitude', 'address_longitude', 'coordinate_accuracy', 'coordinates_updated_date')
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'qr_codes' 
+            AND COLUMN_NAME IN ('address_latitude', 'address_longitude', 'coordinate_accuracy', 'coordinates_updated_date')
         """))
         
-        existing_columns = [row.column_name for row in result.fetchall()]
+        existing_columns = [row.COLUMN_NAME for row in result.fetchall()]
         
         # Add missing columns
         if 'address_latitude' not in existing_columns:
