@@ -487,7 +487,7 @@
   </head>
   <body>
     <div class="destination-container">
-      <!-- Language Selector -->
+      <!-- Language Selector
       <div class="language-selector">
         <button
           id="languageToggle"
@@ -499,13 +499,17 @@
           <span id="languageText">EN</span>
         </button>
       </div>
-
+      -->
       <!-- Header Section -->
       <div class="destination-header fade-transition active">
         <div class="header-icon">
           <i class="fas fa-qrcode"></i>
         </div>
-        <h1>{{ qr_code.location_event }}</h1>
+        {% if qr_code.location_event == 'Check In' %}
+          <h1>{{ qr_code.location_event }} / Entrada</h1>
+        {% else %}
+          <h1>{{ qr_code.location_event }} / Salida</h1>
+        {% endif %} 
         <p class="location-info">
           <i class="fas fa-map-marker-alt"></i>
           {{ qr_code.location }}
@@ -523,6 +527,7 @@
       <!-- Check-in Form -->
       <div class="checkin-card fade-transition active">
         <div class="checkin-header">
+          <!--
           <h2>
             <i class="fas fa-user-check"></i>
             <span
@@ -531,11 +536,12 @@
               >Attendance Tracking</span
             >
           </h2>
+          -->
           <p
-            data-en="Please enter your Employee ID to {{ qr_code.location_event }}"
-            data-es="Por favor ingrese su ID de empleado para registrar su entrada/salida"
+            data-en="Please enter your Employee ID / Por favor ingrese su ID de empleado"
+            data-es="Por favor ingrese su ID de empleado"
           >
-            Please enter your Employee ID to {{ qr_code.location_event }}
+            Please enter your Employee ID. / Por favor ingrese su ID de empleado.
           </p>
         </div>
 
@@ -556,8 +562,8 @@
           <div class="form-group">
             <label for="employee_id">
               <i class="fas fa-id-badge"></i>
-              <span data-en="Employee ID" data-es="ID de Empleado"
-                >Employee ID</span
+              <span data-en="Employee ID / ID de Empleado" data-es="ID de Empleado"
+                >Employee ID / ID de Empleado</span
               >
             </label>
             <input
@@ -567,7 +573,7 @@
               class="form-control"
               data-en-placeholder="Enter your Employee ID"
               data-es-placeholder="Ingrese su ID de Empleado"
-              placeholder="Enter your Employee ID"
+              placeholder="Enter your Employee ID / Ingrese su ID de Empleado"
               autocomplete="off"
               required
             />
@@ -575,7 +581,11 @@
 
           <button type="submit" id="submitCheckin" class="btn btn-primary">
             <i class="fas fa-user-check"></i>
-            <span data-en="{{ qr_code.location_event }}" data-es="Someter">{{ qr_code.location_event }}</span>
+            {% if qr_code.location_event == 'Check In' %}
+              <span data-en="{{ qr_code.location_event }} / Entrada" data-es="Someter">{{ qr_code.location_event }} / Entrada</span>
+            {% else %}
+              <span data-en="{{ qr_code.location_event }} / Salida" data-es="Someter">{{ qr_code.location_event }} / Salida</span>
+            {% endif %}
           </button>
         </form>
       </div>
