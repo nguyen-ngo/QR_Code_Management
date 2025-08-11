@@ -2319,7 +2319,8 @@ def qr_checkin(qr_url):
                 
                 return jsonify({
                     'success': False,
-                    'message': f'You can check in again in {minutes_remaining} minutes. Last check-in was at {recent_checkin.check_in_time.strftime("%H:%M")}.'
+                    'message': f"You can check in again in {minutes_remaining} minutes. Last check-in was at {recent_checkin.check_in_time.strftime("%H:%M")}. \n"
+                               f"Puedes volver a registrarte en {minutes_remaining} minutos. El último registro fue a las {recent_checkin.check_in_time.strftime("%H:%M")}."
                 }), 400
             else:
                 print(f"✅ 30-minute interval satisfied. Allowing new check-in for {employee_id}")
