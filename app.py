@@ -1506,18 +1506,141 @@ def edit_user(user_id):
         flash('Error updating user. Please try again.', 'error')
         return redirect(url_for('users'))
 
+@app.route('/users/<int:user_id>/toggle_status', methods=['POST'])
+@admin_required
+def toggle_user_status(user_id):
+    """Toggle user active status (Admin only)"""
+    try:
+        user_to_toggle = User.query.get(user_id)
+        current_user = User.query.get(session['user_id'])
+        
+        if not user_to_toggle:
+            return jsonify({
+                'success': False,
+                'message': 'User not found.'
+            }), 404
+        
+        # Prevent self-deactivation
+        if user_to_toggle.id == current_user.id:
+            return jsonify({
+                'success': False,
+                'message': 'You cannot deactivate yourself.'
+            }), 400
+        
+        # Check if this is the last admin being deactivated
+        if (user_to_toggle.role == 'admin' and user_to_toggle.active_status == True):
+            active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
+            if active_admin_count <= 1:
+                return jsonify({
+                    'success': False,
+                    'message': 'Cannot deactivate the last admin user.'
+                }), 400
+        
+        # Toggle the status
+        new_status = not user_to_toggle.active_status
+        user_to_toggle.active_status = new_status
+        db.session.commit()
+        
+        action = 'activated' if new_status else 'deactivated'
+        message = f'"{user_to_toggle.full_name}" has been {action} successfully.'
+        
+        print(f"Admin {current_user.username} {action} user {user_to_toggle.username}")
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'new_status': new_status,
+            'user_id': user_id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error toggling user status: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error updating user status. Please try again.'
+        }), 500
+
+@app.route('/users/<int:user_id>/activate', methods=['GET', 'POST'])
+@admin_required
+def activate_user(user_id):
+    """Activate a user (Admin only) - Alternative route"""
+    try:
+        user_to_activate = User.query.get(user_id)
+        current_user = User.query.get(session['user_id'])
+        
+        if not user_to_activate:
+            flash('User not found.', 'error')
+            return redirect(url_for('users'))
+        
+        if user_to_activate.active_status:
+            flash('User is already active.', 'info')
+        else:
+            user_to_activate.active_status = True
+            db.session.commit()
+            flash(f'"{user_to_activate.full_name}" has been activated.', 'success')
+            print(f"Admin {current_user.username} activated user {user_to_activate.username}")
+        
+        return redirect(url_for('users'))
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error activating user: {e}")
+        flash('Error activating user. Please try again.', 'error')
+        return redirect(url_for('users'))
+
+@app.route('/users/<int:user_id>/deactivate', methods=['GET', 'POST'])
+@admin_required
+def deactivate_user(user_id):
+    """Deactivate a user (Admin only) - Alternative route"""
+    try:
+        user_to_deactivate = User.query.get(user_id)
+        current_user = User.query.get(session['user_id'])
+        
+        if not user_to_deactivate:
+            flash('User not found.', 'error')
+            return redirect(url_for('users'))
+        
+        # Prevent self-deactivation
+        if user_to_deactivate.id == current_user.id:
+            flash('You cannot deactivate yourself.', 'error')
+            return redirect(url_for('users'))
+        
+        # Check if this is the last admin
+        if user_to_deactivate.role == 'admin' and user_to_deactivate.active_status:
+            active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
+            if active_admin_count <= 1:
+                flash('Cannot deactivate the last admin user.', 'error')
+                return redirect(url_for('users'))
+        
+        if not user_to_deactivate.active_status:
+            flash('User is already deactivated.', 'info')
+        else:
+            user_to_deactivate.active_status = False
+            db.session.commit()
+            flash(f'"{user_to_deactivate.full_name}" has been deactivated.', 'success')
+            print(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
+        
+        return redirect(url_for('users'))
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deactivating user: {e}")
+        flash('Error deactivating user. Please try again.', 'error')
+        return redirect(url_for('users'))
+
 # ENHANCED USER STATISTICS API
 @app.route('/api/users/stats')
 @admin_required
 def user_stats_api():
-    """API endpoint for user statistics"""
-    payroll_users = User.query.filter_by(role='payroll', active_status=True).count()
-    project_manager_users = User.query.filter_by(role='project_manager', active_status=True).count()
+    """UPDATED: API endpoint for user statistics - includes new roles"""
     try:
         total_users = User.query.count()
         active_users = User.query.filter_by(active_status=True).count()
         admin_users = User.query.filter_by(role='admin', active_status=True).count()
         staff_users = User.query.filter_by(role='staff', active_status=True).count()
+        payroll_users = User.query.filter_by(role='payroll', active_status=True).count()
+        project_manager_users = User.query.filter_by(role='project_manager', active_status=True).count()
         inactive_users = User.query.filter_by(active_status=False).count()
         
         # Recent registrations (last 30 days)

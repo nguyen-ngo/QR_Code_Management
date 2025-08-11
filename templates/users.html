@@ -1,11 +1,12 @@
-{% extends "base_authenticated.html" %} {% block title %}User Management - QR
-Code Management{% endblock %} {% block extra_head %}
+{% extends "base_authenticated.html" %} 
+{% block title %}User Management - QR Code Management{% endblock %} 
+
+{% block extra_head %}
 <!-- Dedicated Users Page CSS -->
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/users.css') }}"
-/>
-{% endblock %} {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/users.css') }}">
+{% endblock %}
+
+{% block content %}
 <div class="users-page">
   <div class="users-header">
     <div class="header-content">
@@ -31,10 +32,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-crown"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('role', 'equalto',
-          'admin')|selectattr('active_status', 'equalto', True)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('role', 'equalto', 'admin')|selectattr('active_status', 'equalto', True)|list|length }}</h3>
         <p>Active Administrators</p>
       </div>
     </div>
@@ -44,10 +42,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-users"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('role', 'equalto',
-          'staff')|selectattr('active_status', 'equalto', True)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('role', 'equalto', 'staff')|selectattr('active_status', 'equalto', True)|list|length }}</h3>
         <p>Active Staff Members</p>
       </div>
     </div>
@@ -57,10 +52,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-calculator"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('role', 'equalto',
-          'payroll')|selectattr('active_status', 'equalto', True)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('role', 'equalto', 'payroll')|selectattr('active_status', 'equalto', True)|list|length }}</h3>
         <p>Payroll Specialists</p>
       </div>
     </div>
@@ -70,11 +62,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-project-diagram"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('role', 'equalto',
-          'project_manager')|selectattr('active_status', 'equalto',
-          True)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('role', 'equalto', 'project_manager')|selectattr('active_status', 'equalto', True)|list|length }}</h3>
         <p>Project Managers</p>
       </div>
     </div>
@@ -84,9 +72,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-user-check"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('active_status', 'equalto', True)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('active_status', 'equalto', True)|list|length }}</h3>
         <p>Total Active Users</p>
       </div>
     </div>
@@ -96,9 +82,7 @@ Code Management{% endblock %} {% block extra_head %}
         <i class="fas fa-user-times"></i>
       </div>
       <div class="stat-info">
-        <h3>
-          {{ users|selectattr('active_status', 'equalto', False)|list|length }}
-        </h3>
+        <h3>{{ users|selectattr('active_status', 'equalto', False)|list|length }}</h3>
         <p>Inactive Users</p>
       </div>
     </div>
@@ -168,7 +152,7 @@ Code Management{% endblock %} {% block extra_head %}
           data-status="{{ 'active' if user.active_status else 'inactive' }}"
         >
           <td>{{ loop.index }}</td>
-
+          
           <!-- User Information -->
           <td>
             <div class="user-info">
@@ -194,27 +178,28 @@ Code Management{% endblock %} {% block extra_head %}
           <td>
             <div class="user-role {{ user.role }}">
               {% if user.role == 'admin' %}
-              <i class="fas fa-crown"></i>
-              Administrator {% elif user.role == 'staff' %}
-              <i class="fas fa-user"></i>
-              Staff User {% elif user.role == 'payroll' %}
-              <i class="fas fa-calculator"></i>
-              Payroll Specialist {% elif user.role == 'project_manager' %}
-              <i class="fas fa-project-diagram"></i>
-              Project Manager {% else %}
-              <i class="fas fa-user"></i>
-              {{ user.role.title() }} {% endif %}
+                <i class="fas fa-crown"></i>
+                Administrator
+              {% elif user.role == 'staff' %}
+                <i class="fas fa-user"></i>
+                Staff User
+              {% elif user.role == 'payroll' %}
+                <i class="fas fa-calculator"></i>
+                Payroll Specialist
+              {% elif user.role == 'project_manager' %}
+                <i class="fas fa-project-diagram"></i>
+                Project Manager
+              {% else %}
+                <i class="fas fa-user"></i>
+                {{ user.role.title() }}
+              {% endif %}
             </div>
           </td>
 
           <!-- Status -->
           <td>
-            <div
-              class="user-status {{ 'active' if user.active_status else 'inactive' }}"
-            >
-              <i
-                class="fas fa-{{ 'check-circle' if user.active_status else 'times-circle' }}"
-              ></i>
+            <div class="user-status {{ 'active' if user.active_status else 'inactive' }}">
+              <i class="fas fa-{{ 'check-circle' if user.active_status else 'times-circle' }}"></i>
               {{ 'Active' if user.active_status else 'Inactive' }}
             </div>
           </td>
@@ -222,10 +207,7 @@ Code Management{% endblock %} {% block extra_head %}
           <!-- QR Codes Count -->
           <td class="user-qr-count">
             <div class="qr-stats">
-              <span class="qr-count"
-                >{{ user.created_qr_codes.filter_by(active_status=True).count()
-                }}</span
-              >
+              <span class="qr-count">{{ user.created_qr_codes.filter_by(active_status=True).count() }}</span>
               <small>QR Codes</small>
             </div>
           </td>
@@ -233,32 +215,24 @@ Code Management{% endblock %} {% block extra_head %}
           <!-- Created Date -->
           <td>
             {% if user.created_date %}
-            <div class="date-info">
-              <div class="date-main">
-                {{ user.created_date.strftime('%m/%d/%Y') }}
+              <div class="date-info">
+                <div class="date-main">{{ user.created_date.strftime('%m/%d/%Y') }}</div>
+                <div class="date-time">{{ user.created_date.strftime('%I:%M %p') }}</div>
               </div>
-              <div class="date-time">
-                {{ user.created_date.strftime('%I:%M %p') }}
-              </div>
-            </div>
             {% else %}
-            <span class="never-logged-in">Unknown</span>
+              <span class="never-logged-in">Unknown</span>
             {% endif %}
           </td>
 
           <!-- Last Login -->
           <td>
             {% if user.last_login_date %}
-            <div class="date-info">
-              <div class="date-main">
-                {{ user.last_login_date.strftime('%m/%d/%Y') }}
+              <div class="date-info">
+                <div class="date-main">{{ user.last_login_date.strftime('%m/%d/%Y') }}</div>
+                <div class="date-time">{{ user.last_login_date.strftime('%I:%M %p') }}</div>
               </div>
-              <div class="date-time">
-                {{ user.last_login_date.strftime('%I:%M %p') }}
-              </div>
-            </div>
             {% else %}
-            <span class="never-logged-in">Never</span>
+              <span class="never-logged-in">Never</span>
             {% endif %}
           </td>
 
@@ -266,64 +240,50 @@ Code Management{% endblock %} {% block extra_head %}
           <td class="user-actions">
             <div class="action-buttons">
               <!-- Edit Button -->
-              <a
-                href="{{ url_for('edit_user', user_id=user.id) }}"
-                class="btn btn-sm btn-primary"
-                title="Edit User"
-              >
+              <a href="{{ url_for('edit_user', user_id=user.id) }}" 
+                 class="btn btn-sm btn-primary" 
+                 title="Edit User">
                 <i class="fas fa-edit"></i>
               </a>
 
               {% if user.role != 'admin' %}
-              <!-- Promote to Admin -->
-              <a
-                href="{{ url_for('promote_user', user_id=user.id) }}"
-                class="btn btn-sm btn-success"
-                title="Promote to Admin"
-                onclick="return confirm('Are you sure you want to promote {{ user.full_name }} to admin?')"
-              >
-                <i class="fas fa-arrow-up"></i>
-              </a>
+                <!-- Promote to Admin -->
+                <a href="{{ url_for('promote_user', user_id=user.id) }}" 
+                   class="btn btn-sm btn-success" 
+                   title="Promote to Admin"
+                   onclick="return confirm('Are you sure you want to promote {{ user.full_name }} to admin?')">
+                  <i class="fas fa-arrow-up"></i>
+                </a>
               {% else %}
-              <!-- Demote from Admin -->
-              {% if users|selectattr('role', 'equalto',
-              'admin')|selectattr('active_status', 'equalto', True)|list|length
-              > 1 %}
-              <a
-                href="{{ url_for('demote_user', user_id=user.id) }}"
-                class="btn btn-sm btn-warning"
-                title="Demote from Admin"
-                onclick="return confirm('Are you sure you want to demote {{ user.full_name }} from admin?')"
-              >
-                <i class="fas fa-arrow-down"></i>
-              </a>
-              {% else %}
-              <button
-                class="btn btn-sm btn-secondary"
-                title="Cannot demote last admin"
-                disabled
-              >
-                <i class="fas fa-arrow-down"></i>
-              </button>
-              {% endif %} {% endif %}
+                <!-- Demote from Admin -->
+                {% if users|selectattr('role', 'equalto', 'admin')|selectattr('active_status', 'equalto', True)|list|length > 1 %}
+                  <a href="{{ url_for('demote_user', user_id=user.id) }}" 
+                     class="btn btn-sm btn-warning" 
+                     title="Demote from Admin"
+                     onclick="return confirm('Are you sure you want to demote {{ user.full_name }} from admin?')">
+                    <i class="fas fa-arrow-down"></i>
+                  </a>
+                {% else %}
+                  <button class="btn btn-sm btn-secondary" 
+                          title="Cannot demote last admin" disabled>
+                    <i class="fas fa-arrow-down"></i>
+                  </button>
+                {% endif %}
+              {% endif %}
 
               <!-- Status Toggle -->
               {% if user.active_status %}
-              <button
-                class="btn btn-sm btn-danger"
-                title="Deactivate User"
-                onclick="toggleUserStatus({{ user.id }}, false)"
-              >
-                <i class="fas fa-user-times"></i>
-              </button>
+                <button class="btn btn-sm btn-danger" 
+                        title="Deactivate User"
+                        onclick="toggleUserStatus({{ user.id }}, false)">
+                  <i class="fas fa-user-times"></i>
+                </button>
               {% else %}
-              <button
-                class="btn btn-sm btn-success"
-                title="Activate User"
-                onclick="toggleUserStatus({{ user.id }}, true)"
-              >
-                <i class="fas fa-user-check"></i>
-              </button>
+                <button class="btn btn-sm btn-success" 
+                        title="Activate User"
+                        onclick="toggleUserStatus({{ user.id }}, true)">
+                  <i class="fas fa-user-check"></i>
+                </button>
               {% endif %}
             </div>
           </td>
@@ -348,13 +308,15 @@ Code Management{% endblock %} {% block extra_head %}
   </div>
   {% endif %}
 </div>
-{% endblock %} {% block extra_scripts %}
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const searchInput = document.getElementById("searchUsers");
-    const roleFilter = document.getElementById("roleFilter");
-    const statusFilter = document.getElementById("statusFilter");
-    const userRows = document.querySelectorAll(".user-row");
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchUsers');
+    const roleFilter = document.getElementById('roleFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const userRows = document.querySelectorAll('.user-row');
 
     // Search and filter functionality
     function filterUsers() {
@@ -362,26 +324,25 @@ Code Management{% endblock %} {% block extra_head %}
       const selectedRole = roleFilter.value;
       const selectedStatus = statusFilter.value;
 
-      userRows.forEach((row) => {
-        const name = row.dataset.name || "";
-        const email = row.dataset.email || "";
-        const username = row.dataset.username || "";
-        const role = row.dataset.role || "";
-        const status = row.dataset.status || "";
+      userRows.forEach(row => {
+        const name = row.dataset.name || '';
+        const email = row.dataset.email || '';
+        const username = row.dataset.username || '';
+        const role = row.dataset.role || '';
+        const status = row.dataset.status || '';
 
-        const matchesSearch =
-          !searchTerm ||
-          name.includes(searchTerm) ||
-          email.includes(searchTerm) ||
+        const matchesSearch = !searchTerm || 
+          name.includes(searchTerm) || 
+          email.includes(searchTerm) || 
           username.includes(searchTerm);
 
         const matchesRole = !selectedRole || role === selectedRole;
         const matchesStatus = !selectedStatus || status === selectedStatus;
 
         if (matchesSearch && matchesRole && matchesStatus) {
-          row.style.display = "";
+          row.style.display = '';
         } else {
-          row.style.display = "none";
+          row.style.display = 'none';
         }
       });
 
@@ -389,11 +350,9 @@ Code Management{% endblock %} {% block extra_head %}
     }
 
     function updateRowNumbers() {
-      const visibleRows = Array.from(userRows).filter(
-        (row) => row.style.display !== "none"
-      );
+      const visibleRows = Array.from(userRows).filter(row => row.style.display !== 'none');
       visibleRows.forEach((row, index) => {
-        const numberCell = row.querySelector("td:first-child");
+        const numberCell = row.querySelector('td:first-child');
         if (numberCell) {
           numberCell.textContent = index + 1;
         }
@@ -401,9 +360,9 @@ Code Management{% endblock %} {% block extra_head %}
     }
 
     // Event listeners
-    searchInput.addEventListener("input", filterUsers);
-    roleFilter.addEventListener("change", filterUsers);
-    statusFilter.addEventListener("change", filterUsers);
+    searchInput.addEventListener('input', filterUsers);
+    roleFilter.addEventListener('change', filterUsers);
+    statusFilter.addEventListener('change', filterUsers);
 
     // Initial filter on page load
     filterUsers();
@@ -414,16 +373,138 @@ Code Management{% endblock %} {% block extra_head %}
   }
 
   function toggleUserStatus(userId, newStatus) {
-    const action = newStatus ? "activate" : "deactivate";
+    const action = newStatus ? 'activate' : 'deactivate';
     const message = `Are you sure you want to ${action} this user?`;
-
+    
     if (confirm(message)) {
-      // Here you would implement the actual status toggle
-      // For now, just reload the page
-      // In a full implementation, you'd make an AJAX call to update the status
-      alert(`User ${action}d successfully!`);
-      window.location.reload();
+      // Show loading state
+      const button = event.target.closest('button');
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      button.disabled = true;
+      
+      // Make AJAX call to toggle status
+      fetch(`/users/${userId}/toggle_status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          new_status: newStatus
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Update the UI immediately
+          const userRow = button.closest('.user-row');
+          const statusCell = userRow.querySelector('.user-status');
+          const statusToggleCell = userRow.querySelector('.user-actions');
+          
+          // Update status badge
+          if (data.new_status) {
+            statusCell.innerHTML = '<div class="user-status active"><i class="fas fa-check-circle"></i> Active</div>';
+          } else {
+            statusCell.innerHTML = '<div class="user-status inactive"><i class="fas fa-times-circle"></i> Inactive</div>';
+          }
+          
+          // Update the button
+          if (data.new_status) {
+            button.className = 'btn btn-sm btn-danger';
+            button.title = 'Deactivate User';
+            button.setAttribute('onclick', `toggleUserStatus(${userId}, false)`);
+            button.innerHTML = '<i class="fas fa-user-times"></i>';
+          } else {
+            button.className = 'btn btn-sm btn-success';
+            button.title = 'Activate User';
+            button.setAttribute('onclick', `toggleUserStatus(${userId}, true)`);
+            button.innerHTML = '<i class="fas fa-user-check"></i>';
+          }
+          
+          button.disabled = false;
+          
+          // Show success message
+          showNotification(data.message, 'success');
+          
+        } else {
+          // Show error message
+          showNotification(data.message, 'error');
+          button.innerHTML = originalHTML;
+          button.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showNotification('Network error. Please try again.', 'error');
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+      });
     }
   }
+  
+  function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification`;
+    notification.innerHTML = `
+      <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+      ${message}
+      <button class="alert-close" onclick="this.parentElement.remove()">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+    
+    // Add notification to page
+    document.body.appendChild(notification);
+    
+    // Style the notification
+    Object.assign(notification.style, {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      zIndex: '9999',
+      minWidth: '300px',
+      padding: '12px 16px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      backgroundColor: type === 'success' ? '#10b981' : '#ef4444',
+      color: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      animation: 'slideInRight 0.3s ease-out'
+    });
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.style.animation = 'slideOutRight 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+      }
+    }, 5000);
+  }
+
+  // Add CSS animations for notifications
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOutRight {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    .alert-close {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 0;
+      margin-left: auto;
+    }
+  `;
+  document.head.appendChild(style);
 </script>
 {% endblock %}
