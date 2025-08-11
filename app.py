@@ -21,6 +21,12 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.environ.get('SQLALCHEMY_TRACK_
 # Initialize database
 db = SQLAlchemy(app)
 
+# Valid user roles with new additions
+VALID_ROLES = ['admin', 'staff', 'payroll', 'project_manager']
+
+# Roles that have staff-level permissions (non-admin roles)
+STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
+
 # User Model
 class User(db.Model):
     """
@@ -54,6 +60,20 @@ class User(db.Model):
     def is_admin(self):
         """Check if user has admin privileges"""
         return self.role == 'admin'
+    
+    def has_staff_permissions(self):
+        """Check if user has staff-level permissions (includes new roles)"""
+        return self.role in STAFF_LEVEL_ROLES
+
+    def get_role_display_name(self):
+        """Get user-friendly role name"""
+        role_names = {
+            'admin': 'Administrator',
+            'staff': 'Staff User',
+            'payroll': 'Payroll Specialist',
+            'project_manager': 'Project Manager'
+        }
+        return role_names.get(self.role, self.role.title())
 
 # QR Code Model
 class QRCode(db.Model):
@@ -170,7 +190,84 @@ class AttendanceData(db.Model):
             'location_source': self.location_source
         }
 
-# Utility functions    
+# Utility functions
+def is_valid_role(role):
+    """UPDATED: Check if role is valid"""
+    return role in VALID_ROLES
+
+def has_admin_privileges(role):
+    """Check if role has admin privileges"""
+    return role == 'admin'
+
+def has_staff_level_access(role):
+    """UPDATED: Check if role has staff-level access (includes new roles)"""
+    return role in STAFF_LEVEL_ROLES
+
+def get_role_permissions(role):
+    """UPDATED: Get permissions description for a role"""
+    permissions = {
+        'admin': {
+            'title': 'Administrator Permissions',
+            'permissions': [
+                'Full QR code management (create, edit, delete)',
+                'Complete user management capabilities',
+                'System configuration access',
+                'View all system analytics',
+                'Bulk operations and data export',
+                'Access to all admin features'
+            ],
+            'restrictions': ['With great power comes great responsibility!']
+        },
+        'staff': {
+            'title': 'Staff User Permissions',
+            'permissions': [
+                'Create and edit QR codes',
+                'View all QR codes in the system',
+                'Download QR code images',
+                'Update personal profile information',
+                'Access dashboard and reports'
+            ],
+            'restrictions': [
+                'Cannot delete QR codes',
+                'Cannot manage other users',
+                'Cannot access admin settings'
+            ]
+        },
+        'payroll': {
+            'title': 'Payroll Specialist Permissions',
+            'permissions': [
+                'Create and edit QR codes',
+                'View all QR codes in the system',
+                'Download QR code images',
+                'Update personal profile information',
+                'Access dashboard and reports',
+                'Same permissions as Staff (additional features coming soon)'
+            ],
+            'restrictions': [
+                'Cannot delete QR codes',
+                'Cannot manage other users',
+                'Cannot access admin settings'
+            ]
+        },
+        'project_manager': {
+            'title': 'Project Manager Permissions',
+            'permissions': [
+                'Create and edit QR codes',
+                'View all QR codes in the system',
+                'Download QR code images',
+                'Update personal profile information',
+                'Access dashboard and reports',
+                'Same permissions as Staff (additional features coming soon)'
+            ],
+            'restrictions': [
+                'Cannot delete QR codes',
+                'Cannot manage other users',
+                'Cannot access admin settings'
+            ]
+        }
+    }
+    return permissions.get(role, {})
+    
 def get_coordinates_from_address(address):
     """
     Get latitude and longitude from address using geocoding service
@@ -950,14 +1047,32 @@ def login_required(f):
     return decorated_function
 
 def admin_required(f):
+    """Decorator to ensure user has admin privileges"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'username' not in session:
             flash('Please log in to access this page.', 'error')
             return redirect(url_for('login'))
         
-        if session.get('role') != 'admin':
+        user_role = session.get('role')
+        if not has_admin_privileges(user_role):
             flash('Administrator privileges required for this action.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def staff_or_admin_required(f):
+    """Decorator to ensure user has staff-level or admin privileges"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            flash('Please log in to access this page.', 'error')
+            return redirect(url_for('login'))
+        
+        user_role = session.get('role')
+        if not (has_admin_privileges(user_role) or has_staff_level_access(user_role)):
+            flash('Insufficient privileges to access this page.', 'error')
             return redirect(url_for('dashboard'))
         
         return f(*args, **kwargs)
@@ -1144,7 +1259,7 @@ def create_user():
                 flash('Password must be at least 6 characters long.', 'error')
                 return render_template('create_user.html')
             
-            if role not in ['staff', 'admin']:
+            if not is_valid_role(role):
                 flash('Invalid role specified.', 'error')
                 return render_template('create_user.html')
             
@@ -1303,8 +1418,8 @@ def demote_user(user_id):
             flash('Cannot demote the last admin user. Promote another user to admin first.', 'error')
             return redirect(url_for('users'))
         
-        if user_to_demote.role == 'staff':
-            flash('User is already staff.', 'info')
+        if has_staff_level_access(user_to_demote.role):
+            flash('User already has staff-level permissions.', 'info')
         else:
             user_to_demote.role = 'staff'
             db.session.commit()
@@ -1342,7 +1457,7 @@ def edit_user(user_id):
                 flash('Name, email, and role are required.', 'error')
                 return render_template('edit_user.html', user=user_to_edit)
             
-            if new_role not in ['staff', 'admin']:
+            if not is_valid_role(new_role):
                 flash('Invalid role specified.', 'error')
                 return render_template('edit_user.html', user=user_to_edit)
             
@@ -1396,6 +1511,8 @@ def edit_user(user_id):
 @admin_required
 def user_stats_api():
     """API endpoint for user statistics"""
+    payroll_users = User.query.filter_by(role='payroll', active_status=True).count()
+    project_manager_users = User.query.filter_by(role='project_manager', active_status=True).count()
     try:
         total_users = User.query.count()
         active_users = User.query.filter_by(active_status=True).count()
@@ -1419,6 +1536,8 @@ def user_stats_api():
             'active_users': active_users,
             'admin_users': admin_users,
             'staff_users': staff_users,
+            'payroll_users': payroll_users,
+            'project_manager_users': project_manager_users,
             'inactive_users': inactive_users,
             'recent_registrations': recent_registrations,
             'recent_logins': recent_logins
@@ -1428,6 +1547,26 @@ def user_stats_api():
         print(f"Error fetching user stats: {e}")
         return jsonify({'error': 'Failed to fetch user statistics'}), 500
 
+@app.route('/api/roles/permissions')
+@admin_required
+def role_permissions_api():
+    """NEW: API endpoint to get role permissions data"""
+    try:
+        permissions_data = {}
+        for role in VALID_ROLES:
+            permissions_data[role] = get_role_permissions(role)
+        
+        return jsonify({
+            'success': True,
+            'roles': permissions_data,
+            'valid_roles': VALID_ROLES,
+            'staff_level_roles': STAFF_LEVEL_ROLES
+        })
+        
+    except Exception as e:
+        print(f"Error fetching role permissions: {e}")
+        return jsonify({'error': 'Failed to fetch role permissions'}), 500
+    
 @app.route('/api/geocode', methods=['POST'])
 @login_required  # Add this decorator if you have it
 def geocode_address():
