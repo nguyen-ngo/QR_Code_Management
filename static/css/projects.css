@@ -39,6 +39,36 @@
   background: linear-gradient(90deg, #2563eb, #1d4ed8);
 }
 
+.header-navigation {
+  margin-bottom: 1rem;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  color: #475569;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  transition: all 0.2s ease-in-out;
+}
+
+.back-button:hover {
+  background: #e2e8f0;
+  color: #334155;
+  transform: translateX(-2px);
+  text-decoration: none;
+}
+
+.back-button i {
+  font-size: 0.875rem;
+}
+
 .header-content h1 {
   font-size: 1.875rem;
   font-weight: 700;
@@ -409,6 +439,16 @@
     align-items: stretch;
     gap: 1rem;
     text-align: center;
+  }
+  
+  .header-navigation {
+    text-align: left;
+    margin-bottom: 0.5rem;
+  }
+  
+  .back-button {
+    display: inline-flex;
+    justify-content: flex-start;
   }
   
   .header-actions {

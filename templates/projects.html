@@ -10,6 +10,12 @@
   <!-- Page Header -->
   <div class="projects-header">
     <div class="header-content">
+      <div class="header-navigation">
+        <a href="{{ url_for('dashboard') }}" class="back-button">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back to Dashboard</span>
+        </a>
+      </div>
       <h1><i class="fas fa-folder"></i> Projects</h1>
       <p>Organize and manage your QR code projects</p>
     </div>
@@ -105,7 +111,7 @@
             <i class="fas fa-edit"></i>
             Edit
           </a>
-          
+          <!-- Activate/Deactivate button (for future use)
           <form method="POST" action="{{ url_for('toggle_project', project_id=project.id) }}" 
                 style="display: inline;">
             <button type="submit" 
@@ -114,6 +120,7 @@
               {% if project.active_status %}Deactivate{% else %}Activate{% endif %}
             </button>
           </form>
+          -->
         </div>
       </div>
       {% endfor %}
