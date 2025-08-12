@@ -97,13 +97,15 @@ class QRCode(db.Model):
     created_date = db.Column(db.DateTime, default=datetime.utcnow)
     active_status = db.Column(db.Boolean, default=True)
     qr_url = db.Column(db.String(255), unique=True, nullable=True)
-    
-    # NEW: Address Coordinates Fields
+    # Address Coordinates Fields
     address_latitude = db.Column(db.Float, nullable=True)
     address_longitude = db.Column(db.Float, nullable=True)
     coordinate_accuracy = db.Column(db.String(50), nullable=True, default='geocoded')
     coordinates_updated_date = db.Column(db.DateTime, nullable=True)
-    
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    # The project_id field:
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+
     @property
     def has_coordinates(self):
         """Check if this QR code has address coordinates"""
@@ -123,6 +125,36 @@ class QRCode(db.Model):
         self.coordinate_accuracy = accuracy
         self.coordinates_updated_date = datetime.utcnow()
 
+class Project(db.Model):
+    """
+    Project model to organize QR codes by projects
+    """
+    __tablename__ = 'projects'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_date = db.Column(db.DateTime, default=datetime.utcnow)
+    active_status = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    qr_codes = db.relationship('QRCode', backref='project', lazy='dynamic')
+    creator = db.relationship('User', backref='created_projects')
+    
+    def __repr__(self):
+        return f'<Project {self.name}>'
+    
+    @property
+    def qr_count(self):
+        """Get count of QR codes in this project"""
+        return self.qr_codes.filter_by(active_status=True).count()
+    
+    @property
+    def total_qr_count(self):
+        """Get total count of QR codes (including inactive) in this project"""
+        return self.qr_codes.count()
+    
 # Attendance Data Model
 class AttendanceData(db.Model):
     """Enhanced attendance tracking model with location support"""
@@ -1186,6 +1218,70 @@ def register():
     
     return render_template('register.html')
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Enhanced user authentication with comprehensive logging"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            flash('Please enter both username and password.', 'error')
+            return render_template('login.html')
+        
+        try:
+            # Find user (case-insensitive username)
+            user = User.query.filter(
+                User.username.ilike(username),
+                User.active_status == True
+            ).first()
+            
+            if user and user.check_password(password):
+                # Successful login
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['role'] = user.role
+                session['full_name'] = user.full_name
+                session['login_time'] = datetime.now().isoformat()
+                
+                # Update last login date
+                user.last_login_date = datetime.utcnow()
+                db.session.commit()
+                
+                # Log successful login
+                logger_handler.log_user_login(
+                    user_id=user.id,
+                    username=user.username,
+                    success=True
+                )
+                
+                flash(f'Welcome back, {user.full_name}!', 'success')
+                print(f"User {user.username} logged in successfully")
+                
+                # Redirect to intended page or dashboard
+                next_page = request.args.get('next')
+                return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+                
+            else:
+                # Invalid credentials - log failed attempt
+                user_id = user.id if user else None
+                logger_handler.log_user_login(
+                    user_id=user_id,
+                    username=username,
+                    success=False,
+                    failure_reason="Invalid credentials"
+                )
+                
+                flash('Invalid username or password.', 'error')
+                print(f"Failed login attempt for username: {username}")
+                
+        except Exception as e:
+            logger_handler.log_database_error('user_login', e)
+            print(f"Login error: {e}")
+            flash('Login error. Please try again.', 'error')
+    
+    return render_template('login.html')
+
 @app.route('/logout')
 def logout():
     """User logout endpoint with session duration logging"""
@@ -1865,272 +1961,6 @@ def permanently_delete_user(user_id):
         flash('Error deleting user. Please try again.', 'error')
         return redirect(url_for('users'))
     
-# BULK USER OPERATIONS
-@app.route('/users/bulk/deactivate', methods=['POST'])
-@admin_required
-def bulk_deactivate_users():
-    """Bulk deactivate multiple users (Admin only)"""
-    try:
-        user_ids = request.json.get('user_ids', [])
-        current_user_id = session['user_id']
-        current_user = User.query.get(current_user_id)
-        
-        if not user_ids:
-            return jsonify({'error': 'No users selected'}), 400
-        
-        # Filter out current user and validate
-        valid_user_ids = []
-        admin_count = User.query.filter_by(role='admin', active_status=True).count()
-        admins_to_deactivate = 0
-        
-        for user_id in user_ids:
-            if user_id == current_user_id:
-                continue  # Skip current user
-            
-            user = User.query.get(user_id)
-            if user and user.active_status:
-                if user.role == 'admin':
-                    admins_to_deactivate += 1
-                valid_user_ids.append(user_id)
-        
-        # Check if we're trying to deactivate all admins
-        if admin_count - admins_to_deactivate < 1:
-            return jsonify({'error': 'Cannot deactivate all admin users'}), 400
-        
-        # Deactivate users
-        deactivated_count = 0
-        for user_id in valid_user_ids:
-            user = User.query.get(user_id)
-            if user:
-                user.active_status = False
-                deactivated_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully deactivated {deactivated_count} users',
-            'deactivated_count': deactivated_count
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in bulk deactivate: {e}")
-        return jsonify({'error': 'Failed to deactivate users'}), 500
-
-@app.route('/users/bulk/activate', methods=['POST'])
-@admin_required
-def bulk_activate_users():
-    """Bulk activate multiple users (Admin only)"""
-    try:
-        user_ids = request.json.get('user_ids', [])
-        
-        if not user_ids:
-            return jsonify({'error': 'No users selected'}), 400
-        
-        # Activate users
-        activated_count = 0
-        for user_id in user_ids:
-            user = User.query.get(user_id)
-            if user and not user.active_status:
-                user.active_status = True
-                activated_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully activated {activated_count} users',
-            'activated_count': activated_count
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in bulk activate: {e}")
-        return jsonify({'error': 'Failed to activate users'}), 500
-
-@app.route('/users/bulk-permanently-delete', methods=['POST'])
-@admin_required
-def bulk_permanently_delete_users():
-    """Bulk permanently delete users but preserve associated QR codes (Admin only)"""
-    try:
-        current_user_id = session['user_id']
-        current_user = User.query.get(current_user_id)
-        
-        # Get user IDs from request
-        user_ids = request.json.get('user_ids', [])
-        
-        if not user_ids:
-            return jsonify({'error': 'No user IDs provided'}), 400
-        
-        # Convert string IDs to integers for safety
-        try:
-            user_ids = [int(uid) for uid in user_ids]
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid user IDs provided'}), 400
-        
-        # Security validations
-        deleted_users = []
-        preserved_qr_count = 0  # Changed from deleted_qr_count to preserved_qr_count
-        errors = []
-        
-        for user_id in user_ids:
-            try:
-                # Skip current user
-                if user_id == current_user_id:
-                    errors.append(f"Cannot delete your own account")
-                    continue
-                
-                user_to_delete = User.query.get(user_id)
-                if not user_to_delete:
-                    errors.append(f"User with ID {user_id} not found")
-                    continue
-                
-                # Only allow deletion of inactive users for safety
-                if user_to_delete.active_status:
-                    errors.append(f"User '{user_to_delete.full_name}' must be deactivated before permanent deletion")
-                    continue
-                
-                # If deleting an admin, ensure at least one admin remains
-                if user_to_delete.role == 'admin':
-                    active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
-                    if active_admin_count <= 1:
-                        errors.append(f"Cannot delete the last admin user '{user_to_delete.full_name}'")
-                        continue
-                
-                # Count QR codes before deletion for reporting
-                user_qr_count = user_to_delete.created_qr_codes.count()
-                preserved_qr_count += user_qr_count
-                
-                # MODIFIED: Preserve QR codes by setting created_by to NULL instead of deleting them
-                orphaned_qr_codes = QRCode.query.filter_by(created_by=user_id).all()
-                for qr_code in orphaned_qr_codes:
-                    qr_code.created_by = None
-                
-                # Update any users that were created by this user (set created_by to None)
-                created_users = User.query.filter_by(created_by=user_id).all()
-                for created_user in created_users:
-                    created_user.created_by = None
-                
-                # Delete the user
-                deleted_users.append({
-                    'name': user_to_delete.full_name,
-                    'username': user_to_delete.username,
-                    'qr_count': user_qr_count
-                })
-                
-                db.session.delete(user_to_delete)
-                
-            except Exception as e:
-                print(f"Error processing user {user_id}: {e}")
-                errors.append(f"Error processing user ID {user_id}")
-                continue
-        
-        # Commit all changes if we have deletions
-        if deleted_users:
-            db.session.commit()
-            
-            # Log the bulk deletion
-            deleted_names = [user['name'] for user in deleted_users]
-            print(f"Admin {current_user.username} permanently deleted {len(deleted_users)} users: {', '.join(deleted_names)}, preserved {preserved_qr_count} QR codes")
-        
-        # Prepare response message
-        if deleted_users and not errors:
-            message = f'Successfully deleted {len(deleted_users)} users and preserved {preserved_qr_count} associated QR codes'
-        elif deleted_users and errors:
-            message = f'Deleted {len(deleted_users)} users and preserved {preserved_qr_count} QR codes. {len(errors)} operations failed'
-        elif not deleted_users and errors:
-            return jsonify({
-                'success': False,
-                'error': 'No users could be deleted',
-                'details': errors
-            }), 400
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'No valid users to delete'
-            }), 400
-        
-        return jsonify({
-            'success': True,
-            'message': message,
-            'deleted_count': len(deleted_users),
-            'preserved_qr_count': preserved_qr_count,  # Changed from deleted_qr_count
-            'errors': errors if errors else None
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error in bulk permanently delete users: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to delete users. Please try again.'
-        }), 500
-    
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Enhanced user authentication with comprehensive logging"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        
-        if not username or not password:
-            flash('Please enter both username and password.', 'error')
-            return render_template('login.html')
-        
-        try:
-            # Find user (case-insensitive username)
-            user = User.query.filter(
-                User.username.ilike(username),
-                User.active_status == True
-            ).first()
-            
-            if user and user.check_password(password):
-                # Successful login
-                session['user_id'] = user.id
-                session['username'] = user.username
-                session['role'] = user.role
-                session['full_name'] = user.full_name
-                session['login_time'] = datetime.now().isoformat()
-                
-                # Update last login date
-                user.last_login_date = datetime.utcnow()
-                db.session.commit()
-                
-                # Log successful login
-                logger_handler.log_user_login(
-                    user_id=user.id,
-                    username=user.username,
-                    success=True
-                )
-                
-                flash(f'Welcome back, {user.full_name}!', 'success')
-                print(f"User {user.username} logged in successfully")
-                
-                # Redirect to intended page or dashboard
-                next_page = request.args.get('next')
-                return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-                
-            else:
-                # Invalid credentials - log failed attempt
-                user_id = user.id if user else None
-                logger_handler.log_user_login(
-                    user_id=user_id,
-                    username=username,
-                    success=False,
-                    failure_reason="Invalid credentials"
-                )
-                
-                flash('Invalid username or password.', 'error')
-                print(f"Failed login attempt for username: {username}")
-                
-        except Exception as e:
-            logger_handler.log_database_error('user_login', e)
-            print(f"Login error: {e}")
-            flash('Login error. Please try again.', 'error')
-    
-    return render_template('login.html')
-
 # Admin logging routes
 @app.route('/admin/logs')
 @admin_required
@@ -2239,63 +2069,220 @@ def api_cleanup_logs():
             'success': False,
             'error': 'Failed to cleanup old logs'
         }), 500
+
+# PROJECT MANAGEMENT ROUTES
+@app.route('/projects')
+@admin_required
+def projects():
+    """Display all projects"""
+    try:
+        projects = Project.query.order_by(Project.created_date.desc()).all()
+        return render_template('projects.html', projects=projects)
+    except Exception as e:
+        logger_handler.log_database_error('projects_list', e)
+        flash('Error loading projects list.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/projects/create', methods=['GET', 'POST'])
+@admin_required
+@log_database_operations('project_creation')
+def create_project():
+    """Create new project"""
+    if request.method == 'POST':
+        try:
+            name = request.form['name']
+            description = request.form.get('description', '')
+            
+            # Check if project name already exists
+            if Project.query.filter_by(name=name).first():
+                flash('Project name already exists.', 'error')
+                return render_template('create_project.html')
+            
+            # Create new project
+            new_project = Project(
+                name=name,
+                description=description,
+                created_by=session['user_id']
+            )
+            
+            db.session.add(new_project)
+            db.session.commit()
+            
+            # Log project creation
+            logger_handler.logger.info(f"User {session['username']} created new project: {name}")
+            
+            flash(f'Project "{name}" created successfully.', 'success')
+            return redirect(url_for('projects'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger_handler.log_database_error('project_creation', e)
+            flash('Project creation failed. Please try again.', 'error')
     
+    return render_template('create_project.html')
+
+@app.route('/projects/<int:project_id>/edit', methods=['GET', 'POST'])
+@admin_required
+@log_database_operations('project_edit')
+def edit_project(project_id):
+    """Edit existing project"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        if request.method == 'POST':
+            old_name = project.name
+            old_description = project.description
+            
+            project.name = request.form['name']
+            project.description = request.form.get('description', '')
+            
+            db.session.commit()
+            
+            # Log project update
+            changes = {}
+            if old_name != project.name:
+                changes['name'] = {'old': old_name, 'new': project.name}
+            if old_description != project.description:
+                changes['description'] = {'old': old_description, 'new': project.description}
+            
+            if changes:
+                logger_handler.logger.info(f"User {session['username']} updated project {project_id}: {json.dumps(changes)}")
+            
+            flash(f'Project "{project.name}" updated successfully.', 'success')
+            return redirect(url_for('projects'))
+        
+        return render_template('edit_project.html', project=project)
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('project_edit', e)
+        flash('Project update failed. Please try again.', 'error')
+        return redirect(url_for('projects'))
+
+@app.route('/projects/<int:project_id>/toggle', methods=['POST'])
+@admin_required
+@log_database_operations('project_toggle')
+def toggle_project(project_id):
+    """Toggle project active status"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        old_status = project.active_status
+        project.active_status = not project.active_status
+        
+        db.session.commit()
+        
+        # Log status change
+        status = "activated" if project.active_status else "deactivated"
+        logger_handler.logger.info(f"User {session['username']} {status} project: {project.name}")
+        
+        flash(f'Project "{project.name}" {status} successfully.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('project_toggle', e)
+        flash('Failed to update project status.', 'error')
+    
+    return redirect(url_for('projects'))
+
+# API ENDPOINTS FOR DROPDOWN FUNCTIONALITY
+@app.route('/api/projects/active')
+@login_required
+def api_active_projects():
+    """Get active projects for dropdown"""
+    try:
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
+        
+        projects_data = [
+            {
+                'id': project.id,
+                'name': project.name,
+                'description': project.description,
+                'qr_count': project.qr_count
+            }
+            for project in projects
+        ]
+        
+        return jsonify({
+            'success': True,
+            'projects': projects_data
+        })
+        
+    except Exception as e:
+        logger_handler.log_database_error('api_active_projects', e)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch projects'
+        }), 500
+        
 # QR code management routes
 @app.route('/qr-codes/create', methods=['GET', 'POST'])
 @login_required
 @log_database_operations('qr_code_creation')
 def create_qr_code():
-    """Enhanced create QR code with comprehensive logging"""
+    """Enhanced create QR code with readable URL format and coordinates saving"""
     if request.method == 'POST':
         try:
             name = request.form['name']
             location = request.form['location']
             location_address = request.form['location_address']
-            location_event = request.form['location_event']
+            location_event = request.form.get('location_event', '')
+            project_id = request.form.get('project_id')
             
-            # Get coordinates from hidden form fields (set by JavaScript)
-            address_latitude = request.form.get('address_latitude')
-            address_longitude = request.form.get('address_longitude')
+            # Extract coordinates data from form
+            latitude = request.form.get('latitude')
+            longitude = request.form.get('longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
             
-            # Create QR code record first (without QR image and URL)
+            # Convert coordinates to float if they exist
+            address_latitude = None
+            address_longitude = None
+            has_coordinates = False
+            
+            if latitude and longitude:
+                try:
+                    address_latitude = float(latitude)
+                    address_longitude = float(longitude)
+                    has_coordinates = True
+                    print(f"✓ Coordinates received: {address_latitude}, {address_longitude}")
+                except (ValueError, TypeError) as e:
+                    print(f"⚠️ Invalid coordinates format: {e}")
+                    address_latitude = None
+                    address_longitude = None
+                    has_coordinates = False
+            
+            # Validate project_id if provided
+            project = None
+            if project_id:
+                project_id = int(project_id)
+                project = Project.query.get(project_id)
+                if not project or not project.active_status:
+                    flash('Selected project is not valid or inactive.', 'error')
+                    return render_template('create_qr_code.html')
+            
+            # Create new QR code record first (without URL and image)
             new_qr_code = QRCode(
                 name=name,
                 location=location,
                 location_address=location_address,
                 location_event=location_event,
-                qr_code_image='',  # Temporary empty value
-                qr_url='',         # Temporary empty value
-                created_by=session['user_id']
+                qr_code_image="",  # Will be updated after URL generation
+                qr_url="",  # Will be updated after ID is assigned
+                created_by=session['user_id'],
+                project_id=project_id,
+                address_latitude=address_latitude,
+                address_longitude=address_longitude,
+                coordinate_accuracy=coordinate_accuracy if has_coordinates else None,
+                coordinates_updated_date=datetime.utcnow() if has_coordinates else None
             )
-            
-            # Add coordinates if available
-            has_coordinates = False
-            if address_latitude and address_longitude:
-                try:
-                    lat = float(address_latitude)
-                    lng = float(address_longitude)
-                    new_qr_code.address_latitude = lat
-                    new_qr_code.address_longitude = lng
-                    new_qr_code.coordinate_accuracy = coordinate_accuracy
-                    new_qr_code.coordinates_updated_date = datetime.utcnow()
-                    has_coordinates = True
-                    print(f"✅ Added coordinates to QR code: {lat:.10f}, {lng:.10f}")
-                except (ValueError, TypeError) as e:
-                    logger_handler.log_flask_error(
-                        error_type="invalid_coordinates",
-                        error_message=f"Invalid coordinates provided: {e}"
-                    )
-                    print(f"⚠️ Invalid coordinates provided: {e}")
             
             # Add to session and flush to get the ID
             db.session.add(new_qr_code)
             db.session.flush()  # This assigns the ID without committing
             
-            # Now we can use the ID to generate the URL
+            # Now generate the readable URL using the ID
             qr_url = generate_qr_url(name, new_qr_code.id)
             
-            # Generate QR code data with the destination URL
+            # Generate QR code data with the destination URL  
             qr_data = f"{request.url_root}qr/{qr_url}"
             qr_image = generate_qr_code(qr_data)
             
@@ -2306,160 +2293,135 @@ def create_qr_code():
             # Now commit all changes
             db.session.commit()
             
-            # Log QR code creation
-            qr_data_for_log = {
+            # Enhanced logging with project and coordinates information
+            log_data = {
+                'qr_code_id': new_qr_code.id,
+                'name': name,
                 'location': location,
-                'location_address': location_address,
-                'location_event': location_event,
-                'has_coordinates': has_coordinates
+                'qr_url': qr_url,  # Log the readable URL
+                'project_id': project_id,
+                'project_name': project.name if project else None,
+                'has_coordinates': has_coordinates,
+                'latitude': address_latitude,
+                'longitude': address_longitude,
+                'coordinate_accuracy': coordinate_accuracy
             }
+            logger_handler.logger.info(f"User {session['username']} created QR code: {json.dumps(log_data)}")
             
-            if has_coordinates:
-                qr_data_for_log.update({
-                    'latitude': new_qr_code.address_latitude,
-                    'longitude': new_qr_code.address_longitude,
-                    'coordinate_accuracy': coordinate_accuracy
-                })
+            # Success message with coordinates info
+            project_info = f" in project '{project.name}'" if project else ""
+            coord_info = f" with coordinates ({new_qr_code.coordinates_display})" if has_coordinates else ""
             
-            logger_handler.log_qr_code_created(
-                qr_code_id=new_qr_code.id,
-                qr_code_name=name,
-                created_by_user_id=session['user_id'],
-                qr_data=qr_data_for_log
-            )
-            
-            coord_msg = ""
-            if new_qr_code.has_coordinates:
-                coord_msg = f" with coordinates ({new_qr_code.coordinates_display})"
-                
-            flash(f'QR code created successfully{coord_msg}!', 'success')
+            flash(f'QR Code "{name}" created successfully{project_info}{coord_info}! URL: {qr_url}', 'success')
             return redirect(url_for('dashboard'))
             
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('qr_code_creation', e)
-            flash('Failed to create QR code. Please try again.', 'error')
+            flash('QR Code creation failed. Please try again.', 'error')
+            print(f"❌ QR Code creation error: {e}")
     
-    return render_template('create_qr_code.html')
+    # Get active projects for dropdown
+    projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
+    return render_template('create_qr_code.html', projects=projects)
 
 @app.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'])
 @login_required
-@log_database_operations('qr_code_update')
+@log_database_operations('qr_code_edit')
 def edit_qr_code(qr_id):
-    """Enhanced edit QR code with change tracking and logging - PRESERVING EXACT ROUTE"""
+    """Enhanced edit QR code with project association and URL regeneration"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         
-        # Check permissions (admin can edit any, users can edit their own)
-        if not has_admin_privileges(session.get('role')) and qr_code.created_by != session['user_id']:
-            flash('You can only edit QR codes you created.', 'error')
-            return redirect(url_for('dashboard'))
-        
         if request.method == 'POST':
             # Track changes for logging
-            changes = {}
-            
-            # Store original values for comparison
-            original_values = {
+            old_data = {
                 'name': qr_code.name,
                 'location': qr_code.location,
                 'location_address': qr_code.location_address,
-                'location_event': qr_code.location_event
+                'location_event': qr_code.location_event,
+                'project_id': qr_code.project_id,
+                'qr_url': qr_code.qr_url
             }
             
             # Update QR code fields
             new_name = request.form['name']
-            new_address = request.form['location_address']
-            
             qr_code.name = new_name
             qr_code.location = request.form['location']
-            qr_code.location_address = new_address
-            qr_code.location_event = request.form['location_event']
+            qr_code.location_address = request.form['location_address']
+            qr_code.location_event = request.form.get('location_event', '')
             
-            # Track field changes
-            for field, old_value in original_values.items():
-                new_value = getattr(qr_code, field)
-                if old_value != new_value:
-                    changes[field] = {'old': old_value, 'new': new_value}
-            
-            # Handle address coordinates
-            address_latitude = request.form.get('address_latitude')
-            address_longitude = request.form.get('address_longitude')
+            # Handle coordinates update
+            latitude = request.form.get('latitude')
+            longitude = request.form.get('longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
             
-            # Update coordinates if provided
-            if address_latitude and address_longitude:
+            if latitude and longitude:
                 try:
-                    lat = float(address_latitude)
-                    lng = float(address_longitude)
-                    
-                    # Check if coordinates changed
-                    if (qr_code.address_latitude != lat or 
-                        qr_code.address_longitude != lng or 
-                        qr_code.coordinate_accuracy != coordinate_accuracy):
-                        
-                        old_coords = qr_code.coordinates_display
-                        qr_code.address_latitude = lat
-                        qr_code.address_longitude = lng
-                        qr_code.coordinate_accuracy = coordinate_accuracy
-                        qr_code.coordinates_updated_date = datetime.utcnow()
-                        changes['coordinates'] = {
-                            'old': old_coords,
-                            'new': qr_code.coordinates_display
-                        }
-                        print(f"✅ Updated coordinates for QR code: {lat:.10f}, {lng:.10f}")
-                except (ValueError, TypeError) as e:
-                    logger_handler.log_flask_error(
-                        error_type="invalid_coordinates_update",
-                        error_message=f"Invalid coordinates during update: {e}"
-                    )
-                    print(f"⚠️ Invalid coordinates provided during edit: {e}")
-
-            # Check if name changed and handle URL regeneration
-            original_name = original_values['name']
-            if original_name != new_name:
-                # Name changed, regenerate URL
-                new_qr_url = generate_qr_url(new_name, qr_code.id)
-                qr_code.qr_url = new_qr_url
-                
-                # Update QR code data with new URL
-                qr_data = f"{request.url_root}qr/{new_qr_url}"
-            else:
-                # Name didn't change, use existing URL (if it exists)
-                if qr_code.qr_url:
-                    qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
+                    qr_code.address_latitude = float(latitude)
+                    qr_code.address_longitude = float(longitude)
+                    qr_code.coordinate_accuracy = coordinate_accuracy
+                    qr_code.coordinates_updated_date = datetime.utcnow()
+                except (ValueError, TypeError):
+                    pass  # Keep existing coordinates if invalid
+            
+            # Handle project association
+            new_project_id = request.form.get('project_id')
+            if new_project_id:
+                new_project_id = int(new_project_id)
+                project = Project.query.get(new_project_id)
+                if project and project.active_status:
+                    qr_code.project_id = new_project_id
                 else:
-                    # Fallback: generate URL if it doesn't exist (for legacy QR codes)
-                    new_qr_url = generate_qr_url(new_name, qr_code.id)
-                    qr_code.qr_url = new_qr_url
-                    qr_data = f"{request.url_root}qr/{new_qr_url}"
-
-            # Regenerate QR code with updated data (destination URL)
-            qr_code.qr_code_image = generate_qr_code(qr_data)
-
+                    flash('Selected project is not valid or inactive.', 'error')
+                    return render_template('edit_qr_code.html', qr_code=qr_code, projects=Project.query.filter_by(active_status=True).all())
+            else:
+                qr_code.project_id = None
+            
+            # Regenerate URL if name changed
+            name_changed = old_data['name'] != new_name
+            if name_changed:
+                new_qr_url = generate_qr_url(new_name, qr_code.id)
+                
+                # Regenerate QR code image with new URL
+                qr_data = f"{request.url_root}qr/{new_qr_url}"
+                new_qr_image = generate_qr_code(qr_data)
+                
+                qr_code.qr_url = new_qr_url
+                qr_code.qr_code_image = new_qr_image
+            
             db.session.commit()
             
-            # Log QR code update if there were changes
-            if changes:
-                logger_handler.log_qr_code_updated(
-                    qr_code_id=qr_code.id,
-                    qr_code_name=qr_code.name,
-                    updated_by_user_id=session['user_id'],
-                    changes=changes
-                )
+            # Log changes
+            new_data = {
+                'name': qr_code.name,
+                'location': qr_code.location,
+                'location_address': qr_code.location_address,
+                'location_event': qr_code.location_event,
+                'project_id': qr_code.project_id,
+                'qr_url': qr_code.qr_url
+            }
             
-            coord_msg = ""
-            if qr_code.has_coordinates:
-                coord_msg = f" Coordinates: ({qr_code.coordinates_display})"
-                
-            flash(f'QR code updated successfully!{coord_msg}', 'success')
+            changes = {}
+            for key in old_data:
+                if old_data[key] != new_data[key]:
+                    changes[key] = {'old': old_data[key], 'new': new_data[key]}
+            
+            if changes:
+                logger_handler.logger.info(f"User {session['username']} updated QR code {qr_id}: {json.dumps(changes)}")
+            
+            url_message = f" URL updated to: {qr_code.qr_url}" if name_changed else ""
+            flash(f'QR Code "{qr_code.name}" updated successfully!{url_message}', 'success')
             return redirect(url_for('dashboard'))
         
-        return render_template('edit_qr_code.html', qr_code=qr_code)
+        # Get active projects for dropdown
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
+        return render_template('edit_qr_code.html', qr_code=qr_code, projects=projects)
         
     except Exception as e:
-        logger_handler.log_database_error('qr_code_update', e)
-        flash('Error updating QR code. Please try again.', 'error')
+        db.session.rollback()
+        logger_handler.log_database_error('qr_code_edit', e)
+        flash('QR Code update failed. Please try again.', 'error')
         return redirect(url_for('dashboard'))
 
 @app.route('/qr-codes/<int:qr_id>/delete', methods=['GET', 'POST'])

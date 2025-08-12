@@ -431,6 +431,25 @@
                 <span id="locationCounter">0/100</span>
               </div>
             </div>
+
+            <div class="form-group">
+              <label for="project_id">
+                <i class="fas fa-folder"></i>
+                Project (Optional)
+              </label>
+              <select id="project_id" name="project_id" class="form-select">
+                <option value="">Select a project (Optional)</option>
+                {% for project in projects %}
+                <option value="{{ project.id }}">
+                  {{ project.name }} ({{ project.qr_count }} QR codes)
+                </option>
+                {% endfor %}
+              </select>
+              <small class="form-help">
+                <i class="fas fa-info-circle"></i>
+                Organize your QR code by assigning it to a project
+              </small>
+            </div>
           </div>
 
           <!-- Location Details Section -->
@@ -541,17 +560,9 @@
           </div>
 
           <!-- Hidden coordinate fields for form submission -->
-          <input type="hidden" id="address_latitude" name="address_latitude" />
-          <input
-            type="hidden"
-            id="address_longitude"
-            name="address_longitude"
-          />
-          <input
-            type="hidden"
-            id="coordinate_accuracy"
-            name="coordinate_accuracy"
-          />
+          <input type="hidden" id="latitude" name="latitude" value="" />
+          <input type="hidden" id="longitude" name="longitude" value="" />
+          <input type="hidden" id="coordinate_accuracy" name="coordinate_accuracy" value="" />
 
           <!-- Form Actions -->
           <div class="form-actions">
@@ -581,6 +592,7 @@
         initializeForm();
         initializeCharacterCounters();
         initializeCoordinatesFeature();
+        initializeProjectDropdown();
       });
 
       function initializeForm() {
@@ -730,12 +742,31 @@
       }
 
       function updateHiddenFields() {
-        document.getElementById("address_latitude").value =
-          coordinatesData.latitude || "";
-        document.getElementById("address_longitude").value =
-          coordinatesData.longitude || "";
-        document.getElementById("coordinate_accuracy").value =
-          coordinatesData.accuracy || "";
+        console.log("📝 Updating hidden coordinate fields");
+        
+        // Update hidden form fields with coordinate data
+        const latitudeField = document.getElementById("latitude");
+        const longitudeField = document.getElementById("longitude");
+        const accuracyField = document.getElementById("coordinate_accuracy");
+        
+        if (coordinatesData.latitude && coordinatesData.longitude) {
+          latitudeField.value = coordinatesData.latitude;
+          longitudeField.value = coordinatesData.longitude;
+          accuracyField.value = coordinatesData.accuracy || 'geocoded';
+          
+          console.log("✓ Hidden fields updated:", {
+            latitude: latitudeField.value,
+            longitude: longitudeField.value,
+            accuracy: accuracyField.value
+          });
+        } else {
+          // Clear fields if no coordinates
+          latitudeField.value = '';
+          longitudeField.value = '';
+          accuracyField.value = '';
+          
+          console.log("✓ Hidden fields cleared");
+        }
       }
 
       function clearCoordinates() {
@@ -745,11 +776,18 @@
           accuracy: null,
         };
 
-        updateCoordinatesDisplay();
+        // Clear display
+        document.getElementById("latitudeValue").textContent = "--";
+        document.getElementById("longitudeValue").textContent = "--";
+        document.getElementById("accuracyValue").textContent = "--";
+
+        // Clear hidden fields
         updateHiddenFields();
 
-        // Clear status
-        document.getElementById("coordinateStatus").innerHTML = "";
+        // Hide coordinates section
+        document.getElementById("coordinatesSection").style.display = "none";
+
+        console.log("🧹 Coordinates cleared");
       }
 
       function showStatus(type, message) {
@@ -776,47 +814,32 @@
       }
 
       function validateForm() {
-        const requiredFields = [
-          { id: "name", name: "QR Code Name" },
-          { id: "location", name: "Location Name" },
-          { id: "location_address", name: "Complete Address" },
-          { id: "location_event", name: "Event or Purpose" },
-        ];
+        const name = document.getElementById("name").value.trim();
+        const location = document.getElementById("location").value.trim();
+        const address = document.getElementById("location_address").value.trim();
 
-        let isValid = true;
+        if (!name || !location || !address) {
+          alert("Please fill in all required fields");
+          return false;
+        }
 
-        requiredFields.forEach((field) => {
-          const input = document.getElementById(field.id);
-          if (!input.value.trim()) {
-            showFieldError(input, `${field.name} is required`);
-            isValid = false;
-          } else {
-            clearFieldError(input);
+        // DEBUG: Log coordinates being submitted
+        const latitude = document.getElementById("latitude").value;
+        const longitude = document.getElementById("longitude").value;
+        const accuracy = document.getElementById("coordinate_accuracy").value;
+        
+        console.log("🚀 Form submission data:", {
+          name: name,
+          location: location,
+          address: address,
+          coordinates: {
+            latitude: latitude,
+            longitude: longitude,
+            accuracy: accuracy
           }
         });
 
-        // Additional validation
-        const name = document.getElementById("name").value.trim();
-        if (name && name.length < 3) {
-          showFieldError(
-            document.getElementById("name"),
-            "QR Code name must be at least 3 characters"
-          );
-          isValid = false;
-        }
-
-        const address = document
-          .getElementById("location_address")
-          .value.trim();
-        if (address && address.length < 10) {
-          showFieldError(
-            document.getElementById("location_address"),
-            "Please provide a complete address"
-          );
-          isValid = false;
-        }
-
-        return isValid;
+        return true;
       }
 
       function showFieldError(input, message) {
@@ -840,6 +863,23 @@
         const errorElement = formGroup.querySelector(".error-message");
         if (errorElement) {
           errorElement.remove();
+        }
+      }
+
+      // Project dropdown functionality
+      function initializeProjectDropdown() {
+        const projectSelect = document.getElementById('project_id');
+        
+        if (projectSelect) {
+          // Load projects dynamically (optional enhancement)
+          // For now, projects are loaded server-side
+          projectSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            
+            if (selectedOption.value) {
+              console.log('Selected project:', selectedOption.text);
+            }
+          });
         }
       }
     </script>

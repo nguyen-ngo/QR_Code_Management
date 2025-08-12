@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Edit Project - QR Code Management{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="projects-page">
+  <!-- Page Header -->
+  <div class="projects-header">
+    <div class="header-content">
+      <h1><i class="fas fa-folder-open"></i> Edit Project</h1>
+      <p>Update project information and settings</p>
+    </div>
+    <div class="header-actions">
+      <a href="{{ url_for('projects') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i>
+        Back to Projects
+      </a>
+    </div>
+  </div>
+
+  <!-- Current Project Info -->
+  <div class="content-section" style="margin-bottom: 1.5rem;">
+    <div class="section-header">
+      <h2><i class="fas fa-info-circle"></i> Current Project Information</h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; max-width: 800px;">
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <strong style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">Project Name:</strong>
+          <span style="font-size: 0.9rem; color: #374151; word-break: break-word;">{{ project.name }}</span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <strong style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">Description:</strong>
+          <span style="font-size: 0.9rem; color: #374151; word-break: break-word;">{{ project.description if project.description else 'No description provided' }}</span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <strong style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">QR Codes:</strong>
+          <span style="font-size: 0.9rem; color: #374151;">{{ project.qr_count }} active QR codes</span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <strong style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">Created:</strong>
+          <span style="font-size: 0.9rem; color: #374151;">{{ project.created_date.strftime('%B %d, %Y at %I:%M %p') }}</span>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <strong style="font-size: 0.875rem; color: #6b7280; font-weight: 500;">Status:</strong>
+          <span class="status-badge {% if project.active_status %}active{% else %}inactive{% endif %}">
+            {% if project.active_status %}Active{% else %}Inactive{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Project Form -->
+  <div class="content-section">
+    <div class="section-header">
+      <h2><i class="fas fa-edit"></i> Update Project Information</h2>
+    </div>
+    
+    <div style="padding: 1.5rem;">
+      <form method="POST" id="editProjectForm">
+        <div style="max-width: 600px;">
+          <!-- Project Name -->
+          <div class="form-group" style="margin-bottom: 1.5rem; position: relative;">
+            <label for="name" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.875rem;">
+              <i class="fas fa-tag"></i>
+              Project Name
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value="{{ project.name }}"
+              required
+              maxlength="100"
+              style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; transition: all 0.2s ease-in-out; background-color: #ffffff;"
+            />
+            <span class="character-counter" id="nameCounter" style="position: absolute; bottom: -1.5rem; right: 0; font-size: 0.75rem; color: #6b7280;">{{ project.name|length }}/100</span>
+          </div>
+
+          <!-- Project Description -->
+          <div class="form-group" style="margin-bottom: 1.5rem; position: relative;">
+            <label for="description" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.875rem;">
+              <i class="fas fa-align-left"></i>
+              Description (Optional)
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              rows="4"
+              maxlength="500"
+              style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; transition: all 0.2s ease-in-out; background-color: #ffffff; resize: vertical; min-height: 80px;"
+            >{{ project.description if project.description else '' }}</textarea>
+            <span class="character-counter" id="descriptionCounter" style="position: absolute; bottom: -1.5rem; right: 0; font-size: 0.75rem; color: #6b7280;">{{ (project.description|length) if project.description else 0 }}/500</span>
+            <small style="display: block; margin-top: 0.5rem; font-size: 0.75rem; color: #6b7280;">
+              <i class="fas fa-info-circle"></i>
+              Provide a brief description of what this project is for
+            </small>
+          </div>
+
+          <!-- Form Actions -->
+          <div style="display: flex; justify-content: flex-start; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb;">
+            <a href="{{ url_for('projects') }}" class="btn btn-secondary" style="background: #f1f5f9; color: #475569; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease-in-out; border: 1px solid #cbd5e1;">
+              <i class="fas fa-arrow-left"></i>
+              Cancel
+            </a>
+            <button type="submit" class="btn btn-primary" id="submitBtn" style="background: #2563eb; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease-in-out; border: none; cursor: pointer;">
+              <i class="fas fa-save"></i>
+              Update Project
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const form = document.getElementById("editProjectForm");
+  const submitBtn = document.getElementById("submitBtn");
+  
+  // Character counters
+  const counters = [
+    { input: "name", counter: "nameCounter", max: 100 },
+    { input: "description", counter: "descriptionCounter", max: 500 }
+  ];
+
+  counters.forEach((item) => {
+    const input = document.getElementById(item.input);
+    const counter = document.getElementById(item.counter);
+
+    if (input && counter) {
+      input.addEventListener("input", function () {
+        const length = this.value.length;
+        counter.textContent = `${length}/${item.max}`;
+
+        if (length > item.max * 0.9) {
+          counter.style.color = '#f59e0b';
+        } else {
+          counter.style.color = '#6b7280';
+        }
+      });
+      
+      // Focus styles
+      input.addEventListener("focus", function() {
+        this.style.borderColor = '#2563eb';
+        this.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
+      });
+      
+      input.addEventListener("blur", function() {
+        this.style.borderColor = '#d1d5db';
+        this.style.boxShadow = 'none';
+      });
+    }
+  });
+
+  // Form submission
+  form.addEventListener("submit", function (e) {
+    const name = document.getElementById("name").value.trim();
+    
+    if (!name) {
+      e.preventDefault();
+      alert("Project name is required");
+      return false;
+    }
+
+    // Show loading state
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating Project...';
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.7';
+  });
+  
+  // Add smooth animation on load
+  const contentSections = document.querySelectorAll('.content-section');
+  contentSections.forEach((section, index) => {
+    section.style.opacity = '0';
+    section.style.transform = 'translateY(20px)';
+    
+    setTimeout(() => {
+      section.style.transition = 'all 0.5s ease-out';
+      section.style.opacity = '1';
+      section.style.transform = 'translateY(0)';
+    }, index * 100 + 100);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Projects - QR Code Management{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="projects-page">
+  <!-- Page Header -->
+  <div class="projects-header">
+    <div class="header-content">
+      <h1><i class="fas fa-folder"></i> Projects</h1>
+      <p>Organize and manage your QR code projects</p>
+    </div>
+    <div class="header-actions">
+      <a href="{{ url_for('create_project') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i>
+        Create Project
+      </a>
+    </div>
+  </div>
+
+  <!-- Project Statistics -->
+  <div class="project-stats">
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-folder"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ projects|length }}</h3>
+        <p>Total Projects</p>
+      </div>
+    </div>
+
+    <div class="stat-card active">
+      <div class="stat-icon active">
+        <i class="fas fa-folder-open"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ projects|selectattr('active_status', 'equalto', True)|list|length }}</h3>
+        <p>Active Projects</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">
+        <i class="fas fa-qrcode"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ projects|sum(attribute='total_qr_count') }}</h3>
+        <p>Total QR Codes</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Projects List -->
+  <div class="content-section">
+    <div class="section-header">
+      <h2><i class="fas fa-list"></i> All Projects</h2>
+    </div>
+
+    {% if projects %}
+    <div class="projects-grid">
+      {% for project in projects %}
+      <div class="project-card {% if not project.active_status %}inactive{% endif %}">
+        <div class="project-header">
+          <div class="project-info">
+            <h3>{{ project.name }}</h3>
+            <p class="project-description">
+              {% if project.description %}
+                {{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}
+              {% else %}
+                No description provided
+              {% endif %}
+            </p>
+          </div>
+          <div class="project-status">
+            {% if project.active_status %}
+              <span class="status-badge active">Active</span>
+            {% else %}
+              <span class="status-badge inactive">Inactive</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="project-stats-section">
+          <div class="stat-item">
+            <i class="fas fa-qrcode"></i>
+            <span>{{ project.qr_count }} QR Codes</span>
+          </div>
+          <div class="stat-item">
+            <i class="fas fa-calendar"></i>
+            <span>{{ project.created_date.strftime('%b %d, %Y') }}</span>
+          </div>
+          <div class="stat-item">
+            <i class="fas fa-user"></i>
+            <span>{{ project.creator.full_name if project.creator else 'Unknown' }}</span>
+          </div>
+        </div>
+
+        <div class="project-actions">
+          <a href="{{ url_for('edit_project', project_id=project.id) }}" 
+             class="btn btn-secondary">
+            <i class="fas fa-edit"></i>
+            Edit
+          </a>
+          
+          <form method="POST" action="{{ url_for('toggle_project', project_id=project.id) }}" 
+                style="display: inline;">
+            <button type="submit" 
+                    class="btn {% if project.active_status %}btn-warning{% else %}btn-success{% endif %}">
+              <i class="fas {% if project.active_status %}fa-pause{% else %}fa-play{% endif %}"></i>
+              {% if project.active_status %}Deactivate{% else %}Activate{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">
+        <i class="fas fa-folder-open"></i>
+      </div>
+      <h3>No Projects Yet</h3>
+      <p>Create your first project to organize your QR codes</p>
+      <a href="{{ url_for('create_project') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i>
+        Create First Project
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Add smooth animations to project cards
+  const projectCards = document.querySelectorAll('.project-card');
+  
+  projectCards.forEach((card, index) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    
+    setTimeout(() => {
+      card.style.transition = 'all 0.5s ease-out';
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    }, index * 100);
+  });
+  
+  // Confirm project deactivation/activation
+  const toggleForms = document.querySelectorAll('form[action*="toggle_project"]');
+  toggleForms.forEach(form => {
+    form.addEventListener('submit', function(e) {
+      const button = form.querySelector('button');
+      const action = button.textContent.trim();
+      const projectName = form.closest('.project-card').querySelector('h3').textContent.trim();
+      
+      if (!confirm(`Are you sure you want to ${action.toLowerCase()} the project "${projectName}"?`)) {
+        e.preventDefault();
+      }
+    });
+  });
+  
+  // Add loading state to buttons
+  const actionButtons = document.querySelectorAll('.project-actions .btn');
+  actionButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      if (this.tagName === 'BUTTON') {
+        const originalText = this.innerHTML;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        this.disabled = true;
+        
+        // Re-enable after form submission (in case of validation errors)
+        setTimeout(() => {
+          this.innerHTML = originalText;
+          this.disabled = false;
+        }, 3000);
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

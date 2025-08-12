@@ -55,6 +55,11 @@
               </a>
 
               {% if session.role == 'admin' %}
+              <a href="{{ url_for('projects') }}" 
+                 class="menu-item {% if request.endpoint in ['projects', 'create_project', 'edit_project'] %}active{% endif %}">
+                <i class="fas fa-folder"></i>
+                <span class="menu-text">Projects</span>
+              </a>
               <a href="{{ url_for('users') }}" class="menu-item">
                 <i class="fas fa-users"></i>
                 <span class="menu-text">Users</span>
