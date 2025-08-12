@@ -600,43 +600,92 @@ class AppLogger:
         try:
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            stats_sql = """
+            # Get total events
+            total_sql = """
+            SELECT COUNT(*) as total_events
+            FROM log_events 
+            WHERE created_timestamp >= :cutoff_date
+            """
+            
+            total_result = self.db.session.execute(text(total_sql), {
+                'cutoff_date': cutoff_date
+            }).fetchone()
+            
+            # Get events by category
+            category_sql = """
             SELECT 
                 event_category,
-                severity_level,
                 COUNT(*) as event_count
             FROM log_events 
             WHERE created_timestamp >= :cutoff_date
-            GROUP BY event_category, severity_level
-            ORDER BY event_count DESC
+            GROUP BY event_category
             """
             
-            result = self.db.session.execute(text(stats_sql), {
+            category_result = self.db.session.execute(text(category_sql), {
                 'cutoff_date': cutoff_date
             }).fetchall()
             
-            stats = {}
-            for row in result:
-                category = row.event_category
-                if category not in stats:
-                    stats[category] = {}
-                stats[category][row.severity_level] = row.event_count
+            # Build simple statistics dictionary (not nested)
+            stats = {
+                'total_events': total_result.total_events if total_result else 0,
+                'security_events': 0,
+                'database_errors': 0,
+                'user_activities': 0,
+                'system_events': 0
+            }
+            
+            # Process category results
+            for row in category_result:
+                if row.event_category == 'security':
+                    stats['security_events'] = row.event_count
+                elif row.event_category == 'database':
+                    stats['database_errors'] = row.event_count
+                elif row.event_category == 'user_activity':
+                    stats['user_activities'] = row.event_count
+                elif row.event_category == 'system':
+                    stats['system_events'] = row.event_count
             
             return stats
             
         except Exception as e:
             self.log_database_error('get_log_statistics', e)
-            return {}
+            print(f"Error in get_log_statistics: {e}")
+            # Return default stats structure
+            return {
+                'total_events': 0,
+                'security_events': 0,
+                'database_errors': 0,
+                'user_activities': 0,
+                'system_events': 0
+            }
     
     def cleanup_old_logs(self, days_to_keep=90):
         """Clean up old log entries from database"""
         try:
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
             
+            # First, count how many records will be deleted
+            count_sql = """
+            SELECT COUNT(*) as count_to_delete
+            FROM log_events 
+            WHERE created_timestamp < :cutoff_date 
+            AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
+            """
+            
+            count_result = self.db.session.execute(text(count_sql), {
+                'cutoff_date': cutoff_date
+            }).fetchone()
+            
+            count_to_delete = count_result.count_to_delete if count_result else 0
+            
+            if count_to_delete == 0:
+                return 0
+            
+            # Perform the cleanup - exclude critical logs
             cleanup_sql = """
             DELETE FROM log_events 
             WHERE created_timestamp < :cutoff_date 
-            AND severity_level NOT IN ('ERROR', 'CRITICAL')
+            AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
             """
             
             result = self.db.session.execute(text(cleanup_sql), {
@@ -646,14 +695,92 @@ class AppLogger:
             deleted_count = result.rowcount
             self.db.session.commit()
             
-            self.logger.info(f"Cleaned up {deleted_count} old log entries")
+            # Log the cleanup operation
+            self.logger.info(f"Log cleanup completed: {deleted_count} entries removed (keeping entries older than {days_to_keep} days)")
+            
+            # Also log to security log for audit
+            self.log_security_event(
+                event_type="log_cleanup",
+                description=f"Admin cleaned up {deleted_count} old log entries (keeping last {days_to_keep} days)",
+                severity="MEDIUM",
+                additional_data={
+                    'days_to_keep': days_to_keep,
+                    'deleted_count': deleted_count,
+                    'cutoff_date': cutoff_date.isoformat()
+                }
+            )
+            
             return deleted_count
             
         except Exception as e:
+            self.db.session.rollback()
             self.log_database_error('cleanup_old_logs', e)
+            print(f"Error in cleanup_old_logs: {e}")
             return 0
 
-
+def get_recent_logs(self, days=7, limit=100, category_filter=None, severity_filter=None, search_term=None):
+    """Enhanced method to get recent logs with filtering options"""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        # Build the base query
+        base_sql = """
+        SELECT 
+            event_id,
+            event_type, 
+            event_category, 
+            event_description, 
+            severity_level, 
+            created_timestamp, 
+            username, 
+            ip_address,
+            user_id
+        FROM log_events 
+        WHERE created_timestamp >= :cutoff_date
+        """
+        
+        # Add filters
+        params = {'cutoff_date': cutoff_date}
+        
+        if category_filter:
+            base_sql += " AND event_category = :category_filter"
+            params['category_filter'] = category_filter
+        
+        if severity_filter:
+            base_sql += " AND severity_level = :severity_filter" 
+            params['severity_filter'] = severity_filter
+        
+        if search_term:
+            base_sql += " AND (event_description LIKE :search_term OR event_type LIKE :search_term OR username LIKE :search_term)"
+            params['search_term'] = f"%{search_term}%"
+        
+        # Add ordering and limit
+        base_sql += " ORDER BY created_timestamp DESC LIMIT :limit"
+        params['limit'] = limit
+        
+        result = self.db.session.execute(text(base_sql), params).fetchall()
+        
+        logs = []
+        for row in result:
+            logs.append({
+                'event_id': row.event_id,
+                'event_type': row.event_type,
+                'event_category': row.event_category,
+                'description': row.event_description,
+                'severity': row.severity_level,
+                'timestamp': row.created_timestamp.isoformat(),
+                'username': row.username or 'System',
+                'ip_address': row.ip_address or '-',
+                'user_id': row.user_id
+            })
+        
+        return logs
+        
+    except Exception as e:
+        self.log_database_error('get_recent_logs', e)
+        print(f"Error in get_recent_logs: {e}")
+        return []
+    
 # DECORATOR FUNCTIONS FOR AUTOMATIC LOGGING
 
 def log_user_activity(activity_type):
@@ -693,7 +820,6 @@ def log_user_activity(activity_type):
         return decorated_function
     return decorator
 
-
 def log_database_operations(operation_name):
     """Decorator to automatically log database operations"""
     def decorator(f):
@@ -716,9 +842,36 @@ def log_database_operations(operation_name):
         return decorated_function
     return decorator
 
-
+def verify_log_table_exists(self):
+    """Verify that the log_events table exists and has the correct structure"""
+    try:
+        # Check if table exists
+        check_table_sql = """
+        SELECT COUNT(*) as table_exists 
+        FROM information_schema.tables 
+        WHERE table_schema = DATABASE() 
+        AND table_name = 'log_events'
+        """
+        
+        result = self.db.session.execute(text(check_table_sql)).fetchone()
+        
+        if result.table_exists == 0:
+            print("⚠️ log_events table does not exist. Creating it now...")
+            self._create_log_table()
+            return True
+        
+        # Check if table has records
+        count_sql = "SELECT COUNT(*) as record_count FROM log_events"
+        count_result = self.db.session.execute(text(count_sql)).fetchone()
+        
+        print(f"✅ log_events table exists with {count_result.record_count} records")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error verifying log table: {e}")
+        return False
+    
 # INITIALIZATION FUNCTION
-
 def init_logging(app, db):
     """Initialize the logging system with the Flask app"""
     logger_handler = AppLogger(app, db)
