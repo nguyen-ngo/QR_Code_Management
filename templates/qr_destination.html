@@ -26,12 +26,48 @@
         --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         --border-radius: 0.5rem;
         --transition: all 0.2s ease-in-out;
+        
+        /* Language Color Coding - High Contrast Theme */
+        --english-color: #1e40af;
+        --english-bg: rgba(59, 130, 246, 0.1);
+        --spanish-color: #15803d;
+        --spanish-bg: rgba(34, 197, 94, 0.1);
       }
 
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+      }
+
+      /* Language Color Classes - Enhanced Contrast */
+      .english-text {
+        color: #1e40af !important;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .spanish-text {
+        color: #15803d !important;
+        font-weight: 700;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .bilingual-container {
+        background: rgba(255, 255, 255, 0.98);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin: 8px 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+      }
+
+      .language-separator {
+        color: #64748b;
+        font-weight: 500;
+        margin: 0 12px;
+        font-size: 1.1em;
       }
 
       /* Dynamic Background Based on Location Event */
@@ -78,15 +114,31 @@
         transition: var(--transition);
         backdrop-filter: blur(10px);
         font-size: 0.9rem;
-        font-weight: 500;
+        font-weight: 600;
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        outline: none;
       }
 
       .language-toggle:hover {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
         transform: translateY(-1px);
+      }
+
+      .language-toggle:active {
+        background: rgba(255, 255, 255, 0.4) !important;
+        transform: translateY(0);
+      }
+
+      .language-toggle:focus {
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3) !important;
+      }
+
+      .language-toggle i {
+        font-size: 1rem;
+        color: white !important;
       }
 
       .destination-header {
@@ -134,11 +186,25 @@
         color: white;
       }
 
+      /* Company Logo Styling */
+      .company-logo {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+
+      .fallback-icon {
+        font-size: 2.5rem;
+        color: white;
+      }
+
       .destination-header h1 {
         font-size: 1.75rem;
         font-weight: 700;
         color: var(--text-primary);
         margin-bottom: 0.5rem;
+        line-height: 1.2;
       }
 
       .location-info {
@@ -260,186 +326,133 @@
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
-        padding: 0.875rem 2rem;
-        font-size: 1rem;
-        font-weight: 500;
+        padding: 1.2rem 2rem;
+        font-size: 1.2rem;
+        font-weight: 700;
         border: none;
         border-radius: var(--border-radius);
         cursor: pointer;
         transition: var(--transition);
         text-decoration: none;
         width: 100%;
+        text-shadow: none;
+        letter-spacing: 0.5px;
       }
 
-      /* Dynamic Button Colors */
+      /* Dynamic Button Colors - Dark Salmon Theme */
       .check-in .btn-primary {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-        color: white;
-      }
-
-      .check-in .btn-primary:hover {
-        background: linear-gradient(135deg, var(--primary-hover), #1e40af);
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-lg);
+        background: #e9967a;
+        color: #ffffff;
+        border: 2px solid #e9967a;
       }
 
       .check-out .btn-primary {
-        background: linear-gradient(135deg, var(--orange-color), var(--orange-hover));
-        color: white;
+        background: #e9967a;
+        color: #ffffff;
+        border: 2px solid #e9967a;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .check-in .btn-primary:hover {
+        background: #cd853f;
+        border-color: #cd853f;
       }
 
       .check-out .btn-primary:hover {
-        background: linear-gradient(135deg, var(--orange-hover), #b91c1c);
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-lg);
+        background: #cd853f;
+        border-color: #cd853f;
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
       }
 
       .btn:disabled {
         opacity: 0.6;
         cursor: not-allowed;
-        transform: none;
+        transform: none !important;
       }
 
-      /* Status Message Styles */
-      .status-message {
-        padding: 1rem;
-        border-radius: var(--border-radius);
-        margin-bottom: 1rem;
-        display: none;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.95rem;
-        font-weight: 500;
-        border-left: 4px solid;
-      }
-
-      .status-message.show {
-        display: flex;
-      }
-
-      .status-message.success {
-        background: #f0fdf4;
-        color: #15803d;
-        border-left-color: #15803d;
-      }
-
-      .status-message.error {
-        background: #fef2f2;
-        color: #dc2626;
-        border-left-color: #dc2626;
-      }
-
-      .status-message.warning {
-        background: #fffbeb;
-        color: #d97706;
-        border-left-color: #d97706;
-      }
-
-      /* Success Card Styles */
       .success-card {
-        display: none;
         background: rgba(255, 255, 255, 0.95);
         border-radius: var(--border-radius);
         padding: 2rem;
+        text-align: center;
         box-shadow: var(--shadow-lg);
         backdrop-filter: blur(10px);
-        opacity: 0;
-        transform: translateY(20px);
-        transition: all 0.6s ease-out 0.4s;
+        display: none;
       }
 
-      .success-card.active {
-        opacity: 1;
-        transform: translateY(0);
+      .success-card.show {
+        display: block;
+        animation: slideUp 0.5s ease-out;
       }
 
-      .success-header {
-        text-align: center;
-        margin-bottom: 1.5rem;
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
 
       .success-icon {
-        width: 60px;
-        height: 60px;
+        width: 100px;
+        height: 100px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 1rem;
-        font-size: 1.5rem;
+        margin: 0 auto 1.5rem;
+        font-size: 3rem;
         color: white;
       }
 
-      /* Dynamic Success Icon Colors */
+      /* Dynamic Success Icon Colors - Green Theme */
       .check-in .success-icon {
-        background: linear-gradient(135deg, var(--success-color), #047857);
+        background: #10b981;
       }
 
       .check-out .success-icon {
-        background: linear-gradient(135deg, var(--orange-color), var(--orange-hover));
+        background: #10b981;
       }
 
-      .success-title {
+      .success-card h2 {
         font-size: 1.5rem;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--text-primary);
-        margin-bottom: 0.5rem;
-      }
-
-      .success-subtitle {
-        color: var(--text-secondary);
-        font-size: 0.95rem;
-      }
-
-      /* Enhanced Checkin Sequence Display */
-      .checkin-sequence {
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 1rem;
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-align: center;
         margin-bottom: 1rem;
       }
 
-      /* Dynamic Sequence Colors */
-      .check-in .checkin-sequence {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-      }
-
-      .check-out .checkin-sequence {
-        background: linear-gradient(135deg, var(--orange-color), var(--orange-hover));
-      }
-
       .success-details {
-        display: grid;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
+        background: var(--background-light);
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-top: 1.5rem;
       }
 
       .detail-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.75rem;
-        background: var(--background-light);
-        border-radius: 0.375rem;
-        border-left: 4px solid;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
       }
 
-      /* Dynamic Detail Row Border Colors */
-      .check-in .detail-row {
-        border-left-color: var(--primary-color);
-      }
-
-      .check-out .detail-row {
-        border-left-color: var(--orange-color);
+      .detail-row:last-child {
+        border-bottom: none;
       }
 
       .detail-label {
         font-weight: 500;
         color: var(--text-secondary);
-        font-size: 0.9rem;
       }
 
       .detail-value {
@@ -448,36 +461,109 @@
         text-align: right;
       }
 
-      .interval-info {
-        background: #f0f9ff;
-        border: 1px solid #bae6fd;
+      .status-message {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 1rem 1.5rem;
         border-radius: var(--border-radius);
-        padding: 1rem;
-        margin-bottom: 1rem;
+        font-weight: 500;
+        z-index: 1000;
+        display: none;
+        box-shadow: var(--shadow-lg);
       }
 
-      .interval-info h4 {
-        color: #0369a1;
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
+      .status-message.show {
+        display: block;
+        animation: slideDown 0.3s ease-out;
       }
 
-      .interval-info p {
-        color: #0369a1;
-        font-size: 0.85rem;
-        margin: 0;
+      .status-message.success {
+        background: var(--success-color);
+        color: white;
+      }
+
+      .status-message.error {
+        background: var(--error-color);
+        color: white;
+      }
+
+      .status-message.processing {
+        background: var(--warning-color);
+        color: white;
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+
+      .loading-spinner {
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 3px solid white;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        margin-right: 0.5rem;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
 
       .fade-transition {
         opacity: 0;
         transform: translateY(20px);
-        transition: all 0.6s ease-out;
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
       }
 
       .fade-transition.active {
         opacity: 1;
         transform: translateY(0);
+      }
+
+      /* Language Legend */
+      .language-legend {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin: 1rem 0;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+      }
+
+      .english-legend {
+        background: #1e40af;
+      }
+
+      .spanish-legend {
+        background: #15803d;
       }
 
       /* Responsive Design */
@@ -509,35 +595,41 @@
         .detail-value {
           text-align: left;
         }
+
+        .language-legend {
+          flex-direction: column;
+          gap: 0.75rem;
+        }
       }
     </style>
   </head>
   <body class="{% if qr_code.location_event == 'Check Out' %}check-out{% else %}check-in{% endif %}">
     <div class="destination-container">
-      <!-- Language Selector (Commented out in original) -->
-      <!--
-      <div class="language-selector">
-        <button
-          id="languageToggle"
-          class="language-toggle"
-          type="button"
-          aria-label="Switch Language"
-        >
-          <i class="fas fa-globe"></i>
-          <span id="languageText">EN</span>
-        </button>
-      </div>
-      -->
-
-      <!-- Header Section with Dynamic Styling -->
+      <!-- Header Section with Dynamic Styling and Color-Coded Languages -->
       <div class="destination-header fade-transition active">
         <div class="header-icon">
-          <i class="fas fa-qrcode"></i>
+          <!-- Company Logo -->
+          <img 
+            src="{{ url_for('static', filename='images/logo.png') }}" 
+            alt="Company Logo"
+            class="company-logo"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+          />
+          <!-- Fallback QR Icon (hidden by default, shown if logo fails to load) -->
+          <i class="fas fa-qrcode fallback-icon" style="display: none;"></i>
         </div>
         {% if qr_code.location_event == 'Check In' %}
-          <h1>{{ qr_code.location_event }} / Entrada</h1>
+          <h1>
+            <span class="english-text">{{ qr_code.location_event }}</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Entrada</span>
+          </h1>
         {% else %}
-          <h1>{{ qr_code.location_event }} / Salida</h1>
+          <h1>
+            <span class="english-text">{{ qr_code.location_event }}</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Salida</span>
+          </h1>
         {% endif %} 
         <p class="location-info">
           <i class="fas fa-map-marker-alt"></i>
@@ -553,158 +645,513 @@
         </div>
       </div>
 
-      <!-- Check-in Form with Dynamic Styling -->
+      <!-- Check-in Form with Dynamic Styling and Color-Coded Instructions -->
       <div class="checkin-card fade-transition active">
         <div class="checkin-header">
-          <p
-            data-en="Please enter your Employee ID / Por favor ingrese su ID de empleado"
-            data-es="Por favor ingrese su ID de empleado"
-          >
-            Please enter your Employee ID. / Por favor ingrese su ID de empleado.
-          </p>
+          <div class="bilingual-container">
+            <p>
+              <span class="english-text">Please enter your Employee ID.</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Por favor ingrese su ID de empleado.</span>
+            </p>
+          </div>
         </div>
 
-        <form id="checkinForm" class="checkin-form">
-          <!-- HIDDEN LOCATION FIELDS -->
-          <input type="hidden" id="latitude" name="latitude" />
-          <input type="hidden" id="longitude" name="longitude" />
-          <input type="hidden" id="accuracy" name="accuracy" />
-          <input type="hidden" id="altitude" name="altitude" />
-          <input
-            type="hidden"
-            id="locationSource"
-            name="location_source"
-            value="manual"
-          />
-          <input type="hidden" id="address" name="address" />
-
+        <form id="checkinForm" onsubmit="return false;">
           <div class="form-group">
             <label for="employee_id">
-              <i class="fas fa-id-badge"></i>
-              <span data-en="Employee ID / ID de Empleado" data-es="ID de Empleado"
-                >Employee ID / ID de Empleado</span
-              >
+              <i class="fas fa-id-card"></i>
+              <span class="english-text">Employee ID</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">ID de Empleado</span>
             </label>
             <input
               type="text"
               id="employee_id"
               name="employee_id"
               class="form-control"
-              data-en-placeholder="Enter your Employee ID"
-              data-es-placeholder="Ingrese su ID de Empleado"
-              placeholder="Enter your Employee ID / Ingrese su ID de Empleado"
-              autocomplete="off"
+              placeholder="Enter your ID / Ingrese su ID"
               required
+              autocomplete="off"
             />
           </div>
 
-          <button type="submit" id="submitCheckin" class="btn btn-primary">
-            <i class="fas fa-user-check"></i>
+          <button type="submit" class="btn btn-primary" id="submitButton">
             {% if qr_code.location_event == 'Check In' %}
-              <span data-en="{{ qr_code.location_event }} / Entrada" data-es="Someter">{{ qr_code.location_event }} / Entrada</span>
+              <i class="fas fa-sign-in-alt"></i>
+              <span class="english-text">Check In</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Registrar Entrada</span>
             {% else %}
-              <span data-en="{{ qr_code.location_event }} / Salida" data-es="Someter">{{ qr_code.location_event }} / Salida</span>
+              <i class="fas fa-sign-out-alt"></i>
+              <span class="english-text">Check Out</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Registrar Salida</span>
             {% endif %}
           </button>
         </form>
       </div>
 
-      <!-- Success Card with Dynamic Styling -->
-      <div id="successCard" class="success-card">
-        <div class="success-header">
-          <div class="success-icon">
-            <i class="fas fa-check"></i>
-          </div>
-          <h2 class="success-title">
-            <span
-              data-en="{{ qr_code.location_event }} Successfully!"
-              data-es="Enviado exitosamente!"
-              >{{ qr_code.location_event }} Successful!</span
-            >
-          </h2>
-          <p class="success-subtitle">
-            <span style="white-space: pre-wrap;"
-              data-en="Your attendance has been recorded / Su asistencia ha sido registrada"
-              data-es="Su asistencia ha sido registrada"
-              >Your attendance has been recorded / Su asistencia ha sido registrada</span
-            >
+      <!-- Success Card -->
+      <div class="success-card" id="successCard">
+        <div class="success-icon">
+          <i class="fas fa-check"></i>
+        </div>
+        <h2>
+          <span class="english-text">Success!</span>
+          <span class="language-separator">/</span>
+          <span class="spanish-text">¡Éxito!</span>
+        </h2>
+        <div class="bilingual-container">
+          <p>
+            <span class="english-text">Your submission has been recorded successfully.</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Su registro ha sido guardado exitosamente.</span>
           </p>
         </div>
-
-        <!-- Check-in Sequence Display with Dynamic Styling -->
-        <div id="successCheckinSequence" class="checkin-sequence">
-          {{ qr_code.location_event }} #1
-        </div>
-
-        <div class="success-details">
-          <div class="detail-row">
-            <span
-              class="detail-label"
-              data-en="Employee ID / ID de Empleado"
-              data-es="ID Empleado"
-              >Employee ID / ID de Empleado</span
-            >
-            <span class="detail-value" id="successEmployeeId">-</span>
-          </div>
-          <div class="detail-row">
-            <span
-              class="detail-label"
-              data-en="Location/Building - Ubicación/Edificio"
-              data-es="Ubicación/Edificio"
-              >Location/Building - Ubicación/Edificio</span
-            >
-            <span class="detail-value" id="successLocation">-</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label" data-en="Event / Evento" data-es="Evento"
-              >Event</span
-            >
-            <span class="detail-value" id="successEvent">-</span>
-          </div>
-          <div class="detail-row">
-            <span
-              class="detail-label"
-              data-en="Submission Time / Hora de presentación"
-              data-es="Hora de presentación"
-              >{{ qr_code.location_event }} Time</span
-            >
-            <span class="detail-value" id="successCheckInTime">-</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label" data-en="Date / Fecha" data-es="Fecha"
-              >Date</span
-            >
-            <span class="detail-value" id="successCheckInDate">-</span>
-          </div>
-          <div class="detail-row" style="display: none" id="deviceInfoRow">
-            <span class="detail-label" data-en="Device" data-es="Dispositivo"
-              >Device</span
-            >
-            <span class="detail-value" id="successDeviceInfo">-</span>
-          </div>
-          <div class="detail-row" style="display: none" id="coordinatesRow">
-            <span class="detail-label" data-en="Coordinates" data-es="Coordenadas"
-              >Coordinates</span
-            >
-            <span class="detail-value" id="successCoordinates">-</span>
-          </div>
-          <div class="detail-row" style="display: none" id="addressRow">
-            <span class="detail-label" data-en="Address" data-es="Dirección"
-              >Address</span
-            >
-            <span class="detail-value" id="successAddress">-</span>
-          </div>
-          <div class="detail-row" style="display: none" id="accuracyRow">
-            <span class="detail-label" data-en="Location Accuracy" data-es="Precisión"
-              >Location Accuracy</span
-            >
-            <span class="detail-value" id="successLocationAccuracy">-</span>
-          </div>
+        <div class="success-details" id="successDetails">
+          <!-- Success details will be populated here -->
         </div>
       </div>
     </div>
 
-    <!-- Include Original JavaScript File -->
+    <!-- Enhanced JavaScript with preserved functionality -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
+    <script>
+      // Use different variable name to avoid conflict with external JS
+      let currentUserLocation = {
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        altitude: null,
+        timestamp: null,
+        source: "manual",
+        address: null,
+      };
+      let locationCaptureActive = false;
+
+      // Initialize the page when DOM is loaded
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 QR Destination page loaded successfully');
+        console.log('📱 Enhanced with color-coded bilingual support');
+        
+        // Initialize Employee ID auto-fill FIRST (before other functionality)
+        initializeEmployeeIdAutoFill();
+        
+        // Then initialize other functionality
+        initializeFormHandling();
+        initializeLocationCapture();
+        
+        // Add fade-in animations
+        setTimeout(() => {
+          document.querySelectorAll('.fade-transition').forEach(el => {
+            el.classList.add('active');
+          });
+        }, 100);
+      });
+
+      // FIXED Employee ID auto-fill functionality
+      function initializeEmployeeIdAutoFill() {
+        console.log("👤 Initializing Employee ID auto-fill functionality");
+        
+        const employeeIdInput = document.getElementById('employee_id');
+        if (!employeeIdInput) {
+          console.log("❌ Employee ID input not found");
+          return;
+        }
+
+        // Load and auto-fill last used Employee ID immediately
+        try {
+          const lastEmployeeId = localStorage.getItem('qr_last_employee_id');
+          console.log(`📱 Checking localStorage for last employee ID: ${lastEmployeeId}`);
+          
+          if (lastEmployeeId && lastEmployeeId.trim() !== '') {
+            employeeIdInput.value = lastEmployeeId.trim();
+            console.log(`✅ Auto-filled employee ID: ${lastEmployeeId}`);
+            
+            // Visual feedback that it's auto-filled
+            employeeIdInput.style.backgroundColor = '#f0f9ff';
+            setTimeout(() => {
+              employeeIdInput.style.backgroundColor = '';
+            }, 2000);
+          } else {
+            console.log(`📱 No previous employee ID found`);
+          }
+        } catch (error) {
+          console.log(`❌ Error loading employee ID: ${error.message}`);
+        }
+
+        // Save Employee ID when it's entered successfully
+        employeeIdInput.addEventListener('input', function() {
+          const currentId = this.value.trim();
+          if (currentId.length >= 2) { // Save if at least 2 characters
+            try {
+              localStorage.setItem('qr_last_employee_id', currentId);
+              console.log(`💾 Saved employee ID: ${currentId}`);
+            } catch (error) {
+              console.log(`❌ Error saving employee ID: ${error.message}`);
+            }
+          }
+        });
+
+        console.log("✅ Employee ID auto-fill initialized successfully");
+      }
+
+      // Initialize location services (renamed to avoid conflicts)
+      function initializeLocationCapture() {
+        console.log("📍 Initializing enhanced location capture");
+        requestUserLocationData();
+      }
+
+      // Request location data from device (renamed to avoid conflicts)
+      function requestUserLocationData() {
+        if (locationCaptureActive) {
+          console.log("📍 Location request already active, skipping");
+          return;
+        }
+
+        if (!navigator.geolocation) {
+          console.log("❌ Geolocation not supported");
+          currentUserLocation.source = "manual";
+          return;
+        }
+
+        locationCaptureActive = true;
+        console.log("📍 Requesting enhanced location data...");
+
+        const options = {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000,
+        };
+
+        navigator.geolocation.getCurrentPosition(
+          handleEnhancedLocationSuccess,
+          handleEnhancedLocationError,
+          options
+        );
+      }
+
+      // Handle successful location capture (renamed to avoid conflicts)
+      function handleEnhancedLocationSuccess(position) {
+        console.log("✅ Enhanced location obtained successfully");
+
+        currentUserLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude,
+          timestamp: new Date(),
+          source: "gps",
+          address: null,
+        };
+
+        console.log("📍 Enhanced location data:", currentUserLocation);
+
+        // Reverse geocode to get address
+        reverseGeocodeEnhanced(currentUserLocation.latitude, currentUserLocation.longitude);
+
+        locationCaptureActive = false;
+      }
+
+      // Handle location capture errors (renamed to avoid conflicts)
+      function handleEnhancedLocationError(error) {
+        console.log("❌ Enhanced location error:", error.message);
+        currentUserLocation.source = "manual";
+        locationCaptureActive = false;
+      }
+
+      // Reverse geocode coordinates to address (renamed to avoid conflicts)
+      function reverseGeocodeEnhanced(lat, lng) {
+        console.log(`🌍 Starting enhanced reverse geocoding for: ${lat}, ${lng}`);
+
+        // Using Nominatim (OpenStreetMap) reverse geocoding service
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+
+        fetch(url, {
+          method: "GET",
+          headers: {
+            "User-Agent": "QR-Attendance-System/1.0",
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data && data.display_name) {
+              currentUserLocation.address = data.display_name;
+              console.log(`✅ Enhanced reverse geocoded address: ${currentUserLocation.address}`);
+            } else {
+              console.log(`⚠️ No address found, using coordinates as fallback`);
+              currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+            }
+          })
+          .catch((error) => {
+            console.error(`❌ Enhanced reverse geocoding error:`, error);
+            // Fallback to coordinates if reverse geocoding fails
+            currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+          });
+      }
+
+      // Enhanced form handling with bilingual status messages
+      function initializeFormHandling() {
+        const form = document.getElementById('checkinForm');
+        const submitButton = document.getElementById('submitButton');
+        
+        console.log('🔧 Initializing enhanced form handling...');
+        console.log('Form element:', form);
+        console.log('Submit button:', submitButton);
+        
+        if (form && submitButton) {
+          // Remove any existing event listeners
+          form.removeEventListener('submit', handleEnhancedFormSubmission);
+          submitButton.removeEventListener('click', handleEnhancedFormSubmission);
+          
+          // Add form submit event listener
+          form.addEventListener('submit', function(e) {
+            console.log('📝 Enhanced form submit event triggered');
+            e.preventDefault();
+            handleEnhancedFormSubmission();
+          });
+          
+          // Also add click event listener to button as backup
+          submitButton.addEventListener('click', function(e) {
+            console.log('🖱️ Enhanced button click event triggered');
+            e.preventDefault();
+            handleEnhancedFormSubmission();
+          });
+          
+          console.log('✅ Enhanced form handling initialized successfully');
+        } else {
+          console.error('❌ Form or submit button not found!');
+        }
+      }
+
+      // Handle form submission with location data (renamed to avoid conflicts)
+      function handleEnhancedFormSubmission() {
+        console.log('🚀 handleEnhancedFormSubmission called');
+        
+        const employeeId = document.getElementById('employee_id').value.trim();
+        const submitButton = document.getElementById('submitButton');
+        
+        console.log('Employee ID:', employeeId);
+        console.log('Submit button:', submitButton);
+        
+        if (!employeeId) {
+          console.log('❌ No employee ID provided');
+          showStatusMessage('Please enter your Employee ID / Por favor ingrese su ID de empleado', 'error');
+          return;
+        }
+
+        console.log('✅ Employee ID valid, proceeding with enhanced submission');
+
+        // Save Employee ID to localStorage for next time
+        try {
+          localStorage.setItem('qr_last_employee_id', employeeId);
+          console.log(`💾 Saved employee ID for next time: ${employeeId}`);
+        } catch (error) {
+          console.log(`❌ Error saving employee ID: ${error.message}`);
+        }
+
+        // Disable button and show processing
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span class="english-text">Processing</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Procesando</span>
+          `;
+        }
+
+        showStatusMessage('Processing check-in... / Procesando registro...', 'processing');
+
+        // Get current URL to determine QR URL
+        const pathParts = window.location.pathname.split('/');
+        const qrUrl = pathParts[pathParts.length - 1];
+        
+        console.log('QR URL:', qrUrl);
+        console.log('Current enhanced location data:', currentUserLocation);
+
+        // Prepare form data with location information
+        const formData = new FormData();
+        formData.append('employee_id', employeeId);
+        
+        // Add location data to form submission
+        if (currentUserLocation.latitude !== null) {
+          formData.append('latitude', currentUserLocation.latitude.toString());
+        }
+        if (currentUserLocation.longitude !== null) {
+          formData.append('longitude', currentUserLocation.longitude.toString());
+        }
+        if (currentUserLocation.accuracy !== null) {
+          formData.append('accuracy', currentUserLocation.accuracy.toString());
+        }
+        if (currentUserLocation.altitude !== null) {
+          formData.append('altitude', currentUserLocation.altitude.toString());
+        }
+        if (currentUserLocation.address) {
+          formData.append('address', currentUserLocation.address);
+        }
+        formData.append('location_source', currentUserLocation.source);
+
+        console.log('📤 Submitting enhanced form with location data:', {
+          employee_id: employeeId,
+          latitude: currentUserLocation.latitude,
+          longitude: currentUserLocation.longitude,
+          accuracy: currentUserLocation.accuracy,
+          altitude: currentUserLocation.altitude,
+          address: currentUserLocation.address,
+          location_source: currentUserLocation.source
+        });
+
+        // Submit to backend
+        fetch(`/qr/${qrUrl}/checkin`, {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => {
+          console.log('📨 Received enhanced response:', response);
+          return response.json();
+        })
+        .then(data => {
+          console.log('📨 Enhanced response data:', data);
+          if (data.success) {
+            showStatusMessage('Submission successful! / Envío exitoso', 'success');
+            showEnhancedSuccessCard(data);
+          } else {
+            showStatusMessage(data.message || 'Submission failed / Envío fallido', 'error');
+            resetEnhancedSubmitButton();
+          }
+        })
+        .catch(error => {
+          console.error('❌ Enhanced fetch error:', error);
+          showStatusMessage('Network error / Error de red', 'error');
+          resetEnhancedSubmitButton();
+        });
+      }
+
+      // Reset submit button (renamed to avoid conflicts)
+      function resetEnhancedSubmitButton() {
+        const submitButton = document.getElementById('submitButton');
+        submitButton.disabled = false;
+        
+        // Get the current location event from the page
+        const isCheckOut = document.body.classList.contains('check-out');
+        
+        if (isCheckOut) {
+          submitButton.innerHTML = `
+            <i class="fas fa-sign-out-alt"></i>
+            <span class="english-text">Check Out</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Registrar Salida</span>
+          `;
+        } else {
+          submitButton.innerHTML = `
+            <i class="fas fa-sign-in-alt"></i>
+            <span class="english-text">Check In</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Registrar Entrada</span>
+          `;
+        }
+      }
+
+      // Enhanced status message display with color coding
+      function showStatusMessage(message, type) {
+        const statusMessage = document.getElementById('statusMessage');
+        const statusSpan = statusMessage.querySelector('span');
+        
+        statusSpan.innerHTML = message;
+        statusMessage.className = `status-message ${type} show`;
+        
+        setTimeout(() => {
+          statusMessage.classList.remove('show');
+        }, 5000);
+      }
+
+      // Enhanced success display with bilingual details (renamed to avoid conflicts)
+      function showEnhancedSuccessCard(data) {
+        const successCard = document.getElementById('successCard');
+        const checkinCard = document.querySelector('.checkin-card');
+        const successDetails = document.getElementById('successDetails');
+        
+        // Hide check-in form
+        checkinCard.style.display = 'none';
+        
+        // Get employee ID from form input (since data.employee_id might be undefined)
+        const employeeIdInput = document.getElementById('employee_id');
+        const employeeId = data.employee_id || (employeeIdInput ? employeeIdInput.value.trim() : 'N/A');
+        
+        // Use QR code location instead of GPS address for main location display
+        const qrLocationElement = document.querySelector('.location-info');
+        let qrLocationName = 'Unknown Location';
+        if (qrLocationElement) {
+          // Extract text content, removing the icon
+          const locationText = qrLocationElement.textContent || qrLocationElement.innerText;
+          qrLocationName = locationText.trim();
+        }
+        
+        // Get location event (Check In or Check Out)
+        const isCheckOut = document.body.classList.contains('check-out');
+        const locationEvent = isCheckOut ? 'Check Out' : 'Check In';
+        const locationEventSpanish = isCheckOut ? 'Salida' : 'Entrada';
+        
+        // Alternative: try to get from page title or header
+        if (qrLocationName === 'Unknown Location') {
+          const headerElement = document.querySelector('.destination-header h1');
+          if (headerElement) {
+            // Extract just the location event part (Check In/Check Out)
+            qrLocationName = data.location || 'Check-in Location';
+          }
+        }
+
+        successDetails.innerHTML = `
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Employee ID</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">ID de Empleado</span>
+            </span>
+            <span class="detail-value">${employeeId}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Event</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Evento</span>
+            </span>
+            <span class="detail-value">
+              <span class="english-text">${locationEvent}</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">${locationEventSpanish}</span>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Time</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Hora</span>
+            </span>
+            <span class="detail-value">${data.timestamp || new Date().toLocaleString()}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Location</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Ubicación</span>
+            </span>
+            <span class="detail-value">${qrLocationName}</span>
+          </div>
+        `;
+        
+        // Show success card
+        successCard.classList.add('show');
+        
+        console.log('✅ Enhanced success card displayed with:', {
+          employeeId: employeeId,
+          locationEvent: locationEvent,
+          qrLocation: qrLocationName,
+          timestamp: data.timestamp || new Date().toLocaleString()
+        });
+      }
+    </script>
   </body>
 </html>
