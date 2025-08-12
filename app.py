@@ -1969,7 +1969,7 @@ def admin_logs():
     try:
         # Get log statistics for the last 7 days
         stats = logger_handler.get_log_statistics(days=7)
-        return render_template('admin/logs.html', log_stats=stats)
+        return render_template('admin_logs.html', log_stats=stats)
     except Exception as e:
         logger_handler.log_database_error('admin_logs_load', e)
         flash('Error loading log statistics.', 'error')

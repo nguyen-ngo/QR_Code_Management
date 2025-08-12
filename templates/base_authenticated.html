@@ -68,6 +68,11 @@
                 <i class="fas fa-chart-line"></i>
                 <span class="menu-text">Reports</span>
               </a>
+              <a href="{{ url_for('admin_logs') }}" 
+                 class="menu-item {% if request.endpoint == 'admin_logs' %}active{% endif %}">
+                <i class="fas fa-clipboard-list"></i>
+                <span class="menu-text">System Logs</span>
+              </a>
               {% elif session.role in ['payroll', 'project_manager'] %}
               <a href="{{ url_for('attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
