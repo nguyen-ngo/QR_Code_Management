@@ -1,8 +1,7 @@
-{% extends "base_authenticated.html" %} 
-{% block title %}Dashboard - QR Code Management{% endblock %} 
+{% extends "base_authenticated.html" %}
+{% block title %}Dashboard - QR Code Management{% endblock %}
 
 {% block extra_head %}
-<!-- Dashboard-specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 <style>
 /* Project-Centric Dashboard Styles */
@@ -160,7 +159,6 @@
   transform: rotate(180deg);
 }
 
-/* QR Codes within Project */
 .project-qr-codes {
   max-height: 0;
   overflow: hidden;
@@ -296,6 +294,7 @@
   cursor: pointer;
   transition: var(--transition);
   font-size: var(--font-size-sm);
+  text-decoration: none;
 }
 
 .qr-action-btn.edit {
@@ -338,7 +337,6 @@
   color: var(--white);
 }
 
-/* Empty States */
 .empty-project-qr {
   text-align: center;
   padding: var(--spacing-8) var(--spacing-4);
@@ -370,7 +368,6 @@
   margin-bottom: var(--spacing-4);
 }
 
-/* Unassigned QR Codes Section */
 .unassigned-qr-section {
   background: var(--white);
   border: 1px solid var(--gray-200);
@@ -407,7 +404,178 @@
   font-weight: 600;
 }
 
-/* Dashboard Empty State */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  animation: slideIn 0.3s ease;
+}
+
+.qr-modal-content {
+  max-width: 900px;
+  width: 90vw;
+  max-height: 80vh;
+}
+
+.modal-header {
+  padding: var(--spacing-6);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: var(--font-size-xl);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--spacing-2);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.modal-close:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.qr-modal-body {
+  padding: var(--spacing-6);
+}
+
+.qr-modal-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--spacing-8);
+  align-items: start;
+}
+
+.qr-modal-image {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.qr-modal-image img {
+  width: 280px;
+  height: 280px;
+  border: 3px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  padding: var(--spacing-2);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.qr-modal-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.qr-detail-section {
+  background: #f8fafc;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-6);
+}
+
+.qr-detail-section h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-6) 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--primary-color);
+  border-bottom: 2px solid var(--primary-color);
+  padding-bottom: var(--spacing-2);
+}
+
+.qr-detail-item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  align-items: start;
+}
+
+.qr-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.qr-detail-item label {
+  font-weight: 600;
+  color: var(--gray-700);
+  font-size: var(--font-size-sm);
+  padding-top: 2px;
+}
+
+.qr-detail-item span {
+  color: var(--gray-900);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.qr-destination-link a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+  font-size: var(--font-size-sm);
+}
+
+.qr-destination-link a:hover {
+  background: var(--primary-color);
+  color: var(--white);
+}
+
+.qr-modal-footer {
+  padding: var(--spacing-6);
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  background: #f8fafc;
+}
+
+.qr-modal-footer .btn {
+  min-width: 140px;
+}
+
 .dashboard-empty {
   text-align: center;
   padding: 4rem 2rem;
@@ -442,81 +610,6 @@
   margin-right: auto;
 }
 
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.3s ease;
-}
-
-.modal-content {
-  background: var(--white);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: auto;
-  animation: slideIn 0.3s ease;
-}
-
-.modal-header {
-  padding: var(--spacing-6);
-  border-bottom: 1px solid var(--gray-200);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  color: var(--gray-900);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: var(--font-size-xl);
-  color: var(--gray-500);
-  cursor: pointer;
-  padding: var(--spacing-2);
-  border-radius: var(--radius-md);
-  transition: var(--transition);
-}
-
-.modal-close:hover {
-  background: var(--gray-100);
-  color: var(--gray-700);
-}
-
-.modal-body {
-  padding: var(--spacing-6);
-  text-align: center;
-}
-
-.modal-actions {
-  display: flex;
-  gap: var(--spacing-3);
-  justify-content: center;
-  margin-top: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.modal-actions .btn {
-  flex: 1;
-  min-width: 140px;
-}
-
-/* Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -533,7 +626,6 @@
   }
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
   .project-header {
     padding: var(--spacing-3) var(--spacing-4);
@@ -575,6 +667,43 @@
     align-items: flex-start;
     gap: var(--spacing-2);
   }
+  
+  .qr-modal-content {
+    width: 95vw;
+    max-height: 95vh;
+  }
+  
+  .qr-modal-layout {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-6);
+  }
+  
+  .qr-modal-image {
+    order: 1;
+  }
+  
+  .qr-modal-info {
+    order: 2;
+  }
+  
+  .qr-modal-image img {
+    width: 240px;
+    height: 240px;
+  }
+  
+  .qr-detail-item {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-1);
+  }
+  
+  .qr-modal-footer {
+    flex-direction: column;
+  }
+  
+  .qr-modal-footer .btn {
+    width: 100%;
+    min-width: unset;
+  }
 }
 
 @media (max-width: 480px) {
@@ -590,9 +719,30 @@
     margin-top: var(--spacing-2);
     justify-content: flex-end;
   }
+  
+  .modal-header {
+    padding: var(--spacing-4);
+  }
+  
+  .qr-modal-body {
+    padding: var(--spacing-4);
+  }
+  
+  .qr-detail-section {
+    padding: var(--spacing-4);
+  }
+  
+  .qr-modal-image img {
+    width: 200px;
+    height: 200px;
+  }
+  
+  .qr-modal-footer {
+    padding: var(--spacing-4);
+  }
 }
 </style>
-{% endblock %} 
+{% endblock %}
 
 {% block content %}
 <div class="dashboard-container">
@@ -709,18 +859,19 @@
         </div>
       </div>
       
-      <!-- Project QR Codes (Collapsible) -->
+      <!-- Project QR Codes -->
       <div class="project-qr-codes" id="project-qr-{{ project.id }}">
         {% if project_qr_codes %}
         <div class="project-qr-grid">
           {% for qr in project_qr_codes %}
-          <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
-            name: '{{ qr.name }}',
-            image: 'data:image/png;base64,{{ qr.qr_code_image }}',
-            location: '{{ qr.location }}',
-            address: '{{ qr.location_address }}',
-            event: '{{ qr.location_event }}'
-          })">
+          <div class="qr-card {{ 'inactive' if not qr.active_status }}" 
+               data-qr-id="{{ qr.id }}"
+               data-qr-name="{{ qr.name }}"
+               data-qr-location="{{ qr.location }}"
+               data-qr-address="{{ qr.location_address }}"
+               data-qr-event="{{ qr.location_event }}"
+               data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+               onclick="openQRModalFromData(this)">
             <div class="qr-card-header">
               <div class="qr-preview">
                 <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
@@ -738,9 +889,8 @@
               </div>
             </div>
             
-            <!-- QR Actions (Show on Hover) -->
             <div class="qr-actions">
-              <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')" title="Download QR Code">
+              <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
                 <i class="fas fa-download"></i>
               </button>
               
@@ -794,13 +944,14 @@
     
     <div class="project-qr-grid">
       {% for qr in unassigned_qr_codes %}
-      <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
-        name: '{{ qr.name }}',
-        image: 'data:image/png;base64,{{ qr.qr_code_image }}',
-        location: '{{ qr.location }}',
-        address: '{{ qr.location_address }}',
-        event: '{{ qr.location_event }}'
-      })">
+      <div class="qr-card {{ 'inactive' if not qr.active_status }}" 
+           data-qr-id="{{ qr.id }}"
+           data-qr-name="{{ qr.name }}"
+           data-qr-location="{{ qr.location }}"
+           data-qr-address="{{ qr.location_address }}"
+           data-qr-event="{{ qr.location_event }}"
+           data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+           onclick="openQRModalFromData(this)">
         <div class="qr-card-header">
           <div class="qr-preview">
             <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
@@ -818,9 +969,8 @@
           </div>
         </div>
         
-        <!-- QR Actions -->
         <div class="qr-actions">
-          <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')" title="Download QR Code">
+          <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
             <i class="fas fa-download"></i>
           </button>
           
@@ -844,7 +994,7 @@
   </div>
   {% endif %}
 
-  <!-- Empty State (No Projects and No QR Codes) -->
+  <!-- Empty State -->
   {% if not projects and not qr_codes %}
   <div class="dashboard-empty">
     <div class="empty-icon">
@@ -868,41 +1018,89 @@
   {% endif %}
 </div>
 
-<!-- QR Code Modal -->
+<!-- Enhanced QR Code Modal -->
 <div id="qrModal" class="modal" onclick="closeQRModal()">
-  <div class="modal-content" onclick="event.stopPropagation()">
+  <div class="modal-content qr-modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modalTitle">QR Code Details</h3>
       <button class="modal-close" onclick="closeQRModal()">
         <i class="fas fa-times"></i>
       </button>
     </div>
-    <div class="modal-body">
-      <img id="modalQRImage" src="" alt="QR Code" style="max-width: 100%; height: auto; margin-bottom: 1rem;">
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="downloadModalQR()">
-          <i class="fas fa-download"></i>
-          Download QR Code
-        </button>
-        <button class="btn btn-outline" onclick="copyModalQRData()">
-          <i class="fas fa-copy"></i>
-          Copy Info
-        </button>
+    <div class="modal-body qr-modal-body">
+      <div class="qr-modal-layout">
+        <div class="qr-modal-image">
+          <img id="modalQRImage" src="" alt="QR Code">
+        </div>
+        
+        <div class="qr-modal-info">
+          <div class="qr-detail-section">
+            <h4><i class="fas fa-qrcode"></i> QR Code Information</h4>
+            
+            <div class="qr-detail-item">
+              <label>Name:</label>
+              <span id="modalQRName">-</span>
+            </div>
+            
+            <div class="qr-detail-item">
+              <label>Location:</label>
+              <span id="modalQRLocation">-</span>
+            </div>
+            
+            <div class="qr-detail-item">
+              <label>Address:</label>
+              <span id="modalQRAddress">-</span>
+            </div>
+            
+            <div class="qr-detail-item">
+              <label>Event:</label>
+              <span id="modalQREvent">-</span>
+            </div>
+            
+            <div class="qr-detail-item">
+              <label>QR Destination:</label>
+              <span id="modalQRDestination" class="qr-destination-link">
+                <a href="#" target="_blank" rel="noopener noreferrer">
+                  <i class="fas fa-external-link-alt"></i>
+                  View QR Destination
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+    
+    <div class="modal-footer qr-modal-footer">
+      <button class="btn btn-primary" onclick="downloadModalQR()">
+        <i class="fas fa-download"></i>
+        Download QR Code
+      </button>
+      <button class="btn btn-outline" onclick="copyModalQRData()">
+        <i class="fas fa-copy"></i>
+        Copy Information
+      </button>
+      <button class="btn btn-secondary" onclick="copyQRDestination()">
+        <i class="fas fa-link"></i>
+        Copy QR Link
+      </button>
+      <button class="btn btn-outline" onclick="closeQRModal()">
+        <i class="fas fa-times"></i>
+        Close
+      </button>
     </div>
   </div>
 </div>
 
 <script>
-// Project-Centric Dashboard Manager
 class ProjectDashboardManager {
   constructor() {
     this.expandedProjects = new Set();
+    this.currentModalQR = null;
     this.initialize();
   }
 
   initialize() {
-    // Load expanded state from localStorage
     const saved = localStorage.getItem('expandedProjects');
     if (saved) {
       this.expandedProjects = new Set(JSON.parse(saved));
@@ -912,7 +1110,7 @@ class ProjectDashboardManager {
 
   restoreProjectStates() {
     this.expandedProjects.forEach(projectId => {
-      this.expandProject(projectId, false); // false = don't save to localStorage again
+      this.expandProject(projectId, false);
     });
   }
 
@@ -939,10 +1137,6 @@ class ProjectDashboardManager {
       header?.classList.add('expanded');
       this.expandedProjects.add(projectId);
       
-      // Log project expansion
-      console.log(`Project ${projectId} expanded`);
-      
-      // Add animation delay for better UX
       if (animate) {
         setTimeout(() => {
           projectQR.scrollIntoView({ 
@@ -964,9 +1158,6 @@ class ProjectDashboardManager {
       toggle.classList.remove('expanded');
       header?.classList.remove('expanded');
       this.expandedProjects.delete(projectId);
-      
-      // Log project collapse
-      console.log(`Project ${projectId} collapsed`);
     }
   }
 
@@ -974,7 +1165,6 @@ class ProjectDashboardManager {
     localStorage.setItem('expandedProjects', JSON.stringify([...this.expandedProjects]));
   }
 
-  // QR Code Management Functions
   async toggleQRCodeStatus(qrId) {
     try {
       const response = await fetch(`/qr-codes/${qrId}/toggle-status`, {
@@ -988,12 +1178,10 @@ class ProjectDashboardManager {
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          // Show success message
           if (window.showToast) {
             window.showToast(result.message, 'success');
           }
           
-          // Reload page to reflect changes
           setTimeout(() => {
             window.location.reload();
           }, 1000);
@@ -1025,13 +1213,11 @@ class ProjectDashboardManager {
       });
       
       if (response.ok) {
-        // Show success message
         if (window.showToast) {
           window.showToast(`QR code "${qrName}" deleted successfully`, 'success');
         }
         
-        // Remove the QR card from DOM with animation
-        const qrCard = document.querySelector(`[onclick*="${qrId}"]`);
+        const qrCard = document.querySelector(`[data-qr-id="${qrId}"]`);
         if (qrCard) {
           qrCard.style.transition = 'all 0.3s ease';
           qrCard.style.opacity = '0';
@@ -1039,9 +1225,6 @@ class ProjectDashboardManager {
           
           setTimeout(() => {
             qrCard.remove();
-            
-            // Check if project has no QR codes left and update UI
-            this.updateProjectEmptyStates();
           }, 300);
         }
         
@@ -1056,69 +1239,66 @@ class ProjectDashboardManager {
     }
   }
 
-  updateProjectEmptyStates() {
-    // Check each project for empty state
-    document.querySelectorAll('.project-qr-codes').forEach(projectQR => {
-      const qrCards = projectQR.querySelectorAll('.qr-card');
-      const emptyState = projectQR.querySelector('.empty-project-qr');
-      
-      if (qrCards.length === 0 && !emptyState) {
-        // Add empty state
-        const projectId = projectQR.id.replace('project-qr-', '');
-        projectQR.innerHTML = `
-          <div class="empty-project-qr">
-            <div class="empty-icon">
-              <i class="fas fa-qrcode"></i>
-            </div>
-            <h4>No QR Codes in this Project</h4>
-            <p>Create your first QR code for this project</p>
-            <a href="/qr-codes/create" class="btn btn-primary">
-              <i class="fas fa-plus"></i>
-              Create QR Code
-            </a>
-          </div>
-        `;
-      }
-    });
+  openQRModalFromData(element) {
+    const qrData = {
+      name: element.dataset.qrName,
+      image: element.querySelector('.qr-preview img').src,
+      location: element.dataset.qrLocation,
+      address: element.dataset.qrAddress,
+      event: element.dataset.qrEvent,
+      qr_url: element.dataset.qrUrl
+    };
     
-    // Update project QR counts in headers
-    this.updateProjectCounts();
+    this.openQRModal(qrData);
   }
 
-  updateProjectCounts() {
-    document.querySelectorAll('.project-list-item').forEach(item => {
-      const projectHeader = item.querySelector('.project-header');
-      const projectQR = item.querySelector('.project-qr-codes');
-      const countElement = projectHeader?.querySelector('.project-qr-count span');
-      
-      if (countElement && projectQR) {
-        const qrCount = projectQR.querySelectorAll('.qr-card').length;
-        countElement.textContent = `${qrCount} QR Code${qrCount !== 1 ? 's' : ''}`;
-      }
-    });
-  }
-
-  // Modal Management
   openQRModal(qrData) {
     const modal = document.getElementById('qrModal');
     const modalImage = document.getElementById('modalQRImage');
     const modalTitle = document.getElementById('modalTitle');
     
+    const modalQRName = document.getElementById('modalQRName');
+    const modalQRLocation = document.getElementById('modalQRLocation');
+    const modalQRAddress = document.getElementById('modalQRAddress');
+    const modalQREvent = document.getElementById('modalQREvent');
+    const modalQRDestination = document.getElementById('modalQRDestination');
+    
     if (modal && modalImage && modalTitle) {
       modalTitle.textContent = `QR Code: ${qrData.name}`;
       modalImage.src = qrData.image;
-      modal.style.display = 'flex';
+      modalImage.alt = `QR Code for ${qrData.name}`;
       
-      // Store current modal QR data for download and copy functions
+      if (modalQRName) modalQRName.textContent = qrData.name || '-';
+      if (modalQRLocation) modalQRLocation.textContent = qrData.location || '-';
+      if (modalQRAddress) modalQRAddress.textContent = qrData.address || '-';
+      if (modalQREvent) modalQREvent.textContent = qrData.event || 'No event specified';
+      
+      if (modalQRDestination && qrData.qr_url) {
+        const destinationUrl = `${window.location.origin}/qr/${qrData.qr_url}`;
+        const linkElement = modalQRDestination.querySelector('a');
+        if (linkElement) {
+          linkElement.href = destinationUrl;
+          linkElement.innerHTML = `
+            <i class="fas fa-external-link-alt"></i>
+            ${destinationUrl}
+          `;
+        }
+      } else if (modalQRDestination) {
+        modalQRDestination.innerHTML = '<span style="color: var(--gray-500); font-style: italic;">No destination URL available</span>';
+      }
+      
       this.currentModalQR = {
         name: qrData.name,
         image: qrData.image,
         location: qrData.location,
         address: qrData.address,
-        event: qrData.event
+        event: qrData.event,
+        qr_url: qrData.qr_url,
+        destination_url: qrData.qr_url ? `${window.location.origin}/qr/${qrData.qr_url}` : null
       };
       
-      // Add keyboard listener for escape key
+      modal.style.display = 'flex';
+      
       document.addEventListener('keydown', this.handleModalKeydown.bind(this));
     }
   }
@@ -1129,7 +1309,6 @@ class ProjectDashboardManager {
       modal.style.display = 'none';
       this.currentModalQR = null;
       
-      // Remove keyboard listener
       document.removeEventListener('keydown', this.handleModalKeydown.bind(this));
     }
   }
@@ -1140,10 +1319,20 @@ class ProjectDashboardManager {
     }
   }
 
-  // Download QR Code functionality
+  downloadQRFromCard(button) {
+    const qrCard = button.closest('.qr-card');
+    const img = qrCard.querySelector('.qr-preview img');
+    const qrName = qrCard.dataset.qrName;
+    
+    if (img && img.src) {
+      // Extract base64 data from the image src
+      const base64Data = img.src.split('base64,')[1];
+      this.downloadQR(base64Data, qrName);
+    }
+  }
+
   downloadQR(base64Image, filename) {
     try {
-      // Extract base64 data if it includes the data URL prefix
       const base64Data = base64Image.includes('base64,') 
         ? base64Image.split('base64,')[1] 
         : base64Image;
@@ -1156,7 +1345,6 @@ class ProjectDashboardManager {
       link.click();
       document.body.removeChild(link);
 
-      // Show success toast
       if (window.showToast) {
         window.showToast('QR code downloaded successfully!', 'success');
       }
@@ -1168,179 +1356,80 @@ class ProjectDashboardManager {
     }
   }
 
-  // Download from modal
   downloadModalQR() {
     if (this.currentModalQR) {
-      this.downloadQR(this.currentModalQR.image, this.currentModalQR.name);
+      const base64Data = this.currentModalQR.image.split('base64,')[1];
+      this.downloadQR(base64Data, this.currentModalQR.name);
     }
   }
 
-  // Copy QR data from modal
   copyModalQRData() {
     if (this.currentModalQR) {
-      this.copyQRData(
-        this.currentModalQR.name,
-        this.currentModalQR.location,
-        this.currentModalQR.address,
-        this.currentModalQR.event
-      );
-    }
-  }
-
-  // Utility Methods
-  copyQRData(name, location, address, event) {
-    const data = `QR Code: ${name}\nLocation: ${location}\nAddress: ${address}\nEvent: ${event}`;
-    
-    navigator.clipboard.writeText(data)
-      .then(() => {
-        if (window.showToast) {
-          window.showToast('QR code information copied to clipboard!', 'success');
-        }
-      })
-      .catch(() => {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = data;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-          document.execCommand('copy');
+      const data = `QR Code: ${this.currentModalQR.name}\nLocation: ${this.currentModalQR.location}\nAddress: ${this.currentModalQR.address}\nEvent: ${this.currentModalQR.event}${this.currentModalQR.destination_url ? `\nQR Link: ${this.currentModalQR.destination_url}` : ''}`;
+      
+      navigator.clipboard.writeText(data)
+        .then(() => {
           if (window.showToast) {
             window.showToast('QR code information copied to clipboard!', 'success');
           }
-        } catch (err) {
-          if (window.showToast) {
-            window.showToast('Failed to copy to clipboard', 'error');
+        })
+        .catch(() => {
+          const textArea = document.createElement('textarea');
+          textArea.value = data;
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            if (window.showToast) {
+              window.showToast('QR code information copied to clipboard!', 'success');
+            }
+          } catch (err) {
+            if (window.showToast) {
+              window.showToast('Failed to copy to clipboard', 'error');
+            }
           }
-        }
-        document.body.removeChild(textArea);
-      });
-  }
-
-  // Expand all projects (utility function)
-  expandAllProjects() {
-    document.querySelectorAll('.project-list-item').forEach(item => {
-      const projectHeader = item.querySelector('.project-header');
-      const projectId = projectHeader?.getAttribute('onclick')?.match(/\d+/)?.[0];
-      
-      if (projectId && !this.expandedProjects.has(parseInt(projectId))) {
-        this.expandProject(parseInt(projectId), false);
-      }
-    });
-    
-    this.saveExpandedState();
-    
-    if (window.showToast) {
-      window.showToast('All projects expanded', 'info');
+          document.body.removeChild(textArea);
+        });
     }
   }
 
-  // Collapse all projects (utility function)
-  collapseAllProjects() {
-    [...this.expandedProjects].forEach(projectId => {
-      this.collapseProject(projectId);
-    });
-    
-    this.saveExpandedState();
-    
-    if (window.showToast) {
-      window.showToast('All projects collapsed', 'info');
+  copyQRDestination() {
+    if (this.currentModalQR && this.currentModalQR.destination_url) {
+      navigator.clipboard.writeText(this.currentModalQR.destination_url)
+        .then(() => {
+          if (window.showToast) {
+            window.showToast('QR destination link copied to clipboard!', 'success');
+          }
+        })
+        .catch(() => {
+          if (window.showToast) {
+            window.showToast('Failed to copy QR link', 'error');
+          }
+        });
+    } else {
+      if (window.showToast) {
+        window.showToast('No QR destination link available', 'warning');
+      }
     }
   }
 }
 
-// Global variables and functions
 let dashboardManager;
 
-// Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   dashboardManager = new ProjectDashboardManager();
   
-  // Make functions globally available for onclick handlers
   window.toggleProject = (projectId) => dashboardManager.toggleProject(projectId);
   window.toggleQRCodeStatus = (qrId) => dashboardManager.toggleQRCodeStatus(qrId);
   window.deleteQRCode = (qrId, qrName) => dashboardManager.deleteQRCode(qrId, qrName);
-  window.openQRModal = (qrData) => dashboardManager.openQRModal(qrData);
+  window.openQRModalFromData = (element) => dashboardManager.openQRModalFromData(element);
   window.closeQRModal = () => dashboardManager.closeQRModal();
-  window.copyQRData = (name, location, address, event) => 
-    dashboardManager.copyQRData(name, location, address, event);
   window.downloadModalQR = () => dashboardManager.downloadModalQR();
   window.copyModalQRData = () => dashboardManager.copyModalQRData();
-  window.downloadQR = (base64Image, filename) => dashboardManager.downloadQR(base64Image, filename);
-    
-  // Add keyboard shortcuts (optional)
-  document.addEventListener('keydown', function(event) {
-    // Ctrl/Cmd + E = Expand all projects
-    if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
-      event.preventDefault();
-      dashboardManager.expandAllProjects();
-    }
-    
-    // Ctrl/Cmd + Shift + E = Collapse all projects
-    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'E') {
-      event.preventDefault();
-      dashboardManager.collapseAllProjects();
-    }
-  });
+  window.copyQRDestination = () => dashboardManager.copyQRDestination();
+  window.downloadQRFromCard = (button) => dashboardManager.downloadQRFromCard(button);
   
-  // Add smooth scrolling for better UX
-  document.documentElement.style.scrollBehavior = 'smooth';
-  
-  // Log dashboard initialization
   console.log('Project Dashboard initialized successfully');
-  
-  // Show welcome message for first-time users
-  if (!localStorage.getItem('dashboardVisited')) {
-    localStorage.setItem('dashboardVisited', 'true');
-    
-    if (window.showToast) {
-      setTimeout(() => {
-        window.showToast('Click on any project to expand and view its QR codes!', 'info');
-      }, 1000);
-    }
-  }
 });
-
-// Add CSS for smooth animations
-const style = document.createElement('style');
-style.textContent = `
-  .qr-card {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .project-qr-codes {
-    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .project-toggle i {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .qr-actions {
-    transition: opacity 0.2s ease, transform 0.2s ease;
-  }
-  
-  .qr-card:hover .qr-actions {
-    transform: translateY(-2px);
-  }
-  
-  /* Loading animation for project headers */
-  .project-header:active {
-    transform: scale(0.98);
-    transition: transform 0.1s ease;
-  }
-  
-  /* Pulse animation for new QR codes */
-  @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-  }
-  
-  .qr-card.new {
-    animation: pulse 0.6s ease-in-out;
-  }
-`;
-document.head.appendChild(style);
 </script>
 {% endblock %}
