@@ -23,7 +23,7 @@ import logging.handlers
 import json
 import os
 import traceback
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 from flask import request, session, g
 from sqlalchemy import text
@@ -594,63 +594,82 @@ class AppLogger:
         )
     
     # UTILITY METHODS
-    
     def get_log_statistics(self, days=7):
         """Get logging statistics for the specified number of days"""
         try:
+            from datetime import datetime, timedelta  # Import here as backup
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Get total events
-            total_sql = """
-            SELECT COUNT(*) as total_events
-            FROM log_events 
-            WHERE created_timestamp >= :cutoff_date
-            """
-            
-            total_result = self.db.session.execute(text(total_sql), {
-                'cutoff_date': cutoff_date
-            }).fetchone()
-            
-            # Get events by category
-            category_sql = """
-            SELECT 
-                event_category,
-                COUNT(*) as event_count
-            FROM log_events 
-            WHERE created_timestamp >= :cutoff_date
-            GROUP BY event_category
-            """
-            
-            category_result = self.db.session.execute(text(category_sql), {
-                'cutoff_date': cutoff_date
-            }).fetchall()
-            
-            # Build simple statistics dictionary (not nested)
+            # Initialize default stats
             stats = {
-                'total_events': total_result.total_events if total_result else 0,
+                'total_events': 0,
                 'security_events': 0,
                 'database_errors': 0,
                 'user_activities': 0,
                 'system_events': 0
             }
             
-            # Process category results
-            for row in category_result:
-                if row.event_category == 'security':
-                    stats['security_events'] = row.event_count
-                elif row.event_category == 'database':
-                    stats['database_errors'] = row.event_count
-                elif row.event_category == 'user_activity':
-                    stats['user_activities'] = row.event_count
-                elif row.event_category == 'system':
-                    stats['system_events'] = row.event_count
+            # Check if table exists first
+            try:
+                table_check = self.db.session.execute(text("SHOW TABLES LIKE 'log_events'")).fetchone()
+                if not table_check:
+                    print("⚠️ log_events table does not exist")
+                    return stats
+            except Exception as table_error:
+                print(f"⚠️ Cannot check if log_events table exists: {table_error}")
+                return stats
             
+            # Get total events count
+            try:
+                total_sql = """
+                SELECT COUNT(*) as total_events
+                FROM log_events 
+                WHERE created_timestamp >= :cutoff_date
+                """
+                
+                total_result = self.db.session.execute(text(total_sql), {'cutoff_date': cutoff_date}).fetchone()
+                if total_result:
+                    stats['total_events'] = total_result.total_events
+                    print(f"✅ Found {stats['total_events']} total events in last {days} days")
+            except Exception as total_error:
+                print(f"⚠️ Error getting total events: {total_error}")
+            
+            # Get events by category
+            try:
+                category_sql = """
+                SELECT 
+                    event_category,
+                    COUNT(*) as event_count
+                FROM log_events 
+                WHERE created_timestamp >= :cutoff_date
+                GROUP BY event_category
+                """
+                
+                category_result = self.db.session.execute(text(category_sql), {'cutoff_date': cutoff_date}).fetchall()
+                
+                for row in category_result:
+                    category = row.event_category
+                    count = row.event_count
+                    print(f"✅ Found {count} events in category: {category}")
+                    
+                    if category == 'security':
+                        stats['security_events'] = count
+                    elif category == 'database':
+                        stats['database_errors'] = count
+                    elif category == 'user_activity':
+                        stats['user_activities'] = count
+                    elif category == 'system':
+                        stats['system_events'] = count
+                        
+            except Exception as category_error:
+                print(f"⚠️ Error getting category stats: {category_error}")
+            
+            print(f"📊 Final stats: {stats}")
             return stats
             
         except Exception as e:
+            print(f"❌ Error in get_log_statistics: {e}")
             self.log_database_error('get_log_statistics', e)
-            print(f"Error in get_log_statistics: {e}")
-            # Return default stats structure
             return {
                 'total_events': 0,
                 'security_events': 0,
@@ -662,60 +681,70 @@ class AppLogger:
     def cleanup_old_logs(self, days_to_keep=90):
         """Clean up old log entries from database"""
         try:
+            from datetime import datetime, timedelta  # Import here as backup
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+            print(f"🧹 Starting log cleanup: removing entries older than {cutoff_date}")
+            
+            # Check if table exists first
+            try:
+                table_check = self.db.session.execute(text("SHOW TABLES LIKE 'log_events'")).fetchone()
+                if not table_check:
+                    print("⚠️ log_events table does not exist")
+                    return 0
+            except Exception as table_error:
+                print(f"⚠️ Cannot check if log_events table exists: {table_error}")
+                return 0
             
             # First, count how many records will be deleted
-            count_sql = """
-            SELECT COUNT(*) as count_to_delete
-            FROM log_events 
-            WHERE created_timestamp < :cutoff_date 
-            AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
-            """
-            
-            count_result = self.db.session.execute(text(count_sql), {
-                'cutoff_date': cutoff_date
-            }).fetchone()
-            
-            count_to_delete = count_result.count_to_delete if count_result else 0
-            
-            if count_to_delete == 0:
+            try:
+                count_sql = """
+                SELECT COUNT(*) as count_to_delete
+                FROM log_events 
+                WHERE created_timestamp < :cutoff_date 
+                AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
+                """
+                
+                count_result = self.db.session.execute(text(count_sql), {'cutoff_date': cutoff_date}).fetchone()
+                count_to_delete = count_result.count_to_delete if count_result else 0
+                
+                print(f"📊 Found {count_to_delete} records to delete")
+                
+                if count_to_delete == 0:
+                    print("✅ No old records found to cleanup")
+                    return 0
+                    
+            except Exception as count_error:
+                print(f"⚠️ Error counting records to delete: {count_error}")
                 return 0
             
             # Perform the cleanup - exclude critical logs
-            cleanup_sql = """
-            DELETE FROM log_events 
-            WHERE created_timestamp < :cutoff_date 
-            AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
-            """
-            
-            result = self.db.session.execute(text(cleanup_sql), {
-                'cutoff_date': cutoff_date
-            })
-            
-            deleted_count = result.rowcount
-            self.db.session.commit()
-            
-            # Log the cleanup operation
-            self.logger.info(f"Log cleanup completed: {deleted_count} entries removed (keeping entries older than {days_to_keep} days)")
-            
-            # Also log to security log for audit
-            self.log_security_event(
-                event_type="log_cleanup",
-                description=f"Admin cleaned up {deleted_count} old log entries (keeping last {days_to_keep} days)",
-                severity="MEDIUM",
-                additional_data={
-                    'days_to_keep': days_to_keep,
-                    'deleted_count': deleted_count,
-                    'cutoff_date': cutoff_date.isoformat()
-                }
-            )
-            
-            return deleted_count
+            try:
+                cleanup_sql = """
+                DELETE FROM log_events 
+                WHERE created_timestamp < :cutoff_date 
+                AND severity_level NOT IN ('ERROR', 'CRITICAL', 'HIGH')
+                """
+                
+                result = self.db.session.execute(text(cleanup_sql), {'cutoff_date': cutoff_date})
+                deleted_count = result.rowcount
+                self.db.session.commit()
+                
+                print(f"🗑️ Successfully deleted {deleted_count} old log entries")
+                
+                # Log the cleanup operation
+                self.logger.info(f"Log cleanup completed: {deleted_count} entries removed (keeping entries newer than {days_to_keep} days)")
+                
+                return deleted_count
+                
+            except Exception as delete_error:
+                print(f"❌ Error during deletion: {delete_error}")
+                self.db.session.rollback()
+                return 0
             
         except Exception as e:
+            print(f"❌ Error in cleanup_old_logs: {e}")
             self.db.session.rollback()
             self.log_database_error('cleanup_old_logs', e)
-            print(f"Error in cleanup_old_logs: {e}")
             return 0
 
 def get_recent_logs(self, days=7, limit=100, category_filter=None, severity_filter=None, search_term=None):

@@ -1979,57 +1979,64 @@ def admin_logs():
 @app.route('/api/logs/recent')
 @admin_required
 def api_recent_logs():
-    """Enhanced API endpoint to get recent log entries with filtering"""
+    """API endpoint to get recent log entries with full details"""
     try:
-        # Get parameters
-        days = request.args.get('days', 7, type=int)
+        days = request.args.get('days', 1, type=int)
         limit = request.args.get('limit', 50, type=int)
-        category_filter = request.args.get('category', None)
-        severity_filter = request.args.get('severity', None)
-        search_term = request.args.get('search', None)
         
-        # Verify log table exists
-        if not logger_handler.verify_log_table_exists():
-            return jsonify({
-                'success': False,
-                'error': 'Log table not found or inaccessible',
-                'logs': [],
-                'total': 0
-            }), 500
+        cutoff_date = datetime.now() - timedelta(days=days)
         
-        # Get logs using the enhanced method
-        logs = logger_handler.get_recent_logs(
-            days=days, 
-            limit=limit,
-            category_filter=category_filter,
-            severity_filter=severity_filter,
-            search_term=search_term
-        )
+        # Enhanced SQL to get all available fields
+        logs_sql = """
+        SELECT 
+            event_id,
+            event_type, 
+            event_category, 
+            event_description, 
+            event_data,
+            severity_level, 
+            created_timestamp, 
+            username, 
+            user_id,
+            ip_address
+        FROM log_events 
+        WHERE created_timestamp >= :cutoff_date
+        ORDER BY created_timestamp DESC
+        LIMIT :limit
+        """
         
-        # Log the API access for audit purposes
-        logger_handler.log_security_event(
-            event_type="admin_logs_accessed",
-            description=f"Admin {session.get('username', 'unknown')} accessed log data (days={days}, limit={limit})",
-            severity="LOW",
-            additional_data={
-                'filters': {
-                    'category': category_filter,
-                    'severity': severity_filter,
-                    'search': search_term
-                }
-            }
-        )
+        result = db.session.execute(text(logs_sql), {
+            'cutoff_date': cutoff_date,
+            'limit': limit
+        }).fetchall()
+        
+        logs = []
+        for row in result:
+            # Parse event_data if it's JSON
+            event_data = None
+            if row.event_data:
+                try:
+                    event_data = json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data
+                except (json.JSONDecodeError, TypeError):
+                    event_data = row.event_data
+            
+            logs.append({
+                'event_id': row.event_id,
+                'event_type': row.event_type,
+                'event_category': row.event_category,
+                'description': row.event_description,
+                'event_data': event_data,
+                'severity': row.severity_level,
+                'timestamp': row.created_timestamp.isoformat(),
+                'username': row.username or 'System',
+                'user_id': row.user_id,
+                'ip_address': row.ip_address or '-'
+            })
         
         return jsonify({
             'success': True,
             'logs': logs,
-            'total': len(logs),
-            'filters_applied': {
-                'days': days,
-                'category': category_filter,
-                'severity': severity_filter,
-                'search': search_term
-            }
+            'total': len(logs)
         })
         
     except Exception as e:
@@ -2037,111 +2044,95 @@ def api_recent_logs():
         print(f"Error in api_recent_logs: {e}")
         return jsonify({
             'success': False,
-            'error': f'Failed to fetch recent logs: {str(e)}',
-            'logs': [],
-            'total': 0
+            'error': f'Failed to fetch recent logs: {str(e)}'
         }), 500
 
 @app.route('/api/logs/stats')
 @admin_required
 def api_log_stats():
-    """Enhanced API endpoint to get logging statistics"""
+    """API endpoint to get logging statistics"""
     try:
         days = request.args.get('days', 7, type=int)
+        print(f"📊 Getting log statistics for last {days} days")
         
-        # Verify log table exists
-        if not logger_handler.verify_log_table_exists():
-            return jsonify({
-                'success': False,
-                'error': 'Log table not found or inaccessible',
-                'stats': {}
-            }), 500
-        
-        # Get statistics
+        # Get statistics from logger handler
         stats = logger_handler.get_log_statistics(days=days)
+        print(f"📈 Retrieved stats: {stats}")
         
-        # Add some additional metadata
-        enhanced_stats = {
+        # Ensure all expected keys exist
+        expected_stats = {
             'total_events': stats.get('total_events', 0),
             'security_events': stats.get('security_events', 0),
             'database_errors': stats.get('database_errors', 0),
             'user_activities': stats.get('user_activities', 0),
-            'system_events': stats.get('system_events', 0),
-            'unique_users': stats.get('unique_users', 0),
-            'severity_breakdown': {
-                'high': stats.get('high_severity', 0),
-                'medium': stats.get('medium_severity', 0),
-                'low': stats.get('low_severity', 0),
-                'info': stats.get('info_severity', 0)
-            },
-            'category_breakdown': {
-                'security': stats.get('security_events', 0),
-                'database': stats.get('database_errors', 0),
-                'user_activity': stats.get('user_activities', 0),
-                'system': stats.get('system_events', 0)
-            }
+            'system_events': stats.get('system_events', 0)
         }
         
         return jsonify({
             'success': True,
-            'stats': enhanced_stats,
+            'stats': expected_stats,
             'days': days,
-            'generated_at': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
         logger_handler.log_database_error('api_log_stats', e)
-        print(f"Error in api_log_stats: {e}")
+        print(f"❌ Error in api_log_stats: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to fetch log statistics: {str(e)}',
-            'stats': {}
+            'stats': {
+                'total_events': 0,
+                'security_events': 0,
+                'database_errors': 0,
+                'user_activities': 0,
+                'system_events': 0
+            }
         }), 500
 
 @app.route('/api/logs/cleanup', methods=['POST'])
 @admin_required
 def api_cleanup_logs():
-    """Enhanced API endpoint to cleanup old log entries"""
+    """API endpoint to cleanup old log entries"""
     try:
-        # Get parameters from request
+        # Get JSON data
         data = request.get_json()
         if not data:
+            print("❌ No JSON data provided")
             return jsonify({
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
         
         days_to_keep = data.get('days_to_keep', 90)
+        print(f"🧹 Cleanup request: keep last {days_to_keep} days")
         
         # Validate input
         if not isinstance(days_to_keep, int) or days_to_keep < 7:
+            print(f"❌ Invalid days_to_keep: {days_to_keep}")
             return jsonify({
                 'success': False,
                 'error': 'days_to_keep must be an integer >= 7'
             }), 400
         
         if days_to_keep > 365:
+            print(f"❌ days_to_keep too large: {days_to_keep}")
             return jsonify({
                 'success': False,
                 'error': 'days_to_keep cannot exceed 365 days'
             }), 400
         
-        # Verify log table exists
-        if not logger_handler.verify_log_table_exists():
-            return jsonify({
-                'success': False,
-                'error': 'Log table not found or inaccessible'
-            }), 500
-        
-        # Perform cleanup
+        # Perform cleanup using logger handler
         deleted_count = logger_handler.cleanup_old_logs(days_to_keep=days_to_keep)
         
-        # Enhanced logging for audit trail
         admin_username = session.get('username', 'unknown')
+        print(f"✅ Cleanup completed by {admin_username}: {deleted_count} records deleted")
+        
+        # Log the admin action
         logger_handler.log_security_event(
             event_type="admin_log_cleanup",
             description=f"Admin {admin_username} performed log cleanup: {deleted_count} entries removed (keeping last {days_to_keep} days)",
-            severity="HIGH",  # High because this is a data deletion operation
+            severity="HIGH",
             additional_data={
                 'admin_user': admin_username,
                 'days_to_keep': days_to_keep,
@@ -2161,7 +2152,7 @@ def api_cleanup_logs():
         
     except Exception as e:
         logger_handler.log_database_error('api_cleanup_logs', e)
-        print(f"Error in api_cleanup_logs: {e}")
+        print(f"❌ Error in api_cleanup_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to cleanup old logs: {str(e)}'
