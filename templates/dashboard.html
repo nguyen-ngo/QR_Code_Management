@@ -308,6 +308,16 @@
   color: var(--white);
 }
 
+.qr-action-btn.download {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.qr-action-btn.download:hover {
+  background: #059669;
+  color: var(--white);
+}
+
 .qr-action-btn.delete {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
@@ -491,6 +501,19 @@
 .modal-body {
   padding: var(--spacing-6);
   text-align: center;
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: center;
+  margin-top: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.modal-actions .btn {
+  flex: 1;
+  min-width: 140px;
 }
 
 /* Animations */
@@ -693,14 +716,14 @@
           {% for qr in project_qr_codes %}
           <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
             name: '{{ qr.name }}',
-            image: '{{ qr.qr_code_image }}',
+            image: 'data:image/png;base64,{{ qr.qr_code_image }}',
             location: '{{ qr.location }}',
             address: '{{ qr.location_address }}',
             event: '{{ qr.location_event }}'
           })">
             <div class="qr-card-header">
               <div class="qr-preview">
-                <img src="{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+                <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
               </div>
               <div class="qr-info">
                 <h4 class="qr-name">{{ qr.name }}</h4>
@@ -717,6 +740,10 @@
             
             <!-- QR Actions (Show on Hover) -->
             <div class="qr-actions">
+              <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')" title="Download QR Code">
+                <i class="fas fa-download"></i>
+              </button>
+              
               <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
                 <i class="fas fa-edit"></i>
               </a>
@@ -769,14 +796,14 @@
       {% for qr in unassigned_qr_codes %}
       <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
         name: '{{ qr.name }}',
-        image: '{{ qr.qr_code_image }}',
+        image: 'data:image/png;base64,{{ qr.qr_code_image }}',
         location: '{{ qr.location }}',
         address: '{{ qr.location_address }}',
         event: '{{ qr.location_event }}'
       })">
         <div class="qr-card-header">
           <div class="qr-preview">
-            <img src="{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+            <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
           </div>
           <div class="qr-info">
             <h4 class="qr-name">{{ qr.name }}</h4>
@@ -793,6 +820,10 @@
         
         <!-- QR Actions -->
         <div class="qr-actions">
+          <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')" title="Download QR Code">
+            <i class="fas fa-download"></i>
+          </button>
+          
           <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
             <i class="fas fa-edit"></i>
           </a>
@@ -847,7 +878,17 @@
       </button>
     </div>
     <div class="modal-body">
-      <img id="modalQRImage" src="" alt="QR Code" style="max-width: 100%; height: auto;">
+      <img id="modalQRImage" src="" alt="QR Code" style="max-width: 100%; height: auto; margin-bottom: 1rem;">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="downloadModalQR()">
+          <i class="fas fa-download"></i>
+          Download QR Code
+        </button>
+        <button class="btn btn-outline" onclick="copyModalQRData()">
+          <i class="fas fa-copy"></i>
+          Copy Info
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -936,23 +977,29 @@ class ProjectDashboardManager {
   // QR Code Management Functions
   async toggleQRCodeStatus(qrId) {
     try {
-      const response = await fetch(`/qr-codes/${qrId}/toggle`, {
+      const response = await fetch(`/qr-codes/${qrId}/toggle-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         }
       });
       
       if (response.ok) {
-        // Show success message
-        if (window.showToast) {
-          window.showToast('QR code status updated successfully', 'success');
+        const result = await response.json();
+        if (result.success) {
+          // Show success message
+          if (window.showToast) {
+            window.showToast(result.message, 'success');
+          }
+          
+          // Reload page to reflect changes
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          throw new Error(result.message || 'Failed to toggle QR code status');
         }
-        
-        // Reload page to reflect changes
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
       } else {
         throw new Error('Failed to toggle QR code status');
       }
@@ -1062,6 +1109,15 @@ class ProjectDashboardManager {
       modalImage.src = qrData.image;
       modal.style.display = 'flex';
       
+      // Store current modal QR data for download and copy functions
+      this.currentModalQR = {
+        name: qrData.name,
+        image: qrData.image,
+        location: qrData.location,
+        address: qrData.address,
+        event: qrData.event
+      };
+      
       // Add keyboard listener for escape key
       document.addEventListener('keydown', this.handleModalKeydown.bind(this));
     }
@@ -1071,6 +1127,7 @@ class ProjectDashboardManager {
     const modal = document.getElementById('qrModal');
     if (modal) {
       modal.style.display = 'none';
+      this.currentModalQR = null;
       
       // Remove keyboard listener
       document.removeEventListener('keydown', this.handleModalKeydown.bind(this));
@@ -1080,6 +1137,53 @@ class ProjectDashboardManager {
   handleModalKeydown(event) {
     if (event.key === 'Escape') {
       this.closeQRModal();
+    }
+  }
+
+  // Download QR Code functionality
+  downloadQR(base64Image, filename) {
+    try {
+      // Extract base64 data if it includes the data URL prefix
+      const base64Data = base64Image.includes('base64,') 
+        ? base64Image.split('base64,')[1] 
+        : base64Image;
+      
+      const link = document.createElement('a');
+      link.href = `data:image/png;base64,${base64Data}`;
+      link.download = `${filename.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Show success toast
+      if (window.showToast) {
+        window.showToast('QR code downloaded successfully!', 'success');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      if (window.showToast) {
+        window.showToast('Failed to download QR code', 'error');
+      }
+    }
+  }
+
+  // Download from modal
+  downloadModalQR() {
+    if (this.currentModalQR) {
+      this.downloadQR(this.currentModalQR.image, this.currentModalQR.name);
+    }
+  }
+
+  // Copy QR data from modal
+  copyModalQRData() {
+    if (this.currentModalQR) {
+      this.copyQRData(
+        this.currentModalQR.name,
+        this.currentModalQR.location,
+        this.currentModalQR.address,
+        this.currentModalQR.event
+      );
     }
   }
 
@@ -1160,6 +1264,9 @@ document.addEventListener('DOMContentLoaded', function() {
   window.closeQRModal = () => dashboardManager.closeQRModal();
   window.copyQRData = (name, location, address, event) => 
     dashboardManager.copyQRData(name, location, address, event);
+  window.downloadModalQR = () => dashboardManager.downloadModalQR();
+  window.copyModalQRData = () => dashboardManager.copyModalQRData();
+  window.downloadQR = (base64Image, filename) => dashboardManager.downloadQR(base64Image, filename);
     
   // Add keyboard shortcuts (optional)
   document.addEventListener('keydown', function(event) {
