@@ -6,6 +6,26 @@
  * ensuring it works independently with proper layout and responsive design.
  */
 
+/* Sidebar Layout Compatibility Fixes */
+body.has-sidebar .projects-page {
+  margin-left: 0; /* Let the base template handle sidebar spacing */
+  padding-left: 0; /* Remove conflicts with sidebar layout */
+}
+
+/* Ensure proper content area for authenticated layout */
+.main-wrapper .projects-page {
+  padding: 2rem;
+  max-width: 1600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+/* Fix header spacing in sidebar layout */
+body.has-sidebar .projects-header {
+  margin-top: 0; /* Remove any unwanted top margin */
+}
+
 /* Projects Page Container */
 .projects-page {
   max-width: 1600px;
