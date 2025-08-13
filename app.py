@@ -1314,23 +1314,27 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Main dashboard after login - Fixed to show all QR codes"""
+    """Enhanced project-centric dashboard"""
     try:
         user = User.query.get(session['user_id'])
         
-        # Get ALL QR codes (both active and inactive) with proper error handling
-        # The frontend filtering will handle display logic
+        # Get ALL QR codes and projects for project-centric view
         qr_codes = QRCode.query.order_by(QRCode.created_date.desc()).all()
+        projects = Project.query.order_by(Project.name.asc()).all()
         
-        return render_template('dashboard.html', user=user, qr_codes=qr_codes)
+        # Log dashboard access with project info
+        logger_handler.logger.info(f"User {session['username']} accessed project dashboard: {len(qr_codes)} QR codes, {len(projects)} projects")
+        
+        return render_template('dashboard.html', 
+                             user=user, 
+                             qr_codes=qr_codes, 
+                             projects=projects)
         
     except Exception as e:
         logger_handler.log_database_error('dashboard_load', e)
-        print(f"Error fetching QR codes: {e}")
+        print(f"Error loading dashboard: {e}")
         flash('Error loading dashboard. Please try again.', 'error')
-        qr_codes = []
-        user = None
-        return render_template('dashboard.html', user=user, qr_codes=qr_codes)
+        return redirect(url_for('login'))
 
 # User management routes
 @app.route('/profile', methods=['GET', 'POST'])

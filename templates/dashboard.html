@@ -1,29 +1,592 @@
-{% extends "base_authenticated.html" %} {% block title %}Dashboard - QR Code Management{%
-endblock %} {% block extra_head %}
+{% extends "base_authenticated.html" %} 
+{% block title %}Dashboard - QR Code Management{% endblock %} 
+
+{% block extra_head %}
 <!-- Dashboard-specific CSS -->
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/dashboard.css') }}"
-/>
-{% endblock %} {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<style>
+/* Project-Centric Dashboard Styles */
+.projects-dashboard {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.project-list-item {
+  border-bottom: 1px solid var(--gray-200);
+  transition: var(--transition);
+}
+
+.project-list-item:last-child {
+  border-bottom: none;
+}
+
+.project-header {
+  padding: var(--spacing-4) var(--spacing-6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  transition: var(--transition);
+  position: relative;
+}
+
+.project-header:hover {
+  background: #f8fafc;
+}
+
+.project-header.expanded {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border-left: 4px solid var(--primary-color);
+}
+
+.project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex: 1;
+}
+
+.project-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.project-icon.inactive {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+.project-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-name {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 var(--spacing-1) 0;
+  line-height: 1.4;
+}
+
+.project-description {
+  color: var(--gray-600);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+.project-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+}
+
+.project-qr-count {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.project-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.project-status.active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.project-status.inactive {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+  border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.project-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.project-toggle:hover {
+  background: var(--gray-100);
+  color: var(--primary-color);
+}
+
+.project-toggle i {
+  transition: transform 0.3s ease;
+}
+
+.project-toggle.expanded i {
+  transform: rotate(180deg);
+}
+
+/* QR Codes within Project */
+.project-qr-codes {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease-in-out;
+  background: #fafbfc;
+}
+
+.project-qr-codes.expanded {
+  max-height: 2000px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.project-qr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+}
+
+.qr-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4);
+  transition: var(--transition);
+  cursor: pointer;
+  position: relative;
+}
+
+.qr-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+  transform: translateY(-2px);
+}
+
+.qr-card.inactive {
+  opacity: 0.7;
+  background: linear-gradient(135deg, var(--white), #f8fafc);
+}
+
+.qr-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}
+
+.qr-preview {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--gray-200);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.qr-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-card:hover .qr-preview {
+  border-color: var(--primary-color);
+}
+
+.qr-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.qr-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 var(--spacing-1) 0;
+  line-height: 1.4;
+}
+
+.qr-location {
+  color: var(--gray-600);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+}
+
+.qr-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.qr-status-badge.active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+.qr-status-badge.inactive {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.qr-actions {
+  position: absolute;
+  top: var(--spacing-3);
+  right: var(--spacing-3);
+  display: flex;
+  gap: var(--spacing-1);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.qr-card:hover .qr-actions {
+  opacity: 1;
+}
+
+.qr-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: var(--font-size-sm);
+}
+
+.qr-action-btn.edit {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary-color);
+}
+
+.qr-action-btn.edit:hover {
+  background: var(--primary-color);
+  color: var(--white);
+}
+
+.qr-action-btn.delete {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.qr-action-btn.delete:hover {
+  background: #dc2626;
+  color: var(--white);
+}
+
+.qr-action-btn.toggle {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.qr-action-btn.toggle:hover {
+  background: #d97706;
+  color: var(--white);
+}
+
+/* Empty States */
+.empty-project-qr {
+  text-align: center;
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--gray-600);
+}
+
+.empty-project-qr .empty-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--spacing-4);
+  background: var(--gray-100);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--gray-400);
+}
+
+.empty-project-qr h4 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: var(--spacing-2);
+}
+
+.empty-project-qr p {
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-4);
+}
+
+/* Unassigned QR Codes Section */
+.unassigned-qr-section {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  margin-top: var(--spacing-6);
+  overflow: hidden;
+}
+
+.unassigned-header {
+  padding: var(--spacing-4) var(--spacing-6);
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-bottom: 1px solid #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.unassigned-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: #92400e;
+  margin: 0;
+}
+
+.unassigned-count {
+  background: rgba(245, 158, 11, 0.2);
+  color: #92400e;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* Dashboard Empty State */
+.dashboard-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--gray-600);
+}
+
+.dashboard-empty .empty-icon {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 2rem;
+  background: var(--gray-100);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: var(--gray-400);
+}
+
+.dashboard-empty h3 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 1rem;
+}
+
+.dashboard-empty p {
+  font-size: 1.125rem;
+  margin-bottom: 2rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  animation: slideIn 0.3s ease;
+}
+
+.modal-header {
+  padding: var(--spacing-6);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: var(--font-size-xl);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--spacing-2);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.modal-close:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.modal-body {
+  padding: var(--spacing-6);
+  text-align: center;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .project-header {
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+  
+  .project-info {
+    gap: var(--spacing-3);
+  }
+  
+  .project-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+  
+  .project-meta {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-2);
+  }
+  
+  .project-qr-grid {
+    grid-template-columns: 1fr;
+    padding: var(--spacing-4);
+  }
+  
+  .qr-card-header {
+    gap: var(--spacing-2);
+  }
+  
+  .qr-preview {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .unassigned-header {
+    padding: var(--spacing-3) var(--spacing-4);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .project-description {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+  
+  .qr-actions {
+    position: static;
+    opacity: 1;
+    margin-top: var(--spacing-2);
+    justify-content: flex-end;
+  }
+}
+</style>
+{% endblock %} 
+
+{% block content %}
 <div class="dashboard-container">
   <!-- Dashboard Header -->
   <div class="dashboard-header">
     <div class="welcome-section">
       <h1>Welcome back, {{ session.full_name }}!</h1>
-      <p>Manage your QR codes and monitor system activity</p>
+      <p>Manage your QR codes organized by projects</p>
       <div class="user-info-badge">
         <div class="role-indicator {{ session.role }}">
-          <i
-            class="fas {{ 'fa-crown' if session.role == 'admin' else 'fa-user' }}"
-          ></i>
+          <i class="fas {{ 'fa-crown' if session.role == 'admin' else 'fa-user' }}"></i>
           {{ session.role.title() }}
         </div>
         {% if session.last_login_date %}
         <div class="last-login">
           <i class="fas fa-clock"></i>
-          Last login: {{ session.last_login_date.strftime('%b %d, %Y at %H:%M')
-          }}
+          Last login: {{ session.last_login_date.strftime('%b %d, %Y at %H:%M') }}
         </div>
         {% endif %}
       </div>
@@ -60,325 +623,617 @@ endblock %} {% block extra_head %}
           <i class="fas fa-check-circle"></i>
         </div>
         <div class="stat-content">
-          <h3>
-            {{ qr_codes|selectattr('active_status', 'equalto', True)|list|length
-            }}
-          </h3>
+          <h3>{{ qr_codes|selectattr('active_status', 'equalto', True)|list|length }}</h3>
           <p>Active QR Codes</p>
         </div>
       </div>
-
       <div class="stat-card danger">
         <div class="stat-icon">
           <i class="fas fa-pause-circle"></i>
         </div>
         <div class="stat-content">
-          <h3>
-            {{ qr_codes|selectattr('active_status', 'equalto',
-            False)|list|length }}
-          </h3>
+          <h3>{{ qr_codes|selectattr('active_status', 'equalto', False)|list|length }}</h3>
           <p>Inactive QR Codes</p>
+        </div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon">
+          <i class="fas fa-folder"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ projects|length }}</h3>
+          <p>Total Projects</p>
         </div>
       </div>
     </div>
   </div>
   {% endif %}
 
-  <!-- QR Codes Section -->
-  <div class="qr-codes-section">
-    <div class="section-header">
-      <h2>Your QR Codes</h2>
-      <div class="section-controls">
-        <div class="search-box">
-          <i class="fas fa-search"></i>
-          <input
-            type="text"
-            id="qrSearch"
-            placeholder="Search QR codes..."
-            data-container="qrGrid"
-          />
+  <!-- Projects Dashboard -->
+  {% if projects %}
+  <div class="projects-dashboard">
+    {% for project in projects %}
+    {% set project_qr_codes = qr_codes|selectattr('project_id', 'equalto', project.id)|list %}
+    
+    <div class="project-list-item">
+      <!-- Project Header -->
+      <div class="project-header" onclick="toggleProject({{ project.id }})">
+        <div class="project-info">
+          <div class="project-icon {{ 'inactive' if not project.active_status }}">
+            <i class="fas fa-folder{{ '-open' if project.active_status else '' }}"></i>
+          </div>
+          <div class="project-details">
+            <h3 class="project-name">{{ project.name }}</h3>
+            {% if project.description %}
+            <p class="project-description">{{ project.description }}</p>
+            {% endif %}
+          </div>
         </div>
-        <select id="statusFilter" class="filter-select">
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <div class="results-counter">{{ qr_codes|length }} results</div>
-        {% if session.role == 'admin' %}
-        <button id="expandAllToggle" class="btn btn-outline">
-          <i class="fas fa-expand-alt"></i>
-          Expand All
-        </button>
-        {% endif %}
+        
+        <div class="project-meta">
+          <div class="project-stats">
+            <div class="project-qr-count">
+              <i class="fas fa-qrcode"></i>
+              <span>{{ project_qr_codes|length }} QR Code{{ 's' if project_qr_codes|length != 1 else '' }}</span>
+            </div>
+            <span class="project-status {{ 'active' if project.active_status else 'inactive' }}">
+              {{ 'Active' if project.active_status else 'Inactive' }}
+            </span>
+          </div>
+          <button class="project-toggle" id="toggle-{{ project.id }}">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
       </div>
-    </div>
-
-    {% if qr_codes %}
-    <!-- Bulk Actions Bar (initially hidden) -->
-    <div id="bulkActionsBar" class="bulk-actions-bar">
-      <div class="bulk-actions-info">
-        <i class="fas fa-check-square"></i>
-        <span id="selectedCount">0</span> QR codes selected
-      </div>
-      <div class="bulk-actions-buttons">
-        {% if session.role == 'admin' %}
-        <button id="bulkDeleteBtn" class="btn btn-danger btn-sm">
-          <i class="fas fa-trash"></i>
-          Delete Selected
-        </button>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- QR Codes Grid -->
-    <div class="qr-grid" id="qrGrid">
-      {% for qr in qr_codes %}
-      <div
-        class="qr-item"
-        data-qr-id="{{ qr.id }}"
-        data-name="{{ qr.name.lower() }}"
-        data-location="{{ qr.location.lower() }}"
-        data-status="{{ 'active' if qr.active_status else 'inactive' }}"
-        onclick="toggleQRItem(this)"
-      >
-        <!-- QR Item Header -->
-        <div class="qr-item-header">
-          {% if session.role == 'admin' %}
-          <input
-            type="checkbox"
-            class="qr-checkbox"
-            value="{{ qr.id }}"
-            onclick="event.stopPropagation()"
-          />
-          {% endif %}
-          <div
-            class="qr-code-preview"
-            onclick="event.stopPropagation(); openQRModal({
+      
+      <!-- Project QR Codes (Collapsible) -->
+      <div class="project-qr-codes" id="project-qr-{{ project.id }}">
+        {% if project_qr_codes %}
+        <div class="project-qr-grid">
+          {% for qr in project_qr_codes %}
+          <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
             name: '{{ qr.name }}',
-            image: '{{ qr.qr_code_image }}'
-          })"
-          >
-            <img
-              src="data:image/png;base64,{{ qr.qr_code_image }}"
-              alt="QR Code for {{ qr.name }}"
-            />
+            image: '{{ qr.qr_code_image }}',
+            location: '{{ qr.location }}',
+            address: '{{ qr.location_address }}',
+            event: '{{ qr.location_event }}'
+          })">
+            <div class="qr-card-header">
+              <div class="qr-preview">
+                <img src="{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+              </div>
+              <div class="qr-info">
+                <h4 class="qr-name">{{ qr.name }}</h4>
+                <p class="qr-location">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ qr.location }}
+                </p>
+                <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
+                  <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
+                  {{ 'Active' if qr.active_status else 'Inactive' }}
+                </span>
+              </div>
+            </div>
+            
+            <!-- QR Actions (Show on Hover) -->
+            <div class="qr-actions">
+              <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
+                <i class="fas fa-edit"></i>
+              </a>
+              
+              {% if session.role == 'admin' %}
+              <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
+                <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+              </button>
+              
+              <button class="qr-action-btn delete" onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" title="Delete QR Code">
+                <i class="fas fa-trash"></i>
+              </button>
+              {% endif %}
+            </div>
           </div>
-          <div class="qr-item-info">
-            <div class="qr-item-title">
-              {{ qr.name }}
-              <span
-                class="qr-status {{ 'active' if qr.active_status else 'inactive' }}"
-              >
-                <i
-                  class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-times-circle' }}"
-                ></i>
-                {{ 'Active' if qr.active_status else 'Inactive' }}
-              </span>
-            </div>
-            <div class="qr-item-meta">
-              <span>
-                <i class="fas fa-calendar"></i>
-                {{ qr.created_date.strftime('%b %d, %Y') }}
-              </span>
-              <span>
-                <i class="fas fa-map-marker-alt"></i>
-                {{ qr.location }}
-              </span>
-              <span>
-                <i class="fas fa-user"></i>
-                {{ qr.creator.full_name }}
-              </span>
-            </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-project-qr">
+          <div class="empty-icon">
+            <i class="fas fa-qrcode"></i>
+          </div>
+          <h4>No QR Codes in this Project</h4>
+          <p>Create your first QR code for this project</p>
+          <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            Create QR Code
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Unassigned QR Codes Section -->
+  {% set unassigned_qr_codes = qr_codes|selectattr('project_id', 'equalto', None)|list %}
+  {% if unassigned_qr_codes %}
+  <div class="unassigned-qr-section">
+    <div class="unassigned-header">
+      <h3 class="unassigned-title">
+        <i class="fas fa-exclamation-triangle"></i>
+        Unassigned QR Codes
+      </h3>
+      <span class="unassigned-count">{{ unassigned_qr_codes|length }} QR Code{{ 's' if unassigned_qr_codes|length != 1 else '' }}</span>
+    </div>
+    
+    <div class="project-qr-grid">
+      {% for qr in unassigned_qr_codes %}
+      <div class="qr-card {{ 'inactive' if not qr.active_status }}" onclick="openQRModal({
+        name: '{{ qr.name }}',
+        image: '{{ qr.qr_code_image }}',
+        location: '{{ qr.location }}',
+        address: '{{ qr.location_address }}',
+        event: '{{ qr.location_event }}'
+      })">
+        <div class="qr-card-header">
+          <div class="qr-preview">
+            <img src="{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+          </div>
+          <div class="qr-info">
+            <h4 class="qr-name">{{ qr.name }}</h4>
+            <p class="qr-location">
+              <i class="fas fa-map-marker-alt"></i>
+              {{ qr.location }}
+            </p>
+            <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
+              <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
+              {{ 'Active' if qr.active_status else 'Inactive' }}
+            </span>
           </div>
         </div>
-
-        <!-- Quick Actions -->
-        <div class="qr-item-actions">
-          <div class="quick-actions">
-            {% if session.role == 'admin' %}
-            <button
-              class="action-btn btn-status {{ 'btn-deactivate' if qr.active_status else 'btn-activate' }}"
-              onclick="event.stopPropagation(); toggleQRCodeStatus('{{ qr.id }}')"
-              title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
-              id="toggle-btn-{{ qr.id }}"
-            >
-              <i
-                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
-                id="toggle-icon-{{ qr.id }}"
-              ></i>
-            </button>
-            {% endif %}
-
-            <button
-              class="action-btn btn-download"
-              onclick="event.stopPropagation(); downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')"
-              title="Download QR Code"
-            >
-              <i class="fas fa-download"></i>
-            </button>
-
-            <a
-              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
-              class="action-btn btn-edit"
-              onclick="event.stopPropagation()"
-              title="Edit QR Code"
-            >
-              <i class="fas fa-edit"></i>
-            </a>
-
-            {% if session.role == 'admin' %}
-            <button
-              class="action-btn btn-delete"
-              onclick="event.stopPropagation(); deleteQRCode('{{ qr.id }}', '{{ qr.name }}')"
-              title="Delete QR Code"
-            >
-              <i class="fas fa-trash"></i>
-            </button>
-            {% endif %}
-          </div>
-        </div>
-
-        <!-- Expanded Details (initially hidden) -->
-        <div class="qr-item-details">
-          <div class="qr-details-content">
-            <div class="qr-details-info">
-              <div class="info-item">
-                <span class="label">Location Address:</span>
-                <span class="value"
-                  >{{ qr.location_address or 'Not specified' }}</span
-                >
-              </div>
-              <div class="info-item">
-                <span class="label">Event:</span>
-                <span class="value"
-                  >{{ qr.location_event or 'Not specified' }}</span
-                >
-              </div>
-              <div class="info-item">
-                <span class="label">Created by:</span>
-                <span class="value">{{ qr.creator.full_name }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">Created on:</span>
-                <span class="value"
-                  >{{ qr.created_date.strftime('%B %d, %Y at %H:%M') }}</span
-                >
-              </div>
-              <div class="info-item">
-                <span class="label">QR ID:</span>
-                <span class="value">#{{ qr.id }}</span>
-              </div>
-            </div>
-            <div class="qr-details-preview">
-              <div
-                class="qr-details-image"
-                onclick="openQRModal({
-                name: '{{ qr.name }}',
-                image: '{{ qr.qr_code_image }}'
-              })"
-              >
-                <img
-                  src="data:image/png;base64,{{ qr.qr_code_image }}"
-                  alt="QR Code for {{ qr.name }}"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Detail Actions -->
-          <div class="details-actions">
-            {% if session.role == 'admin' %}
-            <button
-              onclick="toggleQRCodeStatus({{ qr.id }})"
-              class="btn {{ 'btn-warning' if qr.active_status else 'btn-success' }}"
-              id="detail-toggle-btn-{{ qr.id }}"
-            >
-              <i
-                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
-              ></i>
-              {{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code
-            </button>
-            {% endif %}
-
-            <button
-              onclick="downloadQR('{{ qr.qr_code_image }}', '{{ qr.name }}')"
-              class="btn btn-primary"
-            >
-              <i class="fas fa-download"></i>
-              Download QR Code
-            </button>
-
-            <a
-              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
-              class="btn btn-secondary"
-            >
-              <i class="fas fa-edit"></i>
-              Edit Details
-            </a>
-
-            <button
-              onclick="copyQRData('{{ qr.name }}', '{{ qr.location }}', '{{ qr.location_address }}', '{{ qr.location_event }}')"
-              class="btn btn-outline"
-            >
-              <i class="fas fa-copy"></i>
-              Copy Info
-            </button>
-
-            {% if session.role == 'admin' %}
-            <button
-              onclick="deleteQRCode({{ qr.id }}, '{{ qr.name }}')"
-              class="btn btn-danger"
-            >
-              <i class="fas fa-trash"></i>
-              Delete QR Code
-            </button>
-            {% endif %}
-          </div>
+        
+        <!-- QR Actions -->
+        <div class="qr-actions">
+          <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
+            <i class="fas fa-edit"></i>
+          </a>
+          
+          {% if session.role == 'admin' %}
+          <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
+            <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+          </button>
+          
+          <button class="qr-action-btn delete" onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" title="Delete QR Code">
+            <i class="fas fa-trash"></i>
+          </button>
+          {% endif %}
         </div>
       </div>
       {% endfor %}
     </div>
-    {% else %}
-    <!-- Empty State -->
-    <div class="empty-state">
-      <div class="empty-icon">
-        <i class="fas fa-qrcode"></i>
-      </div>
-      <h3>No QR Codes Yet</h3>
-      <p>Get started by creating your first QR code</p>
-      <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary">
+  </div>
+  {% endif %}
+
+  <!-- Empty State (No Projects and No QR Codes) -->
+  {% if not projects and not qr_codes %}
+  <div class="dashboard-empty">
+    <div class="empty-icon">
+      <i class="fas fa-folder-open"></i>
+    </div>
+    <h3>Welcome to Your QR Code Dashboard</h3>
+    <p>Get started by creating your first project and QR codes to organize your digital assets effectively.</p>
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+      {% if session.role == 'admin' %}
+      <a href="{{ url_for('create_project') }}" class="btn btn-primary">
+        <i class="fas fa-folder-plus"></i>
+        Create Project
+      </a>
+      {% endif %}
+      <a href="{{ url_for('create_qr_code') }}" class="btn btn-secondary">
         <i class="fas fa-plus"></i>
-        Create Your First QR Code
+        Create QR Code
       </a>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 </div>
 
 <!-- QR Code Modal -->
-<div id="qrModal" class="modal">
-  <div class="modal-content qr-modal">
+<div id="qrModal" class="modal" onclick="closeQRModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3 id="modalTitle">QR Code Preview</h3>
+      <h3 id="modalTitle">QR Code Details</h3>
       <button class="modal-close" onclick="closeQRModal()">
         <i class="fas fa-times"></i>
       </button>
     </div>
     <div class="modal-body">
-      <div class="qr-modal-image">
-        <img id="modalQRImage" src="" alt="QR Code" />
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="downloadModalQR()" class="btn btn-primary">
-        <i class="fas fa-download"></i>
-        Download
-      </button>
-      <button onclick="closeQRModal()" class="btn btn-secondary">Close</button>
+      <img id="modalQRImage" src="" alt="QR Code" style="max-width: 100%; height: auto;">
     </div>
   </div>
 </div>
-{% endblock %} {% block extra_scripts %}
-<!-- Dashboard-specific JavaScript -->
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+<script>
+// Project-Centric Dashboard Manager
+class ProjectDashboardManager {
+  constructor() {
+    this.expandedProjects = new Set();
+    this.initialize();
+  }
+
+  initialize() {
+    // Load expanded state from localStorage
+    const saved = localStorage.getItem('expandedProjects');
+    if (saved) {
+      this.expandedProjects = new Set(JSON.parse(saved));
+      this.restoreProjectStates();
+    }
+  }
+
+  restoreProjectStates() {
+    this.expandedProjects.forEach(projectId => {
+      this.expandProject(projectId, false); // false = don't save to localStorage again
+    });
+  }
+
+  toggleProject(projectId) {
+    const isExpanded = this.expandedProjects.has(projectId);
+    
+    if (isExpanded) {
+      this.collapseProject(projectId);
+    } else {
+      this.expandProject(projectId);
+    }
+    
+    this.saveExpandedState();
+  }
+
+  expandProject(projectId, animate = true) {
+    const projectQR = document.getElementById(`project-qr-${projectId}`);
+    const toggle = document.getElementById(`toggle-${projectId}`);
+    const header = toggle?.closest('.project-header');
+    
+    if (projectQR && toggle) {
+      projectQR.classList.add('expanded');
+      toggle.classList.add('expanded');
+      header?.classList.add('expanded');
+      this.expandedProjects.add(projectId);
+      
+      // Log project expansion
+      console.log(`Project ${projectId} expanded`);
+      
+      // Add animation delay for better UX
+      if (animate) {
+        setTimeout(() => {
+          projectQR.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }, 200);
+      }
+    }
+  }
+
+  collapseProject(projectId) {
+    const projectQR = document.getElementById(`project-qr-${projectId}`);
+    const toggle = document.getElementById(`toggle-${projectId}`);
+    const header = toggle?.closest('.project-header');
+    
+    if (projectQR && toggle) {
+      projectQR.classList.remove('expanded');
+      toggle.classList.remove('expanded');
+      header?.classList.remove('expanded');
+      this.expandedProjects.delete(projectId);
+      
+      // Log project collapse
+      console.log(`Project ${projectId} collapsed`);
+    }
+  }
+
+  saveExpandedState() {
+    localStorage.setItem('expandedProjects', JSON.stringify([...this.expandedProjects]));
+  }
+
+  // QR Code Management Functions
+  async toggleQRCodeStatus(qrId) {
+    try {
+      const response = await fetch(`/qr-codes/${qrId}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        // Show success message
+        if (window.showToast) {
+          window.showToast('QR code status updated successfully', 'success');
+        }
+        
+        // Reload page to reflect changes
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error('Failed to toggle QR code status');
+      }
+    } catch (error) {
+      console.error('Toggle status failed:', error);
+      if (window.showToast) {
+        window.showToast('Failed to update QR code status', 'error');
+      }
+    }
+  }
+
+  async deleteQRCode(qrId, qrName) {
+    const confirmMessage = `Are you sure you want to permanently delete the QR code "${qrName}"?\n\nThis action cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) return;
+    
+    try {
+      const response = await fetch(`/qr-codes/${qrId}/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        // Show success message
+        if (window.showToast) {
+          window.showToast(`QR code "${qrName}" deleted successfully`, 'success');
+        }
+        
+        // Remove the QR card from DOM with animation
+        const qrCard = document.querySelector(`[onclick*="${qrId}"]`);
+        if (qrCard) {
+          qrCard.style.transition = 'all 0.3s ease';
+          qrCard.style.opacity = '0';
+          qrCard.style.transform = 'translateY(-20px)';
+          
+          setTimeout(() => {
+            qrCard.remove();
+            
+            // Check if project has no QR codes left and update UI
+            this.updateProjectEmptyStates();
+          }, 300);
+        }
+        
+      } else {
+        throw new Error('Failed to delete QR code');
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      if (window.showToast) {
+        window.showToast('Failed to delete QR code', 'error');
+      }
+    }
+  }
+
+  updateProjectEmptyStates() {
+    // Check each project for empty state
+    document.querySelectorAll('.project-qr-codes').forEach(projectQR => {
+      const qrCards = projectQR.querySelectorAll('.qr-card');
+      const emptyState = projectQR.querySelector('.empty-project-qr');
+      
+      if (qrCards.length === 0 && !emptyState) {
+        // Add empty state
+        const projectId = projectQR.id.replace('project-qr-', '');
+        projectQR.innerHTML = `
+          <div class="empty-project-qr">
+            <div class="empty-icon">
+              <i class="fas fa-qrcode"></i>
+            </div>
+            <h4>No QR Codes in this Project</h4>
+            <p>Create your first QR code for this project</p>
+            <a href="/qr-codes/create" class="btn btn-primary">
+              <i class="fas fa-plus"></i>
+              Create QR Code
+            </a>
+          </div>
+        `;
+      }
+    });
+    
+    // Update project QR counts in headers
+    this.updateProjectCounts();
+  }
+
+  updateProjectCounts() {
+    document.querySelectorAll('.project-list-item').forEach(item => {
+      const projectHeader = item.querySelector('.project-header');
+      const projectQR = item.querySelector('.project-qr-codes');
+      const countElement = projectHeader?.querySelector('.project-qr-count span');
+      
+      if (countElement && projectQR) {
+        const qrCount = projectQR.querySelectorAll('.qr-card').length;
+        countElement.textContent = `${qrCount} QR Code${qrCount !== 1 ? 's' : ''}`;
+      }
+    });
+  }
+
+  // Modal Management
+  openQRModal(qrData) {
+    const modal = document.getElementById('qrModal');
+    const modalImage = document.getElementById('modalQRImage');
+    const modalTitle = document.getElementById('modalTitle');
+    
+    if (modal && modalImage && modalTitle) {
+      modalTitle.textContent = `QR Code: ${qrData.name}`;
+      modalImage.src = qrData.image;
+      modal.style.display = 'flex';
+      
+      // Add keyboard listener for escape key
+      document.addEventListener('keydown', this.handleModalKeydown.bind(this));
+    }
+  }
+
+  closeQRModal() {
+    const modal = document.getElementById('qrModal');
+    if (modal) {
+      modal.style.display = 'none';
+      
+      // Remove keyboard listener
+      document.removeEventListener('keydown', this.handleModalKeydown.bind(this));
+    }
+  }
+
+  handleModalKeydown(event) {
+    if (event.key === 'Escape') {
+      this.closeQRModal();
+    }
+  }
+
+  // Utility Methods
+  copyQRData(name, location, address, event) {
+    const data = `QR Code: ${name}\nLocation: ${location}\nAddress: ${address}\nEvent: ${event}`;
+    
+    navigator.clipboard.writeText(data)
+      .then(() => {
+        if (window.showToast) {
+          window.showToast('QR code information copied to clipboard!', 'success');
+        }
+      })
+      .catch(() => {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = data;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          if (window.showToast) {
+            window.showToast('QR code information copied to clipboard!', 'success');
+          }
+        } catch (err) {
+          if (window.showToast) {
+            window.showToast('Failed to copy to clipboard', 'error');
+          }
+        }
+        document.body.removeChild(textArea);
+      });
+  }
+
+  // Expand all projects (utility function)
+  expandAllProjects() {
+    document.querySelectorAll('.project-list-item').forEach(item => {
+      const projectHeader = item.querySelector('.project-header');
+      const projectId = projectHeader?.getAttribute('onclick')?.match(/\d+/)?.[0];
+      
+      if (projectId && !this.expandedProjects.has(parseInt(projectId))) {
+        this.expandProject(parseInt(projectId), false);
+      }
+    });
+    
+    this.saveExpandedState();
+    
+    if (window.showToast) {
+      window.showToast('All projects expanded', 'info');
+    }
+  }
+
+  // Collapse all projects (utility function)
+  collapseAllProjects() {
+    [...this.expandedProjects].forEach(projectId => {
+      this.collapseProject(projectId);
+    });
+    
+    this.saveExpandedState();
+    
+    if (window.showToast) {
+      window.showToast('All projects collapsed', 'info');
+    }
+  }
+}
+
+// Global variables and functions
+let dashboardManager;
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  dashboardManager = new ProjectDashboardManager();
+  
+  // Make functions globally available for onclick handlers
+  window.toggleProject = (projectId) => dashboardManager.toggleProject(projectId);
+  window.toggleQRCodeStatus = (qrId) => dashboardManager.toggleQRCodeStatus(qrId);
+  window.deleteQRCode = (qrId, qrName) => dashboardManager.deleteQRCode(qrId, qrName);
+  window.openQRModal = (qrData) => dashboardManager.openQRModal(qrData);
+  window.closeQRModal = () => dashboardManager.closeQRModal();
+  window.copyQRData = (name, location, address, event) => 
+    dashboardManager.copyQRData(name, location, address, event);
+    
+  // Add keyboard shortcuts (optional)
+  document.addEventListener('keydown', function(event) {
+    // Ctrl/Cmd + E = Expand all projects
+    if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+      event.preventDefault();
+      dashboardManager.expandAllProjects();
+    }
+    
+    // Ctrl/Cmd + Shift + E = Collapse all projects
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'E') {
+      event.preventDefault();
+      dashboardManager.collapseAllProjects();
+    }
+  });
+  
+  // Add smooth scrolling for better UX
+  document.documentElement.style.scrollBehavior = 'smooth';
+  
+  // Log dashboard initialization
+  console.log('Project Dashboard initialized successfully');
+  
+  // Show welcome message for first-time users
+  if (!localStorage.getItem('dashboardVisited')) {
+    localStorage.setItem('dashboardVisited', 'true');
+    
+    if (window.showToast) {
+      setTimeout(() => {
+        window.showToast('Click on any project to expand and view its QR codes!', 'info');
+      }, 1000);
+    }
+  }
+});
+
+// Add CSS for smooth animations
+const style = document.createElement('style');
+style.textContent = `
+  .qr-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .project-qr-codes {
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .project-toggle i {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .qr-actions {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  
+  .qr-card:hover .qr-actions {
+    transform: translateY(-2px);
+  }
+  
+  /* Loading animation for project headers */
+  .project-header:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+  
+  /* Pulse animation for new QR codes */
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+  
+  .qr-card.new {
+    animation: pulse 0.6s ease-in-out;
+  }
+`;
+document.head.appendChild(style);
+</script>
 {% endblock %}
