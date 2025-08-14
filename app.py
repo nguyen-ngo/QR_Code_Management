@@ -3240,6 +3240,150 @@ def attendance_report():
         flash('Error loading attendance report. Please check the server logs for details.', 'error')
         return redirect(url_for('dashboard'))
 
+@app.route('/attendance/<int:record_id>/edit', methods=['GET', 'POST'])
+@login_required
+@log_database_operations('attendance_update')
+def edit_attendance(record_id):
+    """Edit attendance record (Admin and Payroll only)"""
+    # Check if user has permission to edit attendance records
+    if session.get('role') not in ['admin', 'payroll']:
+        flash('Access denied. Only administrators and payroll staff can edit attendance records.', 'error')
+        return redirect(url_for('attendance_report'))
+    
+    try:
+        attendance_record = AttendanceData.query.get_or_404(record_id)
+        
+        if request.method == 'POST':
+            # Track changes for logging
+            changes = {}
+            old_values = {
+                'employee_id': attendance_record.employee_id,
+                'check_in_date': attendance_record.check_in_date,
+                'check_in_time': attendance_record.check_in_time,
+                'location_name': attendance_record.location_name
+            }
+            
+            # Update attendance record fields
+            new_employee_id = request.form['employee_id'].strip().upper()
+            new_check_in_date = datetime.strptime(request.form['check_in_date'], '%Y-%m-%d').date()
+            new_check_in_time = datetime.strptime(request.form['check_in_time'], '%H:%M').time()
+            new_location_name = request.form['location_name'].strip()
+            
+            # Track what changed
+            if attendance_record.employee_id != new_employee_id:
+                changes['employee_id'] = f"{attendance_record.employee_id} → {new_employee_id}"
+            if attendance_record.check_in_date != new_check_in_date:
+                changes['check_in_date'] = f"{attendance_record.check_in_date} → {new_check_in_date}"
+            if attendance_record.check_in_time != new_check_in_time:
+                changes['check_in_time'] = f"{attendance_record.check_in_time} → {new_check_in_time}"
+            if attendance_record.location_name != new_location_name:
+                changes['location_name'] = f"{attendance_record.location_name} → {new_location_name}"
+            
+            # Apply changes
+            attendance_record.employee_id = new_employee_id
+            attendance_record.check_in_date = new_check_in_date
+            attendance_record.check_in_time = new_check_in_time
+            attendance_record.location_name = new_location_name
+            attendance_record.updated_timestamp = datetime.utcnow()
+            
+            db.session.commit()
+            
+            # Log the successful update
+            if changes:
+                logger_handler.log_security_event(
+                    event_type="attendance_record_update",
+                    description=f"{session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}",
+                    severity="MEDIUM",
+                    additional_data={'record_id': record_id, 'changes': changes, 'user_role': session.get('role')}
+                )
+                print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}: {changes}")
+            
+            flash(f'Attendance record for {new_employee_id} updated successfully!', 'success')
+            return redirect(url_for('attendance_report'))
+        
+        # GET request - show edit form
+        # Get available QR codes for location dropdown
+        qr_codes = QRCode.query.filter_by(active_status=True).all()
+        
+        return render_template('edit_attendance.html', 
+                             attendance_record=attendance_record,
+                             qr_codes=qr_codes)
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('attendance_update', e)
+        print(f"[LOG] Error updating attendance record {record_id}: {e}")
+        flash('Error updating attendance record. Please try again.', 'error')
+        return redirect(url_for('attendance_report'))
+
+@app.route('/attendance/<int:record_id>/delete', methods=['POST'])
+@login_required
+@log_database_operations('attendance_delete')
+def delete_attendance(record_id):
+    """Delete attendance record (Admin and Payroll only)"""
+    # Check if user has permission to delete attendance records
+    if session.get('role') not in ['admin', 'payroll']:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'message': 'Access denied. Only administrators and payroll staff can delete attendance records.'
+            }), 403
+        else:
+            flash('Access denied. Only administrators and payroll staff can delete attendance records.', 'error')
+            return redirect(url_for('attendance_report'))
+    
+    try:
+        attendance_record = AttendanceData.query.get_or_404(record_id)
+        
+        # Store record info for logging before deletion
+        employee_id = attendance_record.employee_id
+        location_name = attendance_record.location_name
+        check_in_date = attendance_record.check_in_date
+        
+        # Log the deletion
+        logger_handler.log_security_event(
+            event_type="attendance_record_deletion",
+            description=f"{session.get('role', 'unknown').title()} {session.get('username')} deleted attendance record {record_id}",
+            severity="HIGH",
+            additional_data={
+                'record_id': record_id,
+                'employee_id': employee_id,
+                'location_name': location_name,
+                'check_in_date': str(check_in_date),
+                'user_role': session.get('role')
+            }
+        )
+        
+        # Delete the record
+        db.session.delete(attendance_record)
+        db.session.commit()
+        
+        print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} deleted attendance record {record_id} for employee {employee_id}")
+        
+        # Return JSON response for AJAX requests
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': True,
+                'message': f'Attendance record for {employee_id} deleted successfully!'
+            })
+        else:
+            flash(f'Attendance record for {employee_id} deleted successfully!', 'success')
+            return redirect(url_for('attendance_report'))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('attendance_delete', e)
+        print(f"[LOG] Error deleting attendance record {record_id}: {e}")
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': False,
+                'message': 'Error deleting attendance record. Please try again.'
+            }), 500
+        else:
+            flash('Error deleting attendance record. Please try again.', 'error')
+            return redirect(url_for('attendance_report'))
+
 @app.route('/api/attendance/stats')
 @admin_required
 def attendance_stats_api():

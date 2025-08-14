@@ -379,11 +379,26 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="record-actions">
+                ${
+                  hasEditPermission
+                    ? `
                 <button onclick="editRecord('${record.id}')" 
                         class="action-btn btn-edit"
                         title="Edit Record">
                     <i class="fas fa-edit"></i>
                 </button>
+                <button onclick="deleteRecord('${record.id}', '${record.employeeId}')" 
+                        class="action-btn btn-delete"
+                        title="Delete Record">
+                    <i class="fas fa-trash"></i>
+                </button>
+                `
+                    : `
+                <span class="text-muted" title="Admin or Payroll access required">
+                    <i class="fas fa-lock"></i>
+                </span>
+                `
+                }
             </div>
         </td>
     `;
@@ -511,9 +526,72 @@ function updateFilterStats() {
 
 // Enhanced record actions
 function editRecord(recordId) {
+  // Check permissions before allowing edit
+  if (!hasEditPermission) {
+    alert(
+      "Access denied. Only administrators and payroll staff can edit attendance records."
+    );
+    return;
+  }
+
   console.log(`Edit record: ${recordId}`);
-  // Implement edit functionality
-  alert("Edit functionality to be implemented");
+  // Log the action
+  console.log(`[LOG] User attempting to edit attendance record: ${recordId}`);
+
+  // Redirect to edit page
+  window.location.href = `/attendance/${recordId}/edit`;
+}
+
+function deleteRecord(recordId, employeeId) {
+  // Check permissions before allowing delete
+  if (!hasEditPermission) {
+    alert(
+      "Access denied. Only administrators and payroll staff can delete attendance records."
+    );
+    return;
+  }
+
+  console.log(`Delete record: ${recordId}`);
+
+  // Confirmation dialog
+  const confirmMessage = `Are you sure you want to delete the attendance record for employee "${employeeId}"?\n\nThis action cannot be undone.`;
+
+  if (confirm(confirmMessage)) {
+    console.log(
+      `[LOG] User confirmed deletion of attendance record: ${recordId}`
+    );
+
+    // Send delete request
+    fetch(`/attendance/${recordId}/delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          console.log(
+            `[LOG] Successfully deleted attendance record: ${recordId}`
+          );
+          alert("Attendance record deleted successfully!");
+          window.location.reload();
+        } else {
+          console.error(
+            `[LOG] Failed to delete attendance record: ${recordId} - ${data.message}`
+          );
+          alert(data.message || "Error deleting record. Please try again.");
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `[LOG] Error during attendance record deletion: ${recordId}`,
+          error
+        );
+        alert("Error deleting record. Please try again.");
+      });
+  }
 }
 
 function closeModal() {
@@ -696,11 +774,26 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="record-actions">
+                ${
+                  hasEditPermission
+                    ? `
                 <button onclick="editRecord('${record.id}')" 
                         class="action-btn btn-edit"
                         title="Edit Record">
                     <i class="fas fa-edit"></i>
                 </button>
+                <button onclick="deleteRecord('${record.id}', '${record.employeeId}')" 
+                        class="action-btn btn-delete"
+                        title="Delete Record">
+                    <i class="fas fa-trash"></i>
+                </button>
+                `
+                    : `
+                <span class="text-muted" title="Admin or Payroll access required">
+                    <i class="fas fa-lock"></i>
+                </span>
+                `
+                }
             </div>
         </td>
     `;

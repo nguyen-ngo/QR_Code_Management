@@ -1,0 +1,215 @@
+{% extends "base_authenticated.html" %} {% block title %}Edit Attendance Record
+- QR Code Management{% endblock %} {% block extra_head %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/forms.css') }}"
+/>
+<style>
+  .edit-attendance-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .form-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .form-header h1 {
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-header p {
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .form-section {
+    margin-bottom: 2rem;
+  }
+
+  .form-section h3 {
+    color: #374151;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .record-info {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .record-info h4 {
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+
+  .record-info p {
+    color: #6b7280;
+    margin: 0.25rem 0;
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="edit-attendance-container">
+  <div class="form-header">
+    <h1>
+      <i class="fas fa-edit"></i>
+      Edit Attendance Record
+    </h1>
+    <p>Modify attendance record details (Admin & Payroll Access)</p>
+  </div>
+
+  <!-- Current Record Info -->
+  <div class="record-info">
+    <h4><i class="fas fa-info-circle"></i> Current Record Information</h4>
+    <p><strong>Record ID:</strong> {{ attendance_record.id }}</p>
+    <p>
+      <strong>Current Employee:</strong> {{ attendance_record.employee_id }}
+    </p>
+    <p>
+      <strong>Current Date:</strong> {{
+      attendance_record.check_in_date.strftime('%Y-%m-%d') }}
+    </p>
+    <p>
+      <strong>Current Time:</strong> {{
+      attendance_record.check_in_time.strftime('%H:%M') }}
+    </p>
+    <p>
+      <strong>Current Location:</strong> {{ attendance_record.location_name }}
+    </p>
+  </div>
+
+  <form
+    method="POST"
+    action="{{ url_for('edit_attendance', record_id=attendance_record.id) }}"
+  >
+    <!-- Employee Information -->
+    <div class="form-section">
+      <h3><i class="fas fa-user"></i> Employee Information</h3>
+      <div class="form-group">
+        <label for="employee_id">Employee ID *</label>
+        <input
+          type="text"
+          id="employee_id"
+          name="employee_id"
+          value="{{ attendance_record.employee_id }}"
+          required
+          class="form-control"
+          placeholder="Enter employee ID"
+        />
+      </div>
+    </div>
+
+    <!-- Date & Time Information -->
+    <div class="form-section">
+      <h3><i class="fas fa-clock"></i> Check-in Details</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="check_in_date">Check-in Date *</label>
+          <input
+            type="date"
+            id="check_in_date"
+            name="check_in_date"
+            value="{{ attendance_record.check_in_date.strftime('%Y-%m-%d') }}"
+            required
+            class="form-control"
+          />
+        </div>
+        <div class="form-group">
+          <label for="check_in_time">Check-in Time *</label>
+          <input
+            type="time"
+            id="check_in_time"
+            name="check_in_time"
+            value="{{ attendance_record.check_in_time.strftime('%H:%M') }}"
+            required
+            class="form-control"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Location Information -->
+    <div class="form-section">
+      <h3><i class="fas fa-map-marker-alt"></i> Location Information</h3>
+      <div class="form-group">
+        <label for="location_name">Location Name *</label>
+        <input
+          type="text"
+          id="location_name"
+          name="location_name"
+          value="{{ attendance_record.location_name }}"
+          required
+          class="form-control"
+          placeholder="Enter location name"
+        />
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save"></i>
+        Update Record
+      </button>
+      <a href="{{ url_for('attendance_report') }}" class="btn btn-secondary">
+        <i class="fas fa-times"></i>
+        Cancel
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %} {% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Form validation
+    const form = document.querySelector("form");
+    form.addEventListener("submit", function (e) {
+      const employeeId = document.getElementById("employee_id").value.trim();
+      const locationName = document
+        .getElementById("location_name")
+        .value.trim();
+
+      if (!employeeId || !locationName) {
+        e.preventDefault();
+        alert("Please fill in all required fields.");
+        return;
+      }
+
+      // Confirm update
+      const confirmUpdate = confirm(
+        "Are you sure you want to update this attendance record?"
+      );
+      if (!confirmUpdate) {
+        e.preventDefault();
+      }
+    });
+
+    // Auto-uppercase employee ID
+    document
+      .getElementById("employee_id")
+      .addEventListener("input", function () {
+        this.value = this.value.toUpperCase();
+      });
+  });
+</script>
+{% endblock %}

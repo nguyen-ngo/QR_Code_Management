@@ -266,11 +266,22 @@
                         </td>
                         <td>
                             <div class="record-actions">
+                                {% if session.role in ['admin', 'payroll'] %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                <button onclick="deleteRecord('{{ record.id }}', '{{ record.employee_id }}')" 
+                                        class="action-btn btn-delete"
+                                        title="Delete Record">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted" title="Admin or Payroll access required">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -353,6 +364,14 @@
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/attendance_report.js') }}"></script>
 <script>
+// Template variables (processed by Flask)
+const userRole = '{{ session.role }}';
+const hasEditPermission = ['admin', 'payroll'].includes(userRole);
+
+// Debug logging
+console.log('User Role:', userRole);
+console.log('Has Edit Permission:', hasEditPermission);
+
 // Enhanced JavaScript for new functionality
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
 
@@ -443,44 +462,12 @@ function viewRecordDetails(recordId) {
                         ${record.accuracy_level.toUpperCase()}
                     </span>
                 </div>
-                <div class="detail-item">
-                    <strong>QR Address:</strong>
-                    <span>${record.qr_address}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Check-in Address:</strong>
-                    <span>${record.checked_in_address}</span>
-                </div>
-            </div>
-        `;
-    } else if (record.gps_accuracy) {
-        accuracySection = `
-            <div class="detail-section">
-                <h4><i class="fas fa-crosshairs"></i> GPS Information</h4>
-                <div class="detail-item">
-                    <strong>GPS Accuracy:</strong>
-                    <span>${record.gps_accuracy}m</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Coordinates:</strong>
-                    <span>${record.coordinates}</span>
-                </div>
-            </div>
-        `;
-    } else {
-        accuracySection = `
-            <div class="detail-section">
-                <h4><i class="fas fa-question-circle"></i> Location Information</h4>
-                <div class="detail-item">
-                    <strong>Status:</strong>
-                    <span>No location data available</span>
-                </div>
             </div>
         `;
     }
     
     modalBody.innerHTML = `
-        <div class="record-details-grid">
+        <div class="record-details">
             <div class="detail-section">
                 <h4><i class="fas fa-user"></i> Employee Information</h4>
                 <div class="detail-item">
@@ -520,9 +507,67 @@ function viewRecordDetails(recordId) {
     modal.style.display = 'block';
 }
 
+// OVERRIDE EDIT/DELETE FUNCTIONS WITH PROPER PERMISSION CHECKING
 function editRecord(recordId) {
-    console.log(`Edit record: ${recordId}`);
-    alert('Edit functionality to be implemented');
+    console.log('Edit function called for record:', recordId);
+    console.log('User role:', userRole);
+    console.log('Has permission:', hasEditPermission);
+    
+    // Check permissions before allowing edit
+    if (!hasEditPermission) {
+        alert('Access denied. Only administrators and payroll staff can edit attendance records.');
+        return;
+    }
+    
+    console.log(`[LOG] User attempting to edit attendance record: ${recordId}`);
+    
+    // Redirect to edit page
+    window.location.href = `/attendance/${recordId}/edit`;
+}
+
+function deleteRecord(recordId, employeeId) {
+    console.log('Delete function called for record:', recordId);
+    console.log('User role:', userRole);
+    console.log('Has permission:', hasEditPermission);
+    
+    // Check permissions before allowing delete
+    if (!hasEditPermission) {
+        alert('Access denied. Only administrators and payroll staff can delete attendance records.');
+        return;
+    }
+    
+    console.log(`Delete record: ${recordId}`);
+    
+    // Confirmation dialog
+    const confirmMessage = `Are you sure you want to delete the attendance record for employee "${employeeId}"?\n\nThis action cannot be undone.`;
+    
+    if (confirm(confirmMessage)) {
+        console.log(`[LOG] User confirmed deletion of attendance record: ${recordId}`);
+        
+        // Send delete request
+        fetch(`/attendance/${recordId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`[LOG] Successfully deleted attendance record: ${recordId}`);
+                alert('Attendance record deleted successfully!');
+                window.location.reload();
+            } else {
+                console.error(`[LOG] Failed to delete attendance record: ${recordId} - ${data.message}`);
+                alert(data.message || 'Error deleting record. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error(`[LOG] Error during attendance record deletion: ${recordId}`, error);
+            alert('Error deleting record. Please try again.');
+        });
+    }
 }
 
 // Close modals when clicking outside
@@ -543,6 +588,41 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeModal();
         closeMapModal();
+    }
+});
+
+// Force update buttons on page load for admin/payroll users
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded. User role:', userRole, 'Has edit permission:', hasEditPermission);
+    
+    if (hasEditPermission) {
+        // Find all record action containers and update them
+        const recordActions = document.querySelectorAll('.record-actions');
+        recordActions.forEach(function(actionDiv) {
+            // Check if it contains a lock icon (meaning user is locked out)
+            const lockIcon = actionDiv.querySelector('.fa-lock');
+            if (lockIcon) {
+                const recordRow = actionDiv.closest('tr');
+                const recordId = recordRow.dataset.recordId;
+                const employeeCell = recordRow.querySelector('.employee-id');
+                const employeeId = employeeCell ? employeeCell.textContent.trim() : 'Unknown';
+                
+                // Replace lock icon with edit/delete buttons
+                actionDiv.innerHTML = `
+                    <button onclick="editRecord('${recordId}')" 
+                            class="action-btn btn-edit"
+                            title="Edit Record">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="deleteRecord('${recordId}', '${employeeId}')" 
+                            class="action-btn btn-delete"
+                            title="Delete Record">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+            }
+        });
+        console.log('✅ Admin/Payroll edit/delete buttons have been activated');
     }
 });
 </script>
