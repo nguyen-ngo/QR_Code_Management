@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -3434,6 +3434,310 @@ def attendance_stats_api():
         print(f"Error fetching attendance stats: {e}")
         return jsonify({'error': 'Failed to fetch attendance statistics'}), 500
 
+@app.route('/export-configuration')
+@admin_required
+def export_configuration():
+    """Route to display export configuration page"""
+    try:
+        print("📊 Export configuration route accessed")
+        
+        # Log export configuration access using your existing logger
+        try:
+            logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed export configuration page")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
+        # Get current filters from session or request args
+        filters = {
+            'date_from': request.args.get('date_from', ''),
+            'date_to': request.args.get('date_to', ''),
+            'location_filter': request.args.get('location', ''),
+            'employee_filter': request.args.get('employee', '')
+        }
+        
+        print(f"📊 Filters: {filters}")
+        
+        # Check if location accuracy feature exists
+        try:
+            has_location_accuracy = check_location_accuracy_column_exists()
+        except Exception as e:
+            print(f"⚠️ Error checking location accuracy column: {e}")
+            has_location_accuracy = False
+        
+        # Define all available columns with their default settings
+        available_columns = [
+            {'key': 'employee_id', 'label': 'Employee ID', 'default_name': 'Employee ID', 'enabled': True},
+            {'key': 'location_name', 'label': 'Location', 'default_name': 'Location', 'enabled': True},
+            {'key': 'status', 'label': 'Event', 'default_name': 'Event', 'enabled': True},
+            {'key': 'check_in_date', 'label': 'Date', 'default_name': 'Date', 'enabled': True},
+            {'key': 'check_in_time', 'label': 'Time', 'default_name': 'Time', 'enabled': True},
+            {'key': 'qr_address', 'label': 'QR Address', 'default_name': 'QR Code Address', 'enabled': False},
+            {'key': 'address', 'label': 'Check-in Address', 'default_name': 'Check-in Address', 'enabled': False},
+            {'key': 'device_info', 'label': 'Device', 'default_name': 'Device Information', 'enabled': False},
+            {'key': 'ip_address', 'label': 'IP Address', 'default_name': 'IP Address', 'enabled': False},
+            {'key': 'user_agent', 'label': 'User Agent', 'default_name': 'Browser/User Agent', 'enabled': False},
+            {'key': 'latitude', 'label': 'Latitude', 'default_name': 'GPS Latitude', 'enabled': False},
+            {'key': 'longitude', 'label': 'Longitude', 'default_name': 'GPS Longitude', 'enabled': False},
+            {'key': 'accuracy', 'label': 'GPS Accuracy', 'default_name': 'GPS Accuracy (meters)', 'enabled': False},
+        ]
+        
+        # Add location accuracy column if feature exists
+        if has_location_accuracy:
+            available_columns.append({
+                'key': 'location_accuracy', 
+                'label': 'Location Accuracy', 
+                'default_name': 'Location Accuracy (miles)', 
+                'enabled': False
+            })
+        
+        print(f"📊 Rendering export configuration with {len(available_columns)} columns")
+        
+        return render_template('export_configuration.html',
+                             available_columns=available_columns,
+                             filters=filters,
+                             has_location_accuracy_feature=has_location_accuracy)
+        
+    except Exception as e:
+        print(f"❌ Error in export_configuration route: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Use your existing logger error method with correct parameters
+        try:
+            logger_handler.log_flask_error(
+                error_type="export_configuration_error",
+                error_message=str(e),
+                stack_trace=traceback.format_exc()
+            )
+        except Exception as log_error:
+            print(f"⚠️ Could not log error: {log_error}")
+            
+        flash('Error loading export configuration page.', 'error')
+        return redirect(url_for('attendance_report'))
+
+@app.route('/generate-excel-export', methods=['POST'])
+@admin_required
+def generate_excel_export():
+    """Generate and download Excel file with selected columns"""
+    try:
+        print("📊 Excel export generation started")
+        
+        # Log export action using your existing logger
+        try:
+            logger_handler.logger.info(f"User {session.get('username', 'unknown')} generated Excel export")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
+        # Get selected columns and custom names from form
+        selected_columns = request.form.getlist('selected_columns')
+        print(f"📊 Selected columns: {selected_columns}")
+        
+        if not selected_columns:
+            flash('Please select at least one column to export.', 'error')
+            return redirect(url_for('export_configuration'))
+        
+        column_names = {}
+        for column in selected_columns:
+            column_names[column] = request.form.get(f'name_{column}', column)
+        
+        # Get filters
+        filters = {
+            'date_from': request.form.get('date_from'),
+            'date_to': request.form.get('date_to'),
+            'location_filter': request.form.get('location_filter'),
+            'employee_filter': request.form.get('employee_filter')
+        }
+        
+        print(f"📊 Export filters: {filters}")
+        
+        # Save user preferences in session for next time
+        session['export_preferences'] = {
+            'selected_columns': selected_columns,
+            'column_names': column_names
+        }
+        
+        # Generate Excel file
+        excel_file = create_excel_export(selected_columns, column_names, filters)
+        
+        if excel_file:
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'attendance_report_{timestamp}.xlsx'
+            
+            print(f"📊 Excel file generated successfully: {filename}")
+            
+            # Log successful export using your existing logger
+            try:
+                logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns by user {session.get('username', 'unknown')}")
+            except Exception as log_error:
+                print(f"⚠️ Logging error (non-critical): {log_error}")
+            
+            return send_file(
+                excel_file,
+                as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        else:
+            flash('Error generating Excel file.', 'error')
+            return redirect(url_for('export_configuration'))
+            
+    except Exception as e:
+        print(f"❌ Error in generate_excel_export route: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Use your existing logger error method with correct parameters
+        try:
+            logger_handler.log_flask_error(
+                error_type="excel_export_error",
+                error_message=str(e),
+                stack_trace=traceback.format_exc()
+            )
+        except Exception as log_error:
+            print(f"⚠️ Could not log error: {log_error}")
+            
+        flash('Error generating Excel export.', 'error')
+        return redirect(url_for('export_configuration'))
+
+def create_excel_export(selected_columns, column_names, filters):
+    """Create Excel file with selected attendance data"""
+    try:
+        print(f"📊 Creating Excel export with {len(selected_columns)} columns")
+        
+        # Import openpyxl modules
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
+        except ImportError as e:
+            print(f"❌ openpyxl import error: {e}")
+            print("💡 Install openpyxl: pip install openpyxl")
+            return None
+        
+        # Build query based on filters
+        query = db.session.query(AttendanceData).join(QRCode)
+        
+        # Apply date filters
+        if filters.get('date_from'):
+            try:
+                date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date >= date_from)
+                print(f"📊 Applied date_from filter: {date_from}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_from format: {e}")
+                
+        if filters.get('date_to'):
+            try:
+                date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date <= date_to)
+                print(f"📊 Applied date_to filter: {date_to}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_to format: {e}")
+        
+        # Apply location filter
+        if filters.get('location_filter'):
+            query = query.filter(AttendanceData.location_name.ilike(f"%{filters['location_filter']}%"))
+            print(f"📊 Applied location filter: {filters['location_filter']}")
+        
+        # Apply employee filter
+        if filters.get('employee_filter'):
+            query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
+            print(f"📊 Applied employee filter: {filters['employee_filter']}")
+        
+        # Execute query
+        records = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
+        print(f"📊 Found {len(records)} records for export")
+        
+        if not records:
+            print("⚠️ No records found for export")
+            return None
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Report"
+        
+        # Define header style
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Add headers
+        for idx, column_key in enumerate(selected_columns, 1):
+            cell = ws.cell(row=1, column=idx)
+            cell.value = column_names.get(column_key, column_key)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+        
+        # Add data
+        for row_idx, record in enumerate(records, 2):
+            for col_idx, column_key in enumerate(selected_columns, 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                
+                # Get value based on column key
+                try:
+                    if column_key == 'employee_id':
+                        cell.value = record.employee_id
+                    elif column_key == 'location_name':
+                        cell.value = record.location_name
+                    elif column_key == 'status':
+                        cell.value = record.status
+                    elif column_key == 'check_in_date':
+                        cell.value = record.check_in_date.strftime('%Y-%m-%d') if record.check_in_date else ''
+                    elif column_key == 'check_in_time':
+                        cell.value = record.check_in_time.strftime('%H:%M:%S') if record.check_in_time else ''
+                    elif column_key == 'qr_address':
+                        cell.value = record.qr_code.location if record.qr_code else ''
+                    elif column_key == 'address':
+                        cell.value = record.address or ''
+                    elif column_key == 'device_info':
+                        cell.value = record.device_info or ''
+                    elif column_key == 'ip_address':
+                        cell.value = record.ip_address or ''
+                    elif column_key == 'user_agent':
+                        cell.value = record.user_agent or ''
+                    elif column_key == 'latitude':
+                        cell.value = record.latitude or ''
+                    elif column_key == 'longitude':
+                        cell.value = record.longitude or ''
+                    elif column_key == 'accuracy':
+                        cell.value = record.accuracy or ''
+                    elif column_key == 'location_accuracy':
+                        cell.value = record.location_accuracy or ''
+                    else:
+                        cell.value = ''
+                except Exception as cell_error:
+                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
+                    cell.value = ''
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save to BytesIO
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        print("📊 Excel file created successfully")
+        return excel_buffer
+        
+    except Exception as e:
+        print(f"❌ Error creating Excel export: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        return None
+   
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
 def days_since_filter(date):

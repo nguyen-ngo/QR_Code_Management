@@ -368,27 +368,11 @@
 const userRole = '{{ session.role }}';
 const hasEditPermission = ['admin', 'payroll'].includes(userRole);
 
-// Debug logging
-console.log('User Role:', userRole);
-console.log('Has Edit Permission:', hasEditPermission);
-
 // Enhanced JavaScript for new functionality
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
 
 function clearFilters() {
     window.location.href = "{{ url_for('attendance_report') }}";
-}
-
-function exportAttendance() {
-    // Build export URL with current filters
-    const params = new URLSearchParams();
-    if ('{{ date_from }}') params.append('date_from', '{{ date_from }}');
-    if ('{{ date_to }}') params.append('date_to', '{{ date_to }}');
-    if ('{{ location_filter }}') params.append('location', '{{ location_filter }}');
-    if ('{{ employee_filter }}') params.append('employee', '{{ employee_filter }}');
-    params.append('export', 'csv');
-    
-    window.open(`{{ url_for('attendance_report') }}?${params.toString()}`);
 }
 
 function refreshReport() {
@@ -510,8 +494,6 @@ function viewRecordDetails(recordId) {
 // OVERRIDE EDIT/DELETE FUNCTIONS WITH PROPER PERMISSION CHECKING
 function editRecord(recordId) {
     console.log('Edit function called for record:', recordId);
-    console.log('User role:', userRole);
-    console.log('Has permission:', hasEditPermission);
     
     // Check permissions before allowing edit
     if (!hasEditPermission) {
@@ -527,8 +509,6 @@ function editRecord(recordId) {
 
 function deleteRecord(recordId, employeeId) {
     console.log('Delete function called for record:', recordId);
-    console.log('User role:', userRole);
-    console.log('Has permission:', hasEditPermission);
     
     // Check permissions before allowing delete
     if (!hasEditPermission) {
@@ -593,8 +573,7 @@ document.addEventListener('keydown', function(event) {
 
 // Force update buttons on page load for admin/payroll users
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Page loaded. User role:', userRole, 'Has edit permission:', hasEditPermission);
-    
+        
     if (hasEditPermission) {
         // Find all record action containers and update them
         const recordActions = document.querySelectorAll('.record-actions');

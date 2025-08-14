@@ -1,0 +1,261 @@
+{% extends "base_authenticated.html" %}
+
+{% block title %}Export Configuration - QR Code Management{% endblock %}
+
+{% block extra_head %}
+<!-- Export Configuration specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/export_configuration.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="export-config-page">
+    <!-- Header Section -->
+    <div class="export-header">
+        <div class="header-content">
+            <h1>
+                <i class="fas fa-file-excel"></i>
+                Export Configuration
+            </h1>
+            <p>Customize your attendance report export with selected columns and custom names</p>
+        </div>
+        
+        <div class="header-actions">
+            <button onclick="goBackToReport()" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                Back to Report
+            </button>
+        </div>
+    </div>
+
+    <!-- Filter Information -->
+    {% if filters.date_from or filters.date_to or filters.location_filter or filters.employee_filter %}
+    <div class="applied-filters-section">
+        <div class="filters-card">
+            <div class="filters-header">
+                <h3>
+                    <i class="fas fa-filter"></i>
+                    Applied Filters
+                </h3>
+            </div>
+            <div class="filters-display">
+                {% if filters.date_from %}
+                <span class="filter-tag">
+                    <i class="fas fa-calendar"></i>
+                    From: {{ filters.date_from }}
+                </span>
+                {% endif %}
+                {% if filters.date_to %}
+                <span class="filter-tag">
+                    <i class="fas fa-calendar"></i>
+                    To: {{ filters.date_to }}
+                </span>
+                {% endif %}
+                {% if filters.location_filter %}
+                <span class="filter-tag">
+                    <i class="fas fa-map-marker-alt"></i>
+                    Location: {{ filters.location_filter }}
+                </span>
+                {% endif %}
+                {% if filters.employee_filter %}
+                <span class="filter-tag">
+                    <i class="fas fa-user"></i>
+                    Employee: {{ filters.employee_filter }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Export Configuration Form -->
+    <div class="export-config-section">
+        <form method="POST" action="{{ url_for('generate_excel_export') }}" id="exportForm">
+            <!-- Hidden fields for filters -->
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+            <input type="hidden" name="location_filter" value="{{ filters.location_filter }}">
+            <input type="hidden" name="employee_filter" value="{{ filters.employee_filter }}">
+            
+            <div class="config-card">
+                <div class="config-header">
+                    <h3>
+                        <i class="fas fa-columns"></i>
+                        Select Columns to Export
+                    </h3>
+                    <div class="config-actions">
+                        <button type="button" onclick="selectAllColumns()" class="btn btn-sm btn-outline">
+                            Select All
+                        </button>
+                        <button type="button" onclick="deselectAllColumns()" class="btn btn-sm btn-outline">
+                            Deselect All
+                        </button>
+                        <button type="button" onclick="resetToDefaults()" class="btn btn-sm btn-outline">
+                            Reset to Defaults
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="columns-grid">
+                    {% for column in available_columns %}
+                    <div class="column-item">
+                        <div class="column-checkbox">
+                            <input type="checkbox" 
+                                   id="col_{{ column.key }}" 
+                                   name="selected_columns" 
+                                   value="{{ column.key }}"
+                                   {% if column.enabled %}checked{% endif %}
+                                   onchange="toggleColumnName('{{ column.key }}')">
+                            <label for="col_{{ column.key }}">
+                                <i class="fas fa-check"></i>
+                                {{ column.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="column-name-input" id="name_group_{{ column.key }}" 
+                             style="{% if not column.enabled %}display: none;{% endif %}">
+                            <label for="name_{{ column.key }}">Export as:</label>
+                            <input type="text" 
+                                   id="name_{{ column.key }}" 
+                                   name="name_{{ column.key }}" 
+                                   value="{{ column.default_name }}"
+                                   placeholder="Column name in Excel">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Preview Section -->
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h3>
+                        <i class="fas fa-eye"></i>
+                        Export Preview
+                    </h3>
+                </div>
+                <div class="preview-table-container">
+                    <table class="preview-table" id="previewTable">
+                        <thead>
+                            <tr id="previewHeader">
+                                <!-- Headers will be populated by JavaScript -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="100%" class="preview-placeholder">
+                                    Select columns above to see preview
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Submit Section -->
+            <div class="submit-section">
+                <div class="submit-actions">
+                    <button type="submit" class="btn btn-success btn-lg" id="generateBtn">
+                        <i class="fas fa-download"></i>
+                        Generate Excel Export
+                    </button>
+                    <p class="submit-note">
+                        <i class="fas fa-info-circle"></i>
+                        Your column preferences will be saved for next time
+                    </p>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/export_configuration.js') }}"></script>
+<script>
+// Initialize export configuration
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Export Configuration page initialized');
+    
+    // Load saved preferences if available
+    loadSavedPreferences();
+    
+    // Update preview on page load
+    updatePreview();
+});
+
+function goBackToReport() {
+    // Build URL with current filters
+    const params = new URLSearchParams();
+    const dateFrom = document.querySelector('input[name="date_from"]').value;
+    const dateTo = document.querySelector('input[name="date_to"]').value;
+    const locationFilter = document.querySelector('input[name="location_filter"]').value;
+    const employeeFilter = document.querySelector('input[name="employee_filter"]').value;
+    
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (locationFilter) params.append('location', locationFilter);
+    if (employeeFilter) params.append('employee', employeeFilter);
+    
+    const url = "{{ url_for('attendance_report') }}" + (params.toString() ? '?' + params.toString() : '');
+    window.location.href = url;
+}
+
+function loadSavedPreferences() {
+    // Load preferences from localStorage or session
+    try {
+        const savedPrefs = localStorage.getItem('exportPreferences');
+        if (savedPrefs) {
+            const prefs = JSON.parse(savedPrefs);
+            
+            // Apply saved column selections
+            if (prefs.selected_columns) {
+                const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
+                checkboxes.forEach(cb => {
+                    cb.checked = prefs.selected_columns.includes(cb.value);
+                    toggleColumnName(cb.value);
+                });
+            }
+            
+            // Apply saved column names
+            if (prefs.column_names) {
+                Object.keys(prefs.column_names).forEach(key => {
+                    const input = document.getElementById('name_' + key);
+                    if (input) {
+                        input.value = prefs.column_names[key];
+                    }
+                });
+            }
+            
+            updatePreview();
+        }
+    } catch (e) {
+        console.log('No saved preferences found');
+    }
+}
+
+// Form submission handler to save preferences
+document.getElementById('exportForm').addEventListener('submit', function() {
+    savePreferences();
+});
+
+function savePreferences() {
+    const selectedColumns = Array.from(document.querySelectorAll('input[name="selected_columns"]:checked'))
+        .map(cb => cb.value);
+    
+    const columnNames = {};
+    selectedColumns.forEach(col => {
+        const input = document.getElementById('name_' + col);
+        if (input) {
+            columnNames[col] = input.value;
+        }
+    });
+    
+    const prefs = {
+        selected_columns: selectedColumns,
+        column_names: columnNames
+    };
+    
+    localStorage.setItem('exportPreferences', JSON.stringify(prefs));
+}
+</script>
+{% endblock %}
