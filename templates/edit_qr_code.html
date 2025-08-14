@@ -777,6 +777,7 @@
       };
 
       let originalData = {};
+      let originalProjectId = {% if qr_code.project_id %}{{ qr_code.project_id }}{% else %}null{% endif %};
 
       // Initialize the form when page loads
       document.addEventListener('DOMContentLoaded', function() {
@@ -797,25 +798,15 @@
       }
 
       function initializeForm() {
-          // Form validation on submit
+          // Form validation on submit - REMOVED COORDINATE UPDATE REQUIREMENT
           document.getElementById('editQRForm').addEventListener('submit', function(e) {
               if (!validateForm()) {
                   e.preventDefault();
                   return false;
               }
 
-              // Check if changes were made
-              if (!hasChanges()) {
-                  e.preventDefault();
-                  showStatus('warning', 'No changes detected. Please modify the information to update the QR code.');
-                  return false;
-              }
-
-              // Confirm changes before submission
-              if (!confirmSaveChanges()) {
-                  e.preventDefault();
-                  return false;
-              }
+              // REMOVED: Check if changes were made - Allow form submission regardless of changes
+              // This enables updates even when only project changes or coordinate updates occur
 
               // Show loading state
               const submitBtn = document.getElementById('submitBtn');
@@ -851,87 +842,56 @@
           });
       }
 
-      function initializeCoordinatesFeature() {
-          const geocodeBtn = document.getElementById('geocodeBtn');
-          const clearBtn = document.getElementById('clearCoordinatesBtn');
-
-          // Geocode button click
-          geocodeBtn.addEventListener('click', function() {
-              const address = document.getElementById('location_address').value.trim();
-              if (address.length > 10) {
-                  geocodeAddress(address);
-              } else {
-                  showStatus('error', 'Please enter a complete address first');
-              }
-          });
-
-          // Clear coordinates button
-          clearBtn.addEventListener('click', clearCoordinates);
-      }
-
-      function initializeChangeTracking() {
-          const inputs = document.querySelectorAll('#name, #location, #location_address, #location_event');
-
-          inputs.forEach(input => {
-              input.addEventListener('input', updateCurrentInfo);
-          });
-      }
-
-      function updateCurrentInfo() {
-          document.getElementById('currentName').textContent = document.getElementById('name').value || '-';
-          document.getElementById('currentLocation').textContent = document.getElementById('location').value || '-';
-          document.getElementById('currentEvent').textContent = document.getElementById('location_event').value || '-';
-          document.getElementById('currentAddress').textContent = document.getElementById('location_address').value || '-';
-      }
-
-      async function geocodeAddress(address) {
+      function geocodeAddress(address) {
           const geocodeBtn = document.getElementById('geocodeBtn');
           const statusDiv = document.getElementById('coordinateStatus');
 
           // Show loading state
-          geocodeBtn.innerHTML = '<span class="loading-spinner"></span> Getting coordinates...';
+          geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting Coordinates...';
           geocodeBtn.disabled = true;
 
-          try {
-              const response = await fetch('/api/geocode', {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ address: address })
+          showStatus('info', 'Getting coordinates from address...');
+
+          const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(address)}&key=b0e9dd83c98e4cfebc6a9ef1d83f5a6e&limit=1&countrycode=my&language=en`;
+
+          fetch(geocodeUrl)
+              .then(response => response.json())
+              .then(data => {
+                  console.log('Geocoding response:', data);
+
+                  if (data.results && data.results.length > 0) {
+                      const result = data.results[0];
+                      const lat = result.geometry.lat;
+                      const lng = result.geometry.lng;
+                      const confidence = result.confidence || 0;
+
+                      // Update coordinates data
+                      coordinatesData = {
+                          latitude: lat,
+                          longitude: lng,
+                          accuracy: confidence >= 8 ? 'high' : confidence >= 5 ? 'medium' : 'low'
+                      };
+
+                      updateCoordinatesDisplay();
+                      updateHiddenFields();
+
+                      const confidenceText = confidence >= 8 ? 'high' : confidence >= 5 ? 'medium' : 'low';
+                      showStatus('success', `Coordinates updated successfully! Accuracy: ${confidenceText}`);
+
+                      console.log('✓ Coordinates updated:', coordinatesData);
+                  } else {
+                      showStatus('error', 'Could not find coordinates for this address. Please check the address and try again.');
+                  }
+              })
+              .catch(error => {
+                  console.error('Geocoding error:', error);
+                  showStatus('error', 'Failed to get coordinates. Please try again.');
+              })
+              .finally(() => {
+                  // Reset button state
+                  geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
+                  geocodeBtn.disabled = false;
               });
-
-              const result = await response.json();
-
-              if (result.success) {
-                  // Update coordinates
-                  coordinatesData = {
-                      latitude: result.data.latitude,
-                      longitude: result.data.longitude,
-                      accuracy: result.data.accuracy
-                  };
-
-                  // Update display
-                  updateCoordinatesDisplay();
-
-                  // Update hidden form fields
-                  updateHiddenFields();
-
-                  // Show success message
-                  showStatus('success', result.message);
-
-              } else {
-                  showStatus('error', result.message);
-              }
-
-          } catch (error) {
-              console.error('Geocoding error:', error);
-              showStatus('error', 'Network error occurred. Please try again.');
-          }
-
-          // Reset button state
-          geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
-          geocodeBtn.disabled = false;
       }
 
       function updateCoordinatesDisplay() {
@@ -972,6 +932,7 @@
           showStatus('warning', 'Coordinates cleared. Click "Update QR Code" to save changes.');
       }
 
+      // ENHANCED hasChanges function - Now includes project changes and allows coordinate-only updates
       function hasChanges() {
           const currentData = {
               name: document.getElementById('name').value.trim(),
@@ -980,30 +941,35 @@
               location_event: document.getElementById('location_event').value.trim()
           };
 
-          return Object.keys(originalData).some(key => {
+          // Check basic field changes
+          const fieldChanges = Object.keys(originalData).some(key => {
               return currentData[key] !== originalData[key];
           });
+
+          // Check project changes
+          const currentProjectId = document.getElementById('project_id').value;
+          const projectIdValue = currentProjectId ? parseInt(currentProjectId) : null;
+          const projectChanged = originalProjectId !== projectIdValue;
+
+          console.log('Change detection:', {
+              fieldChanges,
+              projectChanged,
+              originalProjectId,
+              currentProjectId: projectIdValue
+          });
+
+          return fieldChanges || projectChanged;
       }
 
-      function confirmSaveChanges() {
-          const changeCount = Object.keys(originalData).filter(key => {
-              const currentValue = document.getElementById(key).value.trim();
-              return currentValue !== originalData[key];
-          }).length;
-
-          return confirm(
-              `You have made ${changeCount} change${changeCount !== 1 ? 's' : ''} to this QR code.\n\n` +
-              'Saving will update the QR code with the new information.\n\n' +
-              'Are you sure you want to continue?'
-          );
-      }
+      // REMOVED: confirmSaveChanges function - No longer needed since we're allowing all updates
 
       function showStatus(type, message) {
           const statusDiv = document.getElementById('coordinateStatus');
           const iconMap = {
               'success': 'fas fa-check-circle',
               'error': 'fas fa-exclamation-circle',
-              'warning': 'fas fa-exclamation-triangle'
+              'warning': 'fas fa-exclamation-triangle',
+              'info': 'fas fa-info-circle'
           };
 
           statusDiv.innerHTML = `
@@ -1079,6 +1045,39 @@
           if (errorElement) {
               errorElement.remove();
           }
+      }
+
+      function initializeCoordinatesFeature() {
+          const geocodeBtn = document.getElementById('geocodeBtn');
+          const clearBtn = document.getElementById('clearCoordinatesBtn');
+
+          // Geocode button click
+          geocodeBtn.addEventListener('click', function() {
+              const address = document.getElementById('location_address').value.trim();
+              if (address.length > 10) {
+                  geocodeAddress(address);
+              } else {
+                  showStatus('error', 'Please enter a complete address first');
+              }
+          });
+
+          // Clear coordinates button
+          clearBtn.addEventListener('click', clearCoordinates);
+      }
+
+      function initializeChangeTracking() {
+          const inputs = document.querySelectorAll('#name, #location, #location_address, #location_event');
+
+          inputs.forEach(input => {
+              input.addEventListener('input', updateCurrentInfo);
+          });
+      }
+
+      function updateCurrentInfo() {
+          document.getElementById('currentName').textContent = document.getElementById('name').value || '-';
+          document.getElementById('currentLocation').textContent = document.getElementById('location').value || '-';
+          document.getElementById('currentEvent').textContent = document.getElementById('location_event').value || '-';
+          document.getElementById('currentAddress').textContent = document.getElementById('location_address').value || '-';
       }
     </script>
   </body>

@@ -2422,7 +2422,7 @@ def create_qr_code():
 @login_required
 @log_database_operations('qr_code_edit')
 def edit_qr_code(qr_id):
-    """Enhanced edit QR code with project association and URL regeneration"""
+    """Enhanced edit QR code with project association and URL regeneration - COORDINATE FIX"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         
@@ -2434,7 +2434,10 @@ def edit_qr_code(qr_id):
                 'location_address': qr_code.location_address,
                 'location_event': qr_code.location_event,
                 'project_id': qr_code.project_id,
-                'qr_url': qr_code.qr_url
+                'qr_url': qr_code.qr_url,
+                'address_latitude': qr_code.address_latitude,
+                'address_longitude': qr_code.address_longitude,
+                'coordinate_accuracy': qr_code.coordinate_accuracy
             }
             
             # Update QR code fields
@@ -2444,11 +2447,12 @@ def edit_qr_code(qr_id):
             qr_code.location_address = request.form['location_address']
             qr_code.location_event = request.form.get('location_event', '')
             
-            # Handle coordinates update
-            latitude = request.form.get('latitude')
-            longitude = request.form.get('longitude')
+            # SIMPLIFIED COORDINATE HANDLING - Remove validation requirement
+            latitude = request.form.get('address_latitude')  # Changed from 'latitude' to match form
+            longitude = request.form.get('address_longitude')  # Changed from 'longitude' to match form
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
             
+            # Update coordinates if provided, or keep existing ones
             if latitude and longitude:
                 try:
                     qr_code.address_latitude = float(latitude)
@@ -2456,19 +2460,33 @@ def edit_qr_code(qr_id):
                     qr_code.coordinate_accuracy = coordinate_accuracy
                     qr_code.coordinates_updated_date = datetime.utcnow()
                 except (ValueError, TypeError):
-                    pass  # Keep existing coordinates if invalid
+                    # If invalid coordinates, keep existing ones
+                    pass
+            elif latitude == '' and longitude == '':
+                # Explicitly clear coordinates if empty strings are sent
+                qr_code.address_latitude = None
+                qr_code.address_longitude = None
+                qr_code.coordinate_accuracy = None
+                qr_code.coordinates_updated_date = None
+            # If no coordinate data is provided, keep existing coordinates unchanged
             
-            # Handle project association
+            # Handle project association - FIXED LOGIC
             new_project_id = request.form.get('project_id')
-            if new_project_id:
-                new_project_id = int(new_project_id)
-                project = Project.query.get(new_project_id)
-                if project and project.active_status:
-                    qr_code.project_id = new_project_id
-                else:
-                    flash('Selected project is not valid or inactive.', 'error')
+            if new_project_id and new_project_id.strip():  # Check for non-empty string
+                try:
+                    new_project_id = int(new_project_id)
+                    project = Project.query.get(new_project_id)
+                    if project and project.active_status:
+                        qr_code.project_id = new_project_id
+                    else:
+                        flash('Selected project is not valid or inactive.', 'error')
+                        return render_template('edit_qr_code.html', qr_code=qr_code, projects=Project.query.filter_by(active_status=True).all())
+                except (ValueError, TypeError):
+                    # Invalid project_id format
+                    flash('Invalid project selection.', 'error')
                     return render_template('edit_qr_code.html', qr_code=qr_code, projects=Project.query.filter_by(active_status=True).all())
             else:
+                # Empty or None project_id means unassign from project
                 qr_code.project_id = None
             
             # Regenerate URL if name changed
@@ -2483,16 +2501,24 @@ def edit_qr_code(qr_id):
                 qr_code.qr_url = new_qr_url
                 qr_code.qr_code_image = new_qr_image
             
+            # ENHANCED CHANGE DETECTION
+            project_changed = old_data['project_id'] != qr_code.project_id
+            coordinates_changed = (old_data['address_latitude'] != qr_code.address_latitude or 
+                                 old_data['address_longitude'] != qr_code.address_longitude)
+            
             db.session.commit()
             
-            # Log changes
+            # Log changes with improved tracking
             new_data = {
                 'name': qr_code.name,
                 'location': qr_code.location,
                 'location_address': qr_code.location_address,
                 'location_event': qr_code.location_event,
                 'project_id': qr_code.project_id,
-                'qr_url': qr_code.qr_url
+                'qr_url': qr_code.qr_url,
+                'address_latitude': qr_code.address_latitude,
+                'address_longitude': qr_code.address_longitude,
+                'coordinate_accuracy': qr_code.coordinate_accuracy
             }
             
             changes = {}
@@ -2500,11 +2526,53 @@ def edit_qr_code(qr_id):
                 if old_data[key] != new_data[key]:
                     changes[key] = {'old': old_data[key], 'new': new_data[key]}
             
+            # Enhanced logging for all changes
             if changes:
                 logger_handler.logger.info(f"User {session['username']} updated QR code {qr_id}: {json.dumps(changes)}")
+                
+                # Log specific change actions
+                if project_changed:
+                    old_project_name = None
+                    new_project_name = None
+                    
+                    if old_data['project_id']:
+                        old_project = Project.query.get(old_data['project_id'])
+                        old_project_name = old_project.name if old_project else f"Project ID {old_data['project_id']}"
+                    
+                    if qr_code.project_id:
+                        new_project = Project.query.get(qr_code.project_id)
+                        new_project_name = new_project.name if new_project else f"Project ID {qr_code.project_id}"
+                    
+                    project_change_msg = f"QR code '{qr_code.name}' project changed from '{old_project_name or 'No Project'}' to '{new_project_name or 'No Project'}'"
+                    logger_handler.logger.info(f"User {session['username']} - {project_change_msg}")
+                
+                if coordinates_changed:
+                    coord_change_msg = f"QR code '{qr_code.name}' coordinates updated"
+                    if qr_code.has_coordinates:
+                        coord_change_msg += f" to {qr_code.coordinates_display}"
+                    else:
+                        coord_change_msg += " (coordinates cleared)"
+                    logger_handler.logger.info(f"User {session['username']} - {coord_change_msg}")
             
+            # Success message with detailed information
             url_message = f" URL updated to: {qr_code.qr_url}" if name_changed else ""
-            flash(f'QR Code "{qr_code.name}" updated successfully!{url_message}', 'success')
+            project_message = ""
+            coord_message = ""
+            
+            if project_changed:
+                if qr_code.project_id:
+                    current_project = Project.query.get(qr_code.project_id)
+                    project_message = f" Project updated to: {current_project.name if current_project else 'Unknown'}"
+                else:
+                    project_message = " Removed from project"
+            
+            if coordinates_changed:
+                if qr_code.has_coordinates:
+                    coord_message = f" Coordinates updated: {qr_code.coordinates_display}"
+                else:
+                    coord_message = " Coordinates cleared"
+            
+            flash(f'QR Code "{qr_code.name}" updated successfully!{url_message}{project_message}{coord_message}', 'success')
             return redirect(url_for('dashboard'))
         
         # Get active projects for dropdown
