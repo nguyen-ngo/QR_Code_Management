@@ -3518,7 +3518,7 @@ def export_configuration():
 @app.route('/generate-excel-export', methods=['POST'])
 @admin_required
 def generate_excel_export():
-    """Generate and download Excel file with selected columns"""
+    """Generate and download Excel file with selected columns in specified order"""
     try:
         print("📊 Excel export generation started")
         
@@ -3529,8 +3529,31 @@ def generate_excel_export():
             print(f"⚠️ Logging error (non-critical): {log_error}")
         
         # Get selected columns and custom names from form
-        selected_columns = request.form.getlist('selected_columns')
-        print(f"📊 Selected columns: {selected_columns}")
+        selected_columns_raw = request.form.getlist('selected_columns')
+        print(f"📊 Selected columns (raw): {selected_columns_raw}")
+        
+        # Get column order from form
+        column_order_json = request.form.get('column_order', '[]')
+        try:
+            column_order = json.loads(column_order_json) if column_order_json else []
+        except (json.JSONDecodeError, TypeError):
+            column_order = []
+        
+        print(f"📊 Column order from form: {column_order}")
+        
+        # Determine final column order
+        if column_order:
+            # Use the specified order, but only include actually selected columns
+            selected_columns = [col for col in column_order if col in selected_columns_raw]
+            # Add any selected columns that weren't in the order (shouldn't happen, but safety check)
+            for col in selected_columns_raw:
+                if col not in selected_columns:
+                    selected_columns.append(col)
+        else:
+            # Fallback to raw selection order
+            selected_columns = selected_columns_raw
+        
+        print(f"📊 Final column order: {selected_columns}")
         
         if not selected_columns:
             flash('Please select at least one column to export.', 'error')
@@ -3549,15 +3572,17 @@ def generate_excel_export():
         }
         
         print(f"📊 Export filters: {filters}")
+        print(f"📊 Column names: {column_names}")
         
         # Save user preferences in session for next time
         session['export_preferences'] = {
             'selected_columns': selected_columns,
-            'column_names': column_names
+            'column_names': column_names,
+            'column_order': selected_columns  # This is now the ordered list
         }
         
-        # Generate Excel file
-        excel_file = create_excel_export(selected_columns, column_names, filters)
+        # Generate Excel file with ordered columns
+        excel_file = create_excel_export_ordered(selected_columns, column_names, filters)
         
         if excel_file:
             # Generate filename with timestamp
@@ -3565,10 +3590,11 @@ def generate_excel_export():
             filename = f'attendance_report_{timestamp}.xlsx'
             
             print(f"📊 Excel file generated successfully: {filename}")
+            print(f"📊 Column order in export: {selected_columns}")
             
             # Log successful export using your existing logger
             try:
-                logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns by user {session.get('username', 'unknown')}")
+                logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns in custom order by user {session.get('username', 'unknown')}")
             except Exception as log_error:
                 print(f"⚠️ Logging error (non-critical): {log_error}")
             
@@ -3757,7 +3783,163 @@ def create_excel_export(selected_columns, column_names, filters):
         import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         return None
-   
+
+def create_excel_export_ordered(selected_columns, column_names, filters):
+    """Create Excel file with selected attendance data in specified column order"""
+    try:
+        print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
+        
+        # Import openpyxl modules
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
+        except ImportError as e:
+            print(f"❌ openpyxl import error: {e}")
+            print("💡 Install openpyxl: pip install openpyxl")
+            return None
+        
+        # Build query based on filters - JOIN with QRCode to get location_event and location_address
+        query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
+        
+        # Apply date filters
+        if filters.get('date_from'):
+            try:
+                date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date >= date_from)
+                print(f"📊 Applied date_from filter: {date_from}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_from format: {e}")
+                
+        if filters.get('date_to'):
+            try:
+                date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date <= date_to)
+                print(f"📊 Applied date_to filter: {date_to}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_to format: {e}")
+        
+        # Apply location filter
+        if filters.get('location_filter'):
+            query = query.filter(AttendanceData.location_name.ilike(f"%{filters['location_filter']}%"))
+            print(f"📊 Applied location filter: {filters['location_filter']}")
+        
+        # Apply employee filter
+        if filters.get('employee_filter'):
+            query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
+            print(f"📊 Applied employee filter: {filters['employee_filter']}")
+        
+        # Execute query and get results
+        results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
+        print(f"📊 Found {len(results)} records for export")
+        
+        if not results:
+            print("⚠️ No records found for export")
+            return None
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Report"
+        
+        # Define header style
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Add headers in the specified order
+        for idx, column_key in enumerate(selected_columns, 1):
+            cell = ws.cell(row=1, column=idx)
+            cell.value = column_names.get(column_key, column_key)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            print(f"📊 Column {idx}: {column_key} -> '{cell.value}'")
+        
+        # Add data in the same column order
+        for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
+            for col_idx, column_key in enumerate(selected_columns, 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                
+                # Get value based on column key (same logic as before)
+                try:
+                    if column_key == 'employee_id':
+                        cell.value = attendance_record.employee_id
+                    elif column_key == 'location_name':
+                        cell.value = attendance_record.location_name
+                    elif column_key == 'status':
+                        # Use location_event from QR code instead of status
+                        cell.value = qr_code.location_event if qr_code.location_event else 'Check In'
+                    elif column_key == 'check_in_date':
+                        cell.value = attendance_record.check_in_date.strftime('%Y-%m-%d') if attendance_record.check_in_date else ''
+                    elif column_key == 'check_in_time':
+                        cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
+                    elif column_key == 'qr_address':
+                        # Use QR Code address (location_address), not location
+                        cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
+                    elif column_key == 'address':
+                        # Check-in address logic based on location accuracy
+                        if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
+                            try:
+                                accuracy_value = float(attendance_record.location_accuracy)
+                                if accuracy_value <= 0.5:
+                                    # High accuracy - use QR code ADDRESS (not location)
+                                    cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
+                                else:
+                                    # Lower accuracy - use actual check-in address
+                                    cell.value = attendance_record.address or ''
+                            except (ValueError, TypeError):
+                                # If accuracy can't be converted to float, use check-in address
+                                cell.value = attendance_record.address or ''
+                        else:
+                            # No location accuracy data - use actual check-in address
+                            cell.value = attendance_record.address or ''
+                    elif column_key == 'device_info':
+                        cell.value = attendance_record.device_info or ''
+                    elif column_key == 'ip_address':
+                        cell.value = attendance_record.ip_address or ''
+                    elif column_key == 'user_agent':
+                        cell.value = attendance_record.user_agent or ''
+                    elif column_key == 'latitude':
+                        cell.value = attendance_record.latitude or ''
+                    elif column_key == 'longitude':
+                        cell.value = attendance_record.longitude or ''
+                    elif column_key == 'accuracy':
+                        cell.value = attendance_record.accuracy or ''
+                    elif column_key == 'location_accuracy':
+                        cell.value = attendance_record.location_accuracy or ''
+                    else:
+                        cell.value = ''
+                except Exception as cell_error:
+                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
+                    cell.value = ''
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save to BytesIO
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        print("📊 Excel file created successfully with custom column order")
+        return excel_buffer
+        
+    except Exception as e:
+        print(f"❌ Error creating Excel export: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        return None
+       
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
 def days_since_filter(date):
