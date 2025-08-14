@@ -53,53 +53,94 @@ function toggleColumnName(columnKey) {
 }
 
 function updatePreview() {
-    const previewHeader = document.getElementById('previewHeader');
-    const previewTable = document.querySelector('.preview-table tbody');
-    
-    if (!previewHeader || !previewTable) return;
-    
-    const selectedColumns = Array.from(document.querySelectorAll('input[name="selected_columns"]:checked'));
-    
-    if (selectedColumns.length === 0) {
-        previewHeader.innerHTML = '';
-        previewTable.innerHTML = '<tr><td colspan="100%" style="text-align:center; padding:2rem;">No columns selected</td></tr>';
-        updateGenerateButton(0);
-        return;
+    try {
+        const previewHeader = document.getElementById('previewHeader');
+        const previewTable = document.querySelector('.preview-table tbody');
+        
+        if (!previewHeader || !previewTable) {
+            console.warn('Preview elements not found');
+            return;
+        }
+        
+        // Get selected columns
+        const selectedColumns = Array.from(document.querySelectorAll('input[name="selected_columns"]:checked'));
+        
+        if (selectedColumns.length === 0) {
+            // No columns selected
+            previewHeader.innerHTML = '';
+            previewTable.innerHTML = `
+                <tr>
+                    <td colspan="100%" class="preview-placeholder">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        No columns selected - please select at least one column to export
+                    </td>
+                </tr>
+            `;
+            updateGenerateButton(0);
+            return;
+        }
+        
+        // Build header
+        let headerHTML = '';
+        selectedColumns.forEach(checkbox => {
+            const columnKey = checkbox.value;
+            const nameInput = document.getElementById('name_' + columnKey);
+            const customName = nameInput ? nameInput.value : columnKey;
+            
+            headerHTML += `<th>${customName}</th>`;
+        });
+        previewHeader.innerHTML = headerHTML;
+        
+        // Build sample data row with enhanced address logic preview
+        let sampleRowHTML = '<tr>';
+        selectedColumns.forEach(checkbox => {
+            const columnKey = checkbox.value;
+            let sampleData = getSampleData(columnKey);
+            
+            // Special handling for address column to show the logic
+            if (columnKey === 'address') {
+                sampleData = `<span title="If location accuracy ≤ 0.5 miles: shows QR address, otherwise: shows actual check-in address">123 Business St, City*</span>`;
+            }
+            
+            sampleRowHTML += `<td>${sampleData}</td>`;
+        });
+        sampleRowHTML += '</tr>';
+        
+        // Add explanation row if address column is selected
+        const hasAddressColumn = selectedColumns.some(cb => cb.value === 'address');
+        if (hasAddressColumn) {
+            sampleRowHTML += `
+                <tr style="background-color: #f8f9fa; font-size: 0.85em; color: #6c757d;">
+                    <td colspan="${selectedColumns.length}" style="text-align: center; padding: 0.75rem; font-style: italic;">
+                        <i class="fas fa-info-circle"></i>
+                        * Check-in Address: Shows QR address when location accuracy ≤ 0.5 miles, otherwise shows actual GPS address
+                    </td>
+                </tr>
+            `;
+        }
+        
+        previewTable.innerHTML = sampleRowHTML;
+        
+        // Update generate button
+        updateGenerateButton(selectedColumns.length);
+        
+        console.log(`Preview updated with ${selectedColumns.length} columns`);
+    } catch (error) {
+        console.error('Error updating preview:', error);
     }
-    
-    // Build header
-    let headerHTML = '';
-    selectedColumns.forEach(function(checkbox) {
-        const columnKey = checkbox.value;
-        const nameInput = document.getElementById('name_' + columnKey);
-        const customName = nameInput ? nameInput.value : columnKey;
-        headerHTML += '<th>' + customName + '</th>';
-    });
-    previewHeader.innerHTML = headerHTML;
-    
-    // Build sample row
-    let sampleRowHTML = '<tr>';
-    selectedColumns.forEach(function(checkbox) {
-        const columnKey = checkbox.value;
-        const sampleData = getSampleData(columnKey);
-        sampleRowHTML += '<td>' + sampleData + '</td>';
-    });
-    sampleRowHTML += '</tr>';
-    previewTable.innerHTML = sampleRowHTML;
-    
-    updateGenerateButton(selectedColumns.length);
 }
 
 function getSampleData(columnKey) {
-    const samples = {
+    // Return sample data for each column type - Updated with correct event types
+    const sampleData = {
         'employee_id': 'EMP001',
         'location_name': 'Main Office',
-        'status': 'Check In',
-        'check_in_date': '2025-01-15',
+        'status': 'Check In',  // This will show "Check In" or "Check Out" from QR code
+        'check_in_date': '2025-08-14',
         'check_in_time': '09:30:00',
-        'qr_address': '123 Business St',
-        'address': '123 Business St',
-        'device_info': 'iPhone',
+        'qr_address': '123 Business St, City',
+        'address': '123 Business St, City',
+        'device_info': 'iPhone 14 Pro',
         'ip_address': '192.168.1.100',
         'user_agent': 'Mobile Safari',
         'latitude': '40.7128',
@@ -107,7 +148,8 @@ function getSampleData(columnKey) {
         'accuracy': '5.2',
         'location_accuracy': '0.003'
     };
-    return samples[columnKey] || 'Sample';
+    
+    return sampleData[columnKey] || 'Sample Data';
 }
 
 function updateGenerateButton(columnCount) {

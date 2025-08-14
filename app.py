@@ -3601,7 +3601,7 @@ def generate_excel_export():
         return redirect(url_for('export_configuration'))
 
 def create_excel_export(selected_columns, column_names, filters):
-    """Create Excel file with selected attendance data"""
+    """Create Excel file with selected attendance data - Fixed to use QR address (not location)"""
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns")
         
@@ -3614,8 +3614,8 @@ def create_excel_export(selected_columns, column_names, filters):
             print("💡 Install openpyxl: pip install openpyxl")
             return None
         
-        # Build query based on filters
-        query = db.session.query(AttendanceData).join(QRCode)
+        # Build query based on filters - JOIN with QRCode to get location_event and location_address
+        query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
         
         # Apply date filters
         if filters.get('date_from'):
@@ -3644,11 +3644,11 @@ def create_excel_export(selected_columns, column_names, filters):
             query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
         
-        # Execute query
-        records = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
-        print(f"📊 Found {len(records)} records for export")
+        # Execute query and get results
+        results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
+        print(f"📊 Found {len(results)} records for export")
         
-        if not records:
+        if not results:
             print("⚠️ No records found for export")
             return None
         
@@ -3671,40 +3671,60 @@ def create_excel_export(selected_columns, column_names, filters):
             cell.alignment = header_alignment
         
         # Add data
-        for row_idx, record in enumerate(records, 2):
+        for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
             for col_idx, column_key in enumerate(selected_columns, 1):
                 cell = ws.cell(row=row_idx, column=col_idx)
                 
                 # Get value based on column key
                 try:
                     if column_key == 'employee_id':
-                        cell.value = record.employee_id
+                        cell.value = attendance_record.employee_id
                     elif column_key == 'location_name':
-                        cell.value = record.location_name
+                        cell.value = attendance_record.location_name
                     elif column_key == 'status':
-                        cell.value = record.status
+                        # Use location_event from QR code instead of status
+                        cell.value = qr_code.location_event if qr_code.location_event else 'Check In'
                     elif column_key == 'check_in_date':
-                        cell.value = record.check_in_date.strftime('%Y-%m-%d') if record.check_in_date else ''
+                        cell.value = attendance_record.check_in_date.strftime('%Y-%m-%d') if attendance_record.check_in_date else ''
                     elif column_key == 'check_in_time':
-                        cell.value = record.check_in_time.strftime('%H:%M:%S') if record.check_in_time else ''
+                        cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
                     elif column_key == 'qr_address':
-                        cell.value = record.qr_code.location if record.qr_code else ''
+                        # FIXED: Use QR Code address (location_address), not location
+                        cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
                     elif column_key == 'address':
-                        cell.value = record.address or ''
+                        # IMPLEMENTED: Check-in address logic based on location accuracy
+                        # If location accuracy <= 0.5 miles, use QR address; otherwise use actual check-in address
+                        if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
+                            try:
+                                accuracy_value = float(attendance_record.location_accuracy)
+                                if accuracy_value <= 0.5:
+                                    # High accuracy - use QR code ADDRESS (not location)
+                                    cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
+                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                else:
+                                    # Lower accuracy - use actual check-in address
+                                    cell.value = attendance_record.address or ''
+                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                            except (ValueError, TypeError):
+                                # If accuracy can't be converted to float, use check-in address
+                                cell.value = attendance_record.address or ''
+                        else:
+                            # No location accuracy data - use actual check-in address
+                            cell.value = attendance_record.address or ''
                     elif column_key == 'device_info':
-                        cell.value = record.device_info or ''
+                        cell.value = attendance_record.device_info or ''
                     elif column_key == 'ip_address':
-                        cell.value = record.ip_address or ''
+                        cell.value = attendance_record.ip_address or ''
                     elif column_key == 'user_agent':
-                        cell.value = record.user_agent or ''
+                        cell.value = attendance_record.user_agent or ''
                     elif column_key == 'latitude':
-                        cell.value = record.latitude or ''
+                        cell.value = attendance_record.latitude or ''
                     elif column_key == 'longitude':
-                        cell.value = record.longitude or ''
+                        cell.value = attendance_record.longitude or ''
                     elif column_key == 'accuracy':
-                        cell.value = record.accuracy or ''
+                        cell.value = attendance_record.accuracy or ''
                     elif column_key == 'location_accuracy':
-                        cell.value = record.location_accuracy or ''
+                        cell.value = attendance_record.location_accuracy or ''
                     else:
                         cell.value = ''
                 except Exception as cell_error:
@@ -3729,7 +3749,7 @@ def create_excel_export(selected_columns, column_names, filters):
         wb.save(excel_buffer)
         excel_buffer.seek(0)
         
-        print("📊 Excel file created successfully")
+        print("📊 Excel file created successfully with QR address (not QR location)")
         return excel_buffer
         
     except Exception as e:
