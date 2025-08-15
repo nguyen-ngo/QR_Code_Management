@@ -173,11 +173,12 @@
 
 .project-qr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--spacing-4);
+  grid-template-columns: 1fr;
+  gap: var(--spacing-3);
   padding: var(--spacing-6);
 }
 
+/* QR Card Base Styles */
 .qr-card {
   background: var(--white);
   border: 1px solid var(--gray-200);
@@ -199,37 +200,104 @@
   background: linear-gradient(135deg, var(--white), #f8fafc);
 }
 
-.qr-card-header {
+/* Compact QR Card Layout for Unassigned Cards */
+.qr-card-compact {
   display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-3);
+  align-items: center;
+  gap: var(--spacing-4);
+  width: 100%;
+  padding: var(--spacing-3);
 }
 
-.qr-preview {
-  width: 60px;
-  height: 60px;
+.qr-preview-compact {
+  width: 70px;
+  height: 70px;
   flex-shrink: 0;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 2px solid var(--gray-200);
   transition: var(--transition);
-  cursor: pointer;
 }
 
-.qr-preview img {
+.qr-preview-compact img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.qr-card:hover .qr-preview {
+.qr-card:hover .qr-preview-compact {
   border-color: var(--primary-color);
 }
 
-.qr-info {
+.qr-info-compact {
   flex: 1;
   min-width: 0;
+}
+
+.qr-name-compact {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 var(--spacing-1) 0;
+  line-height: 1.4;
+}
+
+.qr-details-row {
+  display: flex;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.qr-url-short {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-status-compact {
+  flex-shrink: 0;
+  margin: 0 var(--spacing-3);
+}
+
+.qr-actions-compact {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* Standard QR Card Layout for Project Cards */
+.qr-card-layout {
+  display: flex;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+}
+
+.qr-preview-large {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--gray-200);
+  transition: var(--transition);
+}
+
+.qr-preview-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-card:hover .qr-preview-large {
+  border-color: var(--primary-color);
+}
+
+.qr-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
 }
 
 .qr-name {
@@ -240,13 +308,27 @@
   line-height: 1.4;
 }
 
-.qr-location {
-  color: var(--gray-600);
-  font-size: var(--font-size-sm);
+.qr-detail-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1);
-  margin-bottom: var(--spacing-2);
+  gap: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+  min-width: 0;
+}
+
+.qr-detail-item i {
+  font-size: 0.75rem;
+  width: auto;
+  flex-shrink: 0;
+  color: var(--gray-400);
+}
+
+.qr-detail-item span {
+  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qr-status-badge {
@@ -269,18 +351,12 @@
   color: #dc2626;
 }
 
-.qr-actions {
-  position: absolute;
-  top: var(--spacing-3);
-  right: var(--spacing-3);
+.qr-card-actions {
   display: flex;
-  gap: var(--spacing-1);
-  opacity: 0;
-  transition: var(--transition);
-}
-
-.qr-card:hover .qr-actions {
-  opacity: 1;
+  gap: var(--spacing-2);
+  justify-content: flex-start;
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--gray-200);
 }
 
 .qr-action-btn {
@@ -317,16 +393,6 @@
   color: var(--white);
 }
 
-.qr-action-btn.delete {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-}
-
-.qr-action-btn.delete:hover {
-  background: #dc2626;
-  color: var(--white);
-}
-
 .qr-action-btn.toggle {
   background: rgba(245, 158, 11, 0.1);
   color: #d97706;
@@ -337,6 +403,7 @@
   color: var(--white);
 }
 
+/* Empty States */
 .empty-project-qr {
   text-align: center;
   padding: var(--spacing-8) var(--spacing-4);
@@ -368,6 +435,41 @@
   margin-bottom: var(--spacing-4);
 }
 
+.dashboard-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--gray-600);
+}
+
+.dashboard-empty .empty-icon {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 2rem;
+  background: var(--gray-100);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: var(--gray-400);
+}
+
+.dashboard-empty h3 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 1rem;
+}
+
+.dashboard-empty p {
+  font-size: 1.125rem;
+  margin-bottom: 2rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Unassigned QR Section */
 .unassigned-qr-section {
   background: var(--white);
   border: 1px solid var(--gray-200);
@@ -404,6 +506,7 @@
   font-weight: 600;
 }
 
+/* Modal Styles */
 .modal {
   display: none;
   position: fixed;
@@ -517,26 +620,26 @@
   padding-bottom: var(--spacing-2);
 }
 
-.qr-detail-item {
+.qr-detail-section .qr-detail-item {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 100px 1fr;
   gap: var(--spacing-3);
   margin-bottom: var(--spacing-4);
   align-items: start;
 }
 
-.qr-detail-item:last-child {
+.qr-detail-section .qr-detail-item:last-child {
   margin-bottom: 0;
 }
 
-.qr-detail-item label {
+.qr-detail-section .qr-detail-item label {
   font-weight: 600;
   color: var(--gray-700);
   font-size: var(--font-size-sm);
   padding-top: 2px;
 }
 
-.qr-detail-item span {
+.qr-detail-section .qr-detail-item span {
   color: var(--gray-900);
   font-size: var(--font-size-base);
   line-height: 1.5;
@@ -576,40 +679,7 @@
   min-width: 140px;
 }
 
-.dashboard-empty {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--gray-600);
-}
-
-.dashboard-empty .empty-icon {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 2rem;
-  background: var(--gray-100);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3rem;
-  color: var(--gray-400);
-}
-
-.dashboard-empty h3 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--gray-900);
-  margin-bottom: 1rem;
-}
-
-.dashboard-empty p {
-  font-size: 1.125rem;
-  margin-bottom: 2rem;
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
+/* Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -626,6 +696,7 @@
   }
 }
 
+/* Responsive Design */
 @media (max-width: 768px) {
   .project-header {
     padding: var(--spacing-3) var(--spacing-4);
@@ -646,19 +717,48 @@
     align-items: flex-end;
     gap: var(--spacing-2);
   }
-  
-  .project-qr-grid {
-    grid-template-columns: 1fr;
-    padding: var(--spacing-4);
+
+  .qr-card-compact {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--spacing-3);
   }
   
-  .qr-card-header {
+  .qr-info-compact {
+    width: 100%;
+  }
+  
+  .qr-details-row {
+    flex-direction: column;
     gap: var(--spacing-2);
+    align-items: center;
   }
   
-  .qr-preview {
-    width: 50px;
-    height: 50px;
+  .qr-status-compact {
+    margin: 0;
+  }
+  
+  .qr-actions-compact {
+    justify-content: center;
+  }
+
+  .qr-card-layout {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .qr-preview-large {
+    align-self: center;
+    width: 80px;
+    height: 80px;
+  }
+  
+  .qr-details {
+    align-items: center;
+  }
+  
+  .qr-detail-item {
+    justify-content: center;
   }
   
   .unassigned-header {
@@ -691,11 +791,6 @@
     height: 240px;
   }
   
-  .qr-detail-item {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-1);
-  }
-  
   .qr-modal-footer {
     flex-direction: column;
   }
@@ -711,13 +806,6 @@
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
-  }
-  
-  .qr-actions {
-    position: static;
-    opacity: 1;
-    margin-top: var(--spacing-2);
-    justify-content: flex-end;
   }
   
   .modal-header {
@@ -872,24 +960,41 @@
                data-qr-event="{{ qr.location_event }}"
                data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
                onclick="openQRModalFromData(this)">
-            <div class="qr-card-header">
-              <div class="qr-preview">
+            
+            <div class="qr-card-layout">
+              <div class="qr-preview-large">
                 <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
               </div>
-              <div class="qr-info">
+              
+              <div class="qr-details">
                 <h4 class="qr-name">{{ qr.name }}</h4>
-                <p class="qr-location">
+                <div class="qr-detail-item">
                   <i class="fas fa-map-marker-alt"></i>
-                  {{ qr.location }}
-                </p>
+                  <span>{{ qr.location }}</span>
+                </div>
+                
+                {% if qr.location_address %}
+                <div class="qr-detail-item">
+                  <i class="fas fa-home"></i>
+                  <span>{{ qr.location_address }}</span>
+                </div>
+                {% endif %}
+                
+                {% if qr.qr_url %}
+                <div class="qr-detail-item">
+                  <i class="fas fa-link"></i>
+                  <span>{{ qr.qr_url }}</span>
+                </div>
+                {% endif %}
+                
                 <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
                   <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
                   {{ 'Active' if qr.active_status else 'Inactive' }}
                 </span>
               </div>
             </div>
-            
-            <div class="qr-actions">
+
+            <div class="qr-card-actions">
               <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
                 <i class="fas fa-download"></i>
               </button>
@@ -901,10 +1006,6 @@
               {% if session.role == 'admin' %}
               <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
                 <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
-              </button>
-              
-              <button class="qr-action-btn delete" onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" title="Delete QR Code">
-                <i class="fas fa-trash"></i>
               </button>
               {% endif %}
             </div>
@@ -952,41 +1053,58 @@
            data-qr-event="{{ qr.location_event }}"
            data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
            onclick="openQRModalFromData(this)">
-        <div class="qr-card-header">
-          <div class="qr-preview">
+        
+        <div class="qr-card-compact">
+          <div class="qr-preview-compact">
             <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
           </div>
-          <div class="qr-info">
-            <h4 class="qr-name">{{ qr.name }}</h4>
-            <p class="qr-location">
-              <i class="fas fa-map-marker-alt"></i>
-              {{ qr.location }}
-            </p>
+          
+          <div class="qr-info-compact">
+            <h4 class="qr-name-compact">{{ qr.name }}</h4>
+            <div class="qr-details-row">
+              <div class="qr-detail-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>{{ qr.location }}</span>
+              </div>
+              
+              {% if qr.location_address %}
+              <div class="qr-detail-item">
+                <i class="fas fa-home"></i>
+                <span>{{ qr.location_address }}</span>
+              </div>
+              {% endif %}
+              
+              {% if qr.qr_url %}
+              <div class="qr-detail-item">
+                <i class="fas fa-link"></i>
+                <span class="qr-url-short">{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif %}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="qr-status-compact">
             <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
               <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
               {{ 'Active' if qr.active_status else 'Inactive' }}
             </span>
           </div>
-        </div>
-        
-        <div class="qr-actions">
-          <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
-            <i class="fas fa-download"></i>
-          </button>
           
-          <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
-            <i class="fas fa-edit"></i>
-          </a>
-          
-          {% if session.role == 'admin' %}
-          <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
-            <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
-          </button>
-          
-          <button class="qr-action-btn delete" onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" title="Delete QR Code">
-            <i class="fas fa-trash"></i>
-          </button>
-          {% endif %}
+          <div class="qr-actions-compact">
+            <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
+              <i class="fas fa-download"></i>
+            </button>
+            
+            <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
+              <i class="fas fa-edit"></i>
+            </a>
+            
+            {% if session.role == 'admin' %}
+            <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
+              <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+            </button>
+            {% endif %}
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -1199,50 +1317,10 @@ class ProjectDashboardManager {
     }
   }
 
-  async deleteQRCode(qrId, qrName) {
-    const confirmMessage = `Are you sure you want to permanently delete the QR code "${qrName}"?\n\nThis action cannot be undone.`;
-    
-    if (!confirm(confirmMessage)) return;
-    
-    try {
-      const response = await fetch(`/qr-codes/${qrId}/delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        if (window.showToast) {
-          window.showToast(`QR code "${qrName}" deleted successfully`, 'success');
-        }
-        
-        const qrCard = document.querySelector(`[data-qr-id="${qrId}"]`);
-        if (qrCard) {
-          qrCard.style.transition = 'all 0.3s ease';
-          qrCard.style.opacity = '0';
-          qrCard.style.transform = 'translateY(-20px)';
-          
-          setTimeout(() => {
-            qrCard.remove();
-          }, 300);
-        }
-        
-      } else {
-        throw new Error('Failed to delete QR code');
-      }
-    } catch (error) {
-      console.error('Delete failed:', error);
-      if (window.showToast) {
-        window.showToast('Failed to delete QR code', 'error');
-      }
-    }
-  }
-
   openQRModalFromData(element) {
     const qrData = {
       name: element.dataset.qrName,
-      image: element.querySelector('.qr-preview img').src,
+      image: element.querySelector('img').src,
       location: element.dataset.qrLocation,
       address: element.dataset.qrAddress,
       event: element.dataset.qrEvent,
@@ -1321,11 +1399,10 @@ class ProjectDashboardManager {
 
   downloadQRFromCard(button) {
     const qrCard = button.closest('.qr-card');
-    const img = qrCard.querySelector('.qr-preview img');
+    const img = qrCard.querySelector('img');
     const qrName = qrCard.dataset.qrName;
     
     if (img && img.src) {
-      // Extract base64 data from the image src
       const base64Data = img.src.split('base64,')[1];
       this.downloadQR(base64Data, qrName);
     }
@@ -1421,7 +1498,6 @@ document.addEventListener('DOMContentLoaded', function() {
   
   window.toggleProject = (projectId) => dashboardManager.toggleProject(projectId);
   window.toggleQRCodeStatus = (qrId) => dashboardManager.toggleQRCodeStatus(qrId);
-  window.deleteQRCode = (qrId, qrName) => dashboardManager.deleteQRCode(qrId, qrName);
   window.openQRModalFromData = (element) => dashboardManager.openQRModalFromData(element);
   window.closeQRModal = () => dashboardManager.closeQRModal();
   window.downloadModalQR = () => dashboardManager.downloadModalQR();
