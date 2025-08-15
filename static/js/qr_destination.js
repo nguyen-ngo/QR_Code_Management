@@ -59,6 +59,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // CRITICAL: Initialize systems in correct order
   initializeLanguage();
+  initializeLocationServicesCheck();
   initializeStaffIdPersistence();
   initializeForm();
   initializeLocation();
@@ -732,4 +733,153 @@ function startClock() {
 
   updateClock();
   setInterval(updateClock, 1000);
+}
+
+function checkLocationServicesStatus() {
+  console.log("📱 Checking location services status...");
+  
+  // Check if geolocation is supported
+  if (!navigator.geolocation) {
+    console.log("❌ Geolocation not supported by this browser");
+    showLocationServicesWarning("not_supported");
+    return;
+  }
+
+  // Test location access with a quick check
+  const timeoutId = setTimeout(() => {
+    console.log("⏰ Location permission check timed out");
+    showLocationServicesWarning("timeout");
+  }, 3000); // 3 second timeout
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      // Success - location services are working
+      clearTimeout(timeoutId);
+      console.log("✅ Location services are available and enabled");
+      hideLocationServicesWarning();
+    },
+    (error) => {
+      // Error - location services may be disabled
+      clearTimeout(timeoutId);
+      console.log("❌ Location services error:", error.message);
+      
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          showLocationServicesWarning("permission_denied");
+          break;
+        case error.POSITION_UNAVAILABLE:
+          showLocationServicesWarning("position_unavailable");
+          break;
+        case error.TIMEOUT:
+          showLocationServicesWarning("timeout");
+          break;
+        default:
+          showLocationServicesWarning("unknown_error");
+          break;
+      }
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 2500,
+      maximumAge: 60000
+    }
+  );
+}
+
+/**
+ * Show location services warning banner
+ */
+function showLocationServicesWarning(errorType) {
+  // Remove existing warning if present
+  hideLocationServicesWarning();
+  
+  const warningMessages = {
+    en: {
+      not_supported: "Location services are not supported by your browser.<br>Los servicios de ubicación no son compatibles con su navegador.",
+      permission_denied: "Location access has been denied. Please enable location services for accurate check-in.<br>Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
+      position_unavailable: "Location services appear to be disabled. Please turn on location services for accurate check-in.<br>Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
+      timeout: "Location services may be disabled. Please check your location settings for accurate check-in.<br>Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
+      unknown_error: "Unable to access location services. Please check your location settings.<br>No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación."
+    },
+    es: {
+      not_supported: "Los servicios de ubicación no son compatibles con su navegador.",
+      permission_denied: "Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
+      position_unavailable: "Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
+      timeout: "Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
+      unknown_error: "No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación."
+    }
+  };
+
+  const currentLang = currentLanguage || 'en';
+  const message = warningMessages[currentLang][errorType] || warningMessages['en'][errorType];
+  
+  // Create warning banner
+  const warningBanner = document.createElement('div');
+  warningBanner.id = 'locationServicesWarning';
+  warningBanner.className = 'location-warning-banner';
+  warningBanner.innerHTML = `
+    <div class="warning-content">
+      <i class="fas fa-exclamation-triangle warning-icon"></i>
+      <div class="warning-text">
+        <span class="warning-message">${message}</span>
+        <div class="warning-actions">
+          <button type="button" class="warning-retry-btn" onclick="checkLocationServicesStatus()">
+            <i class="fas fa-redo"></i>
+            <span class="english-text">Retry</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Reintentar</span>
+          </button>
+          <button type="button" class="warning-dismiss-btn" onclick="hideLocationServicesWarning()">
+            <i class="fas fa-times"></i>
+            <span class="english-text">Dismiss</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Descartar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Insert warning at the top of the page
+  const container = document.querySelector('.destination-container');
+  if (container) {
+    container.insertBefore(warningBanner, container.firstChild);
+  }
+
+  // Log warning event
+  console.log(`⚠️ Location services warning displayed: ${errorType}`);
+}
+
+/**
+ * Hide location services warning banner
+ */
+function hideLocationServicesWarning() {
+  const existingWarning = document.getElementById('locationServicesWarning');
+  if (existingWarning) {
+    existingWarning.remove();
+    console.log("✅ Location services warning hidden");
+  }
+}
+
+/**
+ * Modified DOMContentLoaded event handler
+ * Add this to your existing initialization
+ */
+function initializeLocationServicesCheck() {
+  // Check location services status when page loads
+  setTimeout(() => {
+    checkLocationServicesStatus();
+  }, 1000); // Small delay to ensure page is fully loaded
+  
+  // Also check before form submission
+  const originalHandleFormSubmit = handleFormSubmit;
+  window.handleFormSubmit = function(event) {
+    // Quick location check before submission
+    checkLocationServicesStatus();
+    
+    // Continue with original form submission after brief delay
+    setTimeout(() => {
+      originalHandleFormSubmit.call(this, event);
+    }, 500);
+  };
 }

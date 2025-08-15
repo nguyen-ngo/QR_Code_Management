@@ -657,16 +657,14 @@ function extractLocationAccuracy(cell) {
 }
 
 function extractLocationAccuracyLevel(cell) {
-  const text = cell.textContent.toLowerCase();
-  if (
-    text.includes("high") ||
-    text.includes("excellent") ||
-    text.includes("good")
-  )
-    return "High";
-  if (text.includes("medium") || text.includes("fair")) return "Medium";
-  if (text.includes("low") || text.includes("poor")) return "Low";
-  return "Unknown";
+  // Get the numerical accuracy value from the cell
+  const accuracy = extractLocationAccuracy(cell);
+  
+  // Return 2-level accuracy based on 0.5-mile threshold
+  if (accuracy !== null && accuracy !== undefined) {
+    return accuracy <= 0.5 ? "accurate" : "inaccurate";
+  }
+  return "unknown";
 }
 
 function createTableRow(record, displayIndex) {
@@ -690,17 +688,17 @@ function createTableRow(record, displayIndex) {
         }" 
                 title="Distance between QR location and check-in location: ${
                   record.location_accuracy
-                } miles">
+                } miles - ${record.accuracy_level}">
             <i class="fas fa-ruler"></i>
             ${record.location_accuracy.toFixed(3)} mi
             <small>(${record.accuracy_level})</small>
-         </span>`
+        </span>`
       : `<span class="location-accuracy-badge accuracy-unknown" title="Location accuracy could not be calculated">
             <i class="fas fa-question-circle"></i>
             Unknown
-         </span>`;
+        </span>`;
 
-  // FIXED: Address display logic based on location accuracy
+  // Address display logic based on location accuracy
   let addressDisplayHTML = "";
   let addressToShow = record.checked_in_address;
   let addressIcon = "fas fa-location-arrow";
@@ -812,8 +810,8 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="address-info qr-address">
-                <i class="fas fa-qrcode"></i>
-                <span title="${record.qr_address}">
+                <i class="fas fa-qrcode" style="color: #6366f1; margin-right: 4px;" title="QR Code Address (Fixed)"></i>
+                <span title="QR Address: ${record.qr_address}">
                     ${
                       record.qr_address.length > 50
                         ? record.qr_address.substring(0, 50) + "..."
@@ -1019,8 +1017,19 @@ function exportAttendanceWithAccuracy() {
 }
 
 function exportAttendance() {
+  // Check user role before proceeding
+  const userRole = window.userRole; // Read from global variable set in template
+  console.log("Template - session.role:", '{{ session.role }}');
+  console.log("Template - window.userRole set to:", window.userRole);
+
+  if (!['admin', 'payroll'].includes(userRole)) {
+    console.log("Export access denied - insufficient privileges");
+    alert("Access denied. Only administrators and payroll staff can export data.");
+    return;
+  }
+
   // Log export action
-  console.log("Export button clicked - redirecting to configuration page");
+  console.log(`Export button clicked by ${userRole} - redirecting to configuration page`);
 
   // Get current filters
   const currentFilters = getCurrentFilters();
@@ -1055,6 +1064,15 @@ function getCurrentFilters() {
 
 // Add a quick CSV export function as backup (keep existing functionality)
 function exportAttendanceCSV() {
+  // Check user role before proceeding
+  const userRole = window.userRole;
+  
+  if (!['admin', 'payroll'].includes(userRole)) {
+    console.log("CSV export access denied - insufficient privileges");
+    alert("Access denied. Only administrators and payroll staff can export data.");
+    return;
+  }
+
   // Build export URL with current filters for CSV
   const params = new URLSearchParams();
   const filters = getCurrentFilters();

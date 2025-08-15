@@ -70,6 +70,10 @@ class User(db.Model):
     def has_staff_permissions(self):
         """Check if user has staff-level permissions (includes new roles)"""
         return self.role in STAFF_LEVEL_ROLES
+    
+    def has_export_permissions(user_role):
+        """Check if user role has export permissions"""
+        return user_role in ['admin', 'payroll']
 
     def get_role_display_name(self):
         """Get user-friendly role name"""
@@ -2399,17 +2403,27 @@ def create_qr_code():
                 'longitude': address_longitude,
                 'coordinate_accuracy': coordinate_accuracy
             }
-            logger_handler.logger.info(f"User {session['username']} created QR code: {json.dumps(log_data)}")
-            logger_handler.log_user_action(
-                f'QR Code created: {name} with event type: {location_event}',
-                'create',
-                additional_info={'location_event': location_event}
+            qr_data_for_logging = {
+                'location': location,
+                'location_address': location_address,
+                'location_event': location_event,
+                'has_coordinates': has_coordinates,
+                'latitude': address_latitude,
+                'longitude': address_longitude,
+                'coordinate_accuracy': coordinate_accuracy
+            }
+
+            logger_handler.log_qr_code_created(
+                qr_code_id=new_qr_code.id,
+                qr_code_name=name,
+                created_by_user_id=session['user_id'],
+                qr_data=qr_data_for_logging
             )
 
             # Success message with coordinates info
             project_info = f" in project '{project.name}'" if project else ""
             coord_info = f" with coordinates ({new_qr_code.coordinates_display})" if has_coordinates else ""
-            
+
             flash(f'QR Code "{name}" created successfully{project_info}{coord_info}! URL: {qr_url}', 'success')
             return redirect(url_for('dashboard'))
             
@@ -2991,7 +3005,7 @@ def toggle_qr_status_api(qr_id):
             return redirect(url_for('dashboard'))
 
 @app.route('/attendance')
-# @admin_required
+@login_required
 def attendance_report():
     """Safe attendance report with backward compatibility for location_accuracy and fixed datetime handling"""
     try:
@@ -2999,6 +3013,7 @@ def attendance_report():
         
         # Log attendance report access
         try:
+            user_role = session.get('role', 'unknown')
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed attendance report")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
@@ -3080,7 +3095,7 @@ def attendance_report():
             conditions.append("ad.employee_id LIKE :employee")
             params['employee'] = f"%{employee_filter}%"
         
-        # FIXED: Apply project filter using SQL approach (not ORM)
+        # Apply project filter using SQL approach (not ORM)
         if project_filter:
             conditions.append("qc.project_id = :project_id")
             params['project_id'] = int(project_filter)
@@ -3098,9 +3113,14 @@ def attendance_report():
         # Execute query
         query_result = db.session.execute(text(base_query), params)
         attendance_records = query_result.fetchall()
-        
         print(f"✅ Found {len(attendance_records)} attendance records")
-        
+        # Log first 3 records to verify QR address data
+        for i, record in enumerate(attendance_records[:3]):
+            print(f"📊 Record {i+1}: Employee={record.employee_id}")
+            print(f"   QR Address: {getattr(record, 'qr_address', 'NOT_FOUND')}")
+            print(f"   Check-in Address: {getattr(record, 'checked_in_address', 'NOT_FOUND')}")
+            print(f"   Location Accuracy: {getattr(record, 'location_accuracy', 'NOT_FOUND')}")
+            
         # FIXED: Process records to add calculated fields with proper datetime handling
         processed_records = []
         for record in attendance_records:
@@ -3264,7 +3284,8 @@ def attendance_report():
                              project_filter=project_filter,
                              today_date=today_date,
                              current_date_formatted=current_date_formatted,
-                             has_location_accuracy_feature=has_location_accuracy)
+                             has_location_accuracy_feature=has_location_accuracy,
+                             user_role=user_role)
         
     except Exception as e:
         print(f"❌ Error loading attendance report: {e}")
@@ -3476,14 +3497,21 @@ def attendance_stats_api():
         return jsonify({'error': 'Failed to fetch attendance statistics'}), 500
 
 @app.route('/export-configuration')
-@admin_required
+@login_required
 def export_configuration():
     """Route to display export configuration page"""
     try:
         print("📊 Export configuration route accessed")
+        # Check if user has export permissions
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access export configuration without permissions")
+            flash('Access denied. Only administrators and payroll staff can access export configuration.', 'error')
+            return redirect(url_for('attendance_report'))
         
         # Log export configuration access using your existing logger
         try:
+            logger_handler.logger.info(f"User {session.get('username', 'unknown')} (role: {user_role}) accessed export configuration")
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed export configuration page")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
@@ -3558,10 +3586,16 @@ def export_configuration():
         return redirect(url_for('attendance_report'))
 
 @app.route('/generate-excel-export', methods=['POST'])
-@admin_required
+@login_required
 def generate_excel_export():
     """Generate and download Excel file with selected columns in specified order"""
     try:
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized Excel export")
+            flash('Access denied. Only administrators and payroll staff can export data.', 'error')
+            return redirect(url_for('attendance_report'))
+        
         print("📊 Excel export generation started")
         
         # Log export action using your existing logger
