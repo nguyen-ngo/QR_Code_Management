@@ -792,6 +792,12 @@
   opacity: 1;
 }
 
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -1083,7 +1089,7 @@
                onclick="openQRModalFromData(this)">
             
             <div class="qr-card-layout">
-              <div class="qr-preview-large">
+              <div class="qr-preview-large" onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')">
                 <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
               </div>
               
@@ -1176,7 +1182,7 @@
            onclick="openQRModalFromData(this)">
         
         <div class="qr-card-compact">
-          <div class="qr-preview-compact">
+          <div class="qr-preview-compact" onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')">
             <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
           </div>
           
@@ -1255,6 +1261,18 @@
     </div>
   </div>
   {% endif %}
+</div>
+
+<!-- Image Lightbox -->
+<div id="imageLightbox" class="image-lightbox" onclick="closeImageLightbox()">
+  <div class="lightbox-content" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeImageLightbox()">
+      <i class="fas fa-times"></i>
+    </button>
+    <img id="lightboxImage" src="" alt="" class="lightbox-image">
+    <div class="lightbox-info" id="lightboxInfo"></div>
+    <div class="lightbox-hint">Click anywhere outside the image to close</div>
+  </div>
 </div>
 
 <!-- Enhanced QR Code Modal -->
@@ -1610,6 +1628,54 @@ class ProjectDashboardManager {
       }
     }
   }
+
+  // Image Lightbox Functions
+  openImageLightbox(previewElement, qrName) {
+    console.log('Opening lightbox for:', qrName); // Debug log
+    
+    const img = previewElement.querySelector('img');
+    
+    if (img && img.src) {
+      const lightbox = document.getElementById('imageLightbox');
+      const lightboxImage = document.getElementById('lightboxImage');
+      const lightboxInfo = document.getElementById('lightboxInfo');
+      
+      console.log('Lightbox elements found:', !!lightbox, !!lightboxImage, !!lightboxInfo); // Debug log
+      
+      if (lightbox && lightboxImage && lightboxInfo) {
+        lightboxImage.src = img.src;
+        lightboxImage.alt = img.alt;
+        lightboxInfo.textContent = `QR Code: ${qrName}`;
+        
+        lightbox.style.display = 'flex';
+        console.log('Lightbox should be visible now'); // Debug log
+        
+        // Add keyboard listener for ESC key
+        document.addEventListener('keydown', this.handleLightboxKeydown.bind(this));
+      } else {
+        console.error('Lightbox elements not found');
+      }
+    } else {
+      console.error('Image element not found or no src');
+    }
+  }
+
+  closeImageLightbox() {
+    console.log('Closing lightbox'); // Debug log
+    const lightbox = document.getElementById('imageLightbox');
+    if (lightbox) {
+      lightbox.style.display = 'none';
+      
+      // Remove keyboard listener
+      document.removeEventListener('keydown', this.handleLightboxKeydown.bind(this));
+    }
+  }
+
+  handleLightboxKeydown(event) {
+    if (event.key === 'Escape') {
+      this.closeImageLightbox();
+    }
+  }
 }
 
 let dashboardManager;
@@ -1625,6 +1691,8 @@ document.addEventListener('DOMContentLoaded', function() {
   window.copyModalQRData = () => dashboardManager.copyModalQRData();
   window.copyQRDestination = () => dashboardManager.copyQRDestination();
   window.downloadQRFromCard = (button) => dashboardManager.downloadQRFromCard(button);
+  window.openImageLightbox = (element, qrName) => dashboardManager.openImageLightbox(element, qrName);
+  window.closeImageLightbox = () => dashboardManager.closeImageLightbox();
   
   console.log('Project Dashboard initialized successfully');
 });
