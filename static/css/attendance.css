@@ -5,7 +5,7 @@
 
 /* Page Container */
 .attendance-page {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: var(--spacing-6);
   min-height: 100vh;

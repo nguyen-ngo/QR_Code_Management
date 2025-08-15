@@ -2399,17 +2399,27 @@ def create_qr_code():
                 'longitude': address_longitude,
                 'coordinate_accuracy': coordinate_accuracy
             }
-            logger_handler.logger.info(f"User {session['username']} created QR code: {json.dumps(log_data)}")
-            logger_handler.log_user_action(
-                f'QR Code created: {name} with event type: {location_event}',
-                'create',
-                additional_info={'location_event': location_event}
+            qr_data_for_logging = {
+                'location': location,
+                'location_address': location_address,
+                'location_event': location_event,
+                'has_coordinates': has_coordinates,
+                'latitude': address_latitude,
+                'longitude': address_longitude,
+                'coordinate_accuracy': coordinate_accuracy
+            }
+
+            logger_handler.log_qr_code_created(
+                qr_code_id=new_qr_code.id,
+                qr_code_name=name,
+                created_by_user_id=session['user_id'],
+                qr_data=qr_data_for_logging
             )
 
             # Success message with coordinates info
             project_info = f" in project '{project.name}'" if project else ""
             coord_info = f" with coordinates ({new_qr_code.coordinates_display})" if has_coordinates else ""
-            
+
             flash(f'QR Code "{name}" created successfully{project_info}{coord_info}! URL: {qr_url}', 'success')
             return redirect(url_for('dashboard'))
             
