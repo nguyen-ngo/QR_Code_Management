@@ -236,74 +236,10 @@ function goBackToReport() {
     window.location.href = url;
 }
 
-function loadSavedPreferences() {
-    // Load preferences from localStorage or session
-    try {
-        const savedPrefs = localStorage.getItem('exportPreferences');
-        if (savedPrefs) {
-            const prefs = JSON.parse(savedPrefs);
-            
-            // Apply saved column selections
-            if (prefs.selected_columns) {
-                const checkboxes = document.querySelectorAll('input[name="selected_columns"]');
-                checkboxes.forEach(cb => {
-                    cb.checked = prefs.selected_columns.includes(cb.value);
-                    toggleColumnName(cb.value);
-                });
-            }
-            
-            // Apply saved column names
-            if (prefs.column_names) {
-                Object.keys(prefs.column_names).forEach(key => {
-                    const input = document.getElementById('name_' + key);
-                    if (input) {
-                        input.value = prefs.column_names[key];
-                    }
-                });
-            }
-            
-            // Apply saved column order
-            if (prefs.column_order) {
-                // Column order will be applied when selected columns are updated
-                window.savedColumnOrder = prefs.column_order;
-            }
-            
-            updateSelectedColumnsList();
-            updatePreview();
-        }
-    } catch (e) {
-        console.log('No saved preferences found');
-    }
-}
-
 // Form submission handler to save preferences
 document.getElementById('exportForm').addEventListener('submit', function() {
     savePreferences();
     updateColumnOrderField();
 });
-
-function savePreferences() {
-    const selectedColumns = Array.from(document.querySelectorAll('input[name="selected_columns"]:checked'))
-        .map(cb => cb.value);
-    
-    const columnNames = {};
-    selectedColumns.forEach(col => {
-        const input = document.getElementById('name_' + col);
-        if (input) {
-            columnNames[col] = input.value;
-        }
-    });
-    
-    // Get current column order from the sortable list
-    const columnOrder = getCurrentColumnOrder();
-    
-    const prefs = {
-        selected_columns: selectedColumns,
-        column_names: columnNames,
-        column_order: columnOrder
-    };
-    
-    localStorage.setItem('exportPreferences', JSON.stringify(prefs));
-}
 </script>
 {% endblock %}
