@@ -1233,7 +1233,7 @@ def login():
         try:
             # Find user (case-insensitive username)
             user = User.query.filter(
-                User.username.ilike(username),
+                User.username.like(username),
                 User.active_status == True
             ).first()
             
@@ -2405,7 +2405,7 @@ def create_qr_code():
                 'create',
                 additional_info={'location_event': location_event}
             )
-            
+
             # Success message with coordinates info
             project_info = f" in project '{project.name}'" if project else ""
             coord_info = f" with coordinates ({new_qr_code.coordinates_display})" if has_coordinates else ""
@@ -2997,6 +2997,12 @@ def attendance_report():
     try:
         print("📊 Loading attendance report...")
         
+        # Log attendance report access
+        try:
+            logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed attendance report")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         # Check if location_accuracy column exists
         has_location_accuracy = check_location_accuracy_column_exists()
         print(f"🔍 Location accuracy column exists: {has_location_accuracy}")
@@ -3066,17 +3072,18 @@ def attendance_report():
         
         # Apply location filter
         if location_filter:
-            conditions.append("ad.location_name ILIKE :location")
+            conditions.append("ad.location_name LIKE :location")
             params['location'] = f"%{location_filter}%"
         
         # Apply employee filter
         if employee_filter:
-            conditions.append("ad.employee_id ILIKE :employee")
+            conditions.append("ad.employee_id LIKE :employee")
             params['employee'] = f"%{employee_filter}%"
         
+        # FIXED: Apply project filter using SQL approach (not ORM)
         if project_filter:
-            # Join with QRCode and filter by project_id
-            query = query.join(QRCode, AttendanceData.qr_code_id == QRCode.id).filter(QRCode.project_id == int(project_filter))
+            conditions.append("qc.project_id = :project_id")
+            params['project_id'] = int(project_filter)
             print(f"📊 Applied project filter: {project_filter}")
         
         # Add conditions to query
@@ -3100,80 +3107,78 @@ def attendance_report():
             # Safe attribute access with fallbacks
             location_accuracy = getattr(record, 'location_accuracy', None)
             gps_accuracy = getattr(record, 'gps_accuracy', None)
-            qr_address = getattr(record, 'qr_address', None)
             
-            # Handle location accuracy for address display logic
-            if location_accuracy is not None and location_accuracy != "None":
-                try:
-                    accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
-                    checked_in_address = qr_address if (accuracy_value <= 0.5) else getattr(record, 'checked_in_address', None)
-                except (ValueError, TypeError):
-                    checked_in_address = getattr(record, 'checked_in_address', None)
-            else:
-                checked_in_address = getattr(record, 'checked_in_address', None)
-            
-            # CRITICAL FIX: Properly handle check_in_time formatting
-            check_in_time_value = record.check_in_time
-            
-            # Handle different possible types for check_in_time
-            if isinstance(check_in_time_value, timedelta):
-                # Convert timedelta to time object
-                total_seconds = int(check_in_time_value.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                seconds = total_seconds % 60
-                formatted_time = time(hours % 24, minutes, seconds)
-                print(f"⚠️ Converted timedelta to time: {check_in_time_value} -> {formatted_time}")
-            elif isinstance(check_in_time_value, time):
-                # Already a time object, use as-is
-                formatted_time = check_in_time_value
-            elif isinstance(check_in_time_value, datetime):
-                # Extract time component from datetime
-                formatted_time = check_in_time_value.time()
-            elif isinstance(check_in_time_value, str):
-                # Try to parse string to time
-                try:
-                    formatted_time = datetime.strptime(check_in_time_value, '%H:%M:%S').time()
-                except ValueError:
-                    try:
-                        formatted_time = datetime.strptime(check_in_time_value, '%H:%M').time()
-                    except ValueError:
-                        # Fallback to current time if parsing fails
-                        formatted_time = datetime.now().time()
-                        print(f"⚠️ Could not parse time string: {check_in_time_value}, using current time")
-            else:
-                # Fallback to current time for any other type
-                formatted_time = datetime.now().time()
-                print(f"⚠️ Unexpected check_in_time type: {type(check_in_time_value)}, using current time")
-            
-            # Create the record dictionary with properly formatted time
-            record_dict = {
+            # Create processed record with calculated fields
+            processed_record = {
                 'id': record.id,
-                'employee_id': record.employee_id,
+                'employee_id': record.employee_id or 'Unknown',
                 'check_in_date': record.check_in_date,
-                'check_in_time': formatted_time,  # Now guaranteed to be a time object
-                'location_name': record.location_name,
-                'location_event': getattr(record, 'location_event', ''),
-                'qr_address': qr_address or 'Not available',
-                'checked_in_address': checked_in_address or 'Location not captured',
-                'device_info': getattr(record, 'device_info', ''),
+                'check_in_time': record.check_in_time,
+                'location_name': record.location_name or 'Unknown Location',
+                'location_event': getattr(record, 'location_event', None) or 'Check In',
+                'qr_address': getattr(record, 'qr_address', None) or 'N/A',
+                'checked_in_address': getattr(record, 'checked_in_address', None) or 'N/A',
+                'latitude': record.latitude,
+                'longitude': record.longitude,
                 'location_accuracy': location_accuracy,
                 'gps_accuracy': gps_accuracy,
-                'accuracy_level': get_location_accuracy_level(location_accuracy) if location_accuracy else 'unknown',
-                'has_location_data': record.latitude is not None and record.longitude is not None,
-                'coordinates': f"{record.latitude:.10f}, {record.longitude:.10f}" if record.latitude and record.longitude else "No GPS data",
-                'has_location_accuracy_feature': has_location_accuracy
+                'device_info': getattr(record, 'device_info', None) or 'Unknown Device',
             }
-            processed_records.append(record_dict)
-        
-        print(f"✅ Processed {len(processed_records)} records")
+            
+            # FIXED: Add address display logic based on location accuracy
+            # If location accuracy <= 0.5 miles, display QR address; otherwise display actual check-in address
+            if location_accuracy is not None:
+                try:
+                    accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
+                    if accuracy_value <= 0.5:
+                        # High accuracy - use QR code address
+                        processed_record['display_address'] = getattr(record, 'qr_address', None) or 'N/A'
+                        processed_record['address_source'] = 'qr'
+                        print(f"📍 Using QR address for employee {record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                    else:
+                        # Lower accuracy - use actual check-in address
+                        processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
+                        processed_record['address_source'] = 'checkin'
+                        print(f"📍 Using check-in address for employee {record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                except (ValueError, TypeError):
+                    # If accuracy can't be converted to float, use check-in address
+                    processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
+                    processed_record['address_source'] = 'checkin'
+            else:
+                # No location accuracy data - use actual check-in address
+                processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
+                processed_record['address_source'] = 'checkin'
+            
+            # Add accuracy level calculation if location_accuracy exists
+            if location_accuracy is not None:
+                if location_accuracy <= 10:
+                    processed_record['accuracy_level'] = 'High'
+                elif location_accuracy <= 50:
+                    processed_record['accuracy_level'] = 'Medium'
+                else:
+                    processed_record['accuracy_level'] = 'Low'
+            else:
+                processed_record['accuracy_level'] = 'Unknown'
+                
+            # Add formatted datetime for display
+            try:
+                if record.check_in_date and record.check_in_time:
+                    datetime_obj = datetime.combine(record.check_in_date, record.check_in_time)
+                    processed_record['formatted_datetime'] = datetime_obj.strftime('%m/%d/%Y %I:%M %p')
+                else:
+                    processed_record['formatted_datetime'] = 'Invalid Date/Time'
+            except Exception as e:
+                print(f"⚠️ Error formatting datetime for record {record.id}: {e}")
+                processed_record['formatted_datetime'] = 'Error'
+                
+            processed_records.append(processed_record)
         
         # Get unique locations for filter dropdown
         try:
             locations_query = db.session.execute(text("""
                 SELECT DISTINCT location_name 
                 FROM attendance_data 
-                WHERE location_name IS NOT NULL
+                WHERE location_name IS NOT NULL 
                 ORDER BY location_name
             """))
             locations = [row[0] for row in locations_query.fetchall()]
@@ -3182,7 +3187,7 @@ def attendance_report():
             print(f"⚠️ Error loading locations: {e}")
             locations = []
 
-        # Update the locations query to get only active projects for the dropdown
+        # Update the projects query to get only active projects for the dropdown
         try:
             projects = db.session.execute(text("""
                 SELECT p.id, p.name, COUNT(DISTINCT ad.id) as attendance_count
@@ -3242,7 +3247,7 @@ def attendance_report():
             })()
         
         # Add today's date for template
-        today_date = datetime.now().strftime('%m/%d/%Y')
+        today_date = datetime.now().strftime('%Y-%m-%d')
         current_date_formatted = datetime.now().strftime('%B %d')
         
         print("✅ Rendering attendance report template")
@@ -3266,6 +3271,12 @@ def attendance_report():
         print(f"❌ Exception type: {type(e)}")
         import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Log the error
+        try:
+            logger_handler.log_database_error('attendance_report', e)
+        except Exception as log_error:
+            print(f"⚠️ Additional logging error: {log_error}")
         
         flash('Error loading attendance report. Please check the server logs for details.', 'error')
         return redirect(url_for('dashboard'))
@@ -3693,12 +3704,12 @@ def create_excel_export(selected_columns, column_names, filters):
         
         # Apply location filter
         if filters.get('location_filter'):
-            query = query.filter(AttendanceData.location_name.ilike(f"%{filters['location_filter']}%"))
+            query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
         
         # Apply employee filter
         if filters.get('employee_filter'):
-            query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
+            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
         
         # Apply project filter
@@ -3856,12 +3867,12 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         
         # Apply location filter
         if filters.get('location_filter'):
-            query = query.filter(AttendanceData.location_name.ilike(f"%{filters['location_filter']}%"))
+            query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
         
         # Apply employee filter
         if filters.get('employee_filter'):
-            query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
+            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
         
         # Execute query and get results

@@ -43,6 +43,31 @@ function loadTableData() {
     const rows = table.querySelectorAll("tbody tr");
     attendanceData = Array.from(rows).map((row, index) => {
       const cells = row.querySelectorAll("td");
+
+      // Debug: Log the actual cell content
+      if (index < 3) {
+        // Only log first 3 rows for debugging
+        console.log(`=== DEBUGGING ROW ${index + 1} ===`);
+        console.log(
+          `Cell 7 (check-in address):`,
+          cells[7] ? cells[7].innerHTML : "NOT FOUND"
+        );
+        console.log(
+          `Cell 8 (accuracy):`,
+          cells[8] ? cells[8].innerHTML : "NOT FOUND"
+        );
+
+        if (cells[8]) {
+          const accuracyText = cells[8].textContent;
+          console.log(`Accuracy text:`, accuracyText);
+
+          const milesMatch = accuracyText.match(/(\d+\.?\d*)\s*mi/);
+          const metersMatch = accuracyText.match(/(\d+\.?\d*)\s*m/);
+          console.log(`Miles match:`, milesMatch);
+          console.log(`Meters match:`, metersMatch);
+        }
+      }
+
       return {
         id: row.dataset.recordId,
         index: index + 1,
@@ -57,13 +82,16 @@ function loadTableData() {
         checked_in_address: cells[7]
           ? cells[7].getAttribute("title") || cells[7].textContent.trim()
           : "",
-        accuracy: cells[8] ? extractAccuracyValue(cells[8]) : null,
-        accuracy_level: cells[8] ? extractAccuracyLevel(cells[8]) : "unknown",
+        // FIXED: Extract location accuracy for address display logic
+        location_accuracy: cells[8] ? extractLocationAccuracy(cells[8]) : null,
+        accuracy_level: cells[8]
+          ? extractLocationAccuracyLevel(cells[8])
+          : "unknown",
         device: cells[9]
           ? cells[9].getAttribute("title") || cells[9].textContent.trim()
           : "",
         has_location_data: cells[8]
-          ? !cells[8].textContent.includes("No GPS")
+          ? !cells[8].textContent.includes("Unknown")
           : false,
         coordinates: extractCoordinates(cells[8]),
       };
@@ -71,6 +99,29 @@ function loadTableData() {
 
     filteredData = [...attendanceData];
     console.log(`Loaded ${attendanceData.length} attendance records`);
+
+    // Debug log for location accuracy data
+    const recordsWithAccuracy = attendanceData.filter(
+      (r) => r.location_accuracy !== null
+    );
+    console.log(
+      `Records with location accuracy: ${recordsWithAccuracy.length}`
+    );
+    if (recordsWithAccuracy.length > 0) {
+      console.log(
+        `Sample records with accuracy:`,
+        recordsWithAccuracy.slice(0, 3).map((r) => ({
+          employeeId: r.employeeId,
+          location_accuracy: r.location_accuracy,
+          accuracy_level: r.accuracy_level,
+          qr_address: r.qr_address,
+          checked_in_address: r.checked_in_address,
+        }))
+      );
+    }
+
+    // Log all first 3 records for debugging
+    console.log("First 3 attendance records:", attendanceData.slice(0, 3));
   }
 }
 
@@ -287,123 +338,6 @@ function updateTable() {
 
   // Update any dynamic elements
   updateFilterStats();
-}
-
-function createTableRow(record, displayIndex) {
-  const row = document.createElement("tr");
-  row.dataset.recordId = record.id;
-
-  // Create accuracy badge HTML
-  const accuracyBadge =
-    record.accuracy !== null
-      ? `<span class="accuracy-badge accuracy-${
-          record.accuracy_level
-        }" title="GPS accuracy: ${record.accuracy}m">
-            <i class="fas fa-crosshairs"></i>
-            ${record.accuracy.toFixed(1)}m
-            <small>(${record.accuracy_level})</small>
-         </span>`
-      : `<span class="accuracy-badge accuracy-unknown" title="No GPS data available">
-            <i class="fas fa-question-circle"></i>
-            No GPS
-         </span>`;
-
-  row.innerHTML = `
-        <td>${displayIndex}</td>
-        <td>
-            <div class="employee-info">
-                <span class="employee-id">${record.employeeId}</span>
-            </div>
-        </td>
-        <td>
-            <div class="location-info">
-                <i class="fas fa-map-marker-alt"></i>
-                ${record.location}
-            </div>
-        </td>
-        <td>
-            <div class="event-info">
-                ${record.event}
-            </div>
-        </td>
-        <td>
-            <div class="date-info">
-                ${record.date}
-            </div>
-        </td>
-        <td>
-            <div class="time-info">
-                ${record.time}
-            </div>
-        </td>
-        <td>
-            <div class="address-info qr-address">
-                <i class="fas fa-qrcode"></i>
-                <span title="${record.qr_address}">
-                    ${
-                      record.qr_address.length > 50
-                        ? record.qr_address.substring(0, 50) + "..."
-                        : record.qr_address
-                    }
-                </span>
-            </div>
-        </td>
-        <td>
-            <div class="address-info checkin-address">
-                <i class="fas fa-location-arrow"></i>
-                <span title="${record.checked_in_address}">
-                    ${
-                      record.checked_in_address.length > 50
-                        ? record.checked_in_address.substring(0, 50) + "..."
-                        : record.checked_in_address
-                    }
-                </span>
-            </div>
-        </td>
-        <td>
-            <div class="accuracy-info">
-                ${accuracyBadge}
-            </div>
-        </td>
-        <td>
-            <div class="device-info">
-                <i class="fas fa-mobile-alt"></i>
-                <span title="${record.device}">
-                    ${
-                      record.device.length > 20
-                        ? record.device.substring(0, 20) + "..."
-                        : record.device
-                    }
-                </span>
-            </div>
-        </td>
-        <td>
-            <div class="record-actions">
-                ${
-                  hasEditPermission
-                    ? `
-                <button onclick="editRecord('${record.id}')" 
-                        class="action-btn btn-edit"
-                        title="Edit Record">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button onclick="deleteRecord('${record.id}', '${record.employeeId}')" 
-                        class="action-btn btn-delete"
-                        title="Delete Record">
-                    <i class="fas fa-trash"></i>
-                </button>
-                `
-                    : `
-                <span class="text-muted" title="Admin or Payroll access required">
-                    <i class="fas fa-lock"></i>
-                </span>
-                `
-                }
-            </div>
-        </td>
-    `;
-
-  return row;
 }
 
 function changeEntriesPerPage() {
@@ -647,6 +581,7 @@ function loadTableData() {
         checked_in_address: cells[7]
           ? cells[7].getAttribute("title") || cells[7].textContent.trim()
           : "",
+        // FIXED: Extract location accuracy for address display logic
         location_accuracy: cells[8] ? extractLocationAccuracy(cells[8]) : null,
         accuracy_level: cells[8]
           ? extractLocationAccuracyLevel(cells[8])
@@ -662,28 +597,90 @@ function loadTableData() {
     });
 
     filteredData = [...attendanceData];
-    console.log(
-      `Loaded ${attendanceData.length} attendance records with location accuracy`
+    console.log(`Loaded ${attendanceData.length} attendance records`);
+
+    // Debug log for location accuracy data
+    const recordsWithAccuracy = attendanceData.filter(
+      (r) => r.location_accuracy !== null
     );
+    console.log(
+      `Records with location accuracy: ${recordsWithAccuracy.length}`
+    );
+    if (recordsWithAccuracy.length > 0) {
+      console.log(
+        `Sample location accuracy values:`,
+        recordsWithAccuracy.slice(0, 3).map((r) => r.location_accuracy)
+      );
+    }
   }
 }
 
 function extractLocationAccuracy(cell) {
   const text = cell.textContent;
-  const match = text.match(/(\d+\.?\d*)\s*mi/);
-  return match ? parseFloat(match[1]) : null;
+  console.log(`Extracting accuracy from: "${text}"`);
+
+  // Look for miles pattern (e.g., "0.003 mi", "1.234 mi")
+  const milesMatch = text.match(/(\d+\.?\d*)\s*mi/);
+  if (milesMatch) {
+    const value = parseFloat(milesMatch[1]);
+    console.log(`Found miles: ${value}`);
+    return value;
+  }
+
+  // Look for specific accuracy patterns in the HTML
+  const accuracyMatch = text.match(/accuracy[:\s]*(\d+\.?\d*)/i);
+  if (accuracyMatch) {
+    const value = parseFloat(accuracyMatch[1]);
+    console.log(`Found accuracy: ${value}`);
+    return value;
+  }
+
+  // Check for data attributes
+  const dataAccuracy = cell.getAttribute("data-accuracy");
+  if (dataAccuracy) {
+    const value = parseFloat(dataAccuracy);
+    console.log(`Found data-accuracy: ${value}`);
+    return value;
+  }
+
+  // Fallback: look for GPS accuracy in meters and convert to miles (approximate)
+  const metersMatch = text.match(/(\d+\.?\d*)\s*m/);
+  if (metersMatch) {
+    const meters = parseFloat(metersMatch[1]);
+    const miles = meters * 0.000621371; // Convert meters to miles (approximate)
+    console.log(`Found meters: ${meters}, converted to miles: ${miles}`);
+    return miles;
+  }
+
+  console.log(`No accuracy found in: "${text}"`);
+  return null;
 }
 
 function extractLocationAccuracyLevel(cell) {
-  const text = cell.textContent;
-  if (text.includes("excellent") || text.includes("good")) return "accurate";
-  if (text.includes("fair") || text.includes("poor")) return "inaccurate";
-  return "unknown";
+  const text = cell.textContent.toLowerCase();
+  if (
+    text.includes("high") ||
+    text.includes("excellent") ||
+    text.includes("good")
+  )
+    return "High";
+  if (text.includes("medium") || text.includes("fair")) return "Medium";
+  if (text.includes("low") || text.includes("poor")) return "Low";
+  return "Unknown";
 }
 
 function createTableRow(record, displayIndex) {
   const row = document.createElement("tr");
   row.dataset.recordId = record.id;
+
+  // Debug logging for first few records
+  if (displayIndex <= 3) {
+    console.log(`=== CREATING ROW ${displayIndex} ===`);
+    console.log(`Employee: ${record.employeeId}`);
+    console.log(`Location accuracy: ${record.location_accuracy}`);
+    console.log(`QR address: ${record.qr_address}`);
+    console.log(`Check-in address: ${record.checked_in_address}`);
+  }
 
   // Create location accuracy badge HTML
   const locationAccuracyBadge =
@@ -702,6 +699,88 @@ function createTableRow(record, displayIndex) {
             <i class="fas fa-question-circle"></i>
             Unknown
          </span>`;
+
+  // FIXED: Address display logic based on location accuracy
+  let addressDisplayHTML = "";
+  let addressToShow = record.checked_in_address;
+  let addressIcon = "fas fa-location-arrow";
+  let addressClass = "address-normal-accuracy";
+  let addressTitle = `Check-in Address: ${record.checked_in_address}`;
+
+  // Apply 0.5-mile threshold logic
+  if (
+    record.location_accuracy !== null &&
+    record.location_accuracy !== undefined
+  ) {
+    const accuracy = parseFloat(record.location_accuracy);
+
+    if (displayIndex <= 3) {
+      console.log(`Applying address logic for ${record.employeeId}:`);
+      console.log(`  Accuracy value: ${accuracy}`);
+      console.log(`  Is <= 0.5? ${accuracy <= 0.5}`);
+    }
+
+    if (!isNaN(accuracy) && accuracy <= 0.5) {
+      // High accuracy - use QR address
+      addressToShow = record.qr_address;
+      addressIcon = "fas fa-check-circle";
+      addressClass = "address-high-accuracy";
+      addressTitle = `QR Address (High Accuracy ≤ 0.5 mi): ${record.qr_address}`;
+
+      if (displayIndex <= 3) {
+        console.log(`  → Using QR address: ${addressToShow}`);
+      }
+
+      addressDisplayHTML = `
+        <i class="${addressIcon}" style="color: #059669; margin-right: 4px;" 
+           title="High accuracy - showing QR location"></i>
+        <span title="${addressTitle}" class="${addressClass}">
+          ${
+            addressToShow.length > 45
+              ? addressToShow.substring(0, 45) + "..."
+              : addressToShow
+          }
+        </span>
+      `;
+    } else {
+      // Lower accuracy - use check-in address
+      if (displayIndex <= 3) {
+        console.log(`  → Using check-in address: ${addressToShow}`);
+      }
+
+      addressDisplayHTML = `
+        <i class="fas fa-exclamation-triangle" style="color: #f59e0b; margin-right: 4px;" 
+           title="Lower accuracy - showing actual check-in location"></i>
+        <span title="${addressTitle} (Accuracy: ${accuracy.toFixed(
+        3
+      )} mi)" class="${addressClass}">
+          ${
+            addressToShow.length > 45
+              ? addressToShow.substring(0, 45) + "..."
+              : addressToShow
+          }
+        </span>
+      `;
+    }
+  } else {
+    // No accuracy data - use check-in address
+    if (displayIndex <= 3) {
+      console.log(
+        `  → No accuracy data, using check-in address: ${addressToShow}`
+      );
+    }
+
+    addressDisplayHTML = `
+      <i class="${addressIcon}"></i>
+      <span title="${addressTitle}" class="${addressClass}">
+        ${
+          addressToShow.length > 45
+            ? addressToShow.substring(0, 45) + "..."
+            : addressToShow
+        }
+      </span>
+    `;
+  }
 
   row.innerHTML = `
         <td>${displayIndex}</td>
@@ -745,14 +824,7 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="address-info checkin-address">
-                <i class="fas fa-location-arrow"></i>
-                <span title="${record.checked_in_address}">
-                    ${
-                      record.checked_in_address.length > 50
-                        ? record.checked_in_address.substring(0, 50) + "..."
-                        : record.checked_in_address
-                    }
-                </span>
+                ${addressDisplayHTML}
             </div>
         </td>
         <td>
