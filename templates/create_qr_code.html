@@ -542,27 +542,31 @@
                 Event or Purpose
                 <span style="color: var(--error-color)">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 id="location_event"
                 name="location_event"
                 required
-                placeholder="e.g., Weekly Team Meeting, Customer Check-in, Training Session"
-                maxlength="200"
-              />
-              <small class="form-help"
-                >Describe the event or purpose for this QR code</small
+                class="form-control"
               >
-              <div class="character-counter">
-                <span id="eventCounter">0/200</span>
-              </div>
+                <option value="">Select Event Type</option>
+                <option value="Check In">Check In</option>
+                <option value="Check Out">Check Out</option>
+              </select>
+              <small class="form-help"
+                >Select the event type for this QR code</small
+              >
             </div>
           </div>
 
           <!-- Hidden coordinate fields for form submission -->
           <input type="hidden" id="latitude" name="latitude" value="" />
           <input type="hidden" id="longitude" name="longitude" value="" />
-          <input type="hidden" id="coordinate_accuracy" name="coordinate_accuracy" value="" />
+          <input
+            type="hidden"
+            id="coordinate_accuracy"
+            name="coordinate_accuracy"
+            value=""
+          />
 
           <!-- Form Actions -->
           <div class="form-actions">
@@ -614,32 +618,30 @@
       }
 
       function initializeCharacterCounters() {
-        const counters = [
-          { input: "name", counter: "nameCounter", max: 100 },
-          { input: "location", counter: "locationCounter", max: 100 },
-          { input: "location_address", counter: "addressCounter", max: 500 },
-          { input: "location_event", counter: "eventCounter", max: 200 },
+        const fields = [
+          { id: "name", counter: "nameCounter", max: 100 },
+          { id: "location", counter: "locationCounter", max: 150 },
+          { id: "location_address", counter: "addressCounter", max: 255 },
         ];
 
-        counters.forEach((item) => {
-          const input = document.getElementById(item.input);
-          const counter = document.getElementById(item.counter);
+        fields.forEach((field) => {
+          const input = document.getElementById(field.id);
+          const counter = document.getElementById(field.counter);
 
           if (input && counter) {
-            input.addEventListener("input", function () {
-              const length = this.value.length;
-              counter.textContent = `${length}/${item.max}`;
+            function updateCounter() {
+              const length = input.value.length;
+              counter.textContent = `${length}/${field.max}`;
 
-              if (length > item.max * 0.9) {
-                counter.classList.add("warning");
+              if (length > field.max * 0.9) {
+                counter.style.color = "var(--warning-color)";
               } else {
-                counter.classList.remove("warning");
+                counter.style.color = "";
               }
-            });
+            }
 
-            // Initial count
-            const length = input.value.length;
-            counter.textContent = `${length}/${item.max}`;
+            input.addEventListener("input", updateCounter);
+            updateCounter();
           }
         });
       }
@@ -743,28 +745,28 @@
 
       function updateHiddenFields() {
         console.log("📝 Updating hidden coordinate fields");
-        
+
         // Update hidden form fields with coordinate data
         const latitudeField = document.getElementById("latitude");
         const longitudeField = document.getElementById("longitude");
         const accuracyField = document.getElementById("coordinate_accuracy");
-        
+
         if (coordinatesData.latitude && coordinatesData.longitude) {
           latitudeField.value = coordinatesData.latitude;
           longitudeField.value = coordinatesData.longitude;
-          accuracyField.value = coordinatesData.accuracy || 'geocoded';
-          
+          accuracyField.value = coordinatesData.accuracy || "geocoded";
+
           console.log("✓ Hidden fields updated:", {
             latitude: latitudeField.value,
             longitude: longitudeField.value,
-            accuracy: accuracyField.value
+            accuracy: accuracyField.value,
           });
         } else {
           // Clear fields if no coordinates
-          latitudeField.value = '';
-          longitudeField.value = '';
-          accuracyField.value = '';
-          
+          latitudeField.value = "";
+          longitudeField.value = "";
+          accuracyField.value = "";
+
           console.log("✓ Hidden fields cleared");
         }
       }
@@ -816,7 +818,9 @@
       function validateForm() {
         const name = document.getElementById("name").value.trim();
         const location = document.getElementById("location").value.trim();
-        const address = document.getElementById("location_address").value.trim();
+        const address = document
+          .getElementById("location_address")
+          .value.trim();
 
         if (!name || !location || !address) {
           alert("Please fill in all required fields");
@@ -827,7 +831,7 @@
         const latitude = document.getElementById("latitude").value;
         const longitude = document.getElementById("longitude").value;
         const accuracy = document.getElementById("coordinate_accuracy").value;
-        
+
         console.log("🚀 Form submission data:", {
           name: name,
           location: location,
@@ -835,8 +839,8 @@
           coordinates: {
             latitude: latitude,
             longitude: longitude,
-            accuracy: accuracy
-          }
+            accuracy: accuracy,
+          },
         });
 
         return true;
@@ -868,16 +872,16 @@
 
       // Project dropdown functionality
       function initializeProjectDropdown() {
-        const projectSelect = document.getElementById('project_id');
-        
+        const projectSelect = document.getElementById("project_id");
+
         if (projectSelect) {
           // Load projects dynamically (optional enhancement)
           // For now, projects are loaded server-side
-          projectSelect.addEventListener('change', function() {
+          projectSelect.addEventListener("change", function () {
             const selectedOption = this.options[this.selectedIndex];
-            
+
             if (selectedOption.value) {
-              console.log('Selected project:', selectedOption.text);
+              console.log("Selected project:", selectedOption.text);
             }
           });
         }

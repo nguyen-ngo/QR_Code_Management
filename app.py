@@ -2400,6 +2400,11 @@ def create_qr_code():
                 'coordinate_accuracy': coordinate_accuracy
             }
             logger_handler.logger.info(f"User {session['username']} created QR code: {json.dumps(log_data)}")
+            logger_handler.log_user_action(
+                f'QR Code created: {name} with event type: {location_event}',
+                'create',
+                additional_info={'location_event': location_event}
+            )
             
             # Success message with coordinates info
             project_info = f" in project '{project.name}'" if project else ""

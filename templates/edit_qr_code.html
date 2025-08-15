@@ -657,24 +657,20 @@
                   Event or Purpose
                   <span style="color: var(--error-color)">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   id="location_event"
                   name="location_event"
                   required
-                  value="{{ qr_code.location_event }}"
+                  class="form-control"
                   data-original="{{ qr_code.location_event }}"
-                  placeholder="e.g., Weekly Team Meeting, Customer Check-in, Training Session"
-                  maxlength="200"
-                />
-                <small class="form-help"
-                  >Describe the event or purpose for this QR code</small
                 >
-                <div class="character-counter">
-                  <span id="eventCounter"
-                    >{{ qr_code.location_event|length }}/200</span
-                  >
-                </div>
+                  <option value="">Select Event Type</option>
+                  <option value="Check In" {% if qr_code.location_event == 'Check In' %}selected{% endif %}>Check In</option>
+                  <option value="Check Out" {% if qr_code.location_event == 'Check Out' %}selected{% endif %}>Check Out</option>
+                </select>
+                <small class="form-help"
+                  >Select the event type for this QR code</small
+                >
               </div>
             </div>
 
@@ -816,28 +812,30 @@
       }
 
       function initializeCharacterCounters() {
-          const counters = [
-              { input: 'name', counter: 'nameCounter', max: 100 },
-              { input: 'location', counter: 'locationCounter', max: 100 },
-              { input: 'location_address', counter: 'addressCounter', max: 500 },
-              { input: 'location_event', counter: 'eventCounter', max: 200 }
+          const fields = [
+              { id: 'name', counter: 'nameCounter', max: 100 },
+              { id: 'location', counter: 'locationCounter', max: 150 },
+              { id: 'location_address', counter: 'addressCounter', max: 255 }
           ];
 
-          counters.forEach(item => {
-              const input = document.getElementById(item.input);
-              const counter = document.getElementById(item.counter);
-
+          fields.forEach(field => {
+              const input = document.getElementById(field.id);
+              const counter = document.getElementById(field.counter);
+              
               if (input && counter) {
-                  input.addEventListener('input', function() {
-                      const length = this.value.length;
-                      counter.textContent = `${length}/${item.max}`;
-
-                      if (length > item.max * 0.9) {
-                          counter.classList.add('warning');
+                  function updateCounter() {
+                      const length = input.value.length;
+                      counter.textContent = `${length}/${field.max}`;
+                      
+                      if (length > field.max * 0.9) {
+                          counter.style.color = 'var(--warning-color)';
                       } else {
-                          counter.classList.remove('warning');
+                          counter.style.color = '';
                       }
-                  });
+                  }
+                  
+                  input.addEventListener('input', updateCounter);
+                  updateCounter();
               }
           });
       }
