@@ -601,6 +601,127 @@
           gap: 0.75rem;
         }
       }
+      .location-warning-banner {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        border: 2px solid #f59e0b;
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+        padding: 1rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        animation: slideInWarning 0.5s ease-out;
+      }
+
+      .warning-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .warning-icon {
+        color: #d97706;
+        font-size: 1.25rem;
+        margin-top: 0.125rem;
+        flex-shrink: 0;
+      }
+
+      .warning-text {
+        flex: 1;
+      }
+
+      .warning-message {
+        display: block;
+        color: #92400e;
+        font-weight: 500;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        margin-bottom: 0.75rem;
+      }
+
+      .warning-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .warning-retry-btn,
+      .warning-dismiss-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        border: none;
+        border-radius: calc(var(--border-radius) * 0.75);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--transition);
+        text-decoration: none;
+      }
+
+      .warning-retry-btn {
+        background: #f59e0b;
+        color: white;
+      }
+
+      .warning-retry-btn:hover {
+        background: #d97706;
+        transform: translateY(-1px);
+      }
+
+      .warning-dismiss-btn {
+        background: rgba(156, 163, 175, 0.2);
+        color: #6b7280;
+        border: 1px solid rgba(156, 163, 175, 0.3);
+      }
+
+      .warning-dismiss-btn:hover {
+        background: rgba(156, 163, 175, 0.3);
+        color: #4b5563;
+      }
+
+      /* Warning animation */
+      @keyframes slideInWarning {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Language styling for warning buttons */
+      .warning-retry-btn .language-separator,
+      .warning-dismiss-btn .language-separator {
+        opacity: 0.7;
+        margin: 0 0.25rem;
+      }
+
+      .warning-retry-btn .spanish-text,
+      .warning-dismiss-btn .spanish-text {
+        font-style: italic;
+        opacity: 0.9;
+      }
+
+      /* Responsive adjustments for warning */
+      @media (max-width: 640px) {
+        .warning-content {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        .warning-actions {
+          justify-content: center;
+        }
+        
+        .warning-retry-btn,
+        .warning-dismiss-btn {
+          flex: 1;
+          justify-content: center;
+          min-width: 120px;
+        }
+      }
     </style>
   </head>
   <body class="{% if qr_code.location_event == 'Check Out' %}check-out{% else %}check-in{% endif %}">
