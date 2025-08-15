@@ -99,6 +99,20 @@
                                    value="{{ employee_filter }}"
                                    placeholder="Enter Employee ID">
                         </div>
+                        <div class="filter-group">
+                            <label for="project">
+                                <i class="fas fa-project-diagram"></i>
+                                Project
+                            </label>
+                            <select id="project" name="project">
+                                <option value="">All Projects</option>
+                                {% for project in projects %}
+                                <option value="{{ project.id }}" {{ 'selected' if project.id|string == project_filter else '' }}>
+                                    {{ project.name }} ({{ project.attendance_count }} records)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         
                         <div class="filter-actions">
                             <button type="submit" class="btn btn-primary">
@@ -122,7 +136,7 @@
             <h3>
                 <i class="fas fa-list"></i>
                 Attendance Records
-                {% if date_from or date_to or location_filter or employee_filter %}
+                {% if date_from or date_to or location_filter or employee_filter or project_filter %}
                 <span class="filter-indicator">(Filtered)</span>
                 {% endif %}
             </h3>
@@ -299,7 +313,7 @@
                    {% else %}
                     No staff have checked in yet. QR codes need to be scanned to generate attendance data.
                    {% endif %}</p>
-                {% if date_from or date_to or location_filter or employee_filter %}
+                {% if date_from or date_to or location_filter or employee_filter or project_filter %}
                 <button onclick="clearFilters()" class="btn btn-primary">
                     <i class="fas fa-times"></i>
                     Clear All Filters

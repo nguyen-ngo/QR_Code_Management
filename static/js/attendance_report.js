@@ -947,66 +947,75 @@ function exportAttendanceWithAccuracy() {
 }
 
 function exportAttendance() {
-    // Log export action
-    console.log('Export button clicked - redirecting to configuration page');
-    
-    // Get current filters
-    const currentFilters = getCurrentFilters();
-    
-    // Build URL with current filters
-    const params = new URLSearchParams();
-    if (currentFilters.date_from) params.append('date_from', currentFilters.date_from);
-    if (currentFilters.date_to) params.append('date_to', currentFilters.date_to);
-    if (currentFilters.location) params.append('location', currentFilters.location);
-    if (currentFilters.employee) params.append('employee', currentFilters.employee);
-    
-    // Navigate to export configuration page
-    const configUrl = '/export-configuration' + (params.toString() ? '?' + params.toString() : '');
-    window.location.href = configUrl;
+  // Log export action
+  console.log("Export button clicked - redirecting to configuration page");
+
+  // Get current filters
+  const currentFilters = getCurrentFilters();
+
+  // Build URL with current filters
+  const params = new URLSearchParams();
+  if (currentFilters.date_from)
+    params.append("date_from", currentFilters.date_from);
+  if (currentFilters.date_to) params.append("date_to", currentFilters.date_to);
+  if (currentFilters.location)
+    params.append("location", currentFilters.location);
+  if (currentFilters.employee)
+    params.append("employee", currentFilters.employee);
+
+  // Navigate to export configuration page
+  const configUrl =
+    "/export-configuration" +
+    (params.toString() ? "?" + params.toString() : "");
+  window.location.href = configUrl;
 }
 
 function getCurrentFilters() {
-    // Extract current filter values from the page
-    return {
-        date_from: document.getElementById('date_from')?.value || '',
-        date_to: document.getElementById('date_to')?.value || '',
-        location: document.getElementById('location')?.value || '',
-        employee: document.getElementById('employee')?.value || ''
-    };
+  // Extract current filter values from the page
+  return {
+    date_from: document.getElementById("date_from")?.value || "",
+    date_to: document.getElementById("date_to")?.value || "",
+    location: document.getElementById("location")?.value || "",
+    employee: document.getElementById("employee")?.value || "",
+    project: document.getElementById("project")?.value || "",
+  };
 }
 
 // Add a quick CSV export function as backup (keep existing functionality)
 function exportAttendanceCSV() {
-    // Build export URL with current filters for CSV
-    const params = new URLSearchParams();
-    const filters = getCurrentFilters();
-    
-    if (filters.date_from) params.append('date_from', filters.date_from);
-    if (filters.date_to) params.append('date_to', filters.date_to);
-    if (filters.location) params.append('location', filters.location);
-    if (filters.employee) params.append('employee', filters.employee);
-    params.append('export', 'csv');
-    
-    // Create a temporary link and click it to download
-    const downloadUrl = window.location.pathname + '?' + params.toString();
-    window.open(downloadUrl, '_blank');
+  // Build export URL with current filters for CSV
+  const params = new URLSearchParams();
+  const filters = getCurrentFilters();
+
+  if (filters.date_from) params.append("date_from", filters.date_from);
+  if (filters.date_to) params.append("date_to", filters.date_to);
+  if (filters.location) params.append("location", filters.location);
+  if (filters.employee) params.append("employee", filters.employee);
+  if (filters.project) params.append("project", filters.project);
+  params.append("export", "csv");
+
+  // Create a temporary link and click it to download
+  const downloadUrl = window.location.pathname + "?" + params.toString();
+  window.open(downloadUrl, "_blank");
 }
 
 // Enhanced export menu (if you want to add dropdown with multiple export options)
 function showExportMenu() {
-    // Create export options menu
-    const existingMenu = document.getElementById('exportMenu');
-    if (existingMenu) {
-        existingMenu.remove();
-        return;
-    }
-    
-    const exportBtn = document.querySelector('button[onclick="exportAttendance()"]');
-    if (!exportBtn) return;
-    
-    const menu = document.createElement('div');
-    menu.id = 'exportMenu';
-    menu.style.cssText = `
+  // Create export options menu
+  const existingMenu = document.getElementById("exportMenu");
+  if (existingMenu) {
+    existingMenu.remove();
+    return;
+  }
+
+  const exportBtn = document.querySelector(
+    'button[onclick="exportAttendance()"]'
+  );
+  if (!exportBtn) return;
+
+  const menu = document.createElement("div");
+  menu.id = "exportMenu";
+  menu.style.cssText = `
         position: absolute;
         top: 100%;
         right: 0;
@@ -1018,8 +1027,8 @@ function showExportMenu() {
         min-width: 200px;
         margin-top: 5px;
     `;
-    
-    menu.innerHTML = `
+
+  menu.innerHTML = `
         <div style="padding: 0.5rem;">
             <button onclick="exportAttendance(); closeExportMenu();" 
                     style="width: 100%; padding: 0.75rem; border: none; background: none; text-align: left; cursor: pointer; border-radius: 4px;"
@@ -1037,37 +1046,39 @@ function showExportMenu() {
             </button>
         </div>
     `;
-    
-    exportBtn.parentElement.style.position = 'relative';
-    exportBtn.parentElement.appendChild(menu);
-    
-    // Close menu when clicking outside
-    setTimeout(() => {
-        document.addEventListener('click', function closeOnClickOutside(e) {
-            if (!menu.contains(e.target) && e.target !== exportBtn) {
-                closeExportMenu();
-                document.removeEventListener('click', closeOnClickOutside);
-            }
-        });
-    }, 100);
+
+  exportBtn.parentElement.style.position = "relative";
+  exportBtn.parentElement.appendChild(menu);
+
+  // Close menu when clicking outside
+  setTimeout(() => {
+    document.addEventListener("click", function closeOnClickOutside(e) {
+      if (!menu.contains(e.target) && e.target !== exportBtn) {
+        closeExportMenu();
+        document.removeEventListener("click", closeOnClickOutside);
+      }
+    });
+  }, 100);
 }
 
 function closeExportMenu() {
-    const menu = document.getElementById('exportMenu');
-    if (menu) {
-        menu.remove();
-    }
+  const menu = document.getElementById("exportMenu");
+  if (menu) {
+    menu.remove();
+  }
 }
 
 // Initialize export functionality when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Update export button to use enhanced functionality
-    const exportBtn = document.querySelector('button[onclick="exportAttendance()"]');
-    if (exportBtn) {
-        // You can modify the button to show a dropdown instead
-        // exportBtn.onclick = showExportMenu;
-        // exportBtn.innerHTML = '<i class="fas fa-download"></i> Export Data <i class="fas fa-chevron-down" style="margin-left: 0.5rem;"></i>';
-    }
-    
-    console.log('Enhanced export functionality initialized');
+document.addEventListener("DOMContentLoaded", function () {
+  // Update export button to use enhanced functionality
+  const exportBtn = document.querySelector(
+    'button[onclick="exportAttendance()"]'
+  );
+  if (exportBtn) {
+    // You can modify the button to show a dropdown instead
+    // exportBtn.onclick = showExportMenu;
+    // exportBtn.innerHTML = '<i class="fas fa-download"></i> Export Data <i class="fas fa-chevron-down" style="margin-left: 0.5rem;"></i>';
+  }
+
+  console.log("Enhanced export functionality initialized");
 });

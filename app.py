@@ -3001,7 +3001,8 @@ def attendance_report():
         date_to = request.args.get('date_to', '')
         location_filter = request.args.get('location', '')
         employee_filter = request.args.get('employee', '')
-        
+        project_filter = request.args.get('project', '')
+
         # Build base query - conditional based on column existence
         if has_location_accuracy:
             # New query with location accuracy
@@ -3067,6 +3068,11 @@ def attendance_report():
         if employee_filter:
             conditions.append("ad.employee_id ILIKE :employee")
             params['employee'] = f"%{employee_filter}%"
+        
+        if project_filter:
+            # Join with QRCode and filter by project_id
+            query = query.join(QRCode, AttendanceData.qr_code_id == QRCode.id).filter(QRCode.project_id == int(project_filter))
+            print(f"📊 Applied project filter: {project_filter}")
         
         # Add conditions to query
         if conditions:
@@ -3170,6 +3176,23 @@ def attendance_report():
         except Exception as e:
             print(f"⚠️ Error loading locations: {e}")
             locations = []
+
+        # Update the locations query to get only active projects for the dropdown
+        try:
+            projects = db.session.execute(text("""
+                SELECT p.id, p.name, COUNT(DISTINCT ad.id) as attendance_count
+                FROM projects p
+                LEFT JOIN qr_codes qc ON qc.project_id = p.id
+                LEFT JOIN attendance_data ad ON ad.qr_code_id = qc.id
+                WHERE p.active_status = true
+                GROUP BY p.id, p.name
+                HAVING COUNT(DISTINCT ad.id) > 0
+                ORDER BY p.name
+            """)).fetchall()
+            print(f"✅ Loaded {len(projects)} projects with attendance data")
+        except Exception as e:
+            print(f"⚠️ Error loading projects: {e}")
+            projects = []
         
         # Get attendance statistics
         try:
@@ -3222,11 +3245,13 @@ def attendance_report():
         return render_template('attendance_report.html', 
                              attendance_records=processed_records,
                              locations=locations,
+                             projects=projects,
                              stats=stats,
                              date_from=date_from,
                              date_to=date_to,
                              location_filter=location_filter,
                              employee_filter=employee_filter,
+                             project_filter=project_filter,
                              today_date=today_date,
                              current_date_formatted=current_date_formatted,
                              has_location_accuracy_feature=has_location_accuracy)
@@ -3452,7 +3477,8 @@ def export_configuration():
             'date_from': request.args.get('date_from', ''),
             'date_to': request.args.get('date_to', ''),
             'location_filter': request.args.get('location', ''),
-            'employee_filter': request.args.get('employee', '')
+            'employee_filter': request.args.get('employee', ''),
+            'project_filter': request.args.get('project', '')
         }
         
         print(f"📊 Filters: {filters}")
@@ -3669,6 +3695,11 @@ def create_excel_export(selected_columns, column_names, filters):
         if filters.get('employee_filter'):
             query = query.filter(AttendanceData.employee_id.ilike(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
+        
+        # Apply project filter
+        if filters.get('project_filter'):
+            query = query.filter(QRCode.project_id == int(filters['project_filter']))
+            print(f"📊 Applied project filter to export: {filters['project_filter']}")
         
         # Execute query and get results
         results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
