@@ -223,28 +223,16 @@
                                 {% endif %}
                             </div>
                         </td>
-                        <td class="address-column">
-                            <div class="address-info checkin-address">
-                                <i class="fas fa-location-arrow"></i>
-                                {% if record.address_source == 'qr' %}
-                                    <!-- Using QR address due to high accuracy (≤ 0.5 miles) -->
-                                    <span title="QR Address (High Accuracy ≤ 0.5 mi): {{ record.qr_address }}" 
-                                        class="address-high-accuracy">
-                                        <i class="fas fa-check-circle" style="color: #059669; margin-right: 4px;" 
-                                        title="High accuracy - showing QR location"></i>
-                                        {{ record.qr_address[:45] }}{% if record.qr_address|length > 45 %}...{% endif %}
-                                    </span>
-                                {% else %}
-                                    <!-- Using actual check-in address due to lower accuracy (> 0.5 miles) or no accuracy data -->
-                                    <span title="Check-in Address{% if record.location_accuracy %} (Accuracy: {{ '%.3f'|format(record.location_accuracy) }} mi){% endif %}: {{ record.checked_in_address }}" 
-                                        class="address-normal-accuracy">
-                                        {% if record.location_accuracy and record.location_accuracy > 0.5 %}
-                                            <i class="fas fa-exclamation-triangle" style="color: #f59e0b; margin-right: 4px;" 
-                                            title="Lower accuracy - showing actual check-in location"></i>
-                                        {% endif %}
-                                        {{ record.checked_in_address[:45] }}{% if record.checked_in_address|length > 45 %}...{% endif %}
-                                    </span>
-                                {% endif %}
+                        <td>
+                            <div class="address-info qr-address">
+                                <i class="fas fa-qrcode" style="color: #6366f1; margin-right: 4px;" title="QR Code Address (Fixed)"></i>
+                                <span title="QR Address: {{ record.qr_address or 'N/A' }}">
+                                    {% if record.qr_address %}
+                                        {{ record.qr_address[:50] }}{{ '...' if record.qr_address|length > 50 else '' }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </span>
                             </div>
                         </td>
                         <td class="address-column">

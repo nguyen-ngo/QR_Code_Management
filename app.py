@@ -3098,9 +3098,14 @@ def attendance_report():
         # Execute query
         query_result = db.session.execute(text(base_query), params)
         attendance_records = query_result.fetchall()
-        
         print(f"✅ Found {len(attendance_records)} attendance records")
-        
+        # Log first 3 records to verify QR address data
+        for i, record in enumerate(attendance_records[:3]):
+            print(f"📊 Record {i+1}: Employee={record.employee_id}")
+            print(f"   QR Address: {getattr(record, 'qr_address', 'NOT_FOUND')}")
+            print(f"   Check-in Address: {getattr(record, 'checked_in_address', 'NOT_FOUND')}")
+            print(f"   Location Accuracy: {getattr(record, 'location_accuracy', 'NOT_FOUND')}")
+            
         # FIXED: Process records to add calculated fields with proper datetime handling
         processed_records = []
         for record in attendance_records:

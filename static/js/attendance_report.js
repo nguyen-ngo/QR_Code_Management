@@ -812,8 +812,8 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="address-info qr-address">
-                <i class="fas fa-qrcode"></i>
-                <span title="${record.qr_address}">
+                <i class="fas fa-qrcode" style="color: #6366f1; margin-right: 4px;" title="QR Code Address (Fixed)"></i>
+                <span title="QR Address: ${record.qr_address}">
                     ${
                       record.qr_address.length > 50
                         ? record.qr_address.substring(0, 50) + "..."
