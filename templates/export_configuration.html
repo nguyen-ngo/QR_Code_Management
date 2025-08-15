@@ -212,11 +212,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load saved preferences if available
     loadSavedPreferences();
     
-    // Update preview on page load
-    updatePreview();
-    
     // Initialize drag & drop
     initializeDragDrop();
+
+    // Ensure preview is updated after all initialization is complete
+    setTimeout(() => {
+        const selectedColumns = document.querySelectorAll('input[name="selected_columns"]:checked');
+        if (selectedColumns.length > 0) {
+            console.log('Final check: ensuring preview is shown for selected columns');
+            updatePreview();
+        }
+    }, 100);
 });
 
 function goBackToReport() {

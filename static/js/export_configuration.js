@@ -535,6 +535,13 @@ function loadSavedPreferences() {
         const savedPrefs = localStorage.getItem('exportPreferences');
         if (!savedPrefs) {
             console.log('No saved preferences found');
+            // Check if there are already selected columns on page load and update preview
+            const alreadySelected = document.querySelectorAll('input[name="selected_columns"]:checked');
+            if (alreadySelected.length > 0) {
+                console.log('Found pre-selected columns, updating preview');
+                updateSelectedColumnsList();
+                updatePreview();
+            }
             return;
         }
         
@@ -547,6 +554,13 @@ function loadSavedPreferences() {
         if (savedDate < thirtyDaysAgo) {
             localStorage.removeItem('exportPreferences');
             console.log('Saved preferences are too old, removed');
+            // Check if there are already selected columns on page load and update preview
+            const alreadySelected = document.querySelectorAll('input[name="selected_columns"]:checked');
+            if (alreadySelected.length > 0) {
+                console.log('Found pre-selected columns, updating preview');
+                updateSelectedColumnsList();
+                updatePreview();
+            }
             return;
         }
         
@@ -585,12 +599,24 @@ function loadSavedPreferences() {
         
         console.log('Preferences loaded:', prefs);
         
+        // Update preview after loading preferences
+        updateSelectedColumnsList();
+        updatePreview();
+        
     } catch (e) {
         console.warn('Could not load saved preferences:', e);
         try {
             localStorage.removeItem('exportPreferences');
         } catch (removeError) {
             console.warn('Could not remove invalid preferences:', removeError);
+        }
+        
+        // Check if there are already selected columns on page load and update preview
+        const alreadySelected = document.querySelectorAll('input[name="selected_columns"]:checked');
+        if (alreadySelected.length > 0) {
+            console.log('Found pre-selected columns after preference error, updating preview');
+            updateSelectedColumnsList();
+            updatePreview();
         }
     }
 }
