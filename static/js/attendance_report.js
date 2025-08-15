@@ -1017,8 +1017,19 @@ function exportAttendanceWithAccuracy() {
 }
 
 function exportAttendance() {
+  // Check user role before proceeding
+  const userRole = window.userRole; // Read from global variable set in template
+  console.log("Template - session.role:", '{{ session.role }}');
+  console.log("Template - window.userRole set to:", window.userRole);
+
+  if (!['admin', 'payroll'].includes(userRole)) {
+    console.log("Export access denied - insufficient privileges");
+    alert("Access denied. Only administrators and payroll staff can export data.");
+    return;
+  }
+
   // Log export action
-  console.log("Export button clicked - redirecting to configuration page");
+  console.log(`Export button clicked by ${userRole} - redirecting to configuration page`);
 
   // Get current filters
   const currentFilters = getCurrentFilters();
@@ -1053,6 +1064,15 @@ function getCurrentFilters() {
 
 // Add a quick CSV export function as backup (keep existing functionality)
 function exportAttendanceCSV() {
+  // Check user role before proceeding
+  const userRole = window.userRole;
+  
+  if (!['admin', 'payroll'].includes(userRole)) {
+    console.log("CSV export access denied - insufficient privileges");
+    alert("Access denied. Only administrators and payroll staff can export data.");
+    return;
+  }
+
   // Build export URL with current filters for CSV
   const params = new URLSearchParams();
   const filters = getCurrentFilters();

@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="attendance-page">
+<div class="attendance-page" data-user-role="{{ session.role }}">
     <!-- Header Section -->
     <div class="attendance-header">
         <div class="header-content">
@@ -22,10 +22,12 @@
         </div>
         
         <div class="header-actions">
+            {% if session.role in ['admin', 'payroll'] %}
             <button onclick="exportAttendance()" class="btn btn-success">
                 <i class="fas fa-download"></i>
                 Export Data
             </button>
+            {% endif %}
             <button onclick="refreshReport()" class="btn btn-secondary">
                 <i class="fas fa-sync-alt"></i>
                 Refresh
@@ -622,5 +624,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ Admin/Payroll edit/delete buttons have been activated');
     }
 });
+window.userRole = '{{ session.role }}';
 </script>
 {% endblock %}
