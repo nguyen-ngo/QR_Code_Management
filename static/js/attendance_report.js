@@ -657,16 +657,14 @@ function extractLocationAccuracy(cell) {
 }
 
 function extractLocationAccuracyLevel(cell) {
-  const text = cell.textContent.toLowerCase();
-  if (
-    text.includes("high") ||
-    text.includes("excellent") ||
-    text.includes("good")
-  )
-    return "High";
-  if (text.includes("medium") || text.includes("fair")) return "Medium";
-  if (text.includes("low") || text.includes("poor")) return "Low";
-  return "Unknown";
+  // Get the numerical accuracy value from the cell
+  const accuracy = extractLocationAccuracy(cell);
+  
+  // Return 2-level accuracy based on 0.5-mile threshold
+  if (accuracy !== null && accuracy !== undefined) {
+    return accuracy <= 0.5 ? "accurate" : "inaccurate";
+  }
+  return "unknown";
 }
 
 function createTableRow(record, displayIndex) {
@@ -690,17 +688,17 @@ function createTableRow(record, displayIndex) {
         }" 
                 title="Distance between QR location and check-in location: ${
                   record.location_accuracy
-                } miles">
+                } miles - ${record.accuracy_level}">
             <i class="fas fa-ruler"></i>
             ${record.location_accuracy.toFixed(3)} mi
             <small>(${record.accuracy_level})</small>
-         </span>`
+        </span>`
       : `<span class="location-accuracy-badge accuracy-unknown" title="Location accuracy could not be calculated">
             <i class="fas fa-question-circle"></i>
             Unknown
-         </span>`;
+        </span>`;
 
-  // FIXED: Address display logic based on location accuracy
+  // Address display logic based on location accuracy
   let addressDisplayHTML = "";
   let addressToShow = record.checked_in_address;
   let addressIcon = "fas fa-location-arrow";

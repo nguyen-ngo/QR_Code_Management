@@ -993,40 +993,16 @@
   opacity: 0.8;
 }
 
-/* Location accuracy level colors - based on distance */
-.location-accuracy-badge.accuracy-excellent {
-  background: var(--success-light);
-  color: var(--success-color);
-  border: 1px solid rgba(5, 150, 105, 0.3);
-}
-
+/* Location accuracy level colors - 2-level system based on 0.5 mile threshold */
 .location-accuracy-badge.accuracy-accurate {
-  background: var(--success-light);
-  color: var(--success-color);
-  border: 1px solid rgba(5, 150, 105, 0.3);
-}
-
-.location-accuracy-badge.accuracy-good {
-  background: #ecfdf5;
+  background: #dcfce7;
   color: #059669;
-  border: 1px solid rgba(5, 150, 105, 0.2);
-}
-
-.location-accuracy-badge.accuracy-fair {
-  background: var(--warning-light);
-  color: var(--warning-color);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.location-accuracy-badge.accuracy-poor {
-  background: var(--danger-light);
-  color: var(--danger-color);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  border: 1px solid rgba(5, 150, 105, 0.3);
 }
 
 .location-accuracy-badge.accuracy-inaccurate {
-  background: var(--danger-light);
-  color: var(--danger-color);
+  background: #fee2e2;
+  color: #dc2626;
   border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
