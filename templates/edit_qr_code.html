@@ -841,56 +841,63 @@
       }
 
       function geocodeAddress(address) {
-          const geocodeBtn = document.getElementById('geocodeBtn');
-          const statusDiv = document.getElementById('coordinateStatus');
+        const geocodeBtn = document.getElementById('geocodeBtn');
+        const statusDiv = document.getElementById('coordinateStatus');
 
-          // Show loading state
-          geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting Coordinates...';
-          geocodeBtn.disabled = true;
+        // Show loading state
+        geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting Coordinates...';
+        geocodeBtn.disabled = true;
 
-          showStatus('info', 'Getting coordinates from address...');
+        showStatus('info', 'Getting coordinates from address...');
 
-          const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(address)}&key=b0e9dd83c98e4cfebc6a9ef1d83f5a6e&limit=1&countrycode=my&language=en`;
+        // Use backend API instead of OpenCage
+        fetch('/api/geocode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'address': address
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Geocoding response:', data);
 
-          fetch(geocodeUrl)
-              .then(response => response.json())
-              .then(data => {
-                  console.log('Geocoding response:', data);
+            if (data.success && data.data) {
+                const result = data.data;
+                const lat = result.latitude;
+                const lng = result.longitude;
+                const accuracy = result.accuracy || 'medium';
 
-                  if (data.results && data.results.length > 0) {
-                      const result = data.results[0];
-                      const lat = result.geometry.lat;
-                      const lng = result.geometry.lng;
-                      const confidence = result.confidence || 0;
+                // Update coordinates data
+                coordinatesData = {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: accuracy
+                };
 
-                      // Update coordinates data
-                      coordinatesData = {
-                          latitude: lat,
-                          longitude: lng,
-                          accuracy: confidence >= 8 ? 'high' : confidence >= 5 ? 'medium' : 'low'
-                      };
+                updateCoordinatesDisplay();
+                updateHiddenFields();
 
-                      updateCoordinatesDisplay();
-                      updateHiddenFields();
+                showStatus('success', `Coordinates updated successfully! Accuracy: ${accuracy}`);
 
-                      const confidenceText = confidence >= 8 ? 'high' : confidence >= 5 ? 'medium' : 'low';
-                      showStatus('success', `Coordinates updated successfully! Accuracy: ${confidenceText}`);
-
-                      console.log('✓ Coordinates updated:', coordinatesData);
-                  } else {
-                      showStatus('error', 'Could not find coordinates for this address. Please check the address and try again.');
-                  }
-              })
-              .catch(error => {
-                  console.error('Geocoding error:', error);
-                  showStatus('error', 'Failed to get coordinates. Please try again.');
-              })
-              .finally(() => {
-                  // Reset button state
-                  geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
-                  geocodeBtn.disabled = false;
-              });
-      }
+                console.log('✓ Coordinates updated:', coordinatesData);
+            } else {
+                const errorMessage = data.message || 'Could not find coordinates for this address. Please check the address and try again.';
+                showStatus('error', errorMessage);
+            }
+        })
+        .catch(error => {
+            console.error('Geocoding error:', error);
+            showStatus('error', 'Failed to get coordinates. Please try again.');
+        })
+        .finally(() => {
+            // Reset button state
+            geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
+            geocodeBtn.disabled = false;
+        });
+    }
 
       function updateCoordinatesDisplay() {
           const latDisplay = document.getElementById('latitudeDisplay');
