@@ -2166,6 +2166,193 @@ def api_cleanup_logs():
             'success': False,
             'error': f'Failed to cleanup old logs: {str(e)}'
         }), 500
+    
+@app.route('/api/logs/clear', methods=['POST'])
+@admin_required
+def api_clear_logs():
+    """API endpoint to clear ALL log entries"""
+    try:
+        admin_username = session.get('username', 'unknown')
+        print(f"🧹 Clear logs request by admin: {admin_username}")
+        
+        # Count existing logs before deletion
+        try:
+            count_sql = "SELECT COUNT(*) as total_logs FROM log_events"
+            count_result = db.session.execute(text(count_sql)).fetchone()
+            total_logs = count_result.total_logs if count_result else 0
+            
+            print(f"📊 Total logs to be cleared: {total_logs}")
+            
+            if total_logs == 0:
+                print("✅ No logs found to clear")
+                return jsonify({
+                    'success': True,
+                    'deleted_count': 0,
+                    'message': 'No logs found to clear'
+                })
+                
+        except Exception as count_error:
+            print(f"⚠️ Error counting logs: {count_error}")
+            total_logs = 0
+        
+        # Perform the clear operation
+        try:
+            clear_sql = "DELETE FROM log_events"
+            result = db.session.execute(text(clear_sql))
+            deleted_count = result.rowcount
+            db.session.commit()
+            
+            print(f"🗑️ Successfully cleared {deleted_count} log entries")
+            
+            # Log the clear operation (this will be the first entry in the new log)
+            logger_handler.log_security_event(
+                event_type="admin_log_clear",
+                description=f"Admin {admin_username} cleared all log entries: {deleted_count} records deleted",
+                severity="HIGH",
+                additional_data={
+                    'admin_user': admin_username,
+                    'deleted_count': deleted_count,
+                    'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+                }
+            )
+            
+            return jsonify({
+                'success': True,
+                'deleted_count': deleted_count,
+                'message': f'Successfully cleared {deleted_count} log entries',
+                'performed_by': admin_username,
+                'performed_at': datetime.now().isoformat()
+            })
+            
+        except Exception as delete_error:
+            print(f"❌ Error during log clearing: {delete_error}")
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'error': f'Failed to clear logs: {str(delete_error)}'
+            }), 500
+            
+    except Exception as e:
+        logger_handler.log_database_error('api_clear_logs', e)
+        print(f"❌ Error in api_clear_logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to clear logs: {str(e)}'
+        }), 500
+    
+@app.route('/api/logs/export')
+@admin_required
+def api_export_logs():
+    """API endpoint to export log entries"""
+    try:
+        days = request.args.get('days', 7, type=int)
+        category = request.args.get('category', '')
+        severity = request.args.get('severity', '')
+        search = request.args.get('search', '')
+        
+        admin_username = session.get('username', 'unknown')
+        print(f"📊 Export logs request by admin: {admin_username}")
+        
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        # Build the SQL query with filters
+        base_sql = """
+        SELECT 
+            event_id,
+            event_type, 
+            event_category, 
+            event_description, 
+            event_data,
+            severity_level, 
+            created_timestamp, 
+            username, 
+            user_id,
+            ip_address
+        FROM log_events 
+        WHERE created_timestamp >= :cutoff_date
+        """
+        
+        params = {'cutoff_date': cutoff_date}
+        
+        # Add category filter
+        if category:
+            base_sql += " AND event_category = :category"
+            params['category'] = category
+        
+        # Add severity filter
+        if severity:
+            base_sql += " AND severity_level = :severity"
+            params['severity'] = severity
+        
+        # Add search filter
+        if search:
+            base_sql += " AND (event_type LIKE :search OR event_description LIKE :search OR username LIKE :search)"
+            params['search'] = f'%{search}%'
+        
+        base_sql += " ORDER BY created_timestamp DESC"
+        
+        result = db.session.execute(text(base_sql), params).fetchall()
+        
+        logs = []
+        for row in result:
+            # Parse event_data if it's JSON
+            event_data = None
+            if row.event_data:
+                try:
+                    event_data = json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data
+                except (json.JSONDecodeError, TypeError):
+                    event_data = row.event_data
+            
+            logs.append({
+                'event_id': row.event_id,
+                'event_type': row.event_type,
+                'event_category': row.event_category,
+                'description': row.event_description,
+                'event_data': event_data,
+                'severity': row.severity_level,
+                'timestamp': row.created_timestamp.isoformat(),
+                'username': row.username or 'System',
+                'user_id': row.user_id,
+                'ip_address': row.ip_address or '-'
+            })
+        
+        # Log the export operation
+        logger_handler.log_security_event(
+            event_type="admin_log_export",
+            description=f"Admin {admin_username} exported {len(logs)} log entries (last {days} days)",
+            severity="MEDIUM",
+            additional_data={
+                'admin_user': admin_username,
+                'exported_count': len(logs),
+                'days_exported': days,
+                'filters': {
+                    'category': category,
+                    'severity': severity,
+                    'search': search
+                },
+                'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+            }
+        )
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'total': len(logs),
+            'filters_applied': {
+                'days': days,
+                'category': category,
+                'severity': severity,
+                'search': search
+            }
+        })
+        
+    except Exception as e:
+        logger_handler.log_database_error('api_export_logs', e)
+        print(f"❌ Error in api_export_logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to export logs: {str(e)}'
+        }), 500
 
 # PROJECT MANAGEMENT ROUTES
 @app.route('/projects')

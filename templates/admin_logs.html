@@ -11,27 +11,17 @@ Management{% endblock %} {% block extra_head %}
   <!-- Page Header -->
   <div class="logs-header">
     <div class="header-content">
-      <div class="header-navigation">
-        <a href="{{ url_for('dashboard') }}" class="back-button">
-          <i class="fas fa-arrow-left"></i>
-          <span>Back to Dashboard</span>
-        </a>
-      </div>
       <h1><i class="fas fa-clipboard-list"></i> System Logs</h1>
       <p>Monitor system activities and security events</p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-secondary" onclick="testLogging()">
-        <i class="fas fa-flask"></i>
-        Test Logging
-      </button>
-      <button class="btn btn-secondary" onclick="refreshLogs()">
+      <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">
         <i class="fas fa-sync-alt"></i>
         Refresh
       </button>
-      <button class="btn btn-warning" onclick="cleanupLogs()">
-        <i class="fas fa-trash-alt"></i>
-        Cleanup Old Logs
+      <button class="btn btn-secondary btn-sm" onclick="exportLogs()">
+        <i class="fas fa-download"></i>
+        Export
       </button>
     </div>
   </div>
@@ -147,13 +137,6 @@ Management{% endblock %} {% block extra_head %}
           <option value="90">Last 90 Days</option>
         </select>
       </div>
-    </div>
-
-    <div class="view-options">
-      <button class="btn btn-secondary btn-sm" onclick="exportLogs()">
-        <i class="fas fa-download"></i>
-        Export
-      </button>
     </div>
   </div>
 
@@ -440,6 +423,88 @@ Management{% endblock %} {% block extra_head %}
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  }
+
+  async function exportLogs() {
+    try {
+      showMessage("Preparing log export...", "info");
+
+      // Get current filters to include in export
+      const params = new URLSearchParams({
+        days: currentFilters.days,
+        category: currentFilters.category || "",
+        severity: currentFilters.severity || "",
+        search: currentFilters.search || "",
+        export: "csv",
+      });
+
+      const response = await fetch(`/api/logs/export?${params}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Create CSV content
+        const headers = [
+          "Timestamp",
+          "Event Type",
+          "Category",
+          "Description",
+          "Severity",
+          "Username",
+          "User ID",
+          "IP Address",
+        ];
+        const csvData = [headers];
+
+        data.logs.forEach((log) => {
+          csvData.push([
+            new Date(log.timestamp).toLocaleString(),
+            log.event_type || "",
+            log.event_category || "",
+            (log.description || "").replace(/"/g, '""'), // Escape quotes
+            log.severity || "",
+            log.username || "System",
+            log.user_id || "",
+            log.ip_address || "",
+          ]);
+        });
+
+        // Generate CSV string
+        const csvContent = csvData
+          .map((row) => row.map((field) => `"${field}"`).join(","))
+          .join("\n");
+
+        // Create and download file
+        const blob = new Blob([csvContent], {
+          type: "text/csv;charset=utf-8;",
+        });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+
+        const timestamp = new Date().toISOString().split("T")[0];
+        const filename = `system_logs_${timestamp}.csv`;
+        link.setAttribute("download", filename);
+
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showSuccess(`✅ Logs exported successfully as ${filename}`);
+      } else {
+        showError(
+          "❌ Error exporting logs: " + (data.error || "Unknown error")
+        );
+      }
+    } catch (error) {
+      console.error("Error exporting logs:", error);
+      showError("❌ Failed to export logs: " + error.message);
     }
   }
 
@@ -739,28 +804,51 @@ ${
     loadStats();
   }
 
-  // Test logging functionality
-  async function testLogging() {
-    try {
-      showMessage("Testing logging system...", "info");
+  async function clearLogs() {
+    // Show confirmation dialog
+    if (
+      !confirm(
+        "⚠️ Are you sure you want to clear ALL logs?\n\nThis action will permanently delete ALL log entries from the system and cannot be undone."
+      )
+    ) {
+      return;
+    }
 
-      const response = await fetch("/api/logs/test");
+    // Second confirmation for safety
+    if (
+      !confirm(
+        "🚨 FINAL WARNING: This will delete ALL logs!\n\nClick OK to proceed or Cancel to abort."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      showMessage("Clearing all logs...", "info");
+
+      const response = await fetch("/api/logs/clear", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
       const data = await response.json();
 
       if (data.success) {
-        showMessage("✅ Logging system test passed!", "success");
+        showSuccess(
+          `✅ Successfully cleared ${data.deleted_count} log entries`
+        );
         setTimeout(() => {
           loadLogs();
           loadStats();
         }, 1000);
       } else {
-        showError(
-          "❌ Logging system test failed: " + (data.error || "Unknown error")
-        );
+        showError("❌ Error clearing logs: " + (data.error || "Unknown error"));
       }
     } catch (error) {
-      console.error("Error testing logging:", error);
-      showError("❌ Failed to run logging test: " + error.message);
+      console.error("Error clearing logs:", error);
+      showError("❌ Failed to clear logs: " + error.message);
     }
   }
 
