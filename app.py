@@ -3958,22 +3958,60 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                         # Use QR Code address (location_address), not location
                         cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
                     elif column_key == 'address':
-                        # Check-in address logic based on location accuracy
+                        # Check-in address logic based on location accuracy with hyperlink support
                         if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
                             try:
                                 accuracy_value = float(attendance_record.location_accuracy)
                                 if accuracy_value <= 0.5:
                                     # High accuracy - use QR code ADDRESS (not location)
-                                    cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
+                                    address_text = qr_code.location_address if qr_code and qr_code.location_address else ''
+                                    # For QR address, use QR coordinates if available
+                                    if address_text and hasattr(qr_code, 'address_latitude') and hasattr(qr_code, 'address_longitude') and qr_code.address_latitude and qr_code.address_longitude:
+                                        # Format coordinates with 10 decimal places
+                                        lat_formatted = f"{float(qr_code.address_latitude):.10f}"
+                                        lng_formatted = f"{float(qr_code.address_longitude):.10f}"
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        cell.value = hyperlink_formula
+                                        print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
+                                    else:
+                                        cell.value = address_text
                                 else:
                                     # Lower accuracy - use actual check-in address
-                                    cell.value = attendance_record.address or ''
+                                    address_text = attendance_record.address or ''
+                                    # Create hyperlink using check-in coordinates
+                                    if address_text and attendance_record.latitude and attendance_record.longitude:
+                                        # Format coordinates with 10 decimal places
+                                        lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                        lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        cell.value = hyperlink_formula
+                                        print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
+                                    else:
+                                        cell.value = address_text
                             except (ValueError, TypeError):
                                 # If accuracy can't be converted to float, use check-in address
-                                cell.value = attendance_record.address or ''
+                                address_text = attendance_record.address or ''
+                                if address_text and attendance_record.latitude and attendance_record.longitude:
+                                    # Format coordinates with 10 decimal places
+                                    lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                    lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                    cell.value = hyperlink_formula
+                                    print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
+                                else:
+                                    cell.value = address_text
                         else:
                             # No location accuracy data - use actual check-in address
-                            cell.value = attendance_record.address or ''
+                            address_text = attendance_record.address or ''
+                            if address_text and attendance_record.latitude and attendance_record.longitude:
+                                # Format coordinates with 10 decimal places
+                                lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                cell.value = hyperlink_formula
+                                print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
+                            else:
+                                cell.value = address_text
                     elif column_key == 'device_info':
                         cell.value = attendance_record.device_info or ''
                     elif column_key == 'ip_address':
