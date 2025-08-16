@@ -184,386 +184,476 @@ Management{% endblock %} {% block extra_head %}
         <i class="fas fa-chevron-left"></i>
         Previous
       </button>
-      <span class="pagination-numbers" id="pageNumbers"></span>
+      <span class="pagination-numbers" id="pageNumbers">
+        <!-- Page numbers will be inserted here -->
+      </span>
       <button class="btn btn-sm" id="nextPage" onclick="nextPage()">
         Next
         <i class="fas fa-chevron-right"></i>
       </button>
     </div>
   </div>
-</div>
 
-<!-- Cleanup Modal -->
-<div class="modal" id="cleanupModal">
-  <div class="modal" id="logDetailsModal">
-    <div class="modal-content log-details-modal">
+  <!-- Cleanup Modal -->
+  <div class="modal" id="cleanupModal">
+    <div class="modal" id="logDetailsModal">
+      <div class="modal-content log-details-modal">
+        <div class="modal-header">
+          <h3><i class="fas fa-info-circle"></i> Log Entry Details</h3>
+          <button class="modal-close" onclick="closeLogDetailsModal()">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="log-details-grid">
+            <div class="detail-section">
+              <h4><i class="fas fa-tag"></i> Event Information</h4>
+              <div class="detail-row">
+                <span class="detail-label">Event ID:</span>
+                <span class="detail-value" id="detailEventId">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Event Type:</span>
+                <span class="detail-value" id="detailEventType">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Category:</span>
+                <span class="detail-value" id="detailCategory">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Severity:</span>
+                <span class="detail-value" id="detailSeverity">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Timestamp:</span>
+                <span class="detail-value" id="detailTimestamp">-</span>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4><i class="fas fa-user"></i> User Information</h4>
+              <div class="detail-row">
+                <span class="detail-label">Username:</span>
+                <span class="detail-value" id="detailUsername">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">User ID:</span>
+                <span class="detail-value" id="detailUserId">-</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">IP Address:</span>
+                <span class="detail-value" id="detailIpAddress">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-section full-width">
+            <h4><i class="fas fa-align-left"></i> Description</h4>
+            <div class="description-box" id="detailDescription">-</div>
+          </div>
+
+          <div
+            class="detail-section full-width"
+            id="eventDataSection"
+            style="display: none"
+          >
+            <h4><i class="fas fa-code"></i> Additional Data</h4>
+            <div class="json-box" id="detailEventData">-</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="copyLogDetails()">
+            <i class="fas fa-copy"></i>
+            Copy Details
+          </button>
+          <button class="btn btn-secondary" onclick="closeLogDetailsModal()">
+            <i class="fas fa-times"></i>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-content">
       <div class="modal-header">
-        <h3><i class="fas fa-info-circle"></i> Log Entry Details</h3>
-        <button class="modal-close" onclick="closeLogDetailsModal()">
+        <h3><i class="fas fa-trash-alt"></i> Cleanup Old Logs</h3>
+        <button class="modal-close" onclick="closeCleanupModal()">
           &times;
         </button>
       </div>
       <div class="modal-body">
-        <div class="log-details-grid">
-          <div class="detail-section">
-            <h4><i class="fas fa-tag"></i> Event Information</h4>
-            <div class="detail-row">
-              <span class="detail-label">Event ID:</span>
-              <span class="detail-value" id="detailEventId">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Event Type:</span>
-              <span class="detail-value" id="detailEventType">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Category:</span>
-              <span class="detail-value" id="detailCategory">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Severity:</span>
-              <span class="detail-value" id="detailSeverity">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Timestamp:</span>
-              <span class="detail-value" id="detailTimestamp">-</span>
-            </div>
-          </div>
-
-          <div class="detail-section">
-            <h4><i class="fas fa-user"></i> User Information</h4>
-            <div class="detail-row">
-              <span class="detail-label">Username:</span>
-              <span class="detail-value" id="detailUsername">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">User ID:</span>
-              <span class="detail-value" id="detailUserId">-</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">IP Address:</span>
-              <span class="detail-value" id="detailIpAddress">-</span>
-            </div>
-          </div>
+        <p>
+          This action will permanently delete log entries older than the
+          specified number of days.
+        </p>
+        <div class="form-group">
+          <label for="daysToKeep">Keep logs for the last:</label>
+          <select id="daysToKeep" class="form-control">
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90" selected>90 days</option>
+            <option value="180">180 days</option>
+            <option value="365">1 year</option>
+          </select>
         </div>
-
-        <div class="detail-section full-width">
-          <h4><i class="fas fa-align-left"></i> Description</h4>
-          <div class="description-box" id="detailDescription">-</div>
-        </div>
-
-        <div
-          class="detail-section full-width"
-          id="eventDataSection"
-          style="display: none"
-        >
-          <h4><i class="fas fa-code"></i> Additional Data</h4>
-          <div class="json-box" id="detailEventData">-</div>
+        <div class="warning-note">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Warning:</strong> This action cannot be undone. Deleted log
+          entries will be permanently removed from the system.
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="copyLogDetails()">
-          <i class="fas fa-copy"></i>
-          Copy Details
+        <button class="btn btn-secondary" onclick="closeCleanupModal()">
+          Cancel
         </button>
-        <button class="btn btn-secondary" onclick="closeLogDetailsModal()">
-          <i class="fas fa-times"></i>
-          Close
+        <button class="btn btn-danger" onclick="confirmCleanup()">
+          <i class="fas fa-trash-alt"></i>
+          Delete Old Logs
         </button>
       </div>
     </div>
   </div>
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3><i class="fas fa-trash-alt"></i> Cleanup Old Logs</h3>
-      <button class="modal-close" onclick="closeCleanupModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p>
-        This action will permanently delete log entries older than the specified
-        number of days.
-      </p>
-      <div class="form-group">
-        <label for="daysToKeep">Keep logs for the last:</label>
-        <select id="daysToKeep" class="form-control">
-          <option value="30">30 days</option>
-          <option value="60">60 days</option>
-          <option value="90" selected>90 days</option>
-          <option value="180">180 days</option>
-          <option value="365">1 year</option>
-        </select>
-      </div>
-      <div class="warning-note">
-        <i class="fas fa-exclamation-triangle"></i>
-        <strong>Warning:</strong> This action cannot be undone. Deleted log
-        entries will be permanently removed from the system.
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeCleanupModal()">
-        Cancel
-      </button>
-      <button class="btn btn-danger" onclick="confirmCleanup()">
-        <i class="fas fa-trash-alt"></i>
-        Delete Old Logs
-      </button>
-    </div>
-  </div>
-</div>
 
-<script>
-  // Global variables
-  let currentPage = 1;
-  let logsPerPage = 50;
-  let totalLogs = 0;
-  let currentFilters = {
-    search: "",
-    category: "",
-    severity: "",
-    days: 7,
-  };
+  <script>
+    // Global variables
+    let currentPage = 1;
+    let logsPerPage = 50;
+    let totalLogs = 0;
+    let currentFilters = {
+      search: "",
+      category: "",
+      severity: "",
+      days: 7,
+    };
 
-  // Initialize page
-  document.addEventListener("DOMContentLoaded", function () {
-    console.log("Admin logs page loading...");
-    loadLogs();
-    setupEventListeners();
-  });
-
-  // Setup event listeners
-  function setupEventListeners() {
-    // Search input
-    const searchInput = document.getElementById("searchLogs");
-    if (searchInput) {
-      let searchTimeout;
-      searchInput.addEventListener("input", function () {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          currentFilters.search = this.value;
-          currentPage = 1;
-          loadLogs();
-        }, 500);
-      });
-    }
-
-    // Filter selects
-    const categoryFilter = document.getElementById("categoryFilter");
-    if (categoryFilter) {
-      categoryFilter.addEventListener("change", function () {
-        currentFilters.category = this.value;
-        currentPage = 1;
-        loadLogs();
-      });
-    }
-
-    const severityFilter = document.getElementById("severityFilter");
-    if (severityFilter) {
-      severityFilter.addEventListener("change", function () {
-        currentFilters.severity = this.value;
-        currentPage = 1;
-        loadLogs();
-      });
-    }
-
-    const daysFilter = document.getElementById("daysFilter");
-    if (daysFilter) {
-      daysFilter.addEventListener("change", function () {
-        currentFilters.days = parseInt(this.value);
-        currentPage = 1;
-        loadLogs();
-        loadStats();
-      });
-    }
-  }
-
-  // Load logs from API
-  async function loadLogs() {
-    console.log("Loading logs...");
-    showLoading();
-
-    try {
-      const params = new URLSearchParams({
-        days: currentFilters.days,
-        limit: logsPerPage,
-        page: currentPage,
-      });
-
-      const response = await fetch(`/api/logs/recent?${params}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        displayLogs(data.logs);
-        totalLogs = data.total || data.logs.length;
-        updatePagination();
-      } else {
-        showError("Failed to load logs: " + (data.error || "Unknown error"));
-      }
-    } catch (error) {
-      console.error("Error loading logs:", error);
-      showError("Failed to load logs: " + error.message);
-    }
-  }
-
-  // Load log statistics
-  async function loadStats() {
-    try {
-      const response = await fetch(
-        `/api/logs/stats?days=${currentFilters.days}`
-      );
-      const data = await response.json();
-
-      if (data.success && data.stats) {
-        updateStatsDisplay(data.stats);
-      } else {
-        console.error("Failed to load stats:", data.error);
-      }
-    } catch (error) {
-      console.error("Error loading stats:", error);
-    }
-  }
-
-  async function exportLogs() {
-    try {
-      showMessage("Preparing log export...", "info");
-
-      // Get current filters to include in export
-      const params = new URLSearchParams({
-        days: currentFilters.days,
-        category: currentFilters.category || "",
-        severity: currentFilters.severity || "",
-        search: currentFilters.search || "",
-        export: "csv",
-      });
-
-      const response = await fetch(`/api/logs/export?${params}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Create CSV content
-        const headers = [
-          "Timestamp",
-          "Event Type",
-          "Category",
-          "Description",
-          "Severity",
-          "Username",
-          "User ID",
-          "IP Address",
-        ];
-        const csvData = [headers];
-
-        data.logs.forEach((log) => {
-          csvData.push([
-            new Date(log.timestamp).toLocaleString(),
-            log.event_type || "",
-            log.event_category || "",
-            (log.description || "").replace(/"/g, '""'), // Escape quotes
-            log.severity || "",
-            log.username || "System",
-            log.user_id || "",
-            log.ip_address || "",
-          ]);
-        });
-
-        // Generate CSV string
-        const csvContent = csvData
-          .map((row) => row.map((field) => `"${field}"`).join(","))
-          .join("\n");
-
-        // Create and download file
-        const blob = new Blob([csvContent], {
-          type: "text/csv;charset=utf-8;",
-        });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-
-        const timestamp = new Date().toISOString().split("T")[0];
-        const filename = `system_logs_${timestamp}.csv`;
-        link.setAttribute("download", filename);
-
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        showSuccess(`✅ Logs exported successfully as ${filename}`);
-      } else {
-        showError(
-          "❌ Error exporting logs: " + (data.error || "Unknown error")
-        );
-      }
-    } catch (error) {
-      console.error("Error exporting logs:", error);
-      showError("❌ Failed to export logs: " + error.message);
-    }
-  }
-
-  // Display logs in table
-  function displayLogs(logs) {
-    const tbody = document.getElementById("logsTableBody");
-    tbody.innerHTML = "";
-
-    if (logs.length === 0) {
-      showEmpty();
-      return;
-    }
-
-    // Filter logs based on current filters
-    let filteredLogs = logs.filter((log) => {
-      if (currentFilters.search) {
-        const searchLower = currentFilters.search.toLowerCase();
-        if (
-          !log.event_type.toLowerCase().includes(searchLower) &&
-          !log.description.toLowerCase().includes(searchLower) &&
-          !(log.username && log.username.toLowerCase().includes(searchLower))
-        ) {
-          return false;
-        }
-      }
-
-      if (
-        currentFilters.category &&
-        log.event_category !== currentFilters.category
-      ) {
-        return false;
-      }
-
-      if (currentFilters.severity && log.severity !== currentFilters.severity) {
-        return false;
-      }
-
-      return true;
+    // Initialize page
+    document.addEventListener("DOMContentLoaded", function () {
+      console.log("Admin logs page loading...");
+      loadLogs();
+      loadStats();
+      setupEventListeners();
     });
 
-    filteredLogs.forEach((log, index) => {
-      const row = document.createElement("tr");
-      row.className = getSeverityClass(log.severity);
+    // Setup event listeners
+    function setupEventListeners() {
+      // Search input
+      const searchInput = document.getElementById("searchLogs");
+      if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener("input", function () {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+            currentFilters.search = this.value;
+            currentPage = 1;
+            loadLogs();
+          }, 500);
+        });
+      }
 
-      const timestamp = new Date(log.timestamp).toLocaleString();
+      // Filter selects
+      const categoryFilter = document.getElementById("categoryFilter");
+      if (categoryFilter) {
+        categoryFilter.addEventListener("change", function () {
+          currentFilters.category = this.value;
+          currentPage = 1;
+          loadLogs();
+        });
+      }
 
-      // Truncate description for table display
-      const shortDescription =
-        log.description && log.description.length > 80
-          ? log.description.substring(0, 80) + "..."
-          : log.description || "No description";
+      const severityFilter = document.getElementById("severityFilter");
+      if (severityFilter) {
+        severityFilter.addEventListener("change", function () {
+          currentFilters.severity = this.value;
+          currentPage = 1;
+          loadLogs();
+        });
+      }
 
-      row.innerHTML = `
+      const daysFilter = document.getElementById("daysFilter");
+      if (daysFilter) {
+        daysFilter.addEventListener("change", function () {
+          currentFilters.days = parseInt(this.value);
+          currentPage = 1;
+          loadLogs();
+          loadStats();
+        });
+      }
+    }
+
+    // Load logs from API
+    async function loadLogs() {
+      console.log(
+        `Loading logs - Page: ${currentPage}, Filters:`,
+        currentFilters
+      );
+      showLoading();
+
+      try {
+        const params = new URLSearchParams({
+          days: currentFilters.days,
+          limit: logsPerPage,
+          page: currentPage,
+        });
+
+        // Add filters to API request
+        if (currentFilters.category) {
+          params.append("category", currentFilters.category);
+        }
+        if (currentFilters.severity) {
+          params.append("severity", currentFilters.severity);
+        }
+        if (currentFilters.search) {
+          params.append("search", currentFilters.search);
+        }
+
+        const response = await fetch(`/api/logs/recent?${params}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          displayLogs(data.logs);
+          totalLogs = data.total; // Use actual total count from backend
+
+          console.log(
+            `📊 Loaded ${data.logs.length} logs, Total: ${data.total}, Page: ${data.page}`
+          );
+
+          updatePagination();
+
+          if (data.logs.length > 0) {
+            showTable();
+          } else {
+            showEmpty();
+          }
+        } else {
+          showError("Failed to load logs: " + (data.error || "Unknown error"));
+        }
+      } catch (error) {
+        console.error("Error loading logs:", error);
+        showError("Failed to load logs: " + error.message);
+      }
+    }
+
+    // Display logs in table
+    function displayLogs(logs) {
+      const tbody = document.getElementById("logsTableBody");
+      tbody.innerHTML = "";
+
+      if (logs.length === 0) {
+        showEmpty();
+        return;
+      }
+
+      // No need to filter here - filtering is now done on backend
+      logs.forEach((log, index) => {
+        const row = document.createElement("tr");
+        row.className = getSeverityClass(log.severity);
+
+        const timestamp = new Date(log.timestamp).toLocaleString();
+
+        // Truncate description for table display
+        const shortDescription =
+          log.description && log.description.length > 80
+            ? log.description.substring(0, 80) + "..."
+            : log.description || "No description";
+
+        row.innerHTML = `
       <td class="timestamp">${timestamp}</td>
       <td class="event-type">${escapeHtml(log.event_type || "Unknown")}</td>
       <td class="category">
         <span class="category-badge ${log.event_category || "system"}">${
-        log.event_category || "system"
-      }</span>
+          log.event_category || "system"
+        }</span>
+      </td>
+      <td class="description" title="${escapeHtml(
+        log.description || ""
+      )}">${escapeHtml(shortDescription)}</td>
+      <td class="severity">
+        <span class="severity-badge ${(
+          log.severity || "info"
+        ).toLowerCase()}">${log.severity || "INFO"}</span>
+      </td>
+      <td class="username">${
+        log.username ? escapeHtml(log.username) : "<em>System</em>"
+      }</td>
+      <td class="ip-address">${escapeHtml(log.ip_address || "-")}</td>
+      <td class="actions">
+        <button class="btn btn-sm btn-secondary" onclick="viewLogDetails(${JSON.stringify(
+          log
+        ).replace(/"/g, "&quot;")})">
+          <i class="fas fa-eye"></i>
+        </button>
+      </td>
+    `;
+
+        tbody.appendChild(row);
+      });
+
+      console.log(`📊 Displayed ${logs.length} log entries`);
+    }
+
+    // Load log statistics
+    async function loadStats() {
+      try {
+        const response = await fetch(
+          `/api/logs/stats?days=${currentFilters.days}`
+        );
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+          updateStatsDisplay(data.stats);
+        } else {
+          console.error("Failed to load stats:", data.error);
+        }
+      } catch (error) {
+        console.error("Error loading stats:", error);
+      }
+    }
+
+    async function exportLogs() {
+      try {
+        showMessage("Preparing log export...", "info");
+
+        // Get current filters to include in export
+        const params = new URLSearchParams({
+          days: currentFilters.days,
+          category: currentFilters.category || "",
+          severity: currentFilters.severity || "",
+          search: currentFilters.search || "",
+          export: "csv",
+        });
+
+        const response = await fetch(`/api/logs/export?${params}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Create CSV content
+          const headers = [
+            "Timestamp",
+            "Event Type",
+            "Category",
+            "Description",
+            "Severity",
+            "Username",
+            "User ID",
+            "IP Address",
+          ];
+          const csvData = [headers];
+
+          data.logs.forEach((log) => {
+            csvData.push([
+              new Date(log.timestamp).toLocaleString(),
+              log.event_type || "",
+              log.event_category || "",
+              (log.description || "").replace(/"/g, '""'), // Escape quotes
+              log.severity || "",
+              log.username || "System",
+              log.user_id || "",
+              log.ip_address || "",
+            ]);
+          });
+
+          // Generate CSV string
+          const csvContent = csvData
+            .map((row) => row.map((field) => `"${field}"`).join(","))
+            .join("\n");
+
+          // Create and download file
+          const blob = new Blob([csvContent], {
+            type: "text/csv;charset=utf-8;",
+          });
+          const link = document.createElement("a");
+          const url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+
+          const timestamp = new Date().toISOString().split("T")[0];
+          const filename = `system_logs_${timestamp}.csv`;
+          link.setAttribute("download", filename);
+
+          link.style.visibility = "hidden";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showSuccess(`✅ Logs exported successfully as ${filename}`);
+        } else {
+          showError(
+            "❌ Error exporting logs: " + (data.error || "Unknown error")
+          );
+        }
+      } catch (error) {
+        console.error("Error exporting logs:", error);
+        showError("❌ Failed to export logs: " + error.message);
+      }
+    }
+
+    // Display logs in table
+    function displayLogs(logs) {
+      const tbody = document.getElementById("logsTableBody");
+      tbody.innerHTML = "";
+
+      if (logs.length === 0) {
+        showEmpty();
+        return;
+      }
+
+      // Filter logs based on current filters
+      let filteredLogs = logs.filter((log) => {
+        if (currentFilters.search) {
+          const searchLower = currentFilters.search.toLowerCase();
+          if (
+            !log.event_type.toLowerCase().includes(searchLower) &&
+            !log.description.toLowerCase().includes(searchLower) &&
+            !(log.username && log.username.toLowerCase().includes(searchLower))
+          ) {
+            return false;
+          }
+        }
+
+        if (
+          currentFilters.category &&
+          log.event_category !== currentFilters.category
+        ) {
+          return false;
+        }
+
+        if (
+          currentFilters.severity &&
+          log.severity !== currentFilters.severity
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      filteredLogs.forEach((log, index) => {
+        const row = document.createElement("tr");
+        row.className = getSeverityClass(log.severity);
+
+        const timestamp = new Date(log.timestamp).toLocaleString();
+
+        // Truncate description for table display
+        const shortDescription =
+          log.description && log.description.length > 80
+            ? log.description.substring(0, 80) + "..."
+            : log.description || "No description";
+
+        row.innerHTML = `
+      <td class="timestamp">${timestamp}</td>
+      <td class="event-type">${escapeHtml(log.event_type || "Unknown")}</td>
+      <td class="category">
+        <span class="category-badge ${log.event_category || "system"}">${
+          log.event_category || "system"
+        }</span>
       </td>
       <td class="description" title="${escapeHtml(
         log.description || ""
@@ -584,79 +674,80 @@ Management{% endblock %} {% block extra_head %}
       </td>
     `;
 
-      tbody.appendChild(row);
-    });
+        tbody.appendChild(row);
+      });
 
-    // Store filtered logs globally for details modal
-    window.currentLogs = filteredLogs;
-    showTable();
-  }
-
-  // View log details in modal
-  function viewLogDetails(logIndex) {
-    const log = window.currentLogs[logIndex];
-    if (!log) return;
-
-    // Populate modal with log details
-    document.getElementById("detailEventId").textContent = log.event_id || "-";
-    document.getElementById("detailEventType").textContent =
-      log.event_type || "-";
-    document.getElementById("detailCategory").textContent =
-      log.event_category || "-";
-    document.getElementById(
-      "detailSeverity"
-    ).innerHTML = `<span class="severity-badge ${(
-      log.severity || "info"
-    ).toLowerCase()}">${log.severity || "INFO"}</span>`;
-    document.getElementById("detailTimestamp").textContent = new Date(
-      log.timestamp
-    ).toLocaleString();
-    document.getElementById("detailUsername").textContent =
-      log.username || "System";
-    document.getElementById("detailUserId").textContent = log.user_id || "-";
-    document.getElementById("detailIpAddress").textContent =
-      log.ip_address || "-";
-    document.getElementById("detailDescription").textContent =
-      log.description || "-";
-
-    // Show additional data if available
-    const eventDataSection = document.getElementById("eventDataSection");
-    const eventDataElement = document.getElementById("detailEventData");
-
-    if (log.event_data) {
-      try {
-        const formattedData =
-          typeof log.event_data === "string"
-            ? JSON.stringify(JSON.parse(log.event_data), null, 2)
-            : JSON.stringify(log.event_data, null, 2);
-        eventDataElement.textContent = formattedData;
-        eventDataSection.style.display = "block";
-      } catch (e) {
-        eventDataElement.textContent = log.event_data;
-        eventDataSection.style.display = "block";
-      }
-    } else {
-      eventDataSection.style.display = "none";
+      // Store filtered logs globally for details modal
+      window.currentLogs = filteredLogs;
+      showTable();
     }
 
-    // Store current log for copying
-    window.currentLogDetails = log;
+    // View log details in modal
+    function viewLogDetails(logIndex) {
+      const log = window.currentLogs[logIndex];
+      if (!log) return;
 
-    // Show modal
-    document.getElementById("logDetailsModal").style.display = "flex";
-  }
+      // Populate modal with log details
+      document.getElementById("detailEventId").textContent =
+        log.event_id || "-";
+      document.getElementById("detailEventType").textContent =
+        log.event_type || "-";
+      document.getElementById("detailCategory").textContent =
+        log.event_category || "-";
+      document.getElementById(
+        "detailSeverity"
+      ).innerHTML = `<span class="severity-badge ${(
+        log.severity || "info"
+      ).toLowerCase()}">${log.severity || "INFO"}</span>`;
+      document.getElementById("detailTimestamp").textContent = new Date(
+        log.timestamp
+      ).toLocaleString();
+      document.getElementById("detailUsername").textContent =
+        log.username || "System";
+      document.getElementById("detailUserId").textContent = log.user_id || "-";
+      document.getElementById("detailIpAddress").textContent =
+        log.ip_address || "-";
+      document.getElementById("detailDescription").textContent =
+        log.description || "-";
 
-  // Close log details modal
-  function closeLogDetailsModal() {
-    document.getElementById("logDetailsModal").style.display = "none";
-  }
+      // Show additional data if available
+      const eventDataSection = document.getElementById("eventDataSection");
+      const eventDataElement = document.getElementById("detailEventData");
 
-  // Copy log details to clipboard
-  function copyLogDetails() {
-    const log = window.currentLogDetails;
-    if (!log) return;
+      if (log.event_data) {
+        try {
+          const formattedData =
+            typeof log.event_data === "string"
+              ? JSON.stringify(JSON.parse(log.event_data), null, 2)
+              : JSON.stringify(log.event_data, null, 2);
+          eventDataElement.textContent = formattedData;
+          eventDataSection.style.display = "block";
+        } catch (e) {
+          eventDataElement.textContent = log.event_data;
+          eventDataSection.style.display = "block";
+        }
+      } else {
+        eventDataSection.style.display = "none";
+      }
 
-    const details = `Log Entry Details
+      // Store current log for copying
+      window.currentLogDetails = log;
+
+      // Show modal
+      document.getElementById("logDetailsModal").style.display = "flex";
+    }
+
+    // Close log details modal
+    function closeLogDetailsModal() {
+      document.getElementById("logDetailsModal").style.display = "none";
+    }
+
+    // Copy log details to clipboard
+    function copyLogDetails() {
+      const log = window.currentLogDetails;
+      if (!log) return;
+
+      const details = `Log Entry Details
 ==================
 Event ID: ${log.event_id || "-"}
 Event Type: ${log.event_type || "-"}
@@ -679,763 +770,838 @@ ${
     : ""
 }`;
 
-    navigator.clipboard
-      .writeText(details)
-      .then(() => {
-        showSuccess("Log details copied to clipboard!");
-      })
-      .catch(() => {
-        // Fallback for older browsers
-        const textArea = document.createElement("textarea");
-        textArea.value = details;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textArea);
-        showSuccess("Log details copied to clipboard!");
-      });
-  }
-
-  // Utility functions
-  function getSeverityClass(severity) {
-    switch ((severity || "info").toLowerCase()) {
-      case "high":
-        return "severity-high";
-      case "medium":
-        return "severity-medium";
-      case "low":
-        return "severity-low";
-      default:
-        return "severity-info";
+      navigator.clipboard
+        .writeText(details)
+        .then(() => {
+          showSuccess("Log details copied to clipboard!");
+        })
+        .catch(() => {
+          // Fallback for older browsers
+          const textArea = document.createElement("textarea");
+          textArea.value = details;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textArea);
+          showSuccess("Log details copied to clipboard!");
+        });
     }
-  }
 
-  function escapeHtml(text) {
-    if (!text) return "";
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
+    // Utility functions
+    function getSeverityClass(severity) {
+      switch ((severity || "info").toLowerCase()) {
+        case "high":
+          return "severity-high";
+        case "medium":
+          return "severity-medium";
+        case "low":
+          return "severity-low";
+        default:
+          return "severity-info";
+      }
+    }
 
-  function showLoading() {
-    document.getElementById("loadingState").style.display = "block";
-    document.getElementById("emptyState").style.display = "none";
-    document.getElementById("logsTable").style.display = "none";
-    document.getElementById("paginationWrapper").style.display = "none";
-  }
+    function escapeHtml(text) {
+      if (!text) return "";
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
 
-  function showEmpty() {
-    document.getElementById("loadingState").style.display = "none";
-    document.getElementById("emptyState").style.display = "block";
-    document.getElementById("logsTable").style.display = "none";
-    document.getElementById("paginationWrapper").style.display = "none";
-  }
+    function showLoading() {
+      document.getElementById("loadingState").style.display = "block";
+      document.getElementById("emptyState").style.display = "none";
+      document.getElementById("logsTable").style.display = "none";
+      document.getElementById("paginationWrapper").style.display = "none";
+    }
 
-  function showTable() {
-    document.getElementById("loadingState").style.display = "none";
-    document.getElementById("emptyState").style.display = "none";
-    document.getElementById("logsTable").style.display = "table";
-    document.getElementById("paginationWrapper").style.display = "flex";
-  }
+    function showEmpty() {
+      document.getElementById("loadingState").style.display = "none";
+      document.getElementById("emptyState").style.display = "block";
+      document.getElementById("logsTable").style.display = "none";
+      document.getElementById("paginationWrapper").style.display = "none";
+    }
 
-  function showError(message) {
-    showMessage("❌ " + message, "error");
-    showEmpty();
-  }
+    function showTable() {
+      document.getElementById("loadingState").style.display = "none";
+      document.getElementById("emptyState").style.display = "none";
+      document.getElementById("logsTable").style.display = "table";
+      document.getElementById("paginationWrapper").style.display = "flex";
+    }
 
-  function showSuccess(message) {
-    showMessage("✅ " + message, "success");
-  }
+    function showError(message) {
+      showMessage("❌ " + message, "error");
+      showEmpty();
+    }
 
-  function showMessage(message, type) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `flash-message flash-${type}`;
-    messageDiv.innerHTML = `
+    function showSuccess(message) {
+      showMessage("✅ " + message, "success");
+    }
+
+    function showMessage(message, type) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `flash-message flash-${type}`;
+      messageDiv.innerHTML = `
     <span>${message}</span>
     <button onclick="this.parentElement.remove()" style="background: none; border: none; color: inherit; font-size: 1.2em; cursor: pointer; margin-left: 10px;">&times;</button>
   `;
 
-    const container = document.querySelector(".logs-page");
-    if (container) {
-      container.insertBefore(messageDiv, container.firstChild);
-    }
-
-    setTimeout(() => {
-      if (messageDiv.parentElement) {
-        messageDiv.remove();
+      const container = document.querySelector(".logs-page");
+      if (container) {
+        container.insertBefore(messageDiv, container.firstChild);
       }
-    }, 5000);
-  }
 
-  // Update pagination
-  function updatePagination() {
-    const totalPages = Math.ceil(totalLogs / logsPerPage);
-    const info = document.getElementById("paginationInfo");
-
-    if (info) {
-      const start = (currentPage - 1) * logsPerPage + 1;
-      const end = Math.min(currentPage * logsPerPage, totalLogs);
-      info.textContent = `Showing ${start}-${end} of ${totalLogs} entries`;
+      setTimeout(() => {
+        if (messageDiv.parentElement) {
+          messageDiv.remove();
+        }
+      }, 5000);
     }
 
-    const prevBtn = document.getElementById("prevPage");
-    const nextBtn = document.getElementById("nextPage");
+    // Update pagination
+    function updatePagination() {
+      const totalPages = Math.ceil(totalLogs / logsPerPage);
+      const info = document.getElementById("paginationInfo");
 
-    if (prevBtn) prevBtn.disabled = currentPage <= 1;
-    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
-  }
+      if (info) {
+        const start = totalLogs > 0 ? (currentPage - 1) * logsPerPage + 1 : 0;
+        const end = Math.min(currentPage * logsPerPage, totalLogs);
+        info.textContent = `Showing ${start}-${end} of ${totalLogs} entries`;
+      }
 
-  // Pagination controls
-  function previousPage() {
-    if (currentPage > 1) {
-      currentPage--;
+      const prevBtn = document.getElementById("prevPage");
+      const nextBtn = document.getElementById("nextPage");
+      const pageNumbers = document.getElementById("pageNumbers");
+
+      if (prevBtn) prevBtn.disabled = currentPage <= 1;
+      if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+
+      // Generate page numbers
+      if (pageNumbers && totalPages > 1) {
+        let pageNumbersHTML = "";
+
+        // Show page numbers (max 5 visible)
+        const maxVisible = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+        // Adjust start if we're near the end
+        if (endPage - startPage + 1 < maxVisible) {
+          startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+
+        // First page + ellipsis
+        if (startPage > 1) {
+          pageNumbersHTML += `<button class="btn btn-sm page-number" onclick="goToPage(1)">1</button>`;
+          if (startPage > 2) {
+            pageNumbersHTML += `<span class="pagination-ellipsis">...</span>`;
+          }
+        }
+
+        // Page numbers
+        for (let i = startPage; i <= endPage; i++) {
+          const isActive = i === currentPage ? " active" : "";
+          pageNumbersHTML += `<button class="btn btn-sm page-number${isActive}" onclick="goToPage(${i})">${i}</button>`;
+        }
+
+        // Last page + ellipsis
+        if (endPage < totalPages) {
+          if (endPage < totalPages - 1) {
+            pageNumbersHTML += `<span class="pagination-ellipsis">...</span>`;
+          }
+          pageNumbersHTML += `<button class="btn btn-sm page-number" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+        }
+
+        pageNumbers.innerHTML = pageNumbersHTML;
+      } else if (pageNumbers) {
+        pageNumbers.innerHTML = "";
+      }
+
+      console.log(
+        `📊 Pagination updated - Page ${currentPage}/${totalPages}, Total logs: ${totalLogs}`
+      );
+    }
+
+    // Pagination controls
+    function previousPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        loadLogs();
+      }
+    }
+
+    function nextPage() {
+      const totalPages = Math.ceil(totalLogs / logsPerPage);
+
+      console.log(
+        `Next page requested. Current: ${currentPage}, Total Pages: ${totalPages}`
+      );
+
+      if (currentPage < totalPages) {
+        currentPage++;
+        loadLogs();
+      } else {
+        console.log("Already on last page");
+      }
+    }
+
+    // Go to specific page
+    function goToPage(page) {
+      const totalPages = Math.ceil(totalLogs / logsPerPage);
+
+      if (page < 1 || page > totalPages) {
+        console.log(`Invalid page: ${page}. Valid range: 1-${totalPages}`);
+        return;
+      }
+
+      console.log(`Going to page ${page}`);
+      currentPage = page;
       loadLogs();
     }
-  }
 
-  function nextPage() {
-    currentPage++;
-    loadLogs();
-  }
-
-  // Refresh logs
-  function refreshLogs() {
-    loadLogs();
-    loadStats();
-  }
-
-  async function clearLogs() {
-    // Show confirmation dialog
-    if (
-      !confirm(
-        "⚠️ Are you sure you want to clear ALL logs?\n\nThis action will permanently delete ALL log entries from the system and cannot be undone."
-      )
-    ) {
-      return;
+    // Refresh logs
+    function refreshLogs() {
+      loadLogs();
+      loadStats();
     }
 
-    // Second confirmation for safety
-    if (
-      !confirm(
-        "🚨 FINAL WARNING: This will delete ALL logs!\n\nClick OK to proceed or Cancel to abort."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      showMessage("Clearing all logs...", "info");
-
-      const response = await fetch("/api/logs/clear", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        showSuccess(
-          `✅ Successfully cleared ${data.deleted_count} log entries`
-        );
-        setTimeout(() => {
-          loadLogs();
-          loadStats();
-        }, 1000);
-      } else {
-        showError("❌ Error clearing logs: " + (data.error || "Unknown error"));
+    async function clearLogs() {
+      // Show confirmation dialog
+      if (
+        !confirm(
+          "⚠️ Are you sure you want to clear ALL logs?\n\nThis action will permanently delete ALL log entries from the system and cannot be undone."
+        )
+      ) {
+        return;
       }
-    } catch (error) {
-      console.error("Error clearing logs:", error);
-      showError("❌ Failed to clear logs: " + error.message);
-    }
-  }
 
-  // Cleanup logs
-  function cleanupLogs() {
-    document.getElementById("cleanupModal").style.display = "flex";
-  }
-
-  function closeCleanupModal() {
-    document.getElementById("cleanupModal").style.display = "none";
-  }
-
-  async function confirmCleanup() {
-    const daysToKeep = parseInt(document.getElementById("daysToKeep").value);
-
-    if (daysToKeep < 7) {
-      showError("Cannot keep logs for less than 7 days");
-      return;
-    }
-
-    try {
-      showMessage("Cleaning up old logs...", "info");
-
-      const response = await fetch("/api/logs/cleanup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ days_to_keep: daysToKeep }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        showSuccess(
-          `Successfully cleaned up ${data.deleted_count} old log entries`
-        );
-        closeCleanupModal();
-        setTimeout(() => {
-          loadLogs();
-          loadStats();
-        }, 1000);
-      } else {
-        showError("Error cleaning up logs: " + (data.error || "Unknown error"));
+      // Second confirmation for safety
+      if (
+        !confirm(
+          "🚨 FINAL WARNING: This will delete ALL logs!\n\nClick OK to proceed or Cancel to abort."
+        )
+      ) {
+        return;
       }
-    } catch (error) {
-      console.error("Error cleaning up logs:", error);
-      showError("Failed to cleanup logs. Please try again.");
+
+      try {
+        showMessage("Clearing all logs...", "info");
+
+        const response = await fetch("/api/logs/clear", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess(
+            `✅ Successfully cleared ${data.deleted_count} log entries`
+          );
+          setTimeout(() => {
+            loadLogs();
+            loadStats();
+          }, 1000);
+        } else {
+          showError(
+            "❌ Error clearing logs: " + (data.error || "Unknown error")
+          );
+        }
+      } catch (error) {
+        console.error("Error clearing logs:", error);
+        showError("❌ Failed to clear logs: " + error.message);
+      }
     }
-  }
 
-  function updateStatsDisplay(stats) {
-    const totalElement = document.getElementById("totalEventsCount");
-    const securityElement = document.getElementById("securityEventsCount");
-    const errorsElement = document.getElementById("databaseErrorsCount");
-    const usersElement = document.getElementById("userActivitiesCount");
-
-    if (totalElement) totalElement.textContent = stats.total_events || 0;
-    if (securityElement)
-      securityElement.textContent = stats.security_events || 0;
-    if (errorsElement) errorsElement.textContent = stats.database_errors || 0;
-    if (usersElement) usersElement.textContent = stats.user_activities || 0;
-
-    console.log("Stats updated:", stats);
-  }
-</script>
-
-<style>
-  /* Admin Logs Styles */
-  .logs-page {
-    padding: var(--spacing-6);
-    max-width: 1600px;
-    margin: 0 auto;
-  }
-
-  .logs-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: var(--spacing-8);
-    padding-bottom: var(--spacing-6);
-    border-bottom: 2px solid var(--gray-200);
-  }
-
-  .header-content h1 {
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    color: var(--gray-900);
-    margin-bottom: var(--spacing-2);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-3);
-  }
-
-  .header-content p {
-    color: var(--gray-600);
-    font-size: var(--font-size-lg);
-  }
-
-  .back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-2);
-    color: var(--primary-color);
-    text-decoration: none;
-    font-size: var(--font-size-sm);
-    margin-bottom: var(--spacing-4);
-    transition: var(--transition);
-  }
-
-  .back-button:hover {
-    color: var(--primary-hover);
-  }
-
-  .header-actions {
-    display: flex;
-    gap: var(--spacing-3);
-  }
-
-  /* Log Statistics */
-  .log-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--spacing-6);
-    margin-bottom: var(--spacing-8);
-  }
-
-  .stat-card {
-    background: var(--white);
-    padding: var(--spacing-6);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-4);
-    transition: var(--transition);
-  }
-
-  .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .stat-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-xl);
-    color: var(--white);
-    background: linear-gradient(
-      135deg,
-      var(--primary-color),
-      var(--primary-hover)
-    );
-  }
-
-  .stat-icon.security {
-    background: linear-gradient(135deg, var(--warning-color), #b45309);
-  }
-
-  .stat-icon.errors {
-    background: linear-gradient(135deg, var(--danger-color), #b91c1c);
-  }
-
-  .stat-icon.users {
-    background: linear-gradient(135deg, var(--success-color), #059669);
-  }
-
-  .stat-info h3 {
-    font-size: var(--font-size-2xl);
-    font-weight: 700;
-    color: var(--gray-900);
-    margin-bottom: var(--spacing-1);
-  }
-
-  .stat-info p {
-    color: var(--gray-500);
-    font-size: var(--font-size-sm);
-  }
-
-  /* Log Controls */
-  .log-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-6);
-    padding: var(--spacing-4);
-    background: var(--white);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-  }
-
-  .search-filters {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-4);
-    flex: 1;
-  }
-
-  .search-box {
-    position: relative;
-    flex: 1;
-    max-width: 400px;
-  }
-
-  .search-box input {
-    width: 100%;
-    padding: var(--spacing-3) var(--spacing-3) var(--spacing-3)
-      var(--spacing-10);
-    border: 1px solid var(--gray-300);
-    border-radius: var(--radius);
-    font-size: var(--font-size-sm);
-  }
-
-  .search-box i {
-    position: absolute;
-    left: var(--spacing-3);
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--gray-400);
-  }
-
-  .filter-group {
-    display: flex;
-    gap: var(--spacing-3);
-  }
-
-  .filter-select {
-    padding: var(--spacing-2) var(--spacing-3);
-    border: 1px solid var(--gray-300);
-    border-radius: var(--radius);
-    font-size: var(--font-size-sm);
-    background: var(--white);
-  }
-
-  /* Logs Table */
-  .logs-table-container {
-    background: var(--white);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    margin-bottom: var(--spacing-6);
-  }
-
-  .logs-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .logs-table th,
-  .logs-table td {
-    padding: var(--spacing-3) var(--spacing-4);
-    text-align: left;
-    border-bottom: 1px solid var(--gray-200);
-  }
-
-  .logs-table th {
-    background: var(--gray-50);
-    font-weight: 600;
-    color: var(--gray-700);
-    font-size: var(--font-size-sm);
-  }
-
-  .logs-table tr:hover {
-    background: var(--gray-50);
-  }
-
-  .logs-table tr.severity-high {
-    border-left: 4px solid var(--danger-color);
-  }
-
-  .logs-table tr.severity-medium {
-    border-left: 4px solid var(--warning-color);
-  }
-
-  .logs-table tr.severity-low {
-    border-left: 4px solid var(--success-color);
-  }
-
-  .logs-table tr.severity-info {
-    border-left: 4px solid var(--primary-color);
-  }
-
-  .timestamp {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--gray-600);
-    white-space: nowrap;
-  }
-
-  .event-type {
-    font-weight: 600;
-    color: var(--gray-900);
-    font-size: var(--font-size-sm);
-  }
-
-  .category-badge,
-  .severity-badge {
-    padding: var(--spacing-1) var(--spacing-2);
-    border-radius: var(--radius);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-
-  .category-badge.security {
-    background: #fef3c7;
-    color: #92400e;
-  }
-
-  .category-badge.database {
-    background: #dbeafe;
-    color: #1e40af;
-  }
-
-  .category-badge.user_activity {
-    background: #d1fae5;
-    color: #065f46;
-  }
-
-  .category-badge.system {
-    background: #f3e8ff;
-    color: #7c3aed;
-  }
-
-  .severity-badge.high {
-    background: var(--danger-color);
-    color: var(--white);
-  }
-
-  .severity-badge.medium {
-    background: var(--warning-color);
-    color: var(--white);
-  }
-
-  .severity-badge.low {
-    background: var(--success-color);
-    color: var(--white);
-  }
-
-  .severity-badge.info {
-    background: var(--primary-color);
-    color: var(--white);
-  }
-
-  .description {
-    max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .username {
-    font-weight: 500;
-    color: var(--gray-700);
-  }
-
-  .ip-address {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-xs);
-    color: var(--gray-500);
-  }
-
-  /* Loading and Empty States */
-  .loading-state,
-  .empty-state {
-    text-align: center;
-    padding: var(--spacing-12);
-    color: var(--gray-500);
-  }
-
-  .loading-state i {
-    font-size: var(--font-size-2xl);
-    margin-bottom: var(--spacing-4);
-    color: var(--primary-color);
-  }
-
-  .empty-state i {
-    font-size: 4rem;
-    margin-bottom: var(--spacing-4);
-    color: var(--gray-300);
-  }
-
-  .empty-state h3 {
-    font-size: var(--font-size-xl);
-    color: var(--gray-700);
-    margin-bottom: var(--spacing-2);
-  }
-
-  /* Pagination */
-  .pagination-wrapper {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-4);
-    background: var(--white);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-  }
-
-  .pagination-info {
-    color: var(--gray-600);
-    font-size: var(--font-size-sm);
-  }
-
-  .pagination-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-2);
-  }
-
-  .pagination-controls button {
-    min-width: 80px;
-  }
-
-  .pagination-controls button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Modal Styles */
-  .modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal-content {
-    background: var(--white);
-    border-radius: var(--radius-lg);
-    max-width: 500px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-6);
-    border-bottom: 1px solid var(--gray-200);
-  }
-
-  .modal-header h3 {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-2);
-  }
-
-  .modal-close {
-    background: none;
-    border: none;
-    font-size: var(--font-size-xl);
-    cursor: pointer;
-    color: var(--gray-400);
-    padding: var(--spacing-1);
-  }
-
-  .modal-close:hover {
-    color: var(--gray-600);
-  }
-
-  .modal-body {
-    padding: var(--spacing-6);
-  }
-
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-3);
-    padding: var(--spacing-6);
-    border-top: 1px solid var(--gray-200);
-  }
-
-  .warning-note {
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    border-radius: var(--radius);
-    padding: var(--spacing-4);
-    margin-top: var(--spacing-4);
-    display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-3);
-  }
-
-  .warning-note i {
-    color: #f59e0b;
-    margin-top: 2px;
-  }
-
-  /* Responsive Design */
-  @media (max-width: 768px) {
+    // Cleanup logs
+    function cleanupLogs() {
+      document.getElementById("cleanupModal").style.display = "flex";
+    }
+
+    function closeCleanupModal() {
+      document.getElementById("cleanupModal").style.display = "none";
+    }
+
+    async function confirmCleanup() {
+      const daysToKeep = parseInt(document.getElementById("daysToKeep").value);
+
+      if (daysToKeep < 7) {
+        showError("Cannot keep logs for less than 7 days");
+        return;
+      }
+
+      try {
+        showMessage("Cleaning up old logs...", "info");
+
+        const response = await fetch("/api/logs/cleanup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ days_to_keep: daysToKeep }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess(
+            `Successfully cleaned up ${data.deleted_count} old log entries`
+          );
+          closeCleanupModal();
+          setTimeout(() => {
+            loadLogs();
+            loadStats();
+          }, 1000);
+        } else {
+          showError(
+            "Error cleaning up logs: " + (data.error || "Unknown error")
+          );
+        }
+      } catch (error) {
+        console.error("Error cleaning up logs:", error);
+        showError("Failed to cleanup logs. Please try again.");
+      }
+    }
+
+    function updateStatsDisplay(stats) {
+      const totalElement = document.getElementById("totalEventsCount");
+      const securityElement = document.getElementById("securityEventsCount");
+      const errorsElement = document.getElementById("databaseErrorsCount");
+      const usersElement = document.getElementById("userActivitiesCount");
+
+      if (totalElement) totalElement.textContent = stats.total_events || 0;
+      if (securityElement)
+        securityElement.textContent = stats.security_events || 0;
+      if (errorsElement) errorsElement.textContent = stats.database_errors || 0;
+      if (usersElement) usersElement.textContent = stats.user_activities || 0;
+
+      console.log("Stats updated:", stats);
+    }
+  </script>
+
+  <style>
+    /* Admin Logs Styles */
     .logs-page {
-      padding: var(--spacing-4);
+      padding: var(--spacing-6);
+      max-width: 1600px;
+      margin: 0 auto;
     }
 
     .logs-header {
-      flex-direction: column;
-      gap: var(--spacing-4);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--spacing-8);
+      padding-bottom: var(--spacing-6);
+      border-bottom: 2px solid var(--gray-200);
+    }
+
+    .header-content h1 {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: var(--spacing-2);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-3);
+    }
+
+    .header-content p {
+      color: var(--gray-600);
+      font-size: var(--font-size-lg);
+    }
+
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      color: var(--primary-color);
+      text-decoration: none;
+      font-size: var(--font-size-sm);
+      margin-bottom: var(--spacing-4);
+      transition: var(--transition);
+    }
+
+    .back-button:hover {
+      color: var(--primary-hover);
     }
 
     .header-actions {
-      width: 100%;
-      justify-content: stretch;
+      display: flex;
+      gap: var(--spacing-3);
     }
 
-    .header-actions .btn {
-      flex: 1;
-    }
-
+    /* Log Statistics */
     .log-stats {
-      grid-template-columns: 1fr;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--spacing-6);
+      margin-bottom: var(--spacing-8);
     }
 
-    .log-controls {
-      flex-direction: column;
-      gap: var(--spacing-4);
-    }
-
-    .search-filters {
-      flex-direction: column;
-      width: 100%;
-    }
-
-    .filter-group {
-      width: 100%;
-    }
-
-    .filter-select {
-      width: 100%;
-    }
-
-    .logs-table-container {
-      overflow-x: auto;
-    }
-
-    .logs-table {
-      min-width: 800px;
-    }
-
-    .pagination-wrapper {
-      flex-direction: column;
-      gap: var(--spacing-3);
-    }
-
-    .pagination-controls {
-      width: 100%;
-      justify-content: center;
-    }
-  }
-
-  @media (max-width: 480px) {
     .stat-card {
-      flex-direction: column;
-      text-align: center;
-      gap: var(--spacing-3);
+      background: var(--white);
+      padding: var(--spacing-6);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-4);
+      transition: var(--transition);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
     }
 
     .stat-icon {
-      width: 50px;
-      height: 50px;
+      width: 60px;
+      height: 60px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-xl);
+      color: var(--white);
+      background: linear-gradient(
+        135deg,
+        var(--primary-color),
+        var(--primary-hover)
+      );
+    }
+
+    .stat-icon.security {
+      background: linear-gradient(135deg, var(--warning-color), #b45309);
+    }
+
+    .stat-icon.errors {
+      background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+    }
+
+    .stat-icon.users {
+      background: linear-gradient(135deg, var(--success-color), #059669);
+    }
+
+    .stat-info h3 {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: var(--spacing-1);
+    }
+
+    .stat-info p {
+      color: var(--gray-500);
+      font-size: var(--font-size-sm);
+    }
+
+    /* Log Controls */
+    .log-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-6);
+      padding: var(--spacing-4);
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .search-filters {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-4);
+      flex: 1;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 400px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: var(--spacing-3) var(--spacing-3) var(--spacing-3)
+        var(--spacing-10);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius);
+      font-size: var(--font-size-sm);
+    }
+
+    .search-box i {
+      position: absolute;
+      left: var(--spacing-3);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--gray-400);
+    }
+
+    .filter-group {
+      display: flex;
+      gap: var(--spacing-3);
+    }
+
+    .filter-select {
+      padding: var(--spacing-2) var(--spacing-3);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius);
+      font-size: var(--font-size-sm);
+      background: var(--white);
+    }
+
+    /* Logs Table */
+    .logs-table-container {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: var(--spacing-6);
+    }
+
+    .logs-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .logs-table th,
+    .logs-table td {
+      padding: var(--spacing-3) var(--spacing-4);
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .logs-table th {
+      background: var(--gray-50);
+      font-weight: 600;
+      color: var(--gray-700);
+      font-size: var(--font-size-sm);
+    }
+
+    .logs-table tr:hover {
+      background: var(--gray-50);
+    }
+
+    .logs-table tr.severity-high {
+      border-left: 4px solid var(--danger-color);
+    }
+
+    .logs-table tr.severity-medium {
+      border-left: 4px solid var(--warning-color);
+    }
+
+    .logs-table tr.severity-low {
+      border-left: 4px solid var(--success-color);
+    }
+
+    .logs-table tr.severity-info {
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .timestamp {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--gray-600);
+      white-space: nowrap;
+    }
+
+    .event-type {
+      font-weight: 600;
+      color: var(--gray-900);
+      font-size: var(--font-size-sm);
+    }
+
+    .category-badge,
+    .severity-badge {
+      padding: var(--spacing-1) var(--spacing-2);
+      border-radius: var(--radius);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .category-badge.security {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .category-badge.database {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .category-badge.user_activity {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .category-badge.system {
+      background: #f3e8ff;
+      color: #7c3aed;
+    }
+
+    .severity-badge.high {
+      background: var(--danger-color);
+      color: var(--white);
+    }
+
+    .severity-badge.medium {
+      background: var(--warning-color);
+      color: var(--white);
+    }
+
+    .severity-badge.low {
+      background: var(--success-color);
+      color: var(--white);
+    }
+
+    .severity-badge.info {
+      background: var(--primary-color);
+      color: var(--white);
+    }
+
+    .description {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .username {
+      font-weight: 500;
+      color: var(--gray-700);
+    }
+
+    .ip-address {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--gray-500);
+    }
+
+    /* Loading and Empty States */
+    .loading-state,
+    .empty-state {
+      text-align: center;
+      padding: var(--spacing-12);
+      color: var(--gray-500);
+    }
+
+    .loading-state i {
+      font-size: var(--font-size-2xl);
+      margin-bottom: var(--spacing-4);
+      color: var(--primary-color);
+    }
+
+    .empty-state i {
+      font-size: 4rem;
+      margin-bottom: var(--spacing-4);
+      color: var(--gray-300);
+    }
+
+    .empty-state h3 {
+      font-size: var(--font-size-xl);
+      color: var(--gray-700);
+      margin-bottom: var(--spacing-2);
+    }
+
+    /* Pagination */
+    .pagination-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-4);
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .pagination-info {
+      color: var(--gray-600);
+      font-size: var(--font-size-sm);
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+    }
+
+    .pagination-controls button {
+      min-width: 80px;
+    }
+
+    .pagination-controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
     }
 
     .modal-content {
-      width: 95%;
-      margin: var(--spacing-4);
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-6);
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-2);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: var(--font-size-xl);
+      cursor: pointer;
+      color: var(--gray-400);
+      padding: var(--spacing-1);
+    }
+
+    .modal-close:hover {
+      color: var(--gray-600);
+    }
+
+    .modal-body {
+      padding: var(--spacing-6);
     }
 
     .modal-footer {
-      flex-direction: column;
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--spacing-3);
+      padding: var(--spacing-6);
+      border-top: 1px solid var(--gray-200);
     }
 
-    .modal-footer .btn {
-      width: 100%;
+    .warning-note {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: var(--radius);
+      padding: var(--spacing-4);
+      margin-top: var(--spacing-4);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-3);
     }
-  }
-</style>
-{% endblock %}
+
+    .warning-note i {
+      color: #f59e0b;
+      margin-top: 2px;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .logs-page {
+        padding: var(--spacing-4);
+      }
+
+      .logs-header {
+        flex-direction: column;
+        gap: var(--spacing-4);
+      }
+
+      .header-actions {
+        width: 100%;
+        justify-content: stretch;
+      }
+
+      .header-actions .btn {
+        flex: 1;
+      }
+
+      .log-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .log-controls {
+        flex-direction: column;
+        gap: var(--spacing-4);
+      }
+
+      .search-filters {
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .filter-group {
+        width: 100%;
+      }
+
+      .filter-select {
+        width: 100%;
+      }
+
+      .logs-table-container {
+        overflow-x: auto;
+      }
+
+      .logs-table {
+        min-width: 800px;
+      }
+
+      .pagination-wrapper {
+        flex-direction: column;
+        gap: var(--spacing-3);
+      }
+
+      .pagination-controls {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stat-card {
+        flex-direction: column;
+        text-align: center;
+        gap: var(--spacing-3);
+      }
+
+      .stat-icon {
+        width: 50px;
+        height: 50px;
+      }
+
+      .modal-content {
+        width: 95%;
+        margin: var(--spacing-4);
+      }
+
+      .modal-footer {
+        flex-direction: column;
+      }
+
+      .modal-footer .btn {
+        width: 100%;
+      }
+    }
+  </style>
+  {% endblock %}
+</div>

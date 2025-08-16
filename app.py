@@ -5,8 +5,7 @@ from functools import wraps
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
-from math import radians, cos, sin, asin, sqrt
-import io, os, base64, re, uuid, requests, json, qrcode
+import io, os, base64, re, uuid, requests, json, qrcode, math
 from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
@@ -1988,15 +1987,25 @@ def admin_logs():
 @app.route('/api/logs/recent')
 @admin_required
 def api_recent_logs():
-    """API endpoint to get recent log entries with full details"""
+    """API endpoint to get recent log entries with full details and pagination support"""
     try:
         days = request.args.get('days', 1, type=int)
         limit = request.args.get('limit', 50, type=int)
+        page = request.args.get('page', 1, type=int)
+        category = request.args.get('category', '')
+        severity = request.args.get('severity', '')
+        search = request.args.get('search', '')
+        
+        print(f"📊 API request - Days: {days}, Limit: {limit}, Page: {page}")
+        print(f"📊 Filters - Category: {category}, Severity: {severity}, Search: {search}")
         
         cutoff_date = datetime.now() - timedelta(days=days)
         
-        # Enhanced SQL to get all available fields
-        logs_sql = """
+        # Calculate offset for pagination
+        offset = (page - 1) * limit
+        
+        # Build the base SQL query with filters
+        base_sql = """
         SELECT 
             event_id,
             event_type, 
@@ -2010,14 +2019,46 @@ def api_recent_logs():
             ip_address
         FROM log_events 
         WHERE created_timestamp >= :cutoff_date
-        ORDER BY created_timestamp DESC
-        LIMIT :limit
         """
         
-        result = db.session.execute(text(logs_sql), {
-            'cutoff_date': cutoff_date,
-            'limit': limit
-        }).fetchall()
+        count_sql = """
+        SELECT COUNT(*) as total_count
+        FROM log_events 
+        WHERE created_timestamp >= :cutoff_date
+        """
+        
+        params = {'cutoff_date': cutoff_date}
+        
+        # Add category filter
+        if category:
+            base_sql += " AND event_category = :category"
+            count_sql += " AND event_category = :category"
+            params['category'] = category
+        
+        # Add severity filter
+        if severity:
+            base_sql += " AND severity_level = :severity"
+            count_sql += " AND severity_level = :severity"
+            params['severity'] = severity
+        
+        # Add search filter
+        if search:
+            search_condition = " AND (event_type LIKE :search OR event_description LIKE :search OR username LIKE :search)"
+            base_sql += search_condition
+            count_sql += search_condition
+            params['search'] = f'%{search}%'
+        
+        # Get total count first
+        count_result = db.session.execute(text(count_sql), params).fetchone()
+        total_count = count_result.total_count if count_result else 0
+        
+        # Add ordering, limit and offset to main query
+        base_sql += " ORDER BY created_timestamp DESC LIMIT :limit OFFSET :offset"
+        params['limit'] = limit
+        params['offset'] = offset
+        
+        # Execute main query
+        result = db.session.execute(text(base_sql), params).fetchall()
         
         logs = []
         for row in result:
@@ -2042,10 +2083,17 @@ def api_recent_logs():
                 'ip_address': row.ip_address or '-'
             })
         
+        print(f"📊 Returning {len(logs)} logs out of {total_count} total")
+        
         return jsonify({
             'success': True,
             'logs': logs,
-            'total': len(logs)
+            'total': total_count,
+            'page': page,
+            'limit': limit,
+            'total_pages': math.ceil(total_count / limit) if total_count > 0 else 0,
+            'has_next': offset + limit < total_count,
+            'has_prev': page > 1
         })
         
     except Exception as e:

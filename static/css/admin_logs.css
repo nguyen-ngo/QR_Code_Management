@@ -82,7 +82,11 @@
   justify-content: center;
   font-size: var(--font-size-xl);
   color: var(--white);
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--primary-hover)
+  );
 }
 
 .stat-icon.security {
@@ -229,7 +233,7 @@
 }
 
 .timestamp {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
   font-size: var(--font-size-xs);
   color: var(--gray-600);
   white-space: nowrap;
@@ -314,7 +318,7 @@
 }
 
 .ip-address {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
   font-size: var(--font-size-xs);
   color: var(--gray-500);
   min-width: 120px;
@@ -336,8 +340,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state i {
@@ -395,6 +403,39 @@
   opacity: 0.5;
   cursor: not-allowed;
   background: var(--gray-100);
+}
+
+/* Page number buttons */
+.page-number {
+  min-width: 35px !important;
+  margin: 0 2px;
+  padding: var(--spacing-1) var(--spacing-2) !important;
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-700);
+}
+
+.page-number:hover:not(.active) {
+  background: var(--gray-50);
+  border-color: var(--primary-color);
+}
+
+.page-number.active {
+  background: var(--primary-color) !important;
+  color: var(--white) !important;
+  border-color: var(--primary-color) !important;
+}
+
+.pagination-ellipsis {
+  padding: var(--spacing-1) var(--spacing-2);
+  color: var(--gray-500);
+  font-size: var(--font-size-sm);
+}
+
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
 }
 
 /* Modal Styles */
@@ -693,10 +734,18 @@
   animation: fadeInUp 0.6s ease-out;
 }
 
-.stat-card:nth-child(1) { animation-delay: 0.1s; }
-.stat-card:nth-child(2) { animation-delay: 0.2s; }
-.stat-card:nth-child(3) { animation-delay: 0.3s; }
-.stat-card:nth-child(4) { animation-delay: 0.4s; }
+.stat-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.stat-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.stat-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.stat-card:nth-child(4) {
+  animation-delay: 0.4s;
+}
 
 @keyframes fadeInUp {
   from {
@@ -714,8 +763,12 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Focus and accessibility improvements */
