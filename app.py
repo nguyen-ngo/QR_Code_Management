@@ -2288,6 +2288,103 @@ def api_clear_logs():
             'error': f'Failed to clear logs: {str(e)}'
         }), 500
     
+@app.route('/api/logs/clear-old', methods=['POST'])
+@admin_required
+def api_clear_old_logs():
+    """API endpoint to clear log entries older than specified days"""
+    try:
+        # Get JSON data
+        data = request.get_json()
+        if not data:
+            print("❌ No JSON data provided")
+            return jsonify({
+                'success': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        days_threshold = data.get('days_threshold', 90)
+        admin_username = session.get('username', 'unknown')
+        print(f"🧹 Clear old logs request by admin: {admin_username}, threshold: {days_threshold} days")
+        
+        # Validate input
+        if not isinstance(days_threshold, int) or days_threshold not in [30, 60, 90]:
+            print(f"❌ Invalid days_threshold: {days_threshold}")
+            return jsonify({
+                'success': False,
+                'error': 'days_threshold must be 30, 60, or 90'
+            }), 400
+        
+        # Calculate cutoff date
+        cutoff_date = datetime.now() - timedelta(days=days_threshold)
+        
+        # Count existing logs before deletion
+        try:
+            count_sql = "SELECT COUNT(*) as total_logs FROM log_events WHERE created_timestamp < :cutoff_date"
+            count_result = db.session.execute(text(count_sql), {'cutoff_date': cutoff_date}).fetchone()
+            total_logs = count_result.total_logs if count_result else 0
+            
+            print(f"📊 Total logs older than {days_threshold} days to be cleared: {total_logs}")
+            
+            if total_logs == 0:
+                print("✅ No old logs found to clear")
+                return jsonify({
+                    'success': True,
+                    'deleted_count': 0,
+                    'message': f'No logs older than {days_threshold} days found to clear'
+                })
+                
+        except Exception as count_error:
+            print(f"⚠️ Error counting old logs: {count_error}")
+            total_logs = 0
+        
+        # Perform the clear operation
+        try:
+            clear_sql = "DELETE FROM log_events WHERE created_timestamp < :cutoff_date"
+            result = db.session.execute(text(clear_sql), {'cutoff_date': cutoff_date})
+            deleted_count = result.rowcount
+            db.session.commit()
+            
+            print(f"🗑️ Successfully cleared {deleted_count} log entries older than {days_threshold} days")
+            
+            # Log the clear operation
+            logger_handler.log_security_event(
+                event_type="admin_clear_old_logs",
+                description=f"Admin {admin_username} cleared {deleted_count} log entries older than {days_threshold} days",
+                severity="HIGH",
+                additional_data={
+                    'admin_user': admin_username,
+                    'days_threshold': days_threshold,
+                    'deleted_count': deleted_count,
+                    'cutoff_date': cutoff_date.isoformat(),
+                    'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+                }
+            )
+            
+            return jsonify({
+                'success': True,
+                'deleted_count': deleted_count,
+                'days_threshold': days_threshold,
+                'message': f'Successfully cleared {deleted_count} log entries older than {days_threshold} days',
+                'performed_by': admin_username,
+                'performed_at': datetime.now().isoformat()
+            })
+            
+        except Exception as delete_error:
+            print(f"❌ Error during old log clearing: {delete_error}")
+            db.session.rollback()
+            return jsonify({
+                'success': False,
+                'error': f'Failed to clear old logs: {str(delete_error)}'
+            }), 500
+            
+    except Exception as e:
+        logger_handler.log_database_error('api_clear_old_logs', e)
+        print(f"❌ Error in api_clear_old_logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to clear old logs: {str(e)}'
+        }), 500
+    
 @app.route('/api/logs/export')
 @admin_required
 def api_export_logs():
