@@ -472,6 +472,17 @@ class AppLogger:
             'event': 'qr_code_accessed',
             'data': event_data
         }))
+
+    def log_qr_code_generated(self, data_length, fill_color, back_color, box_size, border, error_correction):
+        """Log QR code generation with customization details"""
+        try:
+            self.logger.info(f"QR code generated with customization - "
+                    f"Data length: {data_length}, "
+                    f"Fill: {fill_color}, Background: {back_color}, "
+                    f"Box size: {box_size}, Border: {border}, "
+                    f"Error correction: {error_correction}")
+        except Exception as e:
+            self.logger.error(f"Failed to log QR code generation: {e}")
     
     # DATABASE ERROR LOGGING METHODS
     

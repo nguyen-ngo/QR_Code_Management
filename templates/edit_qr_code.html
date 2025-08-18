@@ -1,1089 +1,1453 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edit QR Code - QR Management System</title>
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --primary-color: #2563eb;
-        --secondary-color: #64748b;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
-        --error-color: #ef4444;
-        --gray-50: #f8fafc;
-        --gray-100: #f1f5f9;
-        --gray-200: #e2e8f0;
-        --gray-300: #cbd5e1;
-        --gray-500: #64748b;
-        --gray-600: #475569;
-        --gray-700: #334155;
-        --gray-800: #1e293b;
-        --gray-900: #0f172a;
-        --white: #ffffff;
-        --radius-lg: 8px;
-        --radius-xl: 12px;
-        --radius-2xl: 16px;
-        --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
-          0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        --transition: all 0.2s ease-in-out;
-        --font-size-base: 1rem;
-      }
-
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          sans-serif;
-        background: linear-gradient(
-          135deg,
-          var(--gray-50) 0%,
-          var(--gray-100) 100%
-        );
-        color: var(--gray-800);
-        line-height: 1.6;
-        min-height: 100vh;
-        padding: 2rem 1rem;
-      }
-
-      .container {
-        max-width: 1000px;
-        margin: 0 auto;
-      }
-
-      .main-content {
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 2rem;
-        margin-bottom: 2rem;
-      }
-
-      .form-container {
-        background: var(--white);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow);
-        padding: 2rem;
-      }
-
-      .current-info-panel {
-        background: var(--white);
-        border-radius: var(--radius-2xl);
-        box-shadow: var(--shadow);
-        padding: 1.5rem;
-        height: fit-content;
-        position: sticky;
-        top: 2rem;
-      }
-
-      .form-header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding-bottom: 1.5rem;
-        border-bottom: 1px solid var(--gray-200);
-      }
-
-      .form-header h1 {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--gray-900);
-        margin-bottom: 0.5rem;
-      }
-
-      .form-header p {
-        color: var(--gray-500);
-        font-size: 1rem;
-      }
-
-      .current-info-header {
-        text-align: center;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--gray-200);
-      }
-
-      .current-info-header h3 {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--gray-800);
-        margin-bottom: 0.5rem;
-      }
-
-      .current-info-content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .detail-row {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-
-      .detail-row strong {
-        font-size: 0.875rem;
-        color: var(--gray-600);
-        font-weight: 500;
-      }
-
-      .detail-row span {
-        font-size: 0.9rem;
-        color: var(--gray-800);
-        word-break: break-word;
-      }
-
-      .coordinate-info {
-        background: var(--primary-color);
-        color: white;
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        text-align: center;
-      }
-
-      .coordinate-value {
-        font-family: "Courier New", monospace;
-        font-size: 1rem;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-      }
-
-      .coordinate-label {
-        font-size: 0.75rem;
-        opacity: 0.8;
-      }
-
-      .no-coordinates {
-        background: var(--gray-100);
-        color: var(--gray-600);
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        text-align: center;
-        font-size: 0.875rem;
-      }
-
-      .form-section {
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        background: var(--gray-50);
-        border-radius: var(--radius-xl);
-        border: 1px solid var(--gray-200);
-      }
-
-      .section-header {
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--gray-200);
-      }
-
-      .section-header h3 {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--gray-800);
-        margin-bottom: 0.5rem;
-      }
-
-      .section-header p {
-        color: var(--gray-600);
-        font-size: 0.875rem;
-      }
-
-      .form-group {
-        position: relative;
-        margin-bottom: 1.5rem;
-      }
-
-      .form-group label {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 600;
-        color: var(--gray-700);
-        margin-bottom: 0.5rem;
-        font-size: 0.875rem;
-      }
-
-      .form-group input,
-      .form-group select,
-      .form-group textarea {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px solid var(--gray-200);
-        border-radius: var(--radius-lg);
-        font-size: var(--font-size-base);
-        transition: var(--transition);
-        background-color: var(--white);
-      }
-
-      .form-group input:focus,
-      .form-group select:focus,
-      .form-group textarea:focus {
-        outline: none;
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-      }
-
-      .form-group textarea {
-        resize: vertical;
-        min-height: 80px;
-      }
-
-      .form-help {
-        display: block;
-        margin-top: 0.5rem;
-        font-size: 0.75rem;
-        color: var(--gray-500);
-      }
-
-      .character-counter {
-        position: absolute;
-        bottom: -1.5rem;
-        right: 0;
-        font-size: 0.75rem;
-        color: var(--gray-500);
-      }
-
-      .character-counter.warning {
-        color: var(--warning-color);
-      }
-
-      .coordinates-section {
-        background: var(--primary-color);
-        color: white;
-        border-radius: var(--radius-xl);
-        padding: 1.5rem;
-        margin-top: 1rem;
-      }
-
-      .coordinates-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 1rem;
-      }
-
-      .coordinates-header h4 {
-        font-size: 1.125rem;
-        font-weight: 600;
-      }
-
-      .coordinates-content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .coordinate-display {
-        background: rgba(255, 255, 255, 0.1);
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .coordinate-display .coordinate-info {
-        background: transparent;
-        padding: 0;
-        color: inherit;
-        text-align: left;
-      }
-
-      .coordinate-display .coordinate-info .coordinate-value {
-        font-family: "Courier New", monospace;
-        font-size: 1.125rem;
-        font-weight: 600;
-      }
-
-      .coordinate-display .coordinate-info .coordinate-label {
-        font-size: 0.875rem;
-        opacity: 0.8;
-      }
-
-      .coordinates-actions {
-        display: flex;
-        gap: 0.75rem;
-        margin-top: 1rem;
-      }
-
-      .btn-coordinate {
-        padding: 0.5rem 1rem;
-        background: rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: var(--radius-lg);
-        color: white;
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: var(--transition);
-      }
-
-      .btn-coordinate:hover {
-        background: rgba(255, 255, 255, 0.3);
-      }
-
-      .btn-coordinate:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .loading-spinner {
-        display: inline-block;
-        width: 1rem;
-        height: 1rem;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s ease-in-out infinite;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .status-message {
-        padding: 0.75rem;
-        border-radius: var(--radius-lg);
-        margin-top: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .status-success {
-        background: rgba(16, 185, 129, 0.1);
-        color: var(--success-color);
-        border: 1px solid rgba(16, 185, 129, 0.2);
-      }
-
-      .status-error {
-        background: rgba(239, 68, 68, 0.1);
-        color: var(--error-color);
-        border: 1px solid rgba(239, 68, 68, 0.2);
-      }
-
-      .status-warning {
-        background: rgba(245, 158, 11, 0.1);
-        color: var(--warning-color);
-        border: 1px solid rgba(245, 158, 11, 0.2);
-      }
-
-      .form-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 2rem;
-        padding-top: 2rem;
-        border-top: 1px solid var(--gray-200);
-      }
-
-      .btn {
-        padding: 0.75rem 2rem;
-        border: none;
-        border-radius: var(--radius-lg);
-        font-size: 1rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: var(--transition);
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .btn-primary {
-        background: var(--primary-color);
-        color: white;
-      }
-
-      .btn-primary:hover {
-        background: #1d4ed8;
-      }
-
-      .btn-secondary {
-        background: var(--gray-200);
-        color: var(--gray-700);
-      }
-
-      .btn-secondary:hover {
-        background: var(--gray-300);
-      }
-
-      .error-message {
-        color: var(--error-color);
-        font-size: 0.875rem;
-        margin-top: 0.5rem;
-      }
-
-      .form-group.has-error input,
-      .form-group.has-error textarea {
-        border-color: var(--error-color);
-      }
-
-      @media (max-width: 768px) {
-        .main-content {
-          grid-template-columns: 1fr;
-          gap: 1rem;
-        }
-
-        .current-info-panel {
-          position: static;
-        }
-
-        .container {
-          padding: 0 0.5rem;
-        }
-
-        .form-container {
-          padding: 1.5rem;
-        }
-
-        .form-actions {
-          flex-direction: column;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="main-content">
-        <!-- Main Form -->
-        <div class="form-container">
-          <div class="form-header">
-            <h1>
-              <i class="fas fa-edit"></i>
-              Edit QR Code
-            </h1>
-            <p>Update the information for your QR code</p>
-          </div>
-
-          <form method="POST" class="form" id="editQRForm">
-            <!-- Basic Information Section -->
-            <div class="form-section">
-              <div class="section-header">
-                <h3>
-                  <i class="fas fa-info-circle"></i>
-                  Basic Information
-                </h3>
-                <p>Update the basic details for your QR code</p>
-              </div>
-
-              <div class="form-group">
-                <label for="name">
-                  <i class="fas fa-tag"></i>
-                  QR Code Name <span style="color: var(--error-color)">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  value="{{ qr_code.name }}"
-                  data-original="{{ qr_code.name }}"
-                  placeholder="e.g., Main Office Entrance, Conference Room A"
-                  maxlength="100"
-                />
-                <small class="form-help"
-                  >A unique name to identify this QR code</small
-                >
-                <div class="character-counter">
-                  <span id="nameCounter">{{ qr_code.name|length }}/100</span>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="location">
-                  <i class="fas fa-map-marker-alt"></i>
-                  Location Name <span style="color: var(--error-color)">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="location"
-                  name="location"
-                  required
-                  value="{{ qr_code.location }}"
-                  data-original="{{ qr_code.location }}"
-                  placeholder="e.g., Corporate Headquarters, Branch Office"
-                  maxlength="100"
-                />
-                <small class="form-help"
-                  >The name of the physical location where this QR code will be
-                  used</small
-                >
-                <div class="character-counter">
-                  <span id="locationCounter"
-                    >{{ qr_code.location|length }}/100</span
-                  >
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="project_id">
-                  <i class="fas fa-folder"></i>
-                  Project (Optional)
-                </label>
-                <select id="project_id" name="project_id" class="form-select">
-                  <option value="">No project assigned</option>
-                  {% for project in projects %}
-                  <option value="{{ project.id }}" 
-                          {% if qr_code.project_id == project.id %}selected{% endif %}>
-                    {{ project.name }} ({{ project.qr_count }} QR codes)
-                  </option>
-                  {% endfor %}
-                </select>
-                <small class="form-help">
-                  <i class="fas fa-info-circle"></i>
-                  {% if qr_code.project %}
-                    Currently assigned to: <strong>{{ qr_code.project.name }}</strong>
-                  {% else %}
-                    This QR code is not assigned to any project
-                  {% endif %}
-                </small>
-              </div>
-            </div>
-
-            <!-- Location Details Section -->
-            <div class="form-section">
-              <div class="section-header">
-                <h3>
-                  <i class="fas fa-building"></i>
-                  Location Details
-                </h3>
-                <p>Update the complete address and event information</p>
-              </div>
-
-              <div class="form-group">
-                <label for="location_address">
-                  <i class="fas fa-home"></i>
-                  Complete Address
-                  <span style="color: var(--error-color)">*</span>
-                </label>
-                <textarea
-                  id="location_address"
-                  name="location_address"
-                  required
-                  data-original="{{ qr_code.location_address }}"
-                  placeholder="Enter the full address including street, city, state, and ZIP code"
-                  rows="3"
-                  maxlength="500"
-                >
-{{ qr_code.location_address }}</textarea
-                >
-                <small class="form-help"
-                  >Include all address details for accurate location
-                  identification</small
-                >
-                <div class="character-counter">
-                  <span id="addressCounter"
-                    >{{ qr_code.location_address|length }}/500</span
-                  >
-                </div>
-
-                <!-- Address Coordinates Section -->
-                <div class="coordinates-section" id="coordinatesSection">
-                  <div class="coordinates-header">
-                    <i class="fas fa-crosshairs"></i>
-                    <h4>Address Coordinates</h4>
-                  </div>
-
-                  <div class="coordinates-content">
-                    <div class="coordinate-display">
-                      <div class="coordinate-info">
-                        <div class="coordinate-value" id="latitudeDisplay">
-                          {% if qr_code.has_coordinates %} {{
-                          "%.6f"|format(qr_code.address_latitude) }} {% else %}
-                          ---.------ {% endif %}
-                        </div>
-                        <div class="coordinate-label">Latitude</div>
-                      </div>
-                      <div class="coordinate-info">
-                        <div class="coordinate-value" id="longitudeDisplay">
-                          {% if qr_code.has_coordinates %} {{
-                          "%.6f"|format(qr_code.address_longitude) }} {% else %}
-                          ---.------ {% endif %}
-                        </div>
-                        <div class="coordinate-label">Longitude</div>
-                      </div>
-                    </div>
-
-                    <div class="coordinates-actions">
-                      <button
-                        type="button"
-                        class="btn-coordinate"
-                        id="geocodeBtn"
-                      >
-                        <i class="fas fa-search-location"></i>
-                        {% if qr_code.has_coordinates %}Update{% else %}Get{%
-                        endif %} Coordinates
-                      </button>
-                      <button
-                        type="button"
-                        class="btn-coordinate"
-                        id="clearCoordinatesBtn"
-                        style="display: {% if qr_code.has_coordinates %}inline-flex{% else %}none{% endif %};"
-                      >
-                        <i class="fas fa-times"></i>
-                        Clear
-                      </button>
-                    </div>
-
-                    <div id="coordinateStatus"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="location_event">
-                  <i class="fas fa-calendar-alt"></i>
-                  Event or Purpose
-                  <span style="color: var(--error-color)">*</span>
-                </label>
-                <select
-                  id="location_event"
-                  name="location_event"
-                  required
-                  class="form-control"
-                  data-original="{{ qr_code.location_event }}"
-                >
-                  <option value="">Select Event Type</option>
-                  <option value="Check In" {% if qr_code.location_event == 'Check In' %}selected{% endif %}>Check In</option>
-                  <option value="Check Out" {% if qr_code.location_event == 'Check Out' %}selected{% endif %}>Check Out</option>
-                </select>
-                <small class="form-help"
-                  >Select the event type for this QR code</small
-                >
-              </div>
-            </div>
-
-            <!-- Hidden coordinate fields for form submission -->
-            <input
-              type="hidden"
-              id="address_latitude"
-              name="address_latitude"
-              value="{% if qr_code.has_coordinates %}{{ qr_code.address_latitude }}{% endif %}"
-            />
-            <input
-              type="hidden"
-              id="address_longitude"
-              name="address_longitude"
-              value="{% if qr_code.has_coordinates %}{{ qr_code.address_longitude }}{% endif %}"
-            />
-            <input
-              type="hidden"
-              id="coordinate_accuracy"
-              name="coordinate_accuracy"
-              value="{% if qr_code.has_coordinates %}{{ qr_code.coordinate_accuracy }}{% endif %}"
-            />
-
-            <!-- Form Actions -->
-            <div class="form-actions">
-              <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i>
-                Cancel
-              </a>
-              <button type="submit" class="btn btn-primary" id="submitBtn">
-                <i class="fas fa-save"></i>
-                Update QR Code
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Current Information Panel -->
-        <div class="current-info-panel">
-          <div class="current-info-header">
+{% extends "base_authenticated.html" %}
+{% block title %}Edit QR Code - QR Management System{% endblock %}
+
+{% block extra_head %}
+<style>
+  :root {
+    --primary-color: #2563eb;
+    --secondary-color: #64748b;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+    --white: #ffffff;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --transition: all 0.2s ease-in-out;
+    --font-size-base: 1rem;
+  }
+
+  .edit-qr-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .main-content {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+    align-items: start;
+    width: 100%;
+  }
+
+  .form-container {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow);
+    padding: 2rem;
+  }
+
+  .current-info-panel {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    position: sticky;
+    top: 2rem;
+  }
+
+  .form-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .form-header h1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: 0.5rem;
+  }
+
+  .form-header p {
+    color: var(--gray-500);
+    font-size: 1rem;
+  }
+
+  .current-info-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .current-info-header h3 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-bottom: 0.5rem;
+  }
+
+  .current-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .detail-row strong {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  .detail-row span {
+    font-size: 0.9rem;
+    color: var(--gray-800);
+    word-break: break-word;
+  }
+
+  .coordinate-info {
+    background: var(--primary-color);
+    color: white;
+    padding: 1rem;
+    border-radius: var(--radius-lg);
+    text-align: center;
+  }
+
+  .coordinate-value {
+    font-family: "Courier New", monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .coordinate-label {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+
+  .no-coordinates {
+    background: var(--gray-100);
+    color: var(--gray-600);
+    padding: 1rem;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    font-size: 0.875rem;
+  }
+
+  .form-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: var(--gray-50);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+  }
+
+  .section-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .section-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-bottom: 0.5rem;
+  }
+
+  .section-header p {
+    color: var(--gray-600);
+    font-size: 0.875rem;
+  }
+
+  .form-group {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-base);
+    transition: var(--transition);
+    background-color: var(--white);
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  .form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .form-help {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+
+  .character-counter {
+    position: absolute;
+    bottom: -1.5rem;
+    right: 0;
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+
+  .character-counter.warning {
+    color: var(--warning-color);
+  }
+
+  /* QR Code Customization Styles */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .color-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .color-input-group input[type="color"] {
+    width: 50px;
+    height: 40px;
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .color-input-group input[type="text"] {
+    flex: 1;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+  }
+
+  .range-input-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .range-input-group input[type="range"] {
+    flex: 1;
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .range-input-group input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  .range-input-group input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  .range-value {
+    font-weight: 600;
+    color: var(--primary-color);
+    min-width: 80px;
+    text-align: center;
+    background: var(--gray-100);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+  }
+
+  /* QR Preview Styles */
+  .qr-preview-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .qr-preview-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: var(--gray-800);
+    font-size: 1.1rem;
+  }
+
+  .qr-preview-container {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    background: var(--gray-50);
+    padding: 1.5rem;
+    border-radius: var(--radius-xl);
+    border: 2px dashed var(--gray-300);
+  }
+
+  .qr-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 120px;
+    background: var(--white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+  }
+
+  .qr-sample {
+    padding: 16px;
+    background: #FFFFFF;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+  }
+
+  .qr-pattern {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    width: 70px;
+    height: 70px;
+  }
+
+  .qr-module {
+    background: #000000;
+    transition: background-color 0.3s ease;
+    border-radius: 1px;
+  }
+
+  .qr-module.empty {
+    background: transparent;
+  }
+
+  .preview-info {
+    flex: 1;
+  }
+
+  .preview-info p {
+    margin-bottom: 0.5rem;
+    color: var(--gray-700);
+  }
+
+  .preview-text {
+    color: var(--gray-500);
+    font-size: 0.875rem;
+  }
+
+  /* Coordinate Display Section */
+  .coordinates-section {
+    background: var(--primary-color);
+    color: white;
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .coordinates-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .coordinates-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .coordinate-display {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .coordinate-info {
+    text-align: center;
+  }
+
+  .coordinate-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 0.25rem;
+  }
+
+  .coordinate-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+  }
+
+  .coordinates-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+
+  .btn-coordinate {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-coordinate:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .status-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .status-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .status-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-color);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .btn {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-primary {
+    background: var(--primary-color);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #1d4ed8;
+  }
+
+  .btn-secondary {
+    background: var(--gray-200);
+    color: var(--gray-700);
+  }
+
+  .btn-secondary:hover {
+    background: var(--gray-300);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--gray-600);
+    border: 2px solid var(--gray-300);
+  }
+
+  .btn-outline:hover {
+    background: var(--gray-100);
+    border-color: var(--gray-400);
+    color: var(--gray-700);
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .main-content {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .current-info-panel {
+      position: static;
+    }
+
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+    
+    .qr-preview-container {
+      flex-direction: column;
+      text-align: center;
+    }
+    
+    .range-input-group {
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+    
+    .range-value {
+      text-align: center;
+    }
+
+    .edit-qr-container {
+      padding: 1rem;
+    }
+
+    .form-container {
+      padding: 1.5rem;
+    }
+
+    .form-actions {
+      flex-direction: column;
+    }
+  }
+
+  /* Animation for preview updates */
+  .qr-preview {
+    animation: pulse 0.3s ease-in-out;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  /* Toast notification styles */
+  .toast {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .toast-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--gray-800);
+  }
+
+  .toast-content i {
+    font-size: 1.1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="edit-qr-container">
+  <div class="main-content">
+    <!-- Main Form -->
+    <div class="form-container">
+      <div class="form-header">
+        <h1>
+          <i class="fas fa-edit"></i>
+          Edit QR Code
+        </h1>
+        <p>Update the information for your QR code</p>
+      </div>
+
+      <form method="POST" class="form" id="editQRForm">
+        <!-- Basic Information Section -->
+        <div class="form-section">
+          <div class="section-header">
             <h3>
               <i class="fas fa-info-circle"></i>
-              Current Information
+              Basic Information
             </h3>
+            <p>Update the basic details for your QR code</p>
           </div>
 
-          <div class="current-info-content">
-            <div class="detail-row">
-              <strong>QR Code Name:</strong>
-              <span id="currentName">{{ qr_code.name }}</span>
+          <div class="form-group">
+            <label for="name">
+              <i class="fas fa-tag"></i>
+              QR Code Name <span style="color: var(--error-color)">*</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              value="{{ qr_code.name }}"
+              data-original="{{ qr_code.name }}"
+              placeholder="e.g., Main Office Entrance, Conference Room A"
+              maxlength="100"
+            />
+            <small class="form-help"
+              >A unique name to identify this QR code</small
+            >
+            <div class="character-counter">
+              <span id="nameCounter">{{ qr_code.name|length }}/100</span>
             </div>
-            <div class="detail-row">
-              <strong>Location:</strong>
-              <span id="currentLocation">{{ qr_code.location }}</span>
+          </div>
+
+          <div class="form-group">
+            <label for="location">
+              <i class="fas fa-map-marker-alt"></i>
+              Location Name <span style="color: var(--error-color)">*</span>
+            </label>
+            <input
+              type="text"
+              id="location"
+              name="location"
+              required
+              value="{{ qr_code.location }}"
+              data-original="{{ qr_code.location }}"
+              placeholder="e.g., Corporate Headquarters, Branch Office"
+              maxlength="100"
+            />
+            <small class="form-help"
+              >The name of the physical location where this QR code will be
+              used</small
+            >
+            <div class="character-counter">
+              <span id="locationCounter">{{ qr_code.location|length }}/100</span>
             </div>
-            <div class="detail-row">
-              <strong>Event:</strong>
-              <span id="currentEvent">{{ qr_code.location_event }}</span>
-            </div>
-            <div class="detail-row">
-              <strong>Address:</strong>
-              <span id="currentAddress">{{ qr_code.location_address }}</span>
+          </div>
+
+          <div class="form-group">
+            <label for="project_id">
+              <i class="fas fa-folder"></i>
+              Project (Optional)
+            </label>
+            <select id="project_id" name="project_id" class="form-select" data-original="{{ qr_code.project_id or '' }}">
+              <option value="">Select a project (Optional)</option>
+              {% for project in projects %}
+              <option value="{{ project.id }}" {% if qr_code.project_id == project.id %}selected{% endif %}>
+                {{ project.name }} ({{ project.qr_count }} QR codes)
+              </option>
+              {% endfor %}
+            </select>
+            <small class="form-help">
+              <i class="fas fa-info-circle"></i>
+              Organize your QR code by assigning it to a project
+            </small>
+          </div>
+        </div>
+
+        <!-- Location Details Section -->
+        <div class="form-section">
+          <div class="section-header">
+            <h3>
+              <i class="fas fa-building"></i>
+              Location Details
+            </h3>
+            <p>Update the complete address and event information</p>
+          </div>
+
+          <div class="form-group">
+            <label for="location_address">
+              <i class="fas fa-home"></i>
+              Complete Address
+              <span style="color: var(--error-color)">*</span>
+            </label>
+            <textarea
+              id="location_address"
+              name="location_address"
+              required
+              data-original="{{ qr_code.location_address }}"
+              placeholder="Enter the full address including street, city, state, and ZIP code"
+              rows="3"
+              maxlength="500"
+            >{{ qr_code.location_address }}</textarea>
+            <small class="form-help"
+              >Include all address details for accurate location
+              identification</small
+            >
+            <div class="character-counter">
+              <span id="addressCounter">{{ qr_code.location_address|length }}/500</span>
             </div>
 
-            <!-- Current Coordinates Display -->
-            {% if qr_code.has_coordinates %}
-            <div class="coordinate-info">
-              <div class="coordinate-value">
-                {{ qr_code.coordinates_display }}
+            <!-- Address Coordinates Section -->
+            <div class="coordinates-section" id="coordinatesSection">
+              <div class="coordinates-header">
+                <i class="fas fa-crosshairs"></i>
+                <h4>Address Coordinates</h4>
               </div>
-              <div class="coordinate-label">Current Coordinates</div>
-              <div style="font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.8">
-                Accuracy: {{ qr_code.coordinate_accuracy|title }} {% if
-                qr_code.coordinates_updated_date %}
-                <br />Updated: {{
-                qr_code.coordinates_updated_date.strftime('%Y-%m-%d') }} {%
-                endif %}
+
+              <div class="coordinates-content">
+                <div class="coordinate-display">
+                  <div class="coordinate-info">
+                    <div class="coordinate-value" id="latitudeDisplay">
+                      {% if qr_code.has_coordinates %}
+                      {{ "%.6f"|format(qr_code.address_latitude) }}
+                      {% else %}
+                      ---.----------
+                      {% endif %}
+                    </div>
+                    <div class="coordinate-label">Latitude</div>
+                  </div>
+                  <div class="coordinate-info">
+                    <div class="coordinate-value" id="longitudeDisplay">
+                      {% if qr_code.has_coordinates %}
+                      {{ "%.6f"|format(qr_code.address_longitude) }}
+                      {% else %}
+                      ---.----------
+                      {% endif %}
+                    </div>
+                    <div class="coordinate-label">Longitude</div>
+                  </div>
+                </div>
+
+                <div class="coordinates-actions">
+                  <button
+                    type="button"
+                    class="btn-coordinate"
+                    id="geocodeBtn"
+                  >
+                    <i class="fas fa-search-location"></i>
+                    {% if qr_code.has_coordinates %}Update{% else %}Get{% endif %} Coordinates
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-coordinate"
+                    id="clearCoordinatesBtn"
+                    style="display: {% if qr_code.has_coordinates %}inline-flex{% else %}none{% endif %};"
+                  >
+                    <i class="fas fa-times"></i>
+                    Clear
+                  </button>
+                </div>
+
+                <div id="coordinateStatus"></div>
               </div>
             </div>
-            {% else %}
-            <div class="no-coordinates">
-              <i class="fas fa-map-marker-alt"></i>
-              <div>No coordinates available</div>
-              <div style="font-size: 0.75rem; margin-top: 0.25rem">
-                Add coordinates using the form
+          </div>
+
+          <div class="form-group">
+            <label for="location_event">
+              <i class="fas fa-calendar-alt"></i>
+              Event or Purpose
+              <span style="color: var(--error-color)">*</span>
+            </label>
+            <select
+              id="location_event"
+              name="location_event"
+              required
+              class="form-control"
+              data-original="{{ qr_code.location_event }}"
+            >
+              <option value="">Select Event Type</option>
+              <option value="Check In" {% if qr_code.location_event == 'Check In' %}selected{% endif %}>Check In</option>
+              <option value="Check Out" {% if qr_code.location_event == 'Check Out' %}selected{% endif %}>Check Out</option>
+            </select>
+            <small class="form-help"
+              >Select the event type for this QR code</small
+            >
+          </div>
+        </div>
+
+        <!-- QR Code Customization Section -->
+        <div class="form-section">
+          <div class="section-header">
+            <h3>
+              <i class="fas fa-palette"></i>
+              QR Code Customization
+            </h3>
+            <p>Update the appearance and style of your QR code</p>
+          </div>
+
+          <!-- Style Presets -->
+          <div class="form-group">
+            <label for="style_id">
+              <i class="fas fa-swatchbook"></i>
+              Style Preset (Optional)
+            </label>
+            <select id="style_id" name="style_id" onchange="applyStylePreset()">
+              <option value="">Custom Style</option>
+              {% for style in styles %}
+              <option 
+                value="{{ style.id }}" 
+                {% if qr_code.style_id == style.id %}selected{% endif %}
+                data-fill="{{ style.fill_color }}" 
+                data-back="{{ style.back_color }}"
+                data-box-size="{{ style.box_size }}"
+                data-border="{{ style.border }}"
+                data-error-correction="{{ style.error_correction }}">
+                {{ style.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <span class="form-help">Choose a pre-defined style or customize manually below</span>
+          </div>
+
+          <!-- Color Customization -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fill_color">
+                <i class="fas fa-fill-drip"></i>
+                QR Code Color
+              </label>
+              <div class="color-input-group">
+                <input 
+                  type="color" 
+                  id="fill_color" 
+                  name="fill_color" 
+                  value="{{ qr_code.fill_color or '#000000' }}"
+                  onchange="updatePreview()"
+                />
+                <input 
+                  type="text" 
+                  id="fill_color_text" 
+                  value="{{ qr_code.fill_color or '#000000' }}" 
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  placeholder="#000000"
+                  onchange="syncColorInput('fill')"
+                />
+              </div>
+              <span class="form-help">Color of the QR code modules</span>
+            </div>
+
+            <div class="form-group">
+              <label for="back_color">
+                <i class="fas fa-paint-brush"></i>
+                Background Color
+              </label>
+              <div class="color-input-group">
+                <input 
+                  type="color" 
+                  id="back_color" 
+                  name="back_color" 
+                  value="{{ qr_code.back_color or '#FFFFFF' }}"
+                  onchange="updatePreview()"
+                />
+                <input 
+                  type="text" 
+                  id="back_color_text" 
+                  value="{{ qr_code.back_color or '#FFFFFF' }}" 
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  placeholder="#FFFFFF"
+                  onchange="syncColorInput('back')"
+                />
+              </div>
+              <span class="form-help">Background color of the QR code</span>
+            </div>
+          </div>
+
+          <!-- Size and Quality Settings -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="box_size">
+                <i class="fas fa-expand-arrows-alt"></i>
+                Module Size
+              </label>
+              <div class="range-input-group">
+                <input 
+                  type="range" 
+                  id="box_size" 
+                  name="box_size" 
+                  min="5" 
+                  max="20" 
+                  value="{{ qr_code.box_size or 10 }}"
+                  oninput="updateRangeValue('box_size'); updatePreview()"
+                />
+                <span class="range-value" id="box_size_value">{{ qr_code.box_size or 10 }}px</span>
+              </div>
+              <span class="form-help">Size of each QR code module (affects overall size)</span>
+            </div>
+
+            <div class="form-group">
+              <label for="border">
+                <i class="fas fa-border-style"></i>
+                Border Size
+              </label>
+              <div class="range-input-group">
+                <input 
+                  type="range" 
+                  id="border" 
+                  name="border" 
+                  min="1" 
+                  max="10" 
+                  value="{{ qr_code.border or 4 }}"
+                  oninput="updateRangeValue('border'); updatePreview()"
+                />
+                <span class="range-value" id="border_value">{{ qr_code.border or 4 }} modules</span>
+              </div>
+              <span class="form-help">White border around the QR code</span>
+            </div>
+          </div>
+
+          <!-- Error Correction Level -->
+          <div class="form-group">
+            <label for="error_correction">
+              <i class="fas fa-shield-alt"></i>
+              Error Correction Level
+            </label>
+            <select id="error_correction" name="error_correction" onchange="updatePreview()">
+              <option value="L" {% if qr_code.error_correction == 'L' %}selected{% endif %}>Low (7% recovery)</option>
+              <option value="M" {% if qr_code.error_correction == 'M' %}selected{% endif %}>Medium (15% recovery)</option>
+              <option value="Q" {% if qr_code.error_correction == 'Q' %}selected{% endif %}>Quartile (25% recovery)</option>
+              <option value="H" {% if qr_code.error_correction == 'H' %}selected{% endif %}>High (30% recovery)</option>
+            </select>
+            <span class="form-help">Higher levels allow QR code to work even if partially damaged</span>
+          </div>
+
+          <!-- Live Preview -->
+          <div class="qr-preview-section">
+            <h4>
+              <i class="fas fa-eye"></i>
+              Live Preview
+            </h4>
+            <div class="qr-preview-container">
+              <div id="qr_preview" class="qr-preview">
+                <div class="qr-sample" id="qr_sample">
+                  <!-- Sample QR pattern for preview -->
+                  <div class="qr-pattern">
+                    <div class="qr-module"></div>
+                    <div class="qr-module"></div>
+                    <div class="qr-module empty"></div>
+                    <div class="qr-module"></div>
+                    <div class="qr-module empty"></div>
+                    <div class="qr-module"></div>
+                    <div class="qr-module"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="preview-info">
+                <p><strong>Sample QR Code Preview</strong></p>
+                <p class="preview-text">Colors and styling will be applied to your updated QR code</p>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Hidden coordinate fields for form submission -->
+        <input
+          type="hidden"
+          id="address_latitude"
+          name="address_latitude"
+          value="{% if qr_code.has_coordinates %}{{ qr_code.address_latitude }}{% endif %}"
+        />
+        <input
+          type="hidden"
+          id="address_longitude"
+          name="address_longitude"
+          value="{% if qr_code.has_coordinates %}{{ qr_code.address_longitude }}{% endif %}"
+        />
+        <input
+          type="hidden"
+          id="coordinate_accuracy"
+          name="coordinate_accuracy"
+          value="{% if qr_code.has_coordinates %}{{ qr_code.coordinate_accuracy }}{% endif %}"
+        />
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i>
+            Cancel
+          </a>
+          <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
+            <i class="fas fa-undo"></i>
+            Reset Styling
+          </button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">
+            <i class="fas fa-save"></i>
+            Update QR Code
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Current Information Panel -->
+    <div class="current-info-panel">
+      <div class="current-info-header">
+        <h3>
+          <i class="fas fa-info-circle"></i>
+          Current Information
+        </h3>
+      </div>
+
+      <div class="current-info-content">
+        <div class="detail-row">
+          <strong>QR Code Name:</strong>
+          <span id="currentName">{{ qr_code.name }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>Location:</strong>
+          <span id="currentLocation">{{ qr_code.location }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>Event:</strong>
+          <span id="currentEvent">{{ qr_code.location_event }}</span>
+        </div>
+        <div class="detail-row">
+          <strong>Address:</strong>
+          <span id="currentAddress">{{ qr_code.location_address }}</span>
+        </div>
+
+        <!-- Current Coordinates Display -->
+        {% if qr_code.has_coordinates %}
+        <div class="coordinate-info">
+          <div class="coordinate-value">
+            {{ qr_code.coordinates_display }}
+          </div>
+          <div class="coordinate-label">Current Coordinates</div>
+          <div style="font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.8">
+            Accuracy: {{ qr_code.coordinate_accuracy|title }}
+            {% if qr_code.coordinates_updated_date %}
+            <br />Updated: {{ qr_code.coordinates_updated_date.strftime('%Y-%m-%d') }}
             {% endif %}
           </div>
         </div>
+        {% else %}
+        <div class="no-coordinates">
+          <i class="fas fa-map-marker-alt"></i>
+          <div>No coordinates available</div>
+          <div style="font-size: 0.75rem; margin-top: 0.5rem">
+            Use "Get Coordinates" to add location data
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Current QR Code Styling Info -->
+        <div class="detail-row" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+          <strong>QR Code Style:</strong>
+          <span>
+            {% if qr_code.style %}
+            {{ qr_code.style.name }}
+            {% else %}
+            Custom
+            {% endif %}
+          </span>
+        </div>
+        <div class="detail-row">
+          <strong>Colors:</strong>
+          <span>
+            <span style="display: inline-block; width: 12px; height: 12px; background: {{ qr_code.fill_color or '#000000' }}; border-radius: 2px; margin-right: 4px;"></span>
+            on
+            <span style="display: inline-block; width: 12px; height: 12px; background: {{ qr_code.back_color or '#FFFFFF' }}; border: 1px solid #ccc; border-radius: 2px; margin-left: 4px;"></span>
+          </span>
+        </div>
       </div>
     </div>
+  </div>
+</div>
 
-    <script>
-      // Global variables
-      let coordinatesData = {
-          latitude: {% if qr_code.has_coordinates %}{{ qr_code.address_latitude }}{% else %}null{% endif %},
-          longitude: {% if qr_code.has_coordinates %}{{ qr_code.address_longitude }}{% else %}null{% endif %},
-          accuracy: "{% if qr_code.has_coordinates %}{{ qr_code.coordinate_accuracy }}{% else %}{% endif %}"
-      };
-
-      let originalData = {};
-      let originalProjectId = {% if qr_code.project_id %}{{ qr_code.project_id }}{% else %}null{% endif %};
-
-      // Initialize the form when page loads
-      document.addEventListener('DOMContentLoaded', function() {
-          storeOriginalData();
-          initializeForm();
-          initializeCharacterCounters();
-          initializeCoordinatesFeature();
-          initializeChangeTracking();
-      });
-
-      function storeOriginalData() {
-          originalData = {
-              name: document.getElementById('name').dataset.original,
-              location: document.getElementById('location').dataset.original,
-              location_address: document.getElementById('location_address').dataset.original,
-              location_event: document.getElementById('location_event').dataset.original
-          };
+<script>
+  // Character counting functionality
+  function updateCharacterCount(inputId, counterId, maxLength) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    
+    if (input && counter) {
+      const length = input.value.length;
+      counter.textContent = `${length}/${maxLength}`;
+      
+      if (length > maxLength * 0.9) {
+        counter.classList.add('warning');
+      } else {
+        counter.classList.remove('warning');
       }
-
-      function initializeForm() {
-          // Form validation on submit - REMOVED COORDINATE UPDATE REQUIREMENT
-          document.getElementById('editQRForm').addEventListener('submit', function(e) {
-              if (!validateForm()) {
-                  e.preventDefault();
-                  return false;
-              }
-
-              // REMOVED: Check if changes were made - Allow form submission regardless of changes
-              // This enables updates even when only project changes or coordinate updates occur
-
-              // Show loading state
-              const submitBtn = document.getElementById('submitBtn');
-              submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating QR Code...';
-              submitBtn.disabled = true;
-          });
-      }
-
-      function initializeCharacterCounters() {
-          const fields = [
-              { id: 'name', counter: 'nameCounter', max: 100 },
-              { id: 'location', counter: 'locationCounter', max: 150 },
-              { id: 'location_address', counter: 'addressCounter', max: 255 }
-          ];
-
-          fields.forEach(field => {
-              const input = document.getElementById(field.id);
-              const counter = document.getElementById(field.counter);
-              
-              if (input && counter) {
-                  function updateCounter() {
-                      const length = input.value.length;
-                      counter.textContent = `${length}/${field.max}`;
-                      
-                      if (length > field.max * 0.9) {
-                          counter.style.color = 'var(--warning-color)';
-                      } else {
-                          counter.style.color = '';
-                      }
-                  }
-                  
-                  input.addEventListener('input', updateCounter);
-                  updateCounter();
-              }
-          });
-      }
-
-      function geocodeAddress(address) {
-        const geocodeBtn = document.getElementById('geocodeBtn');
-        const statusDiv = document.getElementById('coordinateStatus');
-
-        // Show loading state
-        geocodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting Coordinates...';
-        geocodeBtn.disabled = true;
-
-        showStatus('info', 'Getting coordinates from address...');
-
-        // Use backend API instead of OpenCage
-        fetch('/api/geocode', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                'address': address
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Geocoding response:', data);
-
-            if (data.success && data.data) {
-                const result = data.data;
-                const lat = result.latitude;
-                const lng = result.longitude;
-                const accuracy = result.accuracy || 'medium';
-
-                // Update coordinates data
-                coordinatesData = {
-                    latitude: lat,
-                    longitude: lng,
-                    accuracy: accuracy
-                };
-
-                updateCoordinatesDisplay();
-                updateHiddenFields();
-
-                showStatus('success', `Coordinates updated successfully! Accuracy: ${accuracy}`);
-
-                console.log('✓ Coordinates updated:', coordinatesData);
-            } else {
-                const errorMessage = data.message || 'Could not find coordinates for this address. Please check the address and try again.';
-                showStatus('error', errorMessage);
-            }
-        })
-        .catch(error => {
-            console.error('Geocoding error:', error);
-            showStatus('error', 'Failed to get coordinates. Please try again.');
-        })
-        .finally(() => {
-            // Reset button state
-            geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
-            geocodeBtn.disabled = false;
-        });
     }
+  }
 
-      function updateCoordinatesDisplay() {
-          const latDisplay = document.getElementById('latitudeDisplay');
-          const lngDisplay = document.getElementById('longitudeDisplay');
-          const clearBtn = document.getElementById('clearCoordinatesBtn');
+  // QR Code Customization JavaScript Functions
+  function applyStylePreset() {
+    const styleSelect = document.getElementById('style_id');
+    const selectedOption = styleSelect.options[styleSelect.selectedIndex];
+    
+    if (selectedOption.value) {
+      // Apply preset values
+      const fillColor = selectedOption.getAttribute('data-fill');
+      const backColor = selectedOption.getAttribute('data-back');
+      const boxSize = selectedOption.getAttribute('data-box-size');
+      const border = selectedOption.getAttribute('data-border');
+      const errorCorrection = selectedOption.getAttribute('data-error-correction');
+      
+      // Update form inputs
+      document.getElementById('fill_color').value = fillColor;
+      document.getElementById('fill_color_text').value = fillColor;
+      document.getElementById('back_color').value = backColor;
+      document.getElementById('back_color_text').value = backColor;
+      document.getElementById('box_size').value = boxSize;
+      document.getElementById('border').value = border;
+      document.getElementById('error_correction').value = errorCorrection;
+      
+      // Update range value displays
+      updateRangeValue('box_size');
+      updateRangeValue('border');
+      
+      // Update preview
+      updatePreview();
+      
+      // Show toast notification
+      showToast(`Applied "${selectedOption.text}" style preset`, 'success');
+    }
+  }
 
-          if (coordinatesData.latitude && coordinatesData.longitude) {
-              latDisplay.textContent = coordinatesData.latitude.toFixed(10);
-              lngDisplay.textContent = coordinatesData.longitude.toFixed(10);
-              clearBtn.style.display = 'inline-flex';
-          } else {
-              latDisplay.textContent = '---.----------';
-              lngDisplay.textContent = '---.----------';
-              clearBtn.style.display = 'none';
-          }
+  function syncColorInput(type) {
+    const colorInput = document.getElementById(`${type}_color`);
+    const textInput = document.getElementById(`${type}_color_text`);
+    
+    let value = textInput.value.trim().toUpperCase();
+    
+    // Add # if missing
+    if (!value.startsWith('#')) {
+      value = '#' + value;
+    }
+    
+    // Validate hex format
+    if (/^#[0-9A-F]{6}$/i.test(value)) {
+      colorInput.value = value;
+      textInput.value = value;
+      updatePreview();
+    } else {
+      // Reset to previous valid value
+      textInput.value = colorInput.value;
+      showToast('Invalid color format. Use #RRGGBB format.', 'warning');
+    }
+  }
+
+  function updateRangeValue(inputId) {
+    const input = document.getElementById(inputId);
+    const valueDisplay = document.getElementById(`${inputId}_value`);
+    
+    if (inputId === 'box_size') {
+      valueDisplay.textContent = `${input.value}px`;
+    } else if (inputId === 'border') {
+      valueDisplay.textContent = `${input.value} modules`;
+    }
+  }
+
+  function updatePreview() {
+    const fillColor = document.getElementById('fill_color').value;
+    const backColor = document.getElementById('back_color').value;
+    const boxSize = document.getElementById('box_size').value;
+    const border = document.getElementById('border').value;
+    
+    // Update preview QR modules
+    const qrSample = document.getElementById('qr_sample');
+    const qrModules = qrSample.querySelectorAll('.qr-module:not(.empty)');
+    
+    // Apply colors to QR modules
+    qrModules.forEach(module => {
+      module.style.backgroundColor = fillColor;
+    });
+    
+    // Apply background color
+    qrSample.style.backgroundColor = backColor;
+    
+    // Apply border (padding represents border)
+    const borderPx = Math.max(4, parseInt(border) * 2);
+    qrSample.style.padding = `${borderPx}px`;
+    
+    // Apply module size effect (simulate with scale)
+    const scale = Math.max(0.7, Math.min(1.3, parseInt(boxSize) / 10));
+    qrSample.style.transform = `scale(${scale})`;
+    
+    // Sync text inputs with color inputs
+    document.getElementById('fill_color_text').value = fillColor.toUpperCase();
+    document.getElementById('back_color_text').value = backColor.toUpperCase();
+    
+    // Add animation class
+    const preview = document.getElementById('qr_preview');
+    preview.style.animation = 'none';
+    setTimeout(() => {
+      preview.style.animation = 'pulse 0.3s ease-in-out';
+    }, 10);
+  }
+
+  function resetToDefaults() {
+    document.getElementById('style_id').value = '';
+    document.getElementById('fill_color').value = '#000000';
+    document.getElementById('fill_color_text').value = '#000000';
+    document.getElementById('back_color').value = '#FFFFFF';
+    document.getElementById('back_color_text').value = '#FFFFFF';
+    document.getElementById('box_size').value = '10';
+    document.getElementById('border').value = '4';
+    document.getElementById('error_correction').value = 'L';
+    
+    updateRangeValue('box_size');
+    updateRangeValue('border');
+    updatePreview();
+    
+    showToast('Reset to default QR code styling', 'info');
+  }
+
+  function showToast(message, type = 'info') {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+      <div class="toast-content">
+        <i class="fas ${getToastIcon(type)}"></i>
+        <span>${message}</span>
+      </div>
+    `;
+    
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 1rem;
+      z-index: 1000;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.3s ease;
+      border-left: 4px solid ${getToastColor(type)};
+      max-width: 350px;
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 3000);
+  }
+
+  function getToastIcon(type) {
+    const icons = {
+      success: 'fa-check-circle',
+      error: 'fa-exclamation-circle',
+      warning: 'fa-exclamation-triangle',
+      info: 'fa-info-circle'
+    };
+    return icons[type] || icons.info;
+  }
+
+  function getToastColor(type) {
+    const colors = {
+      success: '#059669',
+      error: '#dc2626',
+      warning: '#d97706',
+      info: '#0891b2'
+    };
+    return colors[type] || colors.info;
+  }
+
+  // Form validation
+  function validateQRCustomization() {
+    const fillColor = document.getElementById('fill_color_text').value;
+    const backColor = document.getElementById('back_color_text').value;
+    
+    // Check if colors are too similar
+    if (fillColor.toLowerCase() === backColor.toLowerCase()) {
+      showToast('QR code color and background color cannot be the same', 'error');
+      return false;
+    }
+    
+    return true;
+  }
+
+  // Geocoding functionality
+  function geocodeAddress(address) {
+    showStatus('info', 'Getting coordinates...');
+    
+    // Using OpenStreetMap Nominatim API (free alternative to Google)
+    const encodedAddress = encodeURIComponent(address);
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+    
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          const result = data[0];
+          const lat = parseFloat(result.lat);
+          const lng = parseFloat(result.lon);
+          
+          updateCoordinates(lat, lng, 'geocoded');
+          showStatus('success', 'Coordinates updated successfully');
+        } else {
+          showStatus('warning', 'No coordinates found for this address');
+        }
+      })
+      .catch(error => {
+        console.error('Geocoding error:', error);
+        showStatus('error', 'Failed to get coordinates. Please try again.');
+      });
+  }
+
+  function updateCoordinates(lat, lng, accuracy) {
+    document.getElementById('address_latitude').value = lat;
+    document.getElementById('address_longitude').value = lng;
+    document.getElementById('coordinate_accuracy').value = accuracy;
+    
+    document.getElementById('latitudeDisplay').textContent = lat.toFixed(10);
+    document.getElementById('longitudeDisplay').textContent = lng.toFixed(10);
+    
+    document.getElementById('clearCoordinatesBtn').style.display = 'inline-flex';
+    document.getElementById('geocodeBtn').innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
+  }
+
+  function clearCoordinates() {
+    document.getElementById('address_latitude').value = '';
+    document.getElementById('address_longitude').value = '';
+    document.getElementById('coordinate_accuracy').value = '';
+    
+    document.getElementById('latitudeDisplay').textContent = '---.----------';
+    document.getElementById('longitudeDisplay').textContent = '---.---------';
+    
+    document.getElementById('clearCoordinatesBtn').style.display = 'none';
+    document.getElementById('geocodeBtn').innerHTML = '<i class="fas fa-search-location"></i> Get Coordinates';
+    
+    showStatus('info', 'Coordinates cleared');
+  }
+
+  function showStatus(type, message) {
+    const statusDiv = document.getElementById('coordinateStatus');
+    if (statusDiv) {
+      statusDiv.innerHTML = `<div class="status-${type}" style="padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.875rem;">${message}</div>`;
+      
+      setTimeout(() => {
+        statusDiv.innerHTML = '';
+      }, 5000);
+    }
+  }
+
+  function updateCurrentInfo() {
+    document.getElementById('currentName').textContent = document.getElementById('name').value || '-';
+    document.getElementById('currentLocation').textContent = document.getElementById('location').value || '-';
+    document.getElementById('currentEvent').textContent = document.getElementById('location_event').value || '-';
+    document.getElementById('currentAddress').textContent = document.getElementById('location_address').value || '-';
+  }
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set up character counters
+    document.getElementById('name').addEventListener('input', () => {
+      updateCharacterCount('name', 'nameCounter', 100);
+      updateCurrentInfo();
+    });
+    document.getElementById('location').addEventListener('input', () => {
+      updateCharacterCount('location', 'locationCounter', 100);
+      updateCurrentInfo();
+    });
+    document.getElementById('location_address').addEventListener('input', () => {
+      updateCharacterCount('location_address', 'addressCounter', 500);
+      updateCurrentInfo();
+    });
+    
+    // Set up event listener for location_event
+    document.getElementById('location_event').addEventListener('change', updateCurrentInfo);
+    
+    // Set up initial values for QR customization
+    updateRangeValue('box_size');
+    updateRangeValue('border');
+    updatePreview();
+    
+    // Add form validation
+    const form = document.getElementById('editQRForm');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        if (!validateQRCustomization()) {
+          e.preventDefault();
+          return false;
+        }
+      });
+    }
+    
+    // Add color input synchronization
+    document.getElementById('fill_color').addEventListener('change', function() {
+      document.getElementById('fill_color_text').value = this.value.toUpperCase();
+      updatePreview();
+    });
+    
+    document.getElementById('back_color').addEventListener('change', function() {
+      document.getElementById('back_color_text').value = this.value.toUpperCase();
+      updatePreview();
+    });
+
+    // Initialize geocoding functionality
+    const geocodeBtn = document.getElementById('geocodeBtn');
+    const clearBtn = document.getElementById('clearCoordinatesBtn');
+
+    geocodeBtn.addEventListener('click', function() {
+      const address = document.getElementById('location_address').value.trim();
+      if (address.length > 10) {
+        geocodeAddress(address);
+      } else {
+        showStatus('error', 'Please enter a complete address first');
       }
+    });
 
-      function updateHiddenFields() {
-          document.getElementById('address_latitude').value = coordinatesData.latitude || '';
-          document.getElementById('address_longitude').value = coordinatesData.longitude || '';
-          document.getElementById('coordinate_accuracy').value = coordinatesData.accuracy || '';
-      }
-
-      function clearCoordinates() {
-          coordinatesData = {
-              latitude: null,
-              longitude: null,
-              accuracy: null
-          };
-
-          updateCoordinatesDisplay();
-          updateHiddenFields();
-
-          // Clear status
-          document.getElementById('coordinateStatus').innerHTML = '';
-
-          showStatus('warning', 'Coordinates cleared. Click "Update QR Code" to save changes.');
-      }
-
-      // ENHANCED hasChanges function - Now includes project changes and allows coordinate-only updates
-      function hasChanges() {
-          const currentData = {
-              name: document.getElementById('name').value.trim(),
-              location: document.getElementById('location').value.trim(),
-              location_address: document.getElementById('location_address').value.trim(),
-              location_event: document.getElementById('location_event').value.trim()
-          };
-
-          // Check basic field changes
-          const fieldChanges = Object.keys(originalData).some(key => {
-              return currentData[key] !== originalData[key];
-          });
-
-          // Check project changes
-          const currentProjectId = document.getElementById('project_id').value;
-          const projectIdValue = currentProjectId ? parseInt(currentProjectId) : null;
-          const projectChanged = originalProjectId !== projectIdValue;
-
-          console.log('Change detection:', {
-              fieldChanges,
-              projectChanged,
-              originalProjectId,
-              currentProjectId: projectIdValue
-          });
-
-          return fieldChanges || projectChanged;
-      }
-
-      // REMOVED: confirmSaveChanges function - No longer needed since we're allowing all updates
-
-      function showStatus(type, message) {
-          const statusDiv = document.getElementById('coordinateStatus');
-          const iconMap = {
-              'success': 'fas fa-check-circle',
-              'error': 'fas fa-exclamation-circle',
-              'warning': 'fas fa-exclamation-triangle',
-              'info': 'fas fa-info-circle'
-          };
-
-          statusDiv.innerHTML = `
-              <div class="status-message status-${type}">
-                  <i class="${iconMap[type]}"></i>
-                  <span>${message}</span>
-              </div>
-          `;
-
-          // Auto-clear after 5 seconds for success messages
-          if (type === 'success') {
-              setTimeout(() => {
-                  statusDiv.innerHTML = '';
-              }, 5000);
-          }
-      }
-
-      function validateForm() {
-          const requiredFields = [
-              { id: 'name', name: 'QR Code Name' },
-              { id: 'location', name: 'Location Name' },
-              { id: 'location_address', name: 'Complete Address' },
-              { id: 'location_event', name: 'Event or Purpose' }
-          ];
-
-          let isValid = true;
-
-          requiredFields.forEach(field => {
-              const input = document.getElementById(field.id);
-              if (!input.value.trim()) {
-                  showFieldError(input, `${field.name} is required`);
-                  isValid = false;
-              } else {
-                  clearFieldError(input);
-              }
-          });
-
-          // Additional validation
-          const name = document.getElementById('name').value.trim();
-          if (name && name.length < 3) {
-              showFieldError(document.getElementById('name'), 'QR Code name must be at least 3 characters');
-              isValid = false;
-          }
-
-          const address = document.getElementById('location_address').value.trim();
-          if (address && address.length < 10) {
-              showFieldError(document.getElementById('location_address'), 'Please provide a complete address');
-              isValid = false;
-          }
-
-          return isValid;
-      }
-
-      function showFieldError(input, message) {
-          const formGroup = input.closest('.form-group');
-          formGroup.classList.add('has-error');
-
-          let errorElement = formGroup.querySelector('.error-message');
-          if (!errorElement) {
-              errorElement = document.createElement('div');
-              errorElement.className = 'error-message';
-              formGroup.appendChild(errorElement);
-          }
-
-          errorElement.textContent = message;
-      }
-
-      function clearFieldError(input) {
-          const formGroup = input.closest('.form-group');
-          formGroup.classList.remove('has-error');
-
-          const errorElement = formGroup.querySelector('.error-message');
-          if (errorElement) {
-              errorElement.remove();
-          }
-      }
-
-      function initializeCoordinatesFeature() {
-          const geocodeBtn = document.getElementById('geocodeBtn');
-          const clearBtn = document.getElementById('clearCoordinatesBtn');
-
-          // Geocode button click
-          geocodeBtn.addEventListener('click', function() {
-              const address = document.getElementById('location_address').value.trim();
-              if (address.length > 10) {
-                  geocodeAddress(address);
-              } else {
-                  showStatus('error', 'Please enter a complete address first');
-              }
-          });
-
-          // Clear coordinates button
-          clearBtn.addEventListener('click', clearCoordinates);
-      }
-
-      function initializeChangeTracking() {
-          const inputs = document.querySelectorAll('#name, #location, #location_address, #location_event');
-
-          inputs.forEach(input => {
-              input.addEventListener('input', updateCurrentInfo);
-          });
-      }
-
-      function updateCurrentInfo() {
-          document.getElementById('currentName').textContent = document.getElementById('name').value || '-';
-          document.getElementById('currentLocation').textContent = document.getElementById('location').value || '-';
-          document.getElementById('currentEvent').textContent = document.getElementById('location_event').value || '-';
-          document.getElementById('currentAddress').textContent = document.getElementById('location_address').value || '-';
-      }
-    </script>
-  </body>
-</html>
+    clearBtn.addEventListener('click', clearCoordinates);
+  });
+</script>
+{% endblock %}

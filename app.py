@@ -9,6 +9,7 @@ import io, os, base64, re, uuid, requests, json, qrcode, math
 from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
+from PIL import Image, ImageDraw
 
 # Load environment variables in .env
 load_dotenv()
@@ -109,6 +110,16 @@ class QRCode(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     # The project_id field:
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    # QR Code Customization fields
+    fill_color = db.Column(db.String(7), default="#000000")  # Hex color
+    back_color = db.Column(db.String(7), default="#FFFFFF")  # Background color
+    box_size = db.Column(db.Integer, default=10)
+    border = db.Column(db.Integer, default=4)
+    error_correction = db.Column(db.String(1), default='L')
+    style_id = db.Column(db.Integer, db.ForeignKey('qr_code_styles.id'), nullable=True)
+    
+    # Relationship to style
+    style = db.relationship('QRCodeStyle', backref='qr_codes')
 
     @property
     def has_coordinates(self):
@@ -129,6 +140,24 @@ class QRCode(db.Model):
         self.coordinate_accuracy = accuracy
         self.coordinates_updated_date = datetime.utcnow()
 
+class QRCodeStyle(db.Model):
+    """QR Code customization styles"""
+    __tablename__ = 'qr_code_styles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)  # Style name
+    fill_color = db.Column(db.String(7), default="#000000")  # Hex color for QR modules
+    back_color = db.Column(db.String(7), default="#FFFFFF")  # Hex color for background
+    box_size = db.Column(db.Integer, default=10)  # Size of each QR module
+    border = db.Column(db.Integer, default=4)  # Border size
+    error_correction = db.Column(db.String(1), default='L')  # L, M, Q, H
+    is_default = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
+    def __repr__(self):
+        return f'<QRCodeStyle {self.name}>'
+    
 class Project(db.Model):
     """
     Project model to organize QR codes by projects
@@ -1131,8 +1160,55 @@ def is_admin_user(user_id):
         return False
 
 # Utility function to generate QR code
-def generate_qr_code(data):
-    """Generate QR code image and return as base64 string"""
+def generate_qr_code(data, fill_color="black", back_color="white", box_size=10, border=4, error_correction='L'):
+    # Error correction mapping
+    error_correction_map = {
+        'L': qrcode.constants.ERROR_CORRECT_L,
+        'M': qrcode.constants.ERROR_CORRECT_M,
+        'Q': qrcode.constants.ERROR_CORRECT_Q,
+        'H': qrcode.constants.ERROR_CORRECT_H
+    }
+    
+    try:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=error_correction_map.get(error_correction, qrcode.constants.ERROR_CORRECT_L),
+            box_size=int(box_size),
+            border=int(border),
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        
+        # Generate QR code image with custom colors
+        img = qr.make_image(fill_color=fill_color, back_color=back_color)
+        
+        # Convert to base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        # Log successful generation if logger is available
+        try:
+            logger_handler.log_qr_code_generated(
+                data_length=len(data),
+                fill_color=fill_color,
+                back_color=back_color,
+                box_size=box_size,
+                border=border,
+                error_correction=error_correction
+            )
+        except:
+            pass  # Ignore logging errors
+        
+        return img_str
+        
+    except Exception as e:
+        logger_handler.log_database_error('qr_code_generation', e)
+        # Return default QR code on error
+        return generate_default_qr_code(data)
+    
+def generate_default_qr_code(data):
+    """Fallback function for basic QR code generation"""
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -1144,12 +1220,21 @@ def generate_qr_code(data):
     
     img = qr.make_image(fill_color="black", back_color="white")
     
-    # Convert to base64
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     img_str = base64.b64encode(buffer.getvalue()).decode()
     
     return img_str
+
+def get_qr_styling(qr_code):
+    """Extract QR code styling parameters from database record"""
+    return {
+        'fill_color': getattr(qr_code, 'fill_color', '#000000') or '#000000',
+        'back_color': getattr(qr_code, 'back_color', '#FFFFFF') or '#FFFFFF',
+        'box_size': getattr(qr_code, 'box_size', 10) or 10,
+        'border': getattr(qr_code, 'border', 4) or 4,
+        'error_correction': getattr(qr_code, 'error_correction', 'L') or 'L'
+    }
 
 @app.template_filter('strftime')
 def strftime_filter(value, format='%m/%d/%Y'):
@@ -2648,9 +2733,10 @@ def api_active_projects():
 @login_required
 @log_database_operations('qr_code_creation')
 def create_qr_code():
-    """Enhanced create QR code with readable URL format and coordinates saving"""
+    """Enhanced create QR code with customization options"""
     if request.method == 'POST':
         try:
+            # Existing form data
             name = request.form['name']
             location = request.form['location']
             location_address = request.form['location_address']
@@ -2661,6 +2747,20 @@ def create_qr_code():
             latitude = request.form.get('latitude')
             longitude = request.form.get('longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
+            
+            # NEW: QR Code customization data
+            fill_color = request.form.get('fill_color', '#000000')
+            back_color = request.form.get('back_color', '#FFFFFF')
+            box_size = int(request.form.get('box_size', 10))
+            border = int(request.form.get('border', 4))
+            error_correction = request.form.get('error_correction', 'L')
+            style_id = request.form.get('style_id')  # Pre-defined style
+            
+            # Validate colors (basic hex validation)
+            if not (fill_color.startswith('#') and len(fill_color) == 7):
+                fill_color = '#000000'
+            if not (back_color.startswith('#') and len(back_color) == 7):
+                back_color = '#FFFFFF'
             
             # Convert coordinates to float if they exist
             address_latitude = None
@@ -2682,11 +2782,19 @@ def create_qr_code():
             # Validate project_id if provided
             project = None
             if project_id:
-                project_id = int(project_id)
-                project = Project.query.get(project_id)
-                if not project or not project.active_status:
-                    flash('Selected project is not valid or inactive.', 'error')
-                    return render_template('create_qr_code.html')
+                try:
+                    project_id = int(project_id)
+                    project = Project.query.get(project_id)
+                    if not project or not project.active_status:
+                        flash('Selected project is not valid or inactive.', 'error')
+                        return render_template('create_qr_code.html', 
+                                             projects=Project.query.filter_by(active_status=True).all(),
+                                             styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
+                except (ValueError, TypeError):
+                    flash('Invalid project selection.', 'error')
+                    return render_template('create_qr_code.html', 
+                                         projects=Project.query.filter_by(active_status=True).all(),
+                                         styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
             
             # Create new QR code record first (without URL and image)
             new_qr_code = QRCode(
@@ -2701,7 +2809,16 @@ def create_qr_code():
                 address_latitude=address_latitude,
                 address_longitude=address_longitude,
                 coordinate_accuracy=coordinate_accuracy if has_coordinates else None,
-                coordinates_updated_date=datetime.utcnow() if has_coordinates else None
+                coordinates_updated_date=datetime.utcnow() if has_coordinates else None,
+                # NEW: Customization fields (only if columns exist)
+                **({
+                    'fill_color': fill_color,
+                    'back_color': back_color,
+                    'box_size': box_size,
+                    'border': border,
+                    'error_correction': error_correction,
+                    'style_id': int(style_id) if style_id and style_id.isdigit() else None
+                } if hasattr(QRCode, 'fill_color') else {})
             )
             
             # Add to session and flush to get the ID
@@ -2711,9 +2828,16 @@ def create_qr_code():
             # Now generate the readable URL using the ID
             qr_url = generate_qr_url(name, new_qr_code.id)
             
-            # Generate QR code data with the destination URL  
+            # Generate QR code data with the destination URL and custom styling
             qr_data = f"{request.url_root}qr/{qr_url}"
-            qr_image = generate_qr_code(qr_data)
+            qr_image = generate_qr_code(
+                data=qr_data,
+                fill_color=fill_color,
+                back_color=back_color,
+                box_size=box_size,
+                border=border,
+                error_correction=error_correction
+            )
             
             # Update the QR code with the URL and image
             new_qr_code.qr_url = qr_url
@@ -2722,41 +2846,32 @@ def create_qr_code():
             # Now commit all changes
             db.session.commit()
             
-            # Enhanced logging with project and coordinates information
-            log_data = {
-                'qr_code_id': new_qr_code.id,
-                'name': name,
-                'location': location,
-                'qr_url': qr_url,  # Log the readable URL
-                'project_id': project_id,
-                'project_name': project.name if project else None,
-                'has_coordinates': has_coordinates,
-                'latitude': address_latitude,
-                'longitude': address_longitude,
-                'coordinate_accuracy': coordinate_accuracy
-            }
-            qr_data_for_logging = {
-                'location': location,
-                'location_address': location_address,
-                'location_event': location_event,
-                'has_coordinates': has_coordinates,
-                'latitude': address_latitude,
-                'longitude': address_longitude,
-                'coordinate_accuracy': coordinate_accuracy
-            }
-
+            # Enhanced logging with customization information
             logger_handler.log_qr_code_created(
                 qr_code_id=new_qr_code.id,
                 qr_code_name=name,
                 created_by_user_id=session['user_id'],
-                qr_data=qr_data_for_logging
+                qr_data={
+                    'location': location,
+                    'location_address': location_address,
+                    'location_event': location_event,
+                    'has_coordinates': has_coordinates,
+                    'customization': {
+                        'fill_color': fill_color,
+                        'back_color': back_color,
+                        'box_size': box_size,
+                        'border': border,
+                        'error_correction': error_correction
+                    }
+                }
             )
 
-            # Success message with coordinates info
+            # Success message with customization info
             project_info = f" in project '{project.name}'" if project else ""
             coord_info = f" with coordinates ({new_qr_code.coordinates_display})" if has_coordinates else ""
+            style_info = f" with custom styling (Fill: {fill_color}, Background: {back_color})"
 
-            flash(f'QR Code "{name}" created successfully{project_info}{coord_info}! URL: {qr_url}', 'success')
+            flash(f'QR Code "{name}" created successfully{project_info}{coord_info}{style_info}! URL: {qr_url}', 'success')
             return redirect(url_for('dashboard'))
             
         except Exception as e:
@@ -2765,15 +2880,17 @@ def create_qr_code():
             flash('QR Code creation failed. Please try again.', 'error')
             print(f"❌ QR Code creation error: {e}")
     
-    # Get active projects for dropdown
+    # Get active projects and styles for dropdown
     projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
-    return render_template('create_qr_code.html', projects=projects)
+    styles = QRCodeStyle.query.order_by(QRCodeStyle.name.asc()).all() if 'QRCodeStyle' in globals() else []
+    
+    return render_template('create_qr_code.html', projects=projects, styles=styles)
 
 @app.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'])
 @login_required
 @log_database_operations('qr_code_edit')
 def edit_qr_code(qr_id):
-    """Enhanced edit QR code with project association and URL regeneration - COORDINATE FIX"""
+    """Enhanced edit QR code with customization support"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         
@@ -2788,7 +2905,10 @@ def edit_qr_code(qr_id):
                 'qr_url': qr_code.qr_url,
                 'address_latitude': qr_code.address_latitude,
                 'address_longitude': qr_code.address_longitude,
-                'coordinate_accuracy': qr_code.coordinate_accuracy
+                'coordinate_accuracy': qr_code.coordinate_accuracy,
+                # Track old styling
+                'fill_color': getattr(qr_code, 'fill_color', '#000000'),
+                'back_color': getattr(qr_code, 'back_color', '#FFFFFF')
             }
             
             # Update QR code fields
@@ -2798,12 +2918,11 @@ def edit_qr_code(qr_id):
             qr_code.location_address = request.form['location_address']
             qr_code.location_event = request.form.get('location_event', '')
             
-            # SIMPLIFIED COORDINATE HANDLING - Remove validation requirement
-            latitude = request.form.get('address_latitude')  # Changed from 'latitude' to match form
-            longitude = request.form.get('address_longitude')  # Changed from 'longitude' to match form
+            # Handle coordinates
+            latitude = request.form.get('address_latitude')
+            longitude = request.form.get('address_longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
             
-            # Update coordinates if provided, or keep existing ones
             if latitude and longitude:
                 try:
                     qr_code.address_latitude = float(latitude)
@@ -2811,19 +2930,16 @@ def edit_qr_code(qr_id):
                     qr_code.coordinate_accuracy = coordinate_accuracy
                     qr_code.coordinates_updated_date = datetime.utcnow()
                 except (ValueError, TypeError):
-                    # If invalid coordinates, keep existing ones
                     pass
             elif latitude == '' and longitude == '':
-                # Explicitly clear coordinates if empty strings are sent
                 qr_code.address_latitude = None
                 qr_code.address_longitude = None
                 qr_code.coordinate_accuracy = None
                 qr_code.coordinates_updated_date = None
-            # If no coordinate data is provided, keep existing coordinates unchanged
             
-            # Handle project association - FIXED LOGIC
+            # Handle project association
             new_project_id = request.form.get('project_id')
-            if new_project_id and new_project_id.strip():  # Check for non-empty string
+            if new_project_id and new_project_id.strip():
                 try:
                     new_project_id = int(new_project_id)
                     project = Project.query.get(new_project_id)
@@ -2831,104 +2947,70 @@ def edit_qr_code(qr_id):
                         qr_code.project_id = new_project_id
                     else:
                         flash('Selected project is not valid or inactive.', 'error')
-                        return render_template('edit_qr_code.html', qr_code=qr_code, projects=Project.query.filter_by(active_status=True).all())
+                        return render_template('edit_qr_code.html', qr_code=qr_code, 
+                                             projects=Project.query.filter_by(active_status=True).all(),
+                                             styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
                 except (ValueError, TypeError):
-                    # Invalid project_id format
                     flash('Invalid project selection.', 'error')
-                    return render_template('edit_qr_code.html', qr_code=qr_code, projects=Project.query.filter_by(active_status=True).all())
+                    return render_template('edit_qr_code.html', qr_code=qr_code, 
+                                         projects=Project.query.filter_by(active_status=True).all(),
+                                         styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
             else:
-                # Empty or None project_id means unassign from project
                 qr_code.project_id = None
             
-            # Regenerate URL if name changed
+            # Handle QR code customization (only if columns exist)
+            fill_color = request.form.get('fill_color', '#000000')
+            back_color = request.form.get('back_color', '#FFFFFF')
+            box_size = int(request.form.get('box_size', 10))
+            border = int(request.form.get('border', 4))
+            error_correction = request.form.get('error_correction', 'L')
+            style_id = request.form.get('style_id')
+            
+            # Update styling fields if they exist
+            if hasattr(qr_code, 'fill_color'):
+                qr_code.fill_color = fill_color
+                qr_code.back_color = back_color
+                qr_code.box_size = box_size
+                qr_code.border = border
+                qr_code.error_correction = error_correction
+                qr_code.style_id = int(style_id) if style_id and style_id.isdigit() else None
+            
+            # Check if QR code needs regeneration
             name_changed = old_data['name'] != new_name
+            styling_changed = (hasattr(qr_code, 'fill_color') and 
+                             (old_data['fill_color'] != fill_color or 
+                              old_data['back_color'] != back_color))
+            
             if name_changed:
                 new_qr_url = generate_qr_url(new_name, qr_code.id)
-                
-                # Regenerate QR code image with new URL
-                qr_data = f"{request.url_root}qr/{new_qr_url}"
-                new_qr_image = generate_qr_code(qr_data)
-                
                 qr_code.qr_url = new_qr_url
-                qr_code.qr_code_image = new_qr_image
             
-            # ENHANCED CHANGE DETECTION
-            project_changed = old_data['project_id'] != qr_code.project_id
-            coordinates_changed = (old_data['address_latitude'] != qr_code.address_latitude or 
-                                 old_data['address_longitude'] != qr_code.address_longitude)
+            # Regenerate QR code if name or styling changed
+            if name_changed or styling_changed:
+                qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
+                
+                # Use new styling if available, otherwise use defaults
+                styling = get_qr_styling(qr_code)
+                qr_code.qr_code_image = generate_qr_code(
+                    data=qr_data,
+                    fill_color=styling['fill_color'],
+                    back_color=styling['back_color'],
+                    box_size=styling['box_size'],
+                    border=styling['border'],
+                    error_correction=styling['error_correction']
+                )
             
             db.session.commit()
             
-            # Log changes with improved tracking
-            new_data = {
-                'name': qr_code.name,
-                'location': qr_code.location,
-                'location_address': qr_code.location_address,
-                'location_event': qr_code.location_event,
-                'project_id': qr_code.project_id,
-                'qr_url': qr_code.qr_url,
-                'address_latitude': qr_code.address_latitude,
-                'address_longitude': qr_code.address_longitude,
-                'coordinate_accuracy': qr_code.coordinate_accuracy
-            }
-            
-            changes = {}
-            for key in old_data:
-                if old_data[key] != new_data[key]:
-                    changes[key] = {'old': old_data[key], 'new': new_data[key]}
-            
-            # Enhanced logging for all changes
-            if changes:
-                logger_handler.logger.info(f"User {session['username']} updated QR code {qr_id}: {json.dumps(changes)}")
-                
-                # Log specific change actions
-                if project_changed:
-                    old_project_name = None
-                    new_project_name = None
-                    
-                    if old_data['project_id']:
-                        old_project = Project.query.get(old_data['project_id'])
-                        old_project_name = old_project.name if old_project else f"Project ID {old_data['project_id']}"
-                    
-                    if qr_code.project_id:
-                        new_project = Project.query.get(qr_code.project_id)
-                        new_project_name = new_project.name if new_project else f"Project ID {qr_code.project_id}"
-                    
-                    project_change_msg = f"QR code '{qr_code.name}' project changed from '{old_project_name or 'No Project'}' to '{new_project_name or 'No Project'}'"
-                    logger_handler.logger.info(f"User {session['username']} - {project_change_msg}")
-                
-                if coordinates_changed:
-                    coord_change_msg = f"QR code '{qr_code.name}' coordinates updated"
-                    if qr_code.has_coordinates:
-                        coord_change_msg += f" to {qr_code.coordinates_display}"
-                    else:
-                        coord_change_msg += " (coordinates cleared)"
-                    logger_handler.logger.info(f"User {session['username']} - {coord_change_msg}")
-            
-            # Success message with detailed information
-            url_message = f" URL updated to: {qr_code.qr_url}" if name_changed else ""
-            project_message = ""
-            coord_message = ""
-            
-            if project_changed:
-                if qr_code.project_id:
-                    current_project = Project.query.get(qr_code.project_id)
-                    project_message = f" Project updated to: {current_project.name if current_project else 'Unknown'}"
-                else:
-                    project_message = " Removed from project"
-            
-            if coordinates_changed:
-                if qr_code.has_coordinates:
-                    coord_message = f" Coordinates updated: {qr_code.coordinates_display}"
-                else:
-                    coord_message = " Coordinates cleared"
-            
-            flash(f'QR Code "{qr_code.name}" updated successfully!{url_message}{project_message}{coord_message}', 'success')
+            # Success message
+            flash(f'QR Code "{qr_code.name}" updated successfully!', 'success')
             return redirect(url_for('dashboard'))
         
-        # Get active projects for dropdown
+        # GET request - render edit form
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
-        return render_template('edit_qr_code.html', qr_code=qr_code, projects=projects)
+        styles = QRCodeStyle.query.order_by(QRCodeStyle.name.asc()).all() if 'QRCodeStyle' in globals() else []
+        
+        return render_template('edit_qr_code.html', qr_code=qr_code, projects=projects, styles=styles)
         
     except Exception as e:
         db.session.rollback()
@@ -4508,7 +4590,17 @@ def update_existing_qr_codes():
                     # Generate QR image if missing
                     if not qr_code.qr_code_image:
                         qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
-                        qr_code.qr_code_image = generate_qr_code(qr_data)
+                        
+                        # Use styling from database if available, otherwise defaults
+                        styling = get_qr_styling(qr_code)
+                        qr_code.qr_code_image = generate_qr_code(
+                            data=qr_data,
+                            fill_color=styling['fill_color'],
+                            back_color=styling['back_color'],
+                            box_size=styling['box_size'],
+                            border=styling['border'],
+                            error_correction=styling['error_correction']
+                        )
                     
                     updated_count += 1
                     
@@ -4524,8 +4616,50 @@ def update_existing_qr_codes():
             logger_handler.logger.info(f"Updated {updated_count} existing QR codes with missing URLs/images")
             
     except Exception as e:
-        db.session.rollback()
         logger_handler.log_database_error('update_existing_qr_codes', e)
+        print(f"Error updating existing QR codes: {e}")
+
+def add_qr_customization_columns():
+    """Add QR code customization columns to existing table"""
+    try:
+        with app.app_context():
+            # Add columns to QRCode table if they don't exist
+            db.engine.execute("""
+                ALTER TABLE qr_codes 
+                ADD COLUMN IF NOT EXISTS fill_color VARCHAR(7) DEFAULT '#000000',
+                ADD COLUMN IF NOT EXISTS back_color VARCHAR(7) DEFAULT '#FFFFFF',
+                ADD COLUMN IF NOT EXISTS box_size INT DEFAULT 10,
+                ADD COLUMN IF NOT EXISTS border INT DEFAULT 4,
+                ADD COLUMN IF NOT EXISTS error_correction VARCHAR(1) DEFAULT 'L',
+                ADD COLUMN IF NOT EXISTS style_id INT,
+                ADD FOREIGN KEY (style_id) REFERENCES qr_code_styles(id)
+            """)
+            
+            # Create QRCodeStyle table
+            db.create_all()
+            
+            # Insert default styles
+            default_styles = [
+                QRCodeStyle(name="Classic Black", fill_color="#000000", back_color="#FFFFFF", is_default=True),
+                QRCodeStyle(name="Blue Professional", fill_color="#2563eb", back_color="#FFFFFF"),
+                QRCodeStyle(name="Green Success", fill_color="#10b981", back_color="#FFFFFF"),
+                QRCodeStyle(name="Red Alert", fill_color="#ef4444", back_color="#FFFFFF"),
+                QRCodeStyle(name="Dark Mode", fill_color="#FFFFFF", back_color="#1f2937"),
+                QRCodeStyle(name="High Contrast", fill_color="#000000", back_color="#FFFF00"),
+                QRCodeStyle(name="Corporate Blue", fill_color="#1e40af", back_color="#f8fafc"),
+                QRCodeStyle(name="Minimalist Gray", fill_color="#6b7280", back_color="#FFFFFF")
+            ]
+            
+            for style in default_styles:
+                if not QRCodeStyle.query.filter_by(name=style.name).first():
+                    db.session.add(style)
+            
+            db.session.commit()
+            print("QR Code customization tables and default styles created successfully!")
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error adding QR customization columns: {e}")
 
 def add_coordinate_columns():
     """Add coordinate columns to existing qr_codes table (MySQL compatible)"""
@@ -4639,7 +4773,8 @@ if __name__ == '__main__':
             # Initialize database and logging
             create_tables()
             update_existing_qr_codes()
-            
+            add_qr_customization_columns()
+
             # Log application startup
             logger_handler.logger.info("QR Attendance Management System started successfully")
             

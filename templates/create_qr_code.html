@@ -178,6 +178,157 @@
         color: var(--warning-color);
       }
 
+      /* QR Code Customization Styles */
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .color-input-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .color-input-group input[type="color"] {
+        width: 50px;
+        height: 40px;
+        border: none;
+        border-radius: var(--radius-lg);
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .color-input-group input[type="text"] {
+        flex: 1;
+        font-family: 'Courier New', monospace;
+        text-transform: uppercase;
+      }
+
+      .range-input-group {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .range-input-group input[type="range"] {
+        flex: 1;
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: 3px;
+        outline: none;
+      }
+
+      .range-input-group input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .range-input-group input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
+      .range-value {
+        font-weight: 600;
+        color: var(--primary-color);
+        min-width: 80px;
+        text-align: center;
+        background: var(--gray-100);
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+      }
+
+      /* QR Preview Styles */
+      .qr-preview-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--gray-200);
+      }
+
+      .qr-preview-section h4 {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        color: var(--gray-800);
+        font-size: 1.1rem;
+      }
+
+      .qr-preview-container {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        background: var(--gray-50);
+        padding: 1.5rem;
+        border-radius: var(--radius-xl);
+        border: 2px dashed var(--gray-300);
+      }
+
+      .qr-preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 120px;
+        height: 120px;
+        background: var(--white);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        transition: var(--transition);
+      }
+
+      .qr-sample {
+        padding: 16px;
+        background: #FFFFFF;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+      }
+
+      .qr-pattern {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px;
+        width: 70px;
+        height: 70px;
+      }
+
+      .qr-module {
+        background: #000000;
+        transition: background-color 0.3s ease;
+        border-radius: 1px;
+      }
+
+      .qr-module.empty {
+        background: transparent;
+      }
+
+      .preview-info {
+        flex: 1;
+      }
+
+      .preview-info p {
+        margin-bottom: 0.5rem;
+        color: var(--gray-700);
+      }
+
+      .preview-text {
+        color: var(--gray-500);
+        font-size: 0.875rem;
+      }
+
       /* Coordinate Display Section */
       .coordinates-section {
         background: var(--primary-color);
@@ -185,101 +336,67 @@
         border-radius: var(--radius-xl);
         padding: 1.5rem;
         margin-top: 1rem;
+        display: none;
       }
 
       .coordinates-header {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.5rem;
         margin-bottom: 1rem;
       }
 
       .coordinates-header h4 {
-        font-size: 1.125rem;
+        margin: 0;
+        font-size: 1.1rem;
         font-weight: 600;
-      }
-
-      .coordinates-content {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
       }
 
       .coordinate-display {
-        background: rgba(255, 255, 255, 0.1);
-        padding: 1rem;
-        border-radius: var(--radius-lg);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
       }
 
       .coordinate-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
+        text-align: center;
       }
 
       .coordinate-value {
-        font-family: "Courier New", monospace;
-        font-size: 1.125rem;
+        font-size: 1.1rem;
         font-weight: 600;
+        font-family: 'Courier New', monospace;
+        margin-bottom: 0.25rem;
       }
 
       .coordinate-label {
         font-size: 0.875rem;
-        opacity: 0.8;
+        opacity: 0.9;
       }
 
       .coordinates-actions {
         display: flex;
-        gap: 0.75rem;
-        margin-top: 1rem;
+        gap: 0.5rem;
+        justify-content: center;
       }
 
       .btn-coordinate {
-        padding: 0.5rem 1rem;
         background: rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: var(--radius-lg);
         color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-lg);
         font-size: 0.875rem;
         cursor: pointer;
         transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
       }
 
       .btn-coordinate:hover {
         background: rgba(255, 255, 255, 0.3);
-      }
-
-      .btn-coordinate:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .loading-spinner {
-        display: inline-block;
-        width: 1rem;
-        height: 1rem;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s ease-in-out infinite;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .status-message {
-        padding: 0.75rem;
-        border-radius: var(--radius-lg);
-        margin-top: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
       }
 
       .status-success {
@@ -341,6 +458,18 @@
         background: var(--gray-300);
       }
 
+      .btn-outline {
+        background: transparent;
+        color: var(--gray-600);
+        border: 2px solid var(--gray-300);
+      }
+
+      .btn-outline:hover {
+        background: var(--gray-100);
+        border-color: var(--gray-400);
+        color: var(--gray-700);
+      }
+
       .error-message {
         color: var(--error-color);
         font-size: 0.875rem;
@@ -350,6 +479,28 @@
       .form-group.has-error input,
       .form-group.has-error textarea {
         border-color: var(--error-color);
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+        
+        .qr-preview-container {
+          flex-direction: column;
+          text-align: center;
+        }
+        
+        .range-input-group {
+          flex-direction: column;
+          gap: 0.5rem;
+          align-items: stretch;
+        }
+        
+        .range-value {
+          text-align: center;
+        }
       }
 
       @media (max-width: 640px) {
@@ -364,6 +515,33 @@
         .form-actions {
           flex-direction: column;
         }
+      }
+
+      /* Animation for preview updates */
+      .qr-preview {
+        animation: pulse 0.3s ease-in-out;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+
+      /* Toast notification styles */
+      .toast {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      .toast-content {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--gray-800);
+      }
+
+      .toast-content i {
+        font-size: 1.1rem;
       }
     </style>
   </head>
@@ -558,6 +736,179 @@
             </div>
           </div>
 
+          <!-- QR Code Customization Section -->
+          <div class="form-section">
+            <div class="section-header">
+              <h3>
+                <i class="fas fa-palette"></i>
+                QR Code Customization
+              </h3>
+              <p>Customize the appearance and style of your QR code</p>
+            </div>
+
+            <!-- Style Presets -->
+            <div class="form-group">
+              <label for="style_id">
+                <i class="fas fa-swatchbook"></i>
+                Style Preset (Optional)
+              </label>
+              <select id="style_id" name="style_id" onchange="applyStylePreset()">
+                <option value="">Custom Style</option>
+                {% for style in styles %}
+                <option 
+                  value="{{ style.id }}" 
+                  data-fill="{{ style.fill_color }}" 
+                  data-back="{{ style.back_color }}"
+                  data-box-size="{{ style.box_size }}"
+                  data-border="{{ style.border }}"
+                  data-error-correction="{{ style.error_correction }}">
+                  {{ style.name }}
+                </option>
+                {% endfor %}
+              </select>
+              <span class="form-help">Choose a pre-defined style or customize manually below</span>
+            </div>
+
+            <!-- Color Customization -->
+            <div class="form-row">
+              <div class="form-group">
+                <label for="fill_color">
+                  <i class="fas fa-fill-drip"></i>
+                  QR Code Color
+                </label>
+                <div class="color-input-group">
+                  <input 
+                    type="color" 
+                    id="fill_color" 
+                    name="fill_color" 
+                    value="#000000"
+                    onchange="updatePreview()"
+                  />
+                  <input 
+                    type="text" 
+                    id="fill_color_text" 
+                    value="#000000" 
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                    placeholder="#000000"
+                    onchange="syncColorInput('fill')"
+                  />
+                </div>
+                <span class="form-help">Color of the QR code modules</span>
+              </div>
+
+              <div class="form-group">
+                <label for="back_color">
+                  <i class="fas fa-paint-brush"></i>
+                  Background Color
+                </label>
+                <div class="color-input-group">
+                  <input 
+                    type="color" 
+                    id="back_color" 
+                    name="back_color" 
+                    value="#FFFFFF"
+                    onchange="updatePreview()"
+                  />
+                  <input 
+                    type="text" 
+                    id="back_color_text" 
+                    value="#FFFFFF" 
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                    placeholder="#FFFFFF"
+                    onchange="syncColorInput('back')"
+                  />
+                </div>
+                <span class="form-help">Background color of the QR code</span>
+              </div>
+            </div>
+
+            <!-- Size and Quality Settings -->
+            <div class="form-row">
+              <div class="form-group">
+                <label for="box_size">
+                  <i class="fas fa-expand-arrows-alt"></i>
+                  Module Size
+                </label>
+                <div class="range-input-group">
+                  <input 
+                    type="range" 
+                    id="box_size" 
+                    name="box_size" 
+                    min="5" 
+                    max="20" 
+                    value="10"
+                    oninput="updateRangeValue('box_size'); updatePreview()"
+                  />
+                  <span class="range-value" id="box_size_value">10px</span>
+                </div>
+                <span class="form-help">Size of each QR code module (affects overall size)</span>
+              </div>
+
+              <div class="form-group">
+                <label for="border">
+                  <i class="fas fa-border-style"></i>
+                  Border Size
+                </label>
+                <div class="range-input-group">
+                  <input 
+                    type="range" 
+                    id="border" 
+                    name="border" 
+                    min="1" 
+                    max="10" 
+                    value="4"
+                    oninput="updateRangeValue('border'); updatePreview()"
+                  />
+                  <span class="range-value" id="border_value">4 modules</span>
+                </div>
+                <span class="form-help">White border around the QR code</span>
+              </div>
+            </div>
+
+            <!-- Error Correction Level -->
+            <div class="form-group">
+              <label for="error_correction">
+                <i class="fas fa-shield-alt"></i>
+                Error Correction Level
+              </label>
+              <select id="error_correction" name="error_correction" onchange="updatePreview()">
+                <option value="L">Low (7% recovery)</option>
+                <option value="M">Medium (15% recovery)</option>
+                <option value="Q">Quartile (25% recovery)</option>
+                <option value="H">High (30% recovery)</option>
+              </select>
+              <span class="form-help">Higher levels allow QR code to work even if partially damaged</span>
+            </div>
+
+            <!-- Live Preview -->
+            <div class="qr-preview-section">
+              <h4>
+                <i class="fas fa-eye"></i>
+                Live Preview
+              </h4>
+              <div class="qr-preview-container">
+                <div id="qr_preview" class="qr-preview">
+                  <div class="qr-sample" id="qr_sample">
+                    <!-- Sample QR pattern for preview -->
+                    <div class="qr-pattern">
+                      <div class="qr-module"></div>
+                      <div class="qr-module"></div>
+                      <div class="qr-module empty"></div>
+                      <div class="qr-module"></div>
+                      <div class="qr-module empty"></div>
+                      <div class="qr-module"></div>
+                      <div class="qr-module"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="preview-info">
+                  <p><strong>Sample QR Code Preview</strong></p>
+                  <p class="preview-text">Colors and styling will be applied to your actual QR code</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Hidden coordinate fields for form submission -->
           <input type="hidden" id="latitude" name="latitude" value="" />
           <input type="hidden" id="longitude" name="longitude" value="" />
@@ -574,8 +925,12 @@
               <i class="fas fa-arrow-left"></i>
               Cancel
             </a>
+            <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
+              <i class="fas fa-undo"></i>
+              Reset Styling
+            </button>
             <button type="submit" class="btn btn-primary" id="submitBtn">
-              <i class="fas fa-plus"></i>
+              <i class="fas fa-save"></i>
               Create QR Code
             </button>
           </div>
@@ -584,190 +939,368 @@
     </div>
 
     <script>
-      // Global variables
+      // Character counting functionality
+      function updateCharacterCount(inputId, counterId, maxLength) {
+        const input = document.getElementById(inputId);
+        const counter = document.getElementById(counterId);
+        
+        if (input && counter) {
+          const length = input.value.length;
+          counter.textContent = `${length}/${maxLength}`;
+          
+          if (length > maxLength * 0.9) {
+            counter.classList.add('warning');
+          } else {
+            counter.classList.remove('warning');
+          }
+        }
+      }
+
+      // QR Code Customization JavaScript Functions
+      function applyStylePreset() {
+        const styleSelect = document.getElementById('style_id');
+        const selectedOption = styleSelect.options[styleSelect.selectedIndex];
+        
+        if (selectedOption.value) {
+          // Apply preset values
+          const fillColor = selectedOption.getAttribute('data-fill');
+          const backColor = selectedOption.getAttribute('data-back');
+          const boxSize = selectedOption.getAttribute('data-box-size');
+          const border = selectedOption.getAttribute('data-border');
+          const errorCorrection = selectedOption.getAttribute('data-error-correction');
+          
+          // Update form inputs
+          document.getElementById('fill_color').value = fillColor;
+          document.getElementById('fill_color_text').value = fillColor;
+          document.getElementById('back_color').value = backColor;
+          document.getElementById('back_color_text').value = backColor;
+          document.getElementById('box_size').value = boxSize;
+          document.getElementById('border').value = border;
+          document.getElementById('error_correction').value = errorCorrection;
+          
+          // Update range value displays
+          updateRangeValue('box_size');
+          updateRangeValue('border');
+          
+          // Update preview
+          updatePreview();
+          
+          // Show toast notification
+          showToast(`Applied "${selectedOption.text}" style preset`, 'success');
+        }
+      }
+
+      function syncColorInput(type) {
+        const colorInput = document.getElementById(`${type}_color`);
+        const textInput = document.getElementById(`${type}_color_text`);
+        
+        let value = textInput.value.trim().toUpperCase();
+        
+        // Add # if missing
+        if (!value.startsWith('#')) {
+          value = '#' + value;
+        }
+        
+        // Validate hex format
+        if (/^#[0-9A-F]{6}$/i.test(value)) {
+          colorInput.value = value;
+          textInput.value = value;
+          updatePreview();
+        } else {
+          // Reset to previous valid value
+          textInput.value = colorInput.value;
+          showToast('Invalid color format. Use #RRGGBB format.', 'warning');
+        }
+      }
+
+      function updateRangeValue(inputId) {
+        const input = document.getElementById(inputId);
+        const valueDisplay = document.getElementById(`${inputId}_value`);
+        
+        if (inputId === 'box_size') {
+          valueDisplay.textContent = `${input.value}px`;
+        } else if (inputId === 'border') {
+          valueDisplay.textContent = `${input.value} modules`;
+        }
+      }
+
+      function updatePreview() {
+        const fillColor = document.getElementById('fill_color').value;
+        const backColor = document.getElementById('back_color').value;
+        const boxSize = document.getElementById('box_size').value;
+        const border = document.getElementById('border').value;
+        
+        // Update preview QR modules
+        const qrSample = document.getElementById('qr_sample');
+        const qrModules = qrSample.querySelectorAll('.qr-module:not(.empty)');
+        
+        // Apply colors to QR modules
+        qrModules.forEach(module => {
+          module.style.backgroundColor = fillColor;
+        });
+        
+        // Apply background color
+        qrSample.style.backgroundColor = backColor;
+        
+        // Apply border (padding represents border)
+        const borderPx = Math.max(4, parseInt(border) * 2);
+        qrSample.style.padding = `${borderPx}px`;
+        
+        // Apply module size effect (simulate with scale)
+        const scale = Math.max(0.7, Math.min(1.3, parseInt(boxSize) / 10));
+        qrSample.style.transform = `scale(${scale})`;
+        
+        // Sync text inputs with color inputs
+        document.getElementById('fill_color_text').value = fillColor.toUpperCase();
+        document.getElementById('back_color_text').value = backColor.toUpperCase();
+        
+        // Add animation class
+        const preview = document.getElementById('qr_preview');
+        preview.style.animation = 'none';
+        setTimeout(() => {
+          preview.style.animation = 'pulse 0.3s ease-in-out';
+        }, 10);
+      }
+
+      function resetToDefaults() {
+        document.getElementById('style_id').value = '';
+        document.getElementById('fill_color').value = '#000000';
+        document.getElementById('fill_color_text').value = '#000000';
+        document.getElementById('back_color').value = '#FFFFFF';
+        document.getElementById('back_color_text').value = '#FFFFFF';
+        document.getElementById('box_size').value = '10';
+        document.getElementById('border').value = '4';
+        document.getElementById('error_correction').value = 'L';
+        
+        updateRangeValue('box_size');
+        updateRangeValue('border');
+        updatePreview();
+        
+        showToast('Reset to default QR code styling', 'info');
+      }
+
+      function showToast(message, type = 'info') {
+        // Create toast notification
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+          <div class="toast-content">
+            <i class="fas ${getToastIcon(type)}"></i>
+            <span>${message}</span>
+          </div>
+        `;
+        
+        toast.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          padding: 1rem;
+          z-index: 1000;
+          opacity: 0;
+          transform: translateX(100%);
+          transition: all 0.3s ease;
+          border-left: 4px solid ${getToastColor(type)};
+          max-width: 350px;
+        `;
+        
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateX(0)';
+        }, 100);
+        
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(100%)';
+          setTimeout(() => {
+            if (document.body.contains(toast)) {
+              document.body.removeChild(toast);
+            }
+          }, 300);
+        }, 3000);
+      }
+
+      function getToastIcon(type) {
+        const icons = {
+          success: 'fa-check-circle',
+          error: 'fa-exclamation-circle',
+          warning: 'fa-exclamation-triangle',
+          info: 'fa-info-circle'
+        };
+        return icons[type] || icons.info;
+      }
+
+      function getToastColor(type) {
+        const colors = {
+          success: '#059669',
+          error: '#dc2626',
+          warning: '#d97706',
+          info: '#0891b2'
+        };
+        return colors[type] || colors.info;
+      }
+
+      // Form validation
+      function validateQRCustomization() {
+        const fillColor = document.getElementById('fill_color_text').value;
+        const backColor = document.getElementById('back_color_text').value;
+        
+        // Check if colors are too similar
+        if (fillColor.toLowerCase() === backColor.toLowerCase()) {
+          showToast('QR code color and background color cannot be the same', 'error');
+          return false;
+        }
+        
+        // Check contrast (basic check)
+        if (getColorBrightness(fillColor) === getColorBrightness(backColor)) {
+          showToast('Warning: Low contrast may affect QR code readability', 'warning');
+        }
+        
+        return true;
+      }
+
+      function getColorBrightness(hex) {
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000;
+      }
+
+      // Geocoding functionality - Enhanced version to match your original
       let coordinatesData = {
         latitude: null,
         longitude: null,
-        accuracy: null,
+        accuracy: null
       };
 
-      // Initialize the form when page loads
-      document.addEventListener("DOMContentLoaded", function () {
-        initializeForm();
-        initializeCharacterCounters();
-        initializeCoordinatesFeature();
-        initializeProjectDropdown();
-      });
-
-      function initializeForm() {
-        // Form validation on submit
-        document
-          .getElementById("createQRForm")
-          .addEventListener("submit", function (e) {
-            if (!validateForm()) {
-              e.preventDefault();
-              return false;
-            }
-
-            // Show loading state
-            const submitBtn = document.getElementById("submitBtn");
-            submitBtn.innerHTML =
-              '<i class="fas fa-spinner fa-spin"></i> Creating QR Code...';
-            submitBtn.disabled = true;
-          });
-      }
-
-      function initializeCharacterCounters() {
-        const fields = [
-          { id: "name", counter: "nameCounter", max: 100 },
-          { id: "location", counter: "locationCounter", max: 150 },
-          { id: "location_address", counter: "addressCounter", max: 255 },
-        ];
-
-        fields.forEach((field) => {
-          const input = document.getElementById(field.id);
-          const counter = document.getElementById(field.counter);
-
-          if (input && counter) {
-            function updateCounter() {
-              const length = input.value.length;
-              counter.textContent = `${length}/${field.max}`;
-
-              if (length > field.max * 0.9) {
-                counter.style.color = "var(--warning-color)";
-              } else {
-                counter.style.color = "";
-              }
-            }
-
-            input.addEventListener("input", updateCounter);
-            updateCounter();
-          }
-        });
-      }
-
-      function initializeCoordinatesFeature() {
-        const addressInput = document.getElementById("location_address");
-        const coordinatesSection =
-          document.getElementById("coordinatesSection");
-        const geocodeBtn = document.getElementById("geocodeBtn");
-        const clearBtn = document.getElementById("clearCoordinatesBtn");
-
-        // Show coordinates section when address has content
-        addressInput.addEventListener("input", function () {
-          if (this.value.trim().length > 10) {
-            coordinatesSection.style.display = "block";
-          } else {
-            coordinatesSection.style.display = "none";
-            clearCoordinates();
-          }
-        });
-
-        // Geocode button click
-        geocodeBtn.addEventListener("click", function () {
-          const address = addressInput.value.trim();
-          if (address.length > 10) {
-            geocodeAddress(address);
-          } else {
-            showStatus("error", "Please enter a complete address first");
-          }
-        });
-
-        // Clear coordinates button
-        clearBtn.addEventListener("click", clearCoordinates);
-      }
-
-      async function geocodeAddress(address) {
-        const geocodeBtn = document.getElementById("geocodeBtn");
-        const statusDiv = document.getElementById("coordinateStatus");
-
+      function geocodeAddress(address) {
+        showStatus('info', 'Getting coordinates...');
+        
         // Show loading state
-        geocodeBtn.innerHTML =
-          '<span class="loading-spinner"></span> Getting coordinates...';
+        const geocodeBtn = document.getElementById('geocodeBtn');
+        geocodeBtn.innerHTML = '<span class="loading-spinner"></span> Getting coordinates...';
         geocodeBtn.disabled = true;
-
-        try {
-          const response = await fetch("/api/geocode", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ address: address }),
-          });
-
-          const result = await response.json();
-
-          if (result.success) {
-            // Update coordinates
+        
+        // Try your API first, then fallback to OSM
+        fetch('/api/geocode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address: address })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Update coordinates from your API
             coordinatesData = {
-              latitude: result.data.latitude,
-              longitude: result.data.longitude,
-              accuracy: result.data.accuracy,
+              latitude: data.data.latitude,
+              longitude: data.data.longitude,
+              accuracy: data.data.accuracy || 'geocoded'
             };
-
-            // Update display
+            
             updateCoordinatesDisplay();
-
-            // Update hidden form fields
             updateHiddenFields();
-
-            // Show success message
-            showStatus("success", result.message);
+            showStatus('success', data.message || 'Coordinates found successfully');
+            showCoordinatesSection();
           } else {
-            showStatus("error", result.message);
+            // Fallback to OpenStreetMap Nominatim API
+            fallbackToOSMGeocoding(address);
           }
-        } catch (error) {
-          console.error("Geocoding error:", error);
-          showStatus("error", "Network error occurred. Please try again.");
-        }
+        })
+        .catch(error => {
+          console.error('Primary geocoding error:', error);
+          // Fallback to OpenStreetMap Nominatim API
+          fallbackToOSMGeocoding(address);
+        })
+        .finally(() => {
+          // Reset button state
+          geocodeBtn.innerHTML = '<i class="fas fa-search-location"></i> Get Coordinates';
+          geocodeBtn.disabled = false;
+        });
+      }
 
-        // Reset button state
-        geocodeBtn.innerHTML =
-          '<i class="fas fa-search-location"></i> Get Coordinates';
-        geocodeBtn.disabled = false;
+      function fallbackToOSMGeocoding(address) {
+        // Using OpenStreetMap Nominatim API as fallback
+        const encodedAddress = encodeURIComponent(address);
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+        
+        fetch(url)
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              const result = data[0];
+              coordinatesData = {
+                latitude: parseFloat(result.lat),
+                longitude: parseFloat(result.lon),
+                accuracy: 'geocoded'
+              };
+              
+              updateCoordinatesDisplay();
+              updateHiddenFields();
+              showStatus('success', 'Coordinates found successfully (fallback service)');
+              showCoordinatesSection();
+            } else {
+              showStatus('warning', 'No coordinates found for this address');
+            }
+          })
+          .catch(error => {
+            console.error('Fallback geocoding error:', error);
+            showStatus('error', 'Failed to get coordinates. Please try again.');
+          });
       }
 
       function updateCoordinatesDisplay() {
-        const latDisplay = document.getElementById("latitudeDisplay");
-        const lngDisplay = document.getElementById("longitudeDisplay");
-        const clearBtn = document.getElementById("clearCoordinatesBtn");
+        const latDisplay = document.getElementById('latitudeDisplay');
+        const lngDisplay = document.getElementById('longitudeDisplay');
+        const clearBtn = document.getElementById('clearCoordinatesBtn');
 
         if (coordinatesData.latitude && coordinatesData.longitude) {
           latDisplay.textContent = coordinatesData.latitude.toFixed(10);
           lngDisplay.textContent = coordinatesData.longitude.toFixed(10);
-          clearBtn.style.display = "inline-flex";
+          clearBtn.style.display = 'inline-flex';
+          
+          // Update button text
+          document.getElementById('geocodeBtn').innerHTML = '<i class="fas fa-search-location"></i> Update Coordinates';
         } else {
-          latDisplay.textContent = "---.----------";
-          lngDisplay.textContent = "---.----------";
-          clearBtn.style.display = "none";
+          latDisplay.textContent = '---.----------';
+          lngDisplay.textContent = '---.----------';
+          clearBtn.style.display = 'none';
+          
+          // Reset button text
+          document.getElementById('geocodeBtn').innerHTML = '<i class="fas fa-search-location"></i> Get Coordinates';
         }
       }
 
       function updateHiddenFields() {
-        console.log("📝 Updating hidden coordinate fields");
+        console.log('📝 Updating hidden coordinate fields');
 
         // Update hidden form fields with coordinate data
-        const latitudeField = document.getElementById("latitude");
-        const longitudeField = document.getElementById("longitude");
-        const accuracyField = document.getElementById("coordinate_accuracy");
+        const latitudeField = document.getElementById('latitude');
+        const longitudeField = document.getElementById('longitude');
+        const accuracyField = document.getElementById('coordinate_accuracy');
 
         if (coordinatesData.latitude && coordinatesData.longitude) {
           latitudeField.value = coordinatesData.latitude;
           longitudeField.value = coordinatesData.longitude;
-          accuracyField.value = coordinatesData.accuracy || "geocoded";
+          accuracyField.value = coordinatesData.accuracy || 'geocoded';
 
-          console.log("✓ Hidden fields updated:", {
+          console.log('✓ Hidden fields updated:', {
             latitude: latitudeField.value,
             longitude: longitudeField.value,
             accuracy: accuracyField.value,
           });
         } else {
           // Clear fields if no coordinates
-          latitudeField.value = "";
-          longitudeField.value = "";
-          accuracyField.value = "";
-
-          console.log("✓ Hidden fields cleared");
+          latitudeField.value = '';
+          longitudeField.value = '';
+          accuracyField.value = '';
+          
+          console.log('✓ Hidden fields cleared');
         }
       }
 
@@ -775,117 +1308,94 @@
         coordinatesData = {
           latitude: null,
           longitude: null,
-          accuracy: null,
+          accuracy: null
         };
-
-        // Clear display
-        document.getElementById("latitudeValue").textContent = "--";
-        document.getElementById("longitudeValue").textContent = "--";
-        document.getElementById("accuracyValue").textContent = "--";
-
-        // Clear hidden fields
+        
+        updateCoordinatesDisplay();
         updateHiddenFields();
+        showStatus('info', 'Coordinates cleared');
+      }
 
-        // Hide coordinates section
-        document.getElementById("coordinatesSection").style.display = "none";
-
-        console.log("🧹 Coordinates cleared");
+      function showCoordinatesSection() {
+        const section = document.getElementById('coordinatesSection');
+        if (section) {
+          section.style.display = 'block';
+        }
       }
 
       function showStatus(type, message) {
-        const statusDiv = document.getElementById("coordinateStatus");
-        const iconMap = {
-          success: "fas fa-check-circle",
-          error: "fas fa-exclamation-circle",
-          warning: "fas fa-exclamation-triangle",
-        };
-
-        statusDiv.innerHTML = `
-                <div class="status-message status-${type}">
-                    <i class="${iconMap[type]}"></i>
-                    <span>${message}</span>
-                </div>
-            `;
-
-        // Auto-clear after 5 seconds for success messages
-        if (type === "success") {
+        const statusDiv = document.getElementById('coordinateStatus');
+        if (statusDiv) {
+          statusDiv.innerHTML = `<div class="status-${type}" style="padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.875rem;">${message}</div>`;
+          
           setTimeout(() => {
-            statusDiv.innerHTML = "";
+            statusDiv.innerHTML = '';
           }, 5000);
         }
       }
 
-      function validateForm() {
-        const name = document.getElementById("name").value.trim();
-        const location = document.getElementById("location").value.trim();
-        const address = document
-          .getElementById("location_address")
-          .value.trim();
-
-        if (!name || !location || !address) {
-          alert("Please fill in all required fields");
-          return false;
-        }
-
-        // DEBUG: Log coordinates being submitted
-        const latitude = document.getElementById("latitude").value;
-        const longitude = document.getElementById("longitude").value;
-        const accuracy = document.getElementById("coordinate_accuracy").value;
-
-        console.log("🚀 Form submission data:", {
-          name: name,
-          location: location,
-          address: address,
-          coordinates: {
-            latitude: latitude,
-            longitude: longitude,
-            accuracy: accuracy,
-          },
-        });
-
-        return true;
-      }
-
-      function showFieldError(input, message) {
-        const formGroup = input.closest(".form-group");
-        formGroup.classList.add("has-error");
-
-        let errorElement = formGroup.querySelector(".error-message");
-        if (!errorElement) {
-          errorElement = document.createElement("div");
-          errorElement.className = "error-message";
-          formGroup.appendChild(errorElement);
-        }
-
-        errorElement.textContent = message;
-      }
-
-      function clearFieldError(input) {
-        const formGroup = input.closest(".form-group");
-        formGroup.classList.remove("has-error");
-
-        const errorElement = formGroup.querySelector(".error-message");
-        if (errorElement) {
-          errorElement.remove();
-        }
-      }
-
-      // Project dropdown functionality
-      function initializeProjectDropdown() {
-        const projectSelect = document.getElementById("project_id");
-
-        if (projectSelect) {
-          // Load projects dynamically (optional enhancement)
-          // For now, projects are loaded server-side
-          projectSelect.addEventListener("change", function () {
-            const selectedOption = this.options[this.selectedIndex];
-
-            if (selectedOption.value) {
-              console.log("Selected project:", selectedOption.text);
+      // Initialize on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        // Set up character counters
+        document.getElementById('name').addEventListener('input', () => updateCharacterCount('name', 'nameCounter', 100));
+        document.getElementById('location').addEventListener('input', () => updateCharacterCount('location', 'locationCounter', 100));
+        document.getElementById('location_address').addEventListener('input', () => updateCharacterCount('location_address', 'addressCounter', 500));
+        
+        // Set up initial values
+        updateRangeValue('box_size');
+        updateRangeValue('border');
+        updatePreview();
+        
+        // Add form validation
+        const form = document.getElementById('createQRForm');
+        if (form) {
+          form.addEventListener('submit', function(e) {
+            if (!validateQRCustomization()) {
+              e.preventDefault();
+              return false;
             }
           });
         }
-      }
+        
+        // Add color input synchronization
+        document.getElementById('fill_color').addEventListener('change', function() {
+          document.getElementById('fill_color_text').value = this.value.toUpperCase();
+          updatePreview();
+        });
+        
+        document.getElementById('back_color').addEventListener('change', function() {
+          document.getElementById('back_color_text').value = this.value.toUpperCase();
+          updatePreview();
+        });
+
+        // Initialize geocoding functionality with automatic section showing
+        const addressInput = document.getElementById('location_address');
+        const coordinatesSection = document.getElementById('coordinatesSection');
+        const geocodeBtn = document.getElementById('geocodeBtn');
+        const clearBtn = document.getElementById('clearCoordinatesBtn');
+
+        // Show coordinates section when address has content (like your original)
+        addressInput.addEventListener('input', function() {
+          const address = this.value.trim();
+          if (address.length > 10) {
+            coordinatesSection.style.display = 'block';
+          } else {
+            coordinatesSection.style.display = 'none';
+            clearCoordinates();
+          }
+        });
+
+        geocodeBtn.addEventListener('click', function() {
+          const address = document.getElementById('location_address').value.trim();
+          if (address.length > 10) {
+            geocodeAddress(address);
+          } else {
+            showStatus('error', 'Please enter a complete address first');
+          }
+        });
+
+        clearBtn.addEventListener('click', clearCoordinates);
+      });
     </script>
   </body>
 </html>
