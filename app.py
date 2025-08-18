@@ -6,10 +6,12 @@ from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
 import io, os, base64, re, uuid, requests, json, qrcode, math
+from PIL import Image, ImageDraw
+from math import radians, sin, cos, asin, sqrt
 from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
-from PIL import Image, ImageDraw
+
 
 # Load environment variables in .env
 load_dotenv()
@@ -591,13 +593,6 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
     """
     ENHANCED location accuracy calculation comparing QR address with check-in location
     This function provides improved precision and better error handling
-    
-    Parameters:
-    - qr_address: Address associated with the QR code
-    - checkin_address: Address where user checked in (from reverse geocoding)
-    - checkin_lat: GPS latitude from check-in (if available)
-    - checkin_lng: GPS longitude from check-in (if available)
-    
     Returns:
     - Distance in miles between QR location and check-in location
     """
@@ -614,13 +609,18 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
     
     # Step 1: Get coordinates for QR address using enhanced geocoding
     print(f"\n📍 Step 1: Geocoding QR address...")
-    qr_lat, qr_lng, qr_accuracy = get_coordinates_from_address_enhanced(qr_address)
-    
-    if qr_lat is None or qr_lng is None:
-        print(f"❌ Could not geocode QR address: {qr_address}")
+    try:
+        qr_lat, qr_lng, qr_accuracy = get_coordinates_from_address_enhanced(qr_address)
+        print(f"   Geocoding result: lat={qr_lat}, lng={qr_lng}, accuracy={qr_accuracy}")
+        
+        if qr_lat is None or qr_lng is None:
+            print(f"❌ Could not geocode QR address: {qr_address}")
+            return None
+        
+        print(f"✅ QR location coordinates: {qr_lat:.10f}, {qr_lng:.10f} (accuracy: {qr_accuracy})")
+    except Exception as e:
+        print(f"❌ Error geocoding QR address: {e}")
         return None
-    
-    print(f"✅ QR location coordinates: {qr_lat:.10f}, {qr_lng:.10f} (accuracy: {qr_accuracy})")
     
     # Step 2: Determine check-in coordinates
     print(f"\n📱 Step 2: Determining check-in coordinates...")
@@ -643,16 +643,21 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
                 print(f"✅ Using GPS coordinates: {lat_val:.10f}, {lng_val:.10f}")
             else:
                 print(f"⚠️ Invalid GPS coordinates: {lat_val}, {lng_val}")
-        except (ValueError, TypeError):
-            print(f"⚠️ Could not parse GPS coordinates")
+        except (ValueError, TypeError) as e:
+            print(f"⚠️ Could not parse GPS coordinates: {e}")
     
     # Priority 2: Fallback to geocoding check-in address
     if checkin_coords_lat is None and checkin_address:
         print(f"🌍 Falling back to geocoding check-in address...")
-        checkin_coords_lat, checkin_coords_lng, checkin_accuracy = get_coordinates_from_address_enhanced(checkin_address)
-        if checkin_coords_lat is not None:
-            checkin_source = "address"
-            print(f"✅ Using geocoded coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f} (accuracy: {checkin_accuracy})")
+        try:
+            checkin_coords_lat, checkin_coords_lng, checkin_accuracy = get_coordinates_from_address_enhanced(checkin_address)
+            print(f"   Checkin geocoding result: lat={checkin_coords_lat}, lng={checkin_coords_lng}, accuracy={checkin_accuracy}")
+            
+            if checkin_coords_lat is not None:
+                checkin_source = "address"
+                print(f"✅ Using geocoded coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f} (accuracy: {checkin_accuracy})")
+        except Exception as e:
+            print(f"❌ Error geocoding check-in address: {e}")
     
     # Check if we have valid coordinates for both locations
     if checkin_coords_lat is None or checkin_coords_lng is None:
@@ -661,21 +666,31 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
         print(f"   Address: {checkin_address}")
         return None
     
-    # Step 3: Calculate enhanced distance
-    print(f"\n📏 Step 3: Calculating enhanced distance...")
-    distance = calculate_distance_miles(qr_lat, qr_lng, checkin_coords_lat, checkin_coords_lng)
-    
-    if distance is not None:
-        print(f"✅ Enhanced location accuracy calculated successfully!")
-        print(f"   QR Location: {qr_lat:.10f}, {qr_lng:.10f}")
-        print(f"   Check-in Location: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f}")
+    # Step 3: Calculate distance
+    print(f"\n📏 Step 3: Calculating distance...")
+    try:
+        print(f"   QR coordinates: {qr_lat:.10f}, {qr_lng:.10f}")
+        print(f"   Check-in coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f}")
         print(f"   Source: {checkin_source}")
-        print(f"   Distance: {distance:.4f} miles")
-        print(f"   Accuracy Level: {get_location_accuracy_level_enhanced(distance)}")
-    else:
-        print(f"❌ Failed to calculate distance")
-    
-    return distance
+        
+        distance = calculate_distance_miles(qr_lat, qr_lng, checkin_coords_lat, checkin_coords_lng)
+        print(f"   Distance calculation result: {distance}")
+        
+        if distance is not None:
+            accuracy_level = get_location_accuracy_level_enhanced(distance)
+            print(f"✅ Enhanced location accuracy calculated successfully!")
+            print(f"   Distance: {distance:.4f} miles")
+            print(f"   Accuracy Level: {accuracy_level}")
+            return distance
+        else:
+            print(f"❌ Distance calculation returned None")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error calculating distance: {e}")
+        import traceback
+        print(f"❌ Distance calculation traceback: {traceback.format_exc()}")
+        return None
 
 def generate_qr_url(name, qr_id):
     """Generate a unique URL for QR code destination"""
@@ -712,50 +727,6 @@ def get_client_ip():
         return request.environ['REMOTE_ADDR']
     else:
         return request.environ['HTTP_X_FORWARDED_FOR']
-
-def calculate_distance_miles(lat1, lng1, lat2, lng2):
-    """
-    Calculate the great circle distance between two points on Earth in miles
-    Using the Haversine formula
-    """
-    if any(coord is None for coord in [lat1, lng1, lat2, lng2]):
-        return None
-    
-    try:
-        # Convert decimal degrees to radians
-        lat1, lng1, lat2, lng2 = map(radians, [lat1, lng1, lat2, lng2])
-        
-        # Haversine formula
-        dlng = lng2 - lng1
-        dlat = lat2 - lat1
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlng/2)**2
-        c = 2 * asin(sqrt(a))
-        
-        # Radius of Earth in miles
-        r_miles = 3959
-        
-        # Calculate the result
-        distance = c * r_miles
-        
-        print(f"📏 Calculated distance: {distance:.3f} miles")
-        return round(distance, 3)
-        
-    except Exception as e:
-        print(f"❌ Error calculating distance: {e}")
-        return None
-
-def get_location_accuracy_level(location_accuracy):
-    """Get human-readable location accuracy level based on distance"""
-    if not location_accuracy:
-        return 'unknown'
-    elif location_accuracy <= 0.1:  # Within 0.1 mile (528 feet)
-        return 'excellent'
-    elif location_accuracy <= 0.5:  # Within 0.5 mile
-        return 'good'
-    elif location_accuracy <= 1.0:  # Within 1 mile
-        return 'fair'
-    else:
-        return 'poor'
 
 def get_location_accuracy_level_enhanced(location_accuracy):
     """
@@ -1931,7 +1902,7 @@ def user_stats_api():
 @app.route('/api/roles/permissions')
 @admin_required
 def role_permissions_api():
-    """NEW: API endpoint to get role permissions data"""
+    """API endpoint to get role permissions data"""
     try:
         permissions_data = {}
         for role in VALID_ROLES:
@@ -3023,16 +2994,6 @@ def edit_qr_code(qr_id):
 @log_database_operations('qr_code_deletion')
 def delete_qr_code(qr_id):
     """Permanently delete QR code (Admin only) - Hard delete - PRESERVING EXACT ROUTE"""
-    
-    # OBVIOUS DEBUGGING - You MUST see this in console
-    print("\n" + "="*60)
-    print("🔥 DELETE ROUTE WAS CALLED! 🔥")
-    print(f"🔥 QR ID: {qr_id}")
-    print(f"🔥 Method: {request.method}")
-    print(f"🔥 User: {session.get('username', 'NO_USER')}")
-    print(f"🔥 Role: {session.get('role', 'NO_ROLE')}")
-    print("="*60 + "\n")
-    
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         print(f"✅ Found QR Code: {qr_code.name}")
@@ -3182,10 +3143,10 @@ def qr_checkin(qr_url):
         else:
             print(f"✅ First check-in today for {employee_id}")
         
-        # PRESERVED: Process location data with coordinate-to-address conversion
+        # Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
         
-        # PRESERVED: Get device and network info
+        # Get device and network info
         user_agent_string = request.headers.get('User-Agent', '')
         device_info = detect_device_info(user_agent_string)
         client_ip = get_client_ip()
@@ -3194,7 +3155,7 @@ def qr_checkin(qr_url):
         print(f"🌐 IP Address: {client_ip}")
         print(f"📍 Location Data: {location_data}")
         
-        # PRESERVED: Create attendance record
+        # Create attendance record
         print(f"\n💾 CREATING ATTENDANCE RECORD:")
         
         attendance = AttendanceData(
@@ -3211,41 +3172,97 @@ def qr_checkin(qr_url):
             accuracy=location_data['accuracy'],
             altitude=location_data['altitude'],
             location_source=location_data['source'],
-            address=location_data['address'],  # This now includes converted address
+            address=location_data['address'],
             status='present'
         )
         
         print(f"✅ Created base attendance record")
         
-        # PRESERVED: Calculate location accuracy
-        print(f"\n🎯 CALCULATING LOCATION ACCURACY...")
+        # ENHANCED DEBUG: Calculate location accuracy with detailed logging
+        print(f"\n🎯 CALCULATING LOCATION ACCURACY WITH ENHANCED DEBUG...")
+        print(f"   📊 QR Code Details:")
+        print(f"      ID: {qr_code.id}")
+        print(f"      Name: {qr_code.name}")
+        print(f"      Location: {qr_code.location}")
+        print(f"      Location Address: {qr_code.location_address}")
+        print(f"      Has location_address: {qr_code.location_address is not None}")
+        print(f"      Location Address Length: {len(qr_code.location_address) if qr_code.location_address else 0}")
+        
+        print(f"   📍 Check-in Data:")
+        print(f"      Latitude: {location_data['latitude']}")
+        print(f"      Longitude: {location_data['longitude']}")
+        print(f"      GPS Accuracy: {location_data['accuracy']}")
+        print(f"      Address: {location_data['address']}")
+        print(f"      Address Length: {len(location_data['address']) if location_data['address'] else 0}")
+        print(f"      Source: {location_data['source']}")
+        
         location_accuracy = None
         
         try:
-            location_accuracy = calculate_location_accuracy_enhanced(
-                qr_address=qr_code.location_address,
-                checkin_address=location_data['address'],
-                checkin_lat=location_data['latitude'],
-                checkin_lng=location_data['longitude']
-            )
-            
-            if location_accuracy is not None:
-                attendance.location_accuracy = location_accuracy
-                accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
-                print(f"✅ Location accuracy set: {location_accuracy:.4f} miles ({accuracy_level})")
+            # Check if we have the required data
+            if not qr_code.location_address:
+                print(f"❌ QR code location_address is empty or None")
+                print(f"   QR Code location_address value: '{qr_code.location_address}'")
+            elif not location_data['address'] and not (location_data['latitude'] and location_data['longitude']):
+                print(f"❌ No check-in address or coordinates available")
+                print(f"   Check-in address: '{location_data['address']}'")
+                print(f"   Check-in coords: {location_data['latitude']}, {location_data['longitude']}")
             else:
-                print(f"⚠️ Could not calculate location accuracy")
+                print(f"✅ Required data available, proceeding with calculation...")
                 
+                location_accuracy = calculate_location_accuracy_enhanced(
+                    qr_address=qr_code.location_address,
+                    checkin_address=location_data['address'],
+                    checkin_lat=location_data['latitude'],
+                    checkin_lng=location_data['longitude']
+                )
+                
+                print(f"📐 Location accuracy calculation result: {location_accuracy}")
+                
+                if location_accuracy is not None:
+                    attendance.location_accuracy = location_accuracy
+                    accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
+                    print(f"✅ Location accuracy set successfully: {location_accuracy:.4f} miles ({accuracy_level})")
+                    print(f"📊 Final attendance.location_accuracy value: {attendance.location_accuracy}")
+                else:
+                    print(f"⚠️ Could not calculate location accuracy - calculation returned None")
+                    
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
+            import traceback
+            print(f"❌ Full traceback: {traceback.format_exc()}")
         
-        # PRESERVED: Save to database
+        # ENHANCED DEBUG: Save to database with verification
         try:
+            print(f"\n💾 SAVING TO DATABASE...")
+            print(f"   Attendance object before save:")
+            print(f"      Employee ID: {attendance.employee_id}")
+            print(f"      Location: {attendance.location_name}")
+            print(f"      Latitude: {attendance.latitude}")
+            print(f"      Longitude: {attendance.longitude}")
+            print(f"      Address: {attendance.address}")
+            print(f"      Location Accuracy: {attendance.location_accuracy}")
+            
             db.session.add(attendance)
             db.session.commit()
-            print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
             
-            # NEW: Count total check-ins for today for this employee at this location
+            # VERIFICATION: Read back from database
+            saved_record = AttendanceData.query.get(attendance.id)
+            print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
+            print(f"📊 Verification - location accuracy in database: {saved_record.location_accuracy}")
+            
+            if saved_record.location_accuracy != attendance.location_accuracy:
+                print(f"⚠️ WARNING: Database value differs from object value!")
+                print(f"   Object value: {attendance.location_accuracy}")
+                print(f"   Database value: {saved_record.location_accuracy}")
+            
+            # Add enhanced logging for location accuracy save
+            if attendance.location_accuracy is not None:
+                logger_handler.logger.info(f"Location accuracy calculated and saved: {attendance.location_accuracy:.4f} miles for employee {attendance.employee_id}")
+            else:
+                logger_handler.logger.warning(f"Location accuracy could not be calculated for employee {attendance.employee_id} at QR {qr_code.name}")
+
+            # Count total check-ins for today for this employee at this location
             today_checkin_count = AttendanceData.query.filter_by(
                 qr_code_id=qr_code.id,
                 employee_id=employee_id.upper(),
@@ -3256,13 +3273,16 @@ def qr_checkin(qr_url):
             
         except Exception as e:
             print(f"❌ Database error: {e}")
+            import traceback
+            print(f"❌ Full traceback: {traceback.format_exc()}")
             db.session.rollback()
+            logger_handler.log_database_error('checkin_save', e)
             return jsonify({
                 'success': False,
                 'message': 'Database error occurred.'
             }), 500
         
-        # ENHANCED: Return success response with sequence information
+        # Return success response with sequence information
         response_data = {
             'success': True,
             'message': f'Check-in successful! {checkin_sequence_text} for today.',
@@ -4772,8 +4792,8 @@ if __name__ == '__main__':
         try:
             # Initialize database and logging
             create_tables()
-            update_existing_qr_codes()
-            add_qr_customization_columns()
+            # update_existing_qr_codes()
+            # add_qr_customization_columns()
 
             # Log application startup
             logger_handler.logger.info("QR Attendance Management System started successfully")
