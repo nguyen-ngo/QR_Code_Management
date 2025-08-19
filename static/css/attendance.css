@@ -393,6 +393,23 @@
   border-radius: var(--radius);
 }
 
+.employee-name {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--gray-700);
+    font-weight: 500;
+}
+
+.employee-name i {
+    color: var(--primary-color);
+    font-size: var(--font-size-sm);
+}
+
+.employee-name span {
+    font-weight: 500;
+}
+
 .location-info {
   display: flex;
   align-items: center;

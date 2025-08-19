@@ -69,31 +69,27 @@ function loadTableData() {
       }
 
       return {
-        id: row.dataset.recordId,
-        index: index + 1,
-        employeeId: cells[1] ? cells[1].textContent.trim() : "",
-        location: cells[2] ? cells[2].textContent.trim() : "",
-        event: cells[3] ? cells[3].textContent.trim() : "",
-        date: cells[4] ? cells[4].textContent.trim() : "",
-        time: cells[5] ? cells[5].textContent.trim() : "",
-        qr_address: cells[6]
-          ? cells[6].getAttribute("title") || cells[6].textContent.trim()
-          : "",
-        checked_in_address: cells[7]
-          ? cells[7].getAttribute("title") || cells[7].textContent.trim()
-          : "",
-        // FIXED: Extract location accuracy for address display logic
-        location_accuracy: cells[8] ? extractLocationAccuracy(cells[8]) : null,
-        accuracy_level: cells[8]
-          ? extractLocationAccuracyLevel(cells[8])
-          : "unknown",
-        device: cells[9]
-          ? cells[9].getAttribute("title") || cells[9].textContent.trim()
-          : "",
-        has_location_data: cells[8]
-          ? !cells[8].textContent.includes("Unknown")
-          : false,
-        coordinates: extractCoordinates(cells[8]),
+          id: row.dataset.recordId,
+          index: index + 1,
+          employeeId: cells[1] ? cells[1].textContent.trim() : "",
+          employeeName: cells[2] ? cells[2].textContent.trim() : "",
+          location: cells[3] ? cells[3].textContent.trim() : "",
+          event: cells[4] ? cells[4].textContent.trim() : "",
+          date: cells[5] ? cells[5].textContent.trim() : "",
+          time: cells[6] ? cells[6].textContent.trim() : "",
+          qr_address: cells[7]
+              ? cells[7].getAttribute("title") || cells[7].textContent.trim()
+              : "",
+          checked_in_address: cells[8]
+              ? cells[8].getAttribute("title") || cells[8].textContent.trim()
+              : "",
+          location_accuracy: cells[9] ? extractLocationAccuracy(cells[9]) : null,
+          accuracy_level: cells[9]
+              ? extractLocationAccuracyLevel(cells[9])
+              : "unknown",
+          device: cells[10]
+              ? cells[10].textContent.trim()
+              : ""
       };
     });
 
@@ -568,31 +564,28 @@ function loadTableData() {
     attendanceData = Array.from(rows).map((row, index) => {
       const cells = row.querySelectorAll("td");
       return {
-        id: row.dataset.recordId,
-        index: index + 1,
-        employeeId: cells[1] ? cells[1].textContent.trim() : "",
-        location: cells[2] ? cells[2].textContent.trim() : "",
-        event: cells[3] ? cells[3].textContent.trim() : "",
-        date: cells[4] ? cells[4].textContent.trim() : "",
-        time: cells[5] ? cells[5].textContent.trim() : "",
-        qr_address: cells[6]
-          ? cells[6].getAttribute("title") || cells[6].textContent.trim()
-          : "",
-        checked_in_address: cells[7]
-          ? cells[7].getAttribute("title") || cells[7].textContent.trim()
-          : "",
-        // FIXED: Extract location accuracy for address display logic
-        location_accuracy: cells[8] ? extractLocationAccuracy(cells[8]) : null,
-        accuracy_level: cells[8]
-          ? extractLocationAccuracyLevel(cells[8])
-          : "unknown",
-        device: cells[9]
-          ? cells[9].getAttribute("title") || cells[9].textContent.trim()
-          : "",
-        has_location_data: cells[8]
-          ? !cells[8].textContent.includes("Unknown")
-          : false,
-        coordinates: extractCoordinates(cells[8]),
+          id: row.dataset.recordId,
+          index: index + 1,
+          employeeId: cells[1] ? cells[1].textContent.trim() : "",
+          employeeName: cells[2] ? cells[2].textContent.trim() : "", // NEW: Employee Name column
+          location: cells[3] ? cells[3].textContent.trim() : "", // Updated from cells[2]
+          event: cells[4] ? cells[4].textContent.trim() : "", // Updated from cells[3]
+          date: cells[5] ? cells[5].textContent.trim() : "", // Updated from cells[4]
+          time: cells[6] ? cells[6].textContent.trim() : "", // Updated from cells[5]
+          qr_address: cells[7] // Updated from cells[6]
+              ? cells[7].getAttribute("title") || cells[7].textContent.trim()
+              : "",
+          checked_in_address: cells[8] // Updated from cells[7]
+              ? cells[8].getAttribute("title") || cells[8].textContent.trim()
+              : "",
+          // FIXED: Extract location accuracy for address display logic
+          location_accuracy: cells[9] ? extractLocationAccuracy(cells[9]) : null, // Updated from cells[8]
+          accuracy_level: cells[9] // Updated from cells[8]
+              ? extractLocationAccuracyLevel(cells[9])
+              : "unknown",
+          device: cells[10] // Updated from cells[9]
+              ? cells[10].textContent.trim()
+              : ""
       };
     });
 
@@ -788,6 +781,12 @@ function createTableRow(record, displayIndex) {
             </div>
         </td>
         <td>
+            <div class="employee-name">
+                <i class="fas fa-user"></i>
+                <span>${record.employeeName || 'Unknown'}</span>
+            </div>
+        </td>
+        <td>
             <div class="location-info">
                 <i class="fas fa-map-marker-alt"></i>
                 ${record.location}
@@ -966,7 +965,9 @@ function getAccuracyLevelColor(level) {
 function exportAttendanceWithAccuracy() {
   // Build CSV header with location accuracy
   const headers = [
+    "#",
     "Employee ID",
+    "Employee Name",
     "Location",
     "Event",
     "Date",
@@ -979,17 +980,17 @@ function exportAttendanceWithAccuracy() {
   ];
 
   // Build CSV rows
-  const rows = filteredData.map((record) => [
+  const rows = filteredData.map((record, index) => [
+    index + 1,
     record.employeeId,
+    record.employeeName || "Unknown",
     record.location,
     record.event,
     record.date,
     record.time,
     record.qr_address,
     record.checked_in_address,
-    record.location_accuracy !== null
-      ? record.location_accuracy.toFixed(3)
-      : "Unknown",
+    record.location_accuracy ? record.location_accuracy.toFixed(3) : "Unknown",
     record.accuracy_level,
     record.device,
   ]);

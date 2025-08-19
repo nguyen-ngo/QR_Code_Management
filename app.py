@@ -3257,9 +3257,11 @@ def attendance_report():
                     ad.longitude,
                     ad.location_accuracy,
                     ad.accuracy as gps_accuracy,
-                    ad.device_info
+                    ad.device_info,
+                    CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
+                LEFT JOIN employee e ON ad.employee_id = e.id
                 WHERE 1=1
             """
         else:
@@ -3278,9 +3280,11 @@ def attendance_report():
                     ad.longitude,
                     NULL as location_accuracy,
                     ad.accuracy as gps_accuracy,
-                    ad.device_info
+                    ad.device_info,
+                    CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
+                LEFT JOIN employee e ON ad.employee_id = e.id
                 WHERE 1=1
             """
         

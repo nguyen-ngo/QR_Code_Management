@@ -163,17 +163,18 @@
                     <tr>
                         <th onclick="sortTable(0)">#</th>
                         <th onclick="sortTable(1)">Employee ID <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(2)">Location <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(3)">Event <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(4)">Date <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(5)">Time <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(6)" class="address-column">QR Address <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(7)" class="address-column">Check-in Address <i class="fas fa-sort"></i></th>
-                        <th onclick="sortTable(8)">
+                        <th onclick="sortTable(2)">Employee Name <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(3)">Location <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(4)">Event <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(5)">Date <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(6)">Time <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(7)" class="address-column">QR Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(8)" class="address-column">Check-in Address <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(9)">
                             {% if has_location_accuracy_feature %}Location Accuracy{% else %}GPS Accuracy{% endif %} 
                             <i class="fas fa-sort"></i>
                         </th>
-                        <th onclick="sortTable(9)">Device <i class="fas fa-sort"></i></th>
+                        <th onclick="sortTable(10)">Device <i class="fas fa-sort"></i></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -184,6 +185,12 @@
                         <td>
                             <div class="employee-info">
                                 <span class="employee-id">{{ record.employee_id }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="employee-name">
+                                <i class="fas fa-user"></i>
+                                <span>{{ record.employee_name if record.employee_name else 'Unknown' }}</span>
                             </div>
                         </td>
                         <td>
