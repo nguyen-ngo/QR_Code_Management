@@ -655,7 +655,7 @@ function extractLocationAccuracyLevel(cell) {
   
   // Return 2-level accuracy based on 0.5-mile threshold
   if (accuracy !== null && accuracy !== undefined) {
-    return accuracy <= 0.5 ? "accurate" : "inaccurate";
+    return accuracy < 0.3 ? "accurate" : "inaccurate";
   }
   return "unknown";
 }
@@ -708,10 +708,10 @@ function createTableRow(record, displayIndex) {
     if (displayIndex <= 3) {
       console.log(`Applying address logic for ${record.employeeId}:`);
       console.log(`  Accuracy value: ${accuracy}`);
-      console.log(`  Is <= 0.5? ${accuracy <= 0.5}`);
+      console.log(`  Is <= 0.3? ${accuracy <= 0.3}`);
     }
 
-    if (!isNaN(accuracy) && accuracy <= 0.5) {
+    if (!isNaN(accuracy) && accuracy <= 0.3) {
       // High accuracy - use QR address
       addressToShow = record.qr_address;
       addressIcon = "fas fa-check-circle";
