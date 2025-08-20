@@ -3355,11 +3355,11 @@ def attendance_report():
             }
             
             # FIXED: Add address display logic based on location accuracy
-            # If location accuracy <= 0.3 miles, display QR address; otherwise display actual check-in address
+            # If location accuracy < 0.3 miles, display QR address; otherwise display actual check-in address
             if location_accuracy is not None:
                 try:
                     accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
-                    if accuracy_value <= 0.3:
+                    if accuracy_value < 0.3:
                         # High accuracy - use QR code address
                         processed_record['display_address'] = getattr(record, 'qr_address', None) or 'N/A'
                         processed_record['address_source'] = 'qr'
@@ -4009,11 +4009,11 @@ def create_excel_export(selected_columns, column_names, filters):
                         cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
                     elif column_key == 'address':
                         # IMPLEMENTED: Check-in address logic based on location accuracy
-                        # If location accuracy <= 0.3 miles, use QR address; otherwise use actual check-in address
+                        # If location accuracy < 0.3 miles, use QR address; otherwise use actual check-in address
                         if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
                             try:
                                 accuracy_value = float(attendance_record.location_accuracy)
-                                if accuracy_value <= 0.3:
+                                if accuracy_value < 0.3:
                                     # High accuracy - use QR code ADDRESS (not location)
                                     cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
                                     print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
@@ -4171,7 +4171,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                         if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
                             try:
                                 accuracy_value = float(attendance_record.location_accuracy)
-                                if accuracy_value <= 0.3:
+                                if accuracy_value < 0.3:
                                     # High accuracy - use QR code ADDRESS (not location)
                                     address_text = qr_code.location_address if qr_code and qr_code.location_address else ''
                                     # For QR address, use QR coordinates if available
