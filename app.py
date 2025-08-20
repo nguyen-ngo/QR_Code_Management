@@ -3261,7 +3261,7 @@ def attendance_report():
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
-                LEFT JOIN employee e ON CAST(ad.employee_id AS CHAR) = CAST(e.id AS CHAR)
+                LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
                 WHERE 1=1
             """
         else:
@@ -3284,7 +3284,7 @@ def attendance_report():
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
-                LEFT JOIN employee e ON CAST(ad.employee_id AS CHAR) = CAST(e.id AS CHAR)
+                LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
                 WHERE 1=1
             """
         
@@ -3328,14 +3328,7 @@ def attendance_report():
         # Execute query
         query_result = db.session.execute(text(base_query), params)
         attendance_records = query_result.fetchall()
-        print(f"✅ Found {len(attendance_records)} attendance records")
-        # Log first 3 records to verify QR address data
-        for i, record in enumerate(attendance_records[:3]):
-            print(f"📊 Record {i+1}: Employee={record.employee_id}")
-            print(f"   QR Address: {getattr(record, 'qr_address', 'NOT_FOUND')}")
-            print(f"   Check-in Address: {getattr(record, 'checked_in_address', 'NOT_FOUND')}")
-            print(f"   Location Accuracy: {getattr(record, 'location_accuracy', 'NOT_FOUND')}")
-            
+
         # FIXED: Process records to add calculated fields with proper datetime handling
         processed_records = []
         for record in attendance_records:
@@ -3347,6 +3340,7 @@ def attendance_report():
             processed_record = {
                 'id': record.id,
                 'employee_id': record.employee_id or 'Unknown',
+                'employee_name': getattr(record, 'employee_name', None) or record.employee_id or 'Unknown',
                 'check_in_date': record.check_in_date,
                 'check_in_time': record.check_in_time,
                 'location_name': record.location_name or 'Unknown Location',
@@ -4273,7 +4267,8 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         return None
-       
+   
+           
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
 def days_since_filter(date):
