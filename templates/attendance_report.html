@@ -180,7 +180,7 @@
                 </thead>
                 <tbody>
                     {% for record in attendance_records %}
-                    <tr data-record-id="{{ record.id }}">
+                    <tr data-record-id="{{ record.id }}" class="{% if record.updated_timestamp > record.created_timestamp %}modified-record{% endif %}">
                         <td>{{ loop.index }}</td>
                         <td>
                             <div class="employee-info">

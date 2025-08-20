@@ -3258,6 +3258,8 @@ def attendance_report():
                     ad.location_accuracy,
                     ad.accuracy as gps_accuracy,
                     ad.device_info,
+                    ad.created_timestamp,
+                    ad.updated_timestamp,
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
@@ -3281,6 +3283,8 @@ def attendance_report():
                     NULL as location_accuracy,
                     ad.accuracy as gps_accuracy,
                     ad.device_info,
+                    ad.created_timestamp,
+                    ad.updated_timestamp,
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
@@ -3352,6 +3356,8 @@ def attendance_report():
                 'location_accuracy': location_accuracy,
                 'gps_accuracy': gps_accuracy,
                 'device_info': getattr(record, 'device_info', None) or 'Unknown Device',
+                'created_timestamp': record.created_timestamp,
+                'updated_timestamp': record.updated_timestamp,
             }
             
             # FIXED: Add address display logic based on location accuracy

@@ -377,6 +377,22 @@
 }
 
 /* Table Cell Content */
+.modified-record {
+    background-color: #fff3cd !important;
+    border-left: 3px solid #ffc107 !important;
+}
+
+/* Make sure there's no animation that causes flashing */
+.modified-record * {
+    animation: none !important;
+}
+
+/* Remove any existing animations on table rows */
+tr.modified-record {
+    animation: none !important;
+    transition: none !important;
+}
+
 .employee-info {
   display: flex;
   align-items: center;

@@ -585,7 +585,8 @@ function loadTableData() {
               : "unknown",
           device: cells[10] // Updated from cells[9]
               ? cells[10].textContent.trim()
-              : ""
+              : "",
+          isModified: row.classList.contains('modified-record'),
       };
     });
 
@@ -663,6 +664,11 @@ function extractLocationAccuracyLevel(cell) {
 function createTableRow(record, displayIndex) {
   const row = document.createElement("tr");
   row.dataset.recordId = record.id;
+  
+  // Apply highlighting if record was modified
+  if (record.isModified) {
+      row.classList.add('modified-record');
+  }
 
   // Debug logging for first few records
   if (displayIndex <= 3) {
