@@ -59,3 +59,6 @@ python-json-logger==2.0.7       # Structured logging support
 
 # Cryptography dependencies (required for some MySQL features)
 cryptography==41.0.7            # Required for MySQL SSL connections
+
+# Employee Synchronization Dependencies
+schedule==1.2.0              # For automated scheduling
