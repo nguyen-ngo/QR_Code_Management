@@ -1050,6 +1050,8 @@ function exportAttendance() {
     params.append("location", currentFilters.location);
   if (currentFilters.employee)
     params.append("employee", currentFilters.employee);
+  if (currentFilters.project)
+    params.append("project", currentFilters.project);
 
   // Navigate to export configuration page
   const configUrl =

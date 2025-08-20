@@ -30,7 +30,7 @@
     </div>
 
     <!-- Filter Information -->
-    {% if filters.date_from or filters.date_to or filters.location_filter or filters.employee_filter %}
+    {% if filters.date_from or filters.date_to or filters.location_filter or filters.employee_filter or filters.project_filter %}
     <div class="applied-filters-section">
         <div class="filters-card">
             <div class="filters-header">
@@ -64,6 +64,12 @@
                     Employee: {{ filters.employee_filter }}
                 </span>
                 {% endif %}
+                {% if filters.project_filter %}
+                <span class="filter-tag">
+                    <i class="fas fa-project-diagram"></i>
+                    Project: {{ filters.project_filter }}
+                </span>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -77,7 +83,8 @@
             <input type="hidden" name="date_to" value="{{ filters.date_to }}">
             <input type="hidden" name="location_filter" value="{{ filters.location_filter }}">
             <input type="hidden" name="employee_filter" value="{{ filters.employee_filter }}">
-            
+            <input type="hidden" name="project_filter" value="{{ filters.project_filter }}">
+
             <!-- Hidden field for column order -->
             <input type="hidden" id="column_order" name="column_order" value="">
             
@@ -232,11 +239,13 @@ function goBackToReport() {
     const dateTo = document.querySelector('input[name="date_to"]').value;
     const locationFilter = document.querySelector('input[name="location_filter"]').value;
     const employeeFilter = document.querySelector('input[name="employee_filter"]').value;
-    
+    const projectFilter = document.querySelector('input[name="project_filter"]').value;
+
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
     if (locationFilter) params.append('location', locationFilter);
     if (employeeFilter) params.append('employee', employeeFilter);
+    if (projectFilter) params.append('project', projectFilter);
     
     const url = "{{ url_for('attendance_report') }}" + (params.toString() ? '?' + params.toString() : '');
     window.location.href = url;
