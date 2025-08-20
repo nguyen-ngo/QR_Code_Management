@@ -2906,19 +2906,19 @@ def qr_checkin(qr_url):
             # Check if 30 minutes have passed since the last check-in
             if recent_checkin_datetime > the_last_checkin_time:
                 minutes_remaining = time_interval - int((current_time - recent_checkin_datetime).total_seconds() / 60)
-                print(f"⚠️ Too soon for another check-in for {employee_id}")
-                print(f"   Last check-in: {recent_checkin.check_in_time.strftime('%H:%M')}")
+                print(f"⚠️ Too soon for another {qr_code.location_event} for {employee_id}")
+                print(f"   Last {qr_code.location_event}: {recent_checkin.check_in_time.strftime('%H:%M')}")
                 print(f"   Minutes remaining: {minutes_remaining}")
                 
                 return jsonify({
                     'success': False,
-                    'message': f"You can check in again in {minutes_remaining} minutes. Last check-in was at {recent_checkin.check_in_time.strftime("%H:%M")}. \n"
+                    'message': f"You can {qr_code.location_event} again in {minutes_remaining} minutes. Last {qr_code.location_event} was at {recent_checkin.check_in_time.strftime("%H:%M")}. \n"
                                f"Puedes volver a registrarte en {minutes_remaining} minutos. El último registro fue a las {recent_checkin.check_in_time.strftime("%H:%M")}."
                 }), 400
             else:
-                print(f"✅ 30-minute interval satisfied. Allowing new check-in for {employee_id}")
+                print(f"✅ 30-minute interval satisfied. Allowing new {qr_code.location_event} for {employee_id}")
         else:
-            print(f"✅ First check-in today for {employee_id}")
+            print(f"✅ First {qr_code.location_event} today for {employee_id}")
         
         # Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
