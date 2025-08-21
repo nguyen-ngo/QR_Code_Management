@@ -3859,7 +3859,8 @@ def generate_excel_export():
             'date_from': request.form.get('date_from'),
             'date_to': request.form.get('date_to'),
             'location_filter': request.form.get('location_filter'),
-            'employee_filter': request.form.get('employee_filter')
+            'employee_filter': request.form.get('employee_filter'),
+            'project_filter': request.form.get('project_filter')
         }
         
         print(f"📊 Export filters: {filters}")
@@ -4123,6 +4124,11 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         if filters.get('employee_filter'):
             query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
+        
+        # Apply project filter
+        if filters.get('project_filter'):
+            query = query.filter(QRCode.project_id == int(filters['project_filter']))
+            print(f"📊 Applied project filter to export: {filters['project_filter']}")
         
         # Execute query and get results
         results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
