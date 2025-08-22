@@ -4358,20 +4358,31 @@ def payroll_dashboard():
         employee_names = {}
         if working_hours_data:
             try:
-                # Try to get employee names from your employee table if it exists
+                # Use the same SQL approach as attendance report - JOIN with CAST
                 employee_ids = list(working_hours_data['employees'].keys())
-                # This assumes you have an employee table - modify as needed
-                employee_query = db.session.execute(text("""
-                    SELECT id, CONCAT(firstName, ' ', lastName) as full_name 
-                    FROM employee 
-                    WHERE id IN :employee_ids
-                """), {'employee_ids': tuple(employee_ids)})
+                if employee_ids:
+                    # Build a query similar to attendance report
+                    placeholders = ','.join([f"'{emp_id}'" for emp_id in employee_ids])
+                    employee_query = db.session.execute(text(f"""
+                        SELECT 
+                            ad.employee_id,
+                            CONCAT(e.firstName, ' ', e.lastName) as full_name 
+                        FROM attendance_data ad
+                        LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
+                        WHERE ad.employee_id IN ({placeholders})
+                        GROUP BY ad.employee_id, e.firstName, e.lastName
+                    """))
+                    
+                    for row in employee_query:
+                        if row[1]:  # Only add if we got a name
+                            employee_names[str(row[0])] = row[1]
                 
-                for row in employee_query:
-                    employee_names[str(row[0])] = row[1]
+                print(f"📊 Retrieved names for {len(employee_names)} employees using CAST method")
                     
             except Exception as e:
                 print(f"⚠️ Could not load employee names: {e}")
+                import traceback
+                print(f"⚠️ Traceback: {traceback.format_exc()}")
                 # Continue without names - will use employee IDs
         
         # Get selected project name for display
@@ -4467,39 +4478,41 @@ def export_payroll_excel():
         
         print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
         
-        # Get employee names
-        employee_names = {}
-        try:
-            employee_ids = list(set(str(record.employee_id) for record in attendance_records))
-            employee_query = db.session.execute(text("""
-                SELECT id, CONCAT(firstName, ' ', lastName) as full_name 
-                FROM employee 
-                WHERE id IN :employee_ids
-            """), {'employee_ids': tuple(employee_ids)})
-            
-            for row in employee_query:
-                employee_names[str(row[0])] = row[1]
-                
-        except Exception as e:
-            print(f"⚠️ Could not load employee names for export: {e}")
-        
-        # Get project name for filename
-        project_name = ''
-        if project_filter:
-            try:
-                project = Project.query.get(int(project_filter))
-                if project:
-                    project_name = f"_{project.name.replace(' ', '_')}"
-            except Exception as e:
-                print(f"⚠️ Error getting project name for filename: {e}")
-        
         # Create Excel exporter
         exporter = PayrollExcelExporter(
             company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
             contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
         )
         
-        # Generate Excel file
+        # Get employee names using the same method as dashboard
+        employee_names = {}
+        try:
+            employee_ids = list(set(str(record.employee_id) for record in attendance_records))
+            if employee_ids:
+                # Use the same SQL approach as attendance report - JOIN with CAST
+                placeholders = ','.join([f"'{emp_id}'" for emp_id in employee_ids])
+                employee_query = db.session.execute(text(f"""
+                    SELECT 
+                        ad.employee_id,
+                        CONCAT(e.firstName, ' ', e.lastName) as full_name 
+                    FROM attendance_data ad
+                    LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
+                    WHERE ad.employee_id IN ({placeholders})
+                    GROUP BY ad.employee_id, e.firstName, e.lastName
+                """))
+                
+                for row in employee_query:
+                    if row[1]:  # Only add if we got a name
+                        employee_names[str(row[0])] = row[1]
+            
+            print(f"📊 Retrieved names for {len(employee_names)} employees for export using CAST method")
+                
+        except Exception as e:
+            print(f"⚠️ Could not load employee names for export: {e}")
+            import traceback
+            print(f"⚠️ Traceback: {traceback.format_exc()}")
+        
+        # Generate Excel file with employee names
         if report_type == 'detailed':
             excel_file = exporter.create_detailed_hours_report(
                 start_date, end_date, attendance_records, employee_names, include_travel_time
@@ -4510,6 +4523,16 @@ def export_payroll_excel():
                 start_date, end_date, attendance_records, employee_names, include_travel_time
             )
             filename_prefix = 'payroll_report'
+        
+        # Get project name for filename
+        project_name = ''
+        if project_filter:
+            try:
+                project = Project.query.get(int(project_filter))
+                if project:
+                    project_name = f"_{project.name.replace(' ', '_')}"
+            except Exception as e:
+                print(f"⚠️ Error getting project name for filename: {e}")
         
         if excel_file:
             # Generate filename with timestamp and project name
@@ -4571,7 +4594,6 @@ def calculate_working_hours_api():
         employee_id = data.get('employee_id')
         date_from = data.get('date_from')
         date_to = data.get('date_to')
-        include_travel_time = data.get('include_travel_time', True)
         
         if not all([employee_id, date_from, date_to]):
             return jsonify({
@@ -4597,7 +4619,7 @@ def calculate_working_hours_api():
         
         attendance_records = query.all()
         
-        # Calculate working hours
+        # Calculate working hours using single check-in calculator
         calculator = SingleCheckInCalculator()
         hours_data = calculator.calculate_employee_hours(
             str(employee_id), start_date, end_date, attendance_records

@@ -105,6 +105,59 @@ class PayrollExcelExporter:
         for attr, value in style_dict.items():
             setattr(cell, attr, value)
     
+    def _get_employee_names(self, attendance_records: List[Dict]) -> Dict[str, str]:
+        """Get employee names - fallback method if names not provided"""
+        print("⚠️ Excel exporter falling back to internal name lookup - this should not normally happen")
+        return {}  # Return empty dict - names should be provided by the route
+    
+    def _get_employee_names(self, attendance_records: List[Dict]) -> Dict[str, str]:
+        """Get employee names using the same CAST method as attendance report"""
+        employee_names = {}
+        try:
+            from flask import current_app
+            from sqlalchemy import text
+            
+            # Get unique employee IDs from attendance records
+            employee_ids = []
+            for record in attendance_records:
+                if hasattr(record, '__dict__'):
+                    emp_id = str(record.employee_id)
+                else:
+                    emp_id = str(record['employee_id'])
+                
+                if emp_id not in employee_ids:
+                    employee_ids.append(emp_id)
+            
+            if employee_ids:
+                # Use the same SQL approach as attendance report - JOIN with CAST
+                placeholders = ','.join([f"'{emp_id}'" for emp_id in employee_ids])
+                
+                # Import db from current app context
+                from app import db
+                
+                employee_query = db.session.execute(text(f"""
+                    SELECT 
+                        ad.employee_id,
+                        CONCAT(e.firstName, ' ', e.lastName) as full_name 
+                    FROM attendance_data ad
+                    LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
+                    WHERE ad.employee_id IN ({placeholders})
+                    GROUP BY ad.employee_id, e.firstName, e.lastName
+                """))
+                
+                for row in employee_query:
+                    if row[1]:  # Only add if we got a name
+                        employee_names[str(row[0])] = row[1]
+            
+            print(f"📊 Excel exporter retrieved names for {len(employee_names)} employees using CAST method")
+                
+        except Exception as e:
+            print(f"⚠️ Excel exporter could not load employee names: {e}")
+            import traceback
+            print(f"⚠️ Traceback: {traceback.format_exc()}")
+        
+        return employee_names
+    
     @log_database_operations('payroll_excel_export')
     def create_payroll_report(self, start_date: datetime, end_date: datetime, 
                              attendance_records: List[Dict], employee_names: Dict[str, str] = None,
@@ -124,6 +177,10 @@ class PayrollExcelExporter:
         """
         try:
             print(f"📊 Creating payroll report from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+            
+            # Get employee names using the same method as payroll routes
+            if employee_names is None:
+                employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
             calculator = SingleCheckInCalculator()
@@ -359,6 +416,10 @@ class PayrollExcelExporter:
         """
         try:
             print(f"📊 Creating detailed hours report from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+            
+            # Get employee names using the same method as payroll routes
+            if employee_names is None:
+                employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
             calculator = SingleCheckInCalculator()
