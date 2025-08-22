@@ -598,25 +598,25 @@ class PayrollExcelExporter:
         # Company name style (matches template)
         self.template_company_style = {
             'font': Font(name="Arial", size=14, bold=True),
-            'alignment': Alignment(horizontal="center", vertical="center")
+            'alignment': Alignment(horizontal="left", vertical="center")
         }
         
         # Report title style
         self.template_title_style = {
             'font': Font(name="Arial", size=12, bold=True),
-            'alignment': Alignment(horizontal="center", vertical="center")
+            'alignment': Alignment(horizontal="left", vertical="center")
         }
         
         # Project name style
         self.template_project_style = {
             'font': Font(name="Arial", size=11, bold=True),
-            'alignment': Alignment(horizontal="center", vertical="center")
+            'alignment': Alignment(horizontal="left", vertical="center")
         }
         
         # Date range style
         self.template_date_style = {
             'font': Font(name="Arial", size=11),
-            'alignment': Alignment(horizontal="center", vertical="center")
+            'alignment': Alignment(horizontal="left", vertical="center")
         }
         
         # Employee info style
