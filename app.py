@@ -5,13 +5,15 @@ from functools import wraps
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
-import io, os, base64, re, uuid, requests, json, qrcode, math
+import io, os, base64, re, uuid, requests, json, qrcode, math, traceback
 from PIL import Image, ImageDraw
 from math import radians, sin, cos, asin, sqrt
 from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
+from single_checkin_calculator import SingleCheckInCalculator
+from payroll_excel_exporter import PayrollExcelExporter
 
 # Load environment variables in .env
 load_dotenv()
@@ -465,7 +467,6 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
             
     except Exception as e:
         print(f"❌ Error calculating distance: {e}")
-        import traceback
         print(f"❌ Distance calculation traceback: {traceback.format_exc()}")
         return None
 
@@ -2815,7 +2816,6 @@ def delete_qr_code(qr_id):
         logger_handler.log_database_error('qr_code_deletion', e)
         print(f"❌ ERROR in delete route: {e}")
         print(f"❌ Exception type: {type(e)}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard'))
@@ -3006,7 +3006,6 @@ def qr_checkin(qr_url):
                     
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
-            import traceback
             print(f"❌ Full traceback: {traceback.format_exc()}")
         
         # ENHANCED DEBUG: Save to database with verification
@@ -3050,7 +3049,6 @@ def qr_checkin(qr_url):
             
         except Exception as e:
             print(f"❌ Database error: {e}")
-            import traceback
             print(f"❌ Full traceback: {traceback.format_exc()}")
             db.session.rollback()
             logger_handler.log_database_error('checkin_save', e)
@@ -3094,7 +3092,6 @@ def qr_checkin(qr_url):
         
     except Exception as e:
         print(f"❌ Unexpected error in check-in process: {e}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         return jsonify({
@@ -3505,7 +3502,6 @@ def attendance_report():
     except Exception as e:
         print(f"❌ Error loading attendance report: {e}")
         print(f"❌ Exception type: {type(e)}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         # Log the error
@@ -3784,7 +3780,6 @@ def export_configuration():
         
     except Exception as e:
         print(f"❌ Error in export_configuration route: {e}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         # Use your existing logger error method with correct parameters
@@ -3902,7 +3897,6 @@ def generate_excel_export():
             
     except Exception as e:
         print(f"❌ Error in generate_excel_export route: {e}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         # Use your existing logger error method with correct parameters
@@ -4077,7 +4071,6 @@ def create_excel_export(selected_columns, column_names, filters):
         
     except Exception as e:
         print(f"❌ Error creating Excel export: {e}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         return None
 
@@ -4276,10 +4269,384 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         
     except Exception as e:
         print(f"❌ Error creating Excel export: {e}")
-        import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
         return None
-   
+
+@app.route('/payroll')
+@login_required
+def payroll_dashboard():
+    """Payroll dashboard for calculating and exporting working hours"""
+    try:
+        # Check if user has payroll access
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access payroll dashboard without permissions")
+            flash('Access denied. Only administrators and payroll staff can access payroll features.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        print("📊 Loading payroll dashboard")
+        
+        # Log payroll dashboard access
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed payroll dashboard")
+        
+        # Get filter parameters with defaults
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        project_filter = request.args.get('project_filter', '')
+        include_travel_time = request.args.get('include_travel_time', 'true').lower() == 'true'
+        
+        # Set default date range if not provided (last 2 weeks)
+        if not date_from or not date_to:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=13)  # 2 weeks (14 days)
+            date_from = start_date.strftime('%Y-%m-%d')
+            date_to = end_date.strftime('%Y-%m-%d')
+        
+        # Get list of projects for dropdown
+        projects = []
+        try:
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            print(f"📊 Found {len(projects)} active projects for filter")
+        except Exception as e:
+            print(f"⚠️ Error loading projects: {e}")
+        
+        # Get attendance records for the period
+        attendance_records = []
+        working_hours_data = None
+        
+        if date_from and date_to:
+            try:
+                start_date = datetime.strptime(date_from, '%Y-%m-%d')
+                end_date = datetime.strptime(date_to, '%Y-%m-%d')
+                
+                # Query attendance records with optional project filter
+                query = db.session.query(AttendanceData).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
+                
+                # Apply date filter
+                query = query.filter(
+                    AttendanceData.check_in_date >= start_date.date(),
+                    AttendanceData.check_in_date <= end_date.date()
+                )
+                
+                # Apply project filter if selected
+                if project_filter and project_filter != '':
+                    query = query.filter(QRCode.project_id == int(project_filter))
+                    print(f"📊 Applied project filter: {project_filter}")
+                
+                query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
+                
+                attendance_records = query.all()
+                print(f"📊 Found {len(attendance_records)} attendance records for payroll calculation")
+                
+                # Calculate working hours if we have records
+                if attendance_records:
+                    calculator = SingleCheckInCalculator()
+                    working_hours_data = calculator.calculate_all_employees_hours(
+                        start_date, end_date, attendance_records
+                    )
+                    print(f"📊 Calculated hours for {working_hours_data['employee_count']} employees")
+                
+            except ValueError as e:
+                print(f"⚠️ Invalid date format: {e}")
+                flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
+            except Exception as e:
+                print(f"❌ Error calculating working hours: {e}")
+                logger_handler.log_database_error('payroll_calculation', e)
+                flash('Error calculating working hours. Please check the server logs.', 'error')
+        
+        # Get employee names for display
+        employee_names = {}
+        if working_hours_data:
+            try:
+                # Try to get employee names from your employee table if it exists
+                employee_ids = list(working_hours_data['employees'].keys())
+                # This assumes you have an employee table - modify as needed
+                employee_query = db.session.execute(text("""
+                    SELECT id, CONCAT(firstName, ' ', lastName) as full_name 
+                    FROM employee 
+                    WHERE id IN :employee_ids
+                """), {'employee_ids': tuple(employee_ids)})
+                
+                for row in employee_query:
+                    employee_names[str(row[0])] = row[1]
+                    
+            except Exception as e:
+                print(f"⚠️ Could not load employee names: {e}")
+                # Continue without names - will use employee IDs
+        
+        # Get selected project name for display
+        selected_project_name = ''
+        if project_filter:
+            try:
+                selected_project = Project.query.get(int(project_filter))
+                if selected_project:
+                    selected_project_name = selected_project.name
+            except Exception as e:
+                print(f"⚠️ Error getting selected project name: {e}")
+        
+        return render_template('payroll_dashboard.html',
+                             working_hours_data=working_hours_data,
+                             employee_names=employee_names,
+                             projects=projects,
+                             date_from=date_from,
+                             date_to=date_to,
+                             project_filter=project_filter,
+                             selected_project_name=selected_project_name,
+                             include_travel_time=include_travel_time,
+                             user_role=user_role)
+        
+    except Exception as e:
+        print(f"❌ Error loading payroll dashboard: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        logger_handler.log_flask_error(
+            error_type="payroll_dashboard_error",
+            error_message=str(e),
+            stack_trace=traceback.format_exc()
+        )
+        
+        flash('Error loading payroll dashboard. Please check the server logs.', 'error')
+        return redirect(url_for('dashboard'))
+
+
+@app.route('/payroll/export-excel', methods=['POST'])
+@login_required
+@log_database_operations('payroll_excel_export')
+def export_payroll_excel():
+    """Export payroll report to Excel with working hours calculations"""
+    try:
+        # Check permissions
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized payroll Excel export")
+            flash('Access denied. Only administrators and payroll staff can export payroll data.', 'error')
+            return redirect(url_for('payroll_dashboard'))
+        
+        print("📊 Payroll Excel export started")
+        
+        # Get parameters from form
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        project_filter = request.form.get('project_filter', '')
+        include_travel_time = request.form.get('include_travel_time', 'false').lower() == 'true'
+        report_type = request.form.get('report_type', 'payroll')  # 'payroll' or 'detailed'
+        
+        if not date_from or not date_to:
+            flash('Please provide both start and end dates for the export.', 'error')
+            return redirect(url_for('payroll_dashboard'))
+        
+        try:
+            start_date = datetime.strptime(date_from, '%Y-%m-%d')
+            end_date = datetime.strptime(date_to, '%Y-%m-%d')
+        except ValueError:
+            flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
+            return redirect(url_for('payroll_dashboard'))
+        
+        # Get attendance records with project filter
+        query = db.session.query(AttendanceData).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
+        
+        # Apply date filter
+        query = query.filter(
+            AttendanceData.check_in_date >= start_date.date(),
+            AttendanceData.check_in_date <= end_date.date()
+        )
+        
+        # Apply project filter if selected
+        if project_filter and project_filter != '':
+            query = query.filter(QRCode.project_id == int(project_filter))
+            print(f"📊 Applied project filter to export: {project_filter}")
+        
+        query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
+        
+        attendance_records = query.all()
+        
+        if not attendance_records:
+            flash('No attendance records found for the selected date range and project.', 'warning')
+            return redirect(url_for('payroll_dashboard'))
+        
+        print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
+        
+        # Get employee names
+        employee_names = {}
+        try:
+            employee_ids = list(set(str(record.employee_id) for record in attendance_records))
+            employee_query = db.session.execute(text("""
+                SELECT id, CONCAT(firstName, ' ', lastName) as full_name 
+                FROM employee 
+                WHERE id IN :employee_ids
+            """), {'employee_ids': tuple(employee_ids)})
+            
+            for row in employee_query:
+                employee_names[str(row[0])] = row[1]
+                
+        except Exception as e:
+            print(f"⚠️ Could not load employee names for export: {e}")
+        
+        # Get project name for filename
+        project_name = ''
+        if project_filter:
+            try:
+                project = Project.query.get(int(project_filter))
+                if project:
+                    project_name = f"_{project.name.replace(' ', '_')}"
+            except Exception as e:
+                print(f"⚠️ Error getting project name for filename: {e}")
+        
+        # Create Excel exporter
+        exporter = PayrollExcelExporter(
+            company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+            contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+        )
+        
+        # Generate Excel file
+        if report_type == 'detailed':
+            excel_file = exporter.create_detailed_hours_report(
+                start_date, end_date, attendance_records, employee_names, include_travel_time
+            )
+            filename_prefix = 'detailed_hours_report'
+        else:
+            excel_file = exporter.create_payroll_report(
+                start_date, end_date, attendance_records, employee_names, include_travel_time
+            )
+            filename_prefix = 'payroll_report'
+        
+        if excel_file:
+            # Generate filename with timestamp and project name
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            travel_suffix = '_with_travel' if include_travel_time else '_no_travel'
+            filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name}{travel_suffix}_{timestamp}.xlsx'
+            
+            print(f"📊 Payroll Excel file generated successfully: {filename}")
+            
+            # Log successful export
+            logger_handler.logger.info(f"Payroll Excel export generated by user {session.get('username', 'unknown')}: {filename}")
+            
+            return send_file(
+                excel_file,
+                as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+        else:
+            flash('Error generating payroll Excel file.', 'error')
+            return redirect(url_for('payroll_dashboard'))
+            
+    except Exception as e:
+        print(f"❌ Error in export_payroll_excel route: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        logger_handler.log_flask_error(
+            error_type="payroll_excel_export_error",
+            error_message=str(e),
+            stack_trace=traceback.format_exc()
+        )
+        
+        flash('Error generating payroll Excel export. Please check the server logs.', 'error')
+        return redirect(url_for('payroll_dashboard'))
+
+@app.route('/api/working-hours/calculate', methods=['POST'])
+@login_required
+@log_database_operations('working_hours_api_calculation')
+def calculate_working_hours_api():
+    """API endpoint for calculating working hours"""
+    try:
+        # Check permissions
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            return jsonify({
+                'success': False,
+                'message': 'Access denied. Insufficient permissions.'
+            }), 403
+        
+        # Get parameters from JSON request
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        employee_id = data.get('employee_id')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+        include_travel_time = data.get('include_travel_time', True)
+        
+        if not all([employee_id, date_from, date_to]):
+            return jsonify({
+                'success': False,
+                'message': 'Missing required parameters: employee_id, date_from, date_to'
+            }), 400
+        
+        try:
+            start_date = datetime.strptime(date_from, '%Y-%m-%d')
+            end_date = datetime.strptime(date_to, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid date format. Use YYYY-MM-DD.'
+            }), 400
+        
+        # Get attendance records for the employee
+        query = db.session.query(AttendanceData).filter(
+            AttendanceData.employee_id == str(employee_id),
+            AttendanceData.check_in_date >= start_date.date(),
+            AttendanceData.check_in_date <= end_date.date()
+        ).order_by(AttendanceData.check_in_date, AttendanceData.check_in_time)
+        
+        attendance_records = query.all()
+        
+        # Calculate working hours
+        calculator = SingleCheckInCalculator()
+        hours_data = calculator.calculate_employee_hours(
+            str(employee_id), start_date, end_date, attendance_records
+        )
+        
+        # Log API usage
+        logger_handler.logger.info(f"Working hours API used by {session.get('username', 'unknown')} for employee {employee_id}")
+        
+        return jsonify({
+            'success': True,
+            'data': hours_data
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in calculate_working_hours_api: {e}")
+        logger_handler.log_flask_error(
+            error_type="working_hours_api_error",
+            error_message=str(e),
+            stack_trace=traceback.format_exc()
+        )
+        
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error. Please check the server logs.'
+        }), 500
+
+def get_employee_name(employee_id):
+    """Helper function to get employee full name by ID"""
+    try:
+        result = db.session.execute(text("""
+            SELECT CONCAT(firstName, ' ', lastName) as full_name 
+            FROM employee 
+            WHERE id = :employee_id
+        """), {'employee_id': employee_id})
+        
+        row = result.fetchone()
+        return row[0] if row else f"Employee {employee_id}"
+        
+    except Exception as e:
+        print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
+        return f"Employee {employee_id}"
+    
+@app.context_processor
+def inject_payroll_utils():
+    """Inject payroll utility functions into templates"""
+    return {
+        'get_employee_name': get_employee_name,
+        'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
+    }
            
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
