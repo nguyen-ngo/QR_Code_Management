@@ -225,26 +225,26 @@ class PayrollExcelExporter:
         # Company name
         cell = worksheet.cell(row=current_row, column=1, value=self.company_name)
         self._apply_style(cell, self.header1_style)
-        worksheet.merge_cells(f'A{current_row}:M{current_row}')
+        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
         current_row += 1
         
         # Report title
         cell = worksheet.cell(row=current_row, column=1, value="Payroll Report - Working Hours Summary")
         self._apply_style(cell, self.header2_style)
-        worksheet.merge_cells(f'A{current_row}:M{current_row}')
+        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
         current_row += 1
         
         # Contract name
         cell = worksheet.cell(row=current_row, column=1, value=self.contract_name)
         self._apply_style(cell, self.header3_style)
-        worksheet.merge_cells(f'A{current_row}:M{current_row}')
+        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
         current_row += 1
         
         # Date range
         date_range = f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
         cell = worksheet.cell(row=current_row, column=1, value=date_range)
         self._apply_style(cell, self.header3_style)
-        worksheet.merge_cells(f'A{current_row}:M{current_row}')
+        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
         current_row += 2  # Add extra space
         
         return current_row
@@ -522,3 +522,328 @@ class PayrollExcelExporter:
         except Exception as e:
             print(f"❌ Error creating detailed hours report: {e}")
             raise e
+    
+    @log_database_operations('template_hours_export')
+    def create_template_format_report(self, start_date: datetime, end_date: datetime,
+                                    attendance_records: List[Dict], employee_names: Dict[str, str] = None,
+                                    include_travel_time: bool = True, project_name: str = None) -> io.BytesIO:
+        """
+        Create a template-format report matching the provided Excel template.
+        This creates a single sheet with all employees' detailed reports.
+        
+        Args:
+            start_date: Report start date
+            end_date: Report end date
+            attendance_records: List of attendance records
+            employee_names: Dictionary mapping employee_id to full name
+            include_travel_time: Whether to include travel time in calculations
+            project_name: Project name for the report header
+            
+        Returns:
+            BytesIO buffer containing the Excel file
+        """
+        try:
+            print(f"📊 Creating single-sheet template format report from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+            
+            # Get employee names using the same method as payroll routes
+            if employee_names is None:
+                employee_names = self._get_employee_names(attendance_records)
+            
+            # Calculate working hours
+            calculator = SingleCheckInCalculator()
+            hours_data = calculator.calculate_all_employees_hours(start_date, end_date, attendance_records)
+            
+            # Create workbook with single sheet
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.title = "Hours Report"
+            
+            # Setup styles
+            self._setup_template_styles(workbook)
+            
+            # Write main report headers once at the top
+            current_row = self._write_main_report_headers(worksheet, start_date, end_date, project_name)
+            
+            # Write all employees data in one sheet
+            for employee_id, emp_data in hours_data['employees'].items():
+                employee_name = employee_names.get(employee_id, f"Employee {employee_id}") if employee_names else f"Employee {employee_id}"
+                
+                # Write employee section
+                current_row = self._write_employee_section(worksheet, employee_id, employee_name, emp_data, 
+                                                        start_date, end_date, attendance_records, current_row)
+                
+                # Add spacing between employees
+                current_row += 2
+            
+            # Auto-adjust column widths to match template
+            self._adjust_template_columns(worksheet)
+            
+            # Save to BytesIO
+            excel_buffer = io.BytesIO()
+            workbook.save(excel_buffer)
+            excel_buffer.seek(0)
+            
+            print("✅ Single-sheet template format report Excel file created successfully")
+            return excel_buffer
+            
+        except Exception as e:
+            print(f"❌ Error creating template format report: {e}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+            raise e
+  
+    def _setup_template_styles(self, workbook: Workbook):
+        """Setup Excel cell styles for template format"""
+        
+        # Company name style (matches template)
+        self.template_company_style = {
+            'font': Font(name="Arial", size=14, bold=True),
+            'alignment': Alignment(horizontal="center", vertical="center")
+        }
+        
+        # Report title style
+        self.template_title_style = {
+            'font': Font(name="Arial", size=12, bold=True),
+            'alignment': Alignment(horizontal="center", vertical="center")
+        }
+        
+        # Project name style
+        self.template_project_style = {
+            'font': Font(name="Arial", size=11, bold=True),
+            'alignment': Alignment(horizontal="center", vertical="center")
+        }
+        
+        # Date range style
+        self.template_date_style = {
+            'font': Font(name="Arial", size=11),
+            'alignment': Alignment(horizontal="center", vertical="center")
+        }
+        
+        # Employee info style
+        self.template_employee_style = {
+            'font': Font(name="Arial", size=11, bold=True),
+            'alignment': Alignment(horizontal="left", vertical="center")
+        }
+        
+        # Column header style
+        self.template_header_style = {
+            'font': Font(name="Arial", size=10, bold=True),
+            'alignment': Alignment(horizontal="center", vertical="center"),
+            'border': Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin")
+            )
+        }
+        
+        # Data cell style
+        self.template_data_style = {
+            'font': Font(name="Arial", size=10),
+            'alignment': Alignment(horizontal="center", vertical="center"),
+            'border': Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin")
+            )
+        }
+
+    def _adjust_template_columns(self, worksheet):
+        """Adjust column widths to match template format"""
+        # Column widths based on template analysis
+        column_widths = {
+            'A': 12,   # Day
+            'B': 10.6,  # Date
+            'C': 12.6,  # In
+            'D': 12.6,  # Out
+            'E': 34,  # Location
+            'F': 5.6,   # Zone
+            'G': 15.4,  # Hours/Building
+            'H': 10.9,  # Daily Total
+            'I': 14.0,  # Regular Hours
+            'J': 9.6,   # OT Hours
+            'K': 35,  # Building Address
+            'L': 35,  # Recorded Location
+            'M': 10.0,  # Distance
+            'N': 15.0,  # Possible Violation
+        }
+            
+        for col_letter, width in column_widths.items():
+            worksheet.column_dimensions[col_letter].width = width    
+
+    def _write_main_report_headers(self, worksheet, start_date: datetime, end_date: datetime, project_name: str) -> int:
+        """Write main report headers at the top of the sheet"""
+        current_row = 1
+        
+        # 1. Company Name (merged across columns A-N)
+        cell = worksheet.cell(row=current_row, column=1, value=self.company_name)
+        self._apply_style(cell, self.template_company_style)
+        worksheet.merge_cells(f'A{current_row}:N{current_row}')
+        current_row += 1
+        
+        # 2. Report title (merged across columns A-N)
+        cell = worksheet.cell(row=current_row, column=1, value="Summary report of Hours worked")
+        self._apply_style(cell, self.template_title_style)
+        worksheet.merge_cells(f'A{current_row}:N{current_row}')
+        current_row += 1
+        
+        # 3. Project name (merged across columns A-N)
+        project_display = project_name if project_name else "[Project Name]"
+        cell = worksheet.cell(row=current_row, column=1, value=project_display)
+        self._apply_style(cell, self.template_project_style)
+        worksheet.merge_cells(f'A{current_row}:N{current_row}')
+        current_row += 1
+        
+        # 4. Date range (merged across columns A-N)
+        date_range = f"Date range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
+        cell = worksheet.cell(row=current_row, column=1, value=date_range)
+        self._apply_style(cell, self.template_date_style)
+        worksheet.merge_cells(f'A{current_row}:N{current_row}')
+        current_row += 2  # Add extra space
+        
+        return current_row
+
+    def _write_employee_section(self, worksheet, employee_id: str, employee_name: str, 
+                            emp_data: Dict, start_date: datetime, end_date: datetime,
+                            attendance_records: List[Dict], start_row: int) -> int:
+        """Write individual employee section and return next row number"""
+        current_row = start_row
+        
+        # Employee info header (merged across columns A-O)
+        employee_info = f"Employee ID {employee_id}: {employee_name}"
+        cell = worksheet.cell(row=current_row, column=1, value=employee_info)
+        self._apply_style(cell, self.template_employee_style)
+        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
+        current_row += 1
+        
+        # Column headers for this employee
+        headers = ["Day", "Date", "In", "Out", "Location", "Zone", "Hours/Building", 
+           "Daily Total", "Regular Hours", "OT Hours", "Building Address", 
+           "Recorded Location", "Distance", "Possible Violation"]
+        
+        for col, header in enumerate(headers, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=header)
+            self._apply_style(cell, self.template_header_style)
+        current_row += 1
+        
+        # Get attendance records for this employee for location info
+        employee_records = [record for record in attendance_records if str(record.employee_id) == employee_id]
+        
+        # Group attendance records by date for location info
+        daily_location_data = {}
+        for record in employee_records:
+            date_key = record.check_in_date.strftime('%Y-%m-%d')
+            if date_key not in daily_location_data:
+                daily_location_data[date_key] = {
+                    'records': [],
+                    'location': '',
+                    'building_address': ''
+                }
+            daily_location_data[date_key]['records'].append(record)
+        
+        # Get location info for each day
+        for date_str, day_info in daily_location_data.items():
+            sorted_records = sorted(day_info['records'], key=lambda x: x.check_in_time)
+            if sorted_records:
+                # Get location info from QR code
+                if hasattr(sorted_records[0], 'qr_code') and sorted_records[0].qr_code:
+                    day_info['location'] = sorted_records[0].qr_code.location or ''
+                    day_info['building_address'] = sorted_records[0].qr_code.location_address or ''
+        
+        # Write data rows using the calculated daily hours from emp_data
+        for date_str in sorted(emp_data['daily_hours'].keys()):
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            day_hours_data = emp_data['daily_hours'][date_str]
+            
+            # Skip days with no hours or miss punch
+            if day_hours_data.get('is_miss_punch', False) or day_hours_data.get('total_hours', 0) <= 0:
+                continue
+            
+            total_hours = day_hours_data.get('total_hours', 0)
+            regular_hours = min(total_hours, 8.0)  # Max 8 regular hours per day
+            ot_hours = max(0, total_hours - 8.0)
+            
+            # Get location info for this date
+            location_info = daily_location_data.get(date_str, {})
+            location = location_info.get('location', '')
+            building_address = location_info.get('building_address', '')
+            
+            # Get check-in/out times from records
+            check_in_time = ''
+            check_out_time = ''
+            if date_str in daily_location_data:
+                records = daily_location_data[date_str]['records']
+                sorted_records = sorted(records, key=lambda x: x.check_in_time)
+                if sorted_records:
+                    check_in_time = sorted_records[0].check_in_time.strftime('%I:%M:%S %p')
+                    
+                    # For single check-in system, determine check-out time
+                    if len(sorted_records) > 1:
+                        check_out_time = sorted_records[-1].check_in_time.strftime('%I:%M:%S %p')
+                    else:
+                        # Single check-in - estimate check-out based on total hours
+                        check_in_datetime = datetime.combine(sorted_records[0].check_in_date, sorted_records[0].check_in_time)
+                        estimated_checkout = check_in_datetime + timedelta(hours=total_hours)
+                        check_out_time = estimated_checkout.strftime('%I:%M:%S %p')
+            
+            location_accuracy = None
+            recorded_location = ''
+            distance_value = ''
+            possible_violation = ''
+            
+            # Find attendance record for this date to get location accuracy
+            if date_str in daily_location_data:
+                records = daily_location_data[date_str]['records']
+                if records:
+                    # Get location accuracy from the first record of the day
+                    location_accuracy = getattr(records[0], 'location_accuracy', None)
+                    
+                    # Determine recorded location based on accuracy (same logic as attendance report)
+                    if location_accuracy is not None:
+                        try:
+                            accuracy_value = float(location_accuracy)
+                            distance_value = f"{accuracy_value:.3f}"
+                            
+                            if accuracy_value < 0.3:
+                                # High accuracy - use QR code address
+                                recorded_location = building_address  # This is already the QR location_address
+                                possible_violation = "No"
+                            else:
+                                # Lower accuracy - use actual check-in address
+                                recorded_location = getattr(records[0], 'address', '') or ''
+                                possible_violation = "Yes"
+                        except (ValueError, TypeError):
+                            # If accuracy can't be converted, use actual address
+                            recorded_location = getattr(records[0], 'address', '') or ''
+                            distance_value = 'N/A'
+                            possible_violation = 'Unknown'
+                    else:
+                        # No location accuracy data
+                        recorded_location = getattr(records[0], 'address', '') or ''
+                        distance_value = 'N/A'
+                        possible_violation = 'Unknown'
+
+            row_data = [
+                date_obj.strftime('%A').upper(),  # Day name
+                date_obj.strftime('%m/%d/%Y'),    # Date
+                check_in_time,                    # Check in
+                check_out_time,                   # Check out
+                location,                         # Location
+                '',                              # Zone
+                round(total_hours, 2),           # Hours/Building
+                round(total_hours, 2),           # Daily Total
+                round(regular_hours, 2) if regular_hours > 0 else '', # Regular Hours
+                round(ot_hours, 2) if ot_hours > 0 else '',          # OT Hours
+                building_address,                 # Building Address
+                recorded_location,                # Recorded Location
+                distance_value,                   # Distance
+                possible_violation                # Possible Violation
+            ]
+            
+            for col, value in enumerate(row_data, 1):
+                cell = worksheet.cell(row=current_row, column=col, value=value)
+                self._apply_style(cell, self.template_data_style)
+            current_row += 1
+        
+        return current_row
