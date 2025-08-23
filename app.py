@@ -117,7 +117,7 @@ def get_role_permissions(role):
         }
     }
     return permissions.get(role, {})
-    
+
 def get_coordinates_from_address(address):
     """
     Get latitude and longitude from address using geocoding service
@@ -125,7 +125,7 @@ def get_coordinates_from_address(address):
     """
     if not address or address.strip() == '':
         return None, None
-    
+
     try:
         # Using a free geocoding service (Nominatim/OpenStreetMap)
         # In production, consider using Google Maps Geocoding API for better accuracy
@@ -136,13 +136,13 @@ def get_coordinates_from_address(address):
             'limit': 1,
             'addressdetails': 1
         }
-        
+
         headers = {
             'User-Agent': 'QR-Attendance-System/1.0'
         }
-        
+
         response = requests.get(url, params=params, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
             if data and len(data) > 0:
@@ -150,10 +150,10 @@ def get_coordinates_from_address(address):
                 lng = float(data[0]['lon'])
                 print(f"✅ Geocoded address '{address[:50]}...' to coordinates: {lat}, {lng}")
                 return lat, lng
-        
+
         print(f"⚠️ Could not geocode address: {address}")
         return None, None
-        
+
     except Exception as e:
         print(f"❌ Error geocoding address '{address}': {e}")
         return None, None
@@ -166,10 +166,10 @@ def get_coordinates_from_address_enhanced(address):
     if not address or address.strip() == "":
         print("⚠️ Empty address provided for geocoding")
         return None, None, None
-    
+
     address = address.strip()
     print(f"🌍 Enhanced geocoding for: {address}")
-    
+
     try:
         # Primary geocoding using Nominatim (OpenStreetMap)
         nominatim_url = "https://nominatim.openstreetmap.org/search"
@@ -180,26 +180,26 @@ def get_coordinates_from_address_enhanced(address):
             'addressdetails': 1,
             'extratags': 1
         }
-        
+
         headers = {
             'User-Agent': 'QR-Attendance-System/1.0 (Enhanced Location Accuracy)'
         }
-        
+
         response = requests.get(nominatim_url, params=params, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             results = response.json()
-            
+
             if results:
                 result = results[0]
                 lat = float(result['lat'])
                 lng = float(result['lon'])
-                
+
                 # Enhanced accuracy assessment
                 place_type = result.get('type', 'unknown')
                 osm_type = result.get('osm_type', 'unknown')
                 importance = float(result.get('importance', 0))
-                
+
                 # More sophisticated accuracy determination
                 if place_type in ['house', 'building', 'shop', 'office'] or osm_type == 'way':
                     accuracy = 'excellent'
@@ -209,20 +209,20 @@ def get_coordinates_from_address_enhanced(address):
                     accuracy = 'fair'
                 else:
                     accuracy = 'poor'
-                
+
                 print(f"✅ Enhanced geocoding successful:")
                 print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
                 print(f"   Accuracy: {accuracy}")
-                
+
                 return lat, lng, accuracy
-            
+
         print(f"⚠️ No results from enhanced geocoding for: {address}")
         return None, None, None
-        
+
     except Exception as e:
         print(f"❌ Enhanced geocoding error: {e}")
         return None, None, None
-    
+
 def geocode_address_enhanced(address):
     """
     Enhanced geocoding using Nominatim API with better accuracy classification
@@ -231,57 +231,57 @@ def geocode_address_enhanced(address):
     if not address or len(address.strip()) < 5:
         print("❌ Address too short for geocoding")
         return None, None, None
-    
+
     try:
         # Nominatim API endpoint
         url = "https://nominatim.openstreetmap.org/search"
-        
+
         params = {
             'q': address.strip(),
             'format': 'json',
             'limit': 1,
             'addressdetails': 1
         }
-        
+
         headers = {
             'User-Agent': 'QR-Attendance-System/1.0'
         }
-        
+
         response = requests.get(url, params=params, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             if data and len(data) > 0:
                 result = data[0]
                 lat = float(result['lat'])
                 lng = float(result['lon'])
-                
+
                 # Determine accuracy based on result type
                 place_type = result.get('type', 'unknown')
                 osm_type = result.get('osm_type', 'unknown')
-                
+
                 if place_type in ['house', 'building'] or osm_type == 'way':
                     accuracy = 'high'
                 elif place_type in ['neighbourhood', 'suburb', 'quarter']:
                     accuracy = 'medium'
                 else:
                     accuracy = 'low'
-                
+
                 print(f"✅ Geocoded address: {address}")
                 print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
                 print(f"   Accuracy: {accuracy} ({place_type})")
-                
+
                 return lat, lng, accuracy
-            
+
         print(f"⚠️ No geocoding results for address: {address}")
         return None, None, None
-        
+
     except Exception as e:
         logger_handler.log_flask_error('geocoding_error', str(e))
         print(f"❌ Geocoding error: {e}")
         return None, None, None
-    
+
 def calculate_distance_miles(lat1, lng1, lat2, lng2):
     """
     Enhanced Haversine formula to calculate distance between two points in miles
@@ -290,44 +290,44 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
     if any(coord is None for coord in [lat1, lng1, lat2, lng2]):
         print("⚠️ Missing coordinates for distance calculation")
         return None
-    
+
     try:
         # Validate coordinate ranges
         if not (-90 <= lat1 <= 90) or not (-90 <= lat2 <= 90):
             print(f"⚠️ Invalid latitude values: {lat1}, {lat2}")
             return None
-        
+
         if not (-180 <= lng1 <= 180) or not (-180 <= lng2 <= 180):
             print(f"⚠️ Invalid longitude values: {lng1}, {lng2}")
             return None
-        
+
         # Convert decimal degrees to radians
         lat1, lng1, lat2, lng2 = map(radians, [float(lat1), float(lng1), float(lat2), float(lng2)])
-        
+
         # Enhanced Haversine formula for better precision
         dlng = lng2 - lng1
         dlat = lat2 - lat1
-        
+
         # Haversine calculation
         a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlng/2)**2
         c = 2 * asin(sqrt(a))
-        
+
         # Earth's radius in miles (more precise value)
         r_miles = 3959.87433
-        
+
         # Calculate distance with enhanced precision
         distance = c * r_miles
-        
+
         # Round to 4 decimal places for better precision
         distance = round(distance, 4)
-        
+
         print(f"📏 Enhanced distance calculation:")
         print(f"   Point 1: {lat1*180/3.14159:.10f}, {lng1*180/3.14159:.10f}")
         print(f"   Point 2: {lat2*180/3.14159:.10f}, {lng2*180/3.14159:.10f}")
         print(f"   Distance: {distance:.4f} miles")
-        
+
         return distance
-        
+
     except Exception as e:
         print(f"❌ Error in enhanced distance calculation: {e}")
         return None
@@ -341,14 +341,14 @@ def calculate_location_accuracy(qr_address, checkin_address, checkin_lat=None, c
     print(f"   QR Address: {qr_address}")
     print(f"   Check-in Address: {checkin_address}")
     print(f"   Check-in Coordinates: {checkin_lat}, {checkin_lng}")
-    
+
     # Get QR code coordinates from address
     qr_lat, qr_lng = get_coordinates_from_address(qr_address)
-    
+
     if qr_lat is None or qr_lng is None:
         print(f"⚠️ Could not geocode QR address, cannot calculate accuracy")
         return None
-    
+
     # Use check-in coordinates if available, otherwise geocode check-in address
     if checkin_lat is not None and checkin_lng is not None:
         checkin_coords_lat, checkin_coords_lng = checkin_lat, checkin_lng
@@ -359,13 +359,13 @@ def calculate_location_accuracy(qr_address, checkin_address, checkin_lat=None, c
             print(f"⚠️ Could not geocode check-in address, cannot calculate accuracy")
             return None
         print(f"✅ Using geocoded coordinates for check-in address")
-    
+
     # Calculate distance
     distance = calculate_distance_miles(qr_lat, qr_lng, checkin_coords_lat, checkin_coords_lng)
-    
+
     if distance is not None:
         print(f"✅ Location accuracy calculated: {distance} miles")
-    
+
     return distance
 
 def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_lat=None, checkin_lng=None):
@@ -380,40 +380,40 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
     print(f"   Check-in Address: {checkin_address}")
     print(f"   Check-in GPS: {checkin_lat}, {checkin_lng}")
     print(f"   Timestamp: {datetime.now()}")
-    
+
     # Validate input parameters
     if not qr_address or qr_address.strip() == "":
         print(f"❌ QR address is empty or invalid")
         return None
-    
+
     # Step 1: Get coordinates for QR address using enhanced geocoding
     print(f"\n📍 Step 1: Geocoding QR address...")
     try:
         qr_lat, qr_lng, qr_accuracy = get_coordinates_from_address_enhanced(qr_address)
         print(f"   Geocoding result: lat={qr_lat}, lng={qr_lng}, accuracy={qr_accuracy}")
-        
+
         if qr_lat is None or qr_lng is None:
             print(f"❌ Could not geocode QR address: {qr_address}")
             return None
-        
+
         print(f"✅ QR location coordinates: {qr_lat:.10f}, {qr_lng:.10f} (accuracy: {qr_accuracy})")
     except Exception as e:
         print(f"❌ Error geocoding QR address: {e}")
         return None
-    
+
     # Step 2: Determine check-in coordinates
     print(f"\n📱 Step 2: Determining check-in coordinates...")
-    
+
     checkin_coords_lat = None
     checkin_coords_lng = None
     checkin_source = "unknown"
-    
+
     # Priority 1: Use GPS coordinates if available and valid
     if checkin_lat is not None and checkin_lng is not None:
         try:
             lat_val = float(checkin_lat)
             lng_val = float(checkin_lng)
-            
+
             # Validate GPS coordinates
             if -90 <= lat_val <= 90 and -180 <= lng_val <= 180:
                 checkin_coords_lat = lat_val
@@ -424,37 +424,37 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
                 print(f"⚠️ Invalid GPS coordinates: {lat_val}, {lng_val}")
         except (ValueError, TypeError) as e:
             print(f"⚠️ Could not parse GPS coordinates: {e}")
-    
+
     # Priority 2: Fallback to geocoding check-in address
     if checkin_coords_lat is None and checkin_address:
         print(f"🌍 Falling back to geocoding check-in address...")
         try:
             checkin_coords_lat, checkin_coords_lng, checkin_accuracy = get_coordinates_from_address_enhanced(checkin_address)
             print(f"   Checkin geocoding result: lat={checkin_coords_lat}, lng={checkin_coords_lng}, accuracy={checkin_accuracy}")
-            
+
             if checkin_coords_lat is not None:
                 checkin_source = "address"
                 print(f"✅ Using geocoded coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f} (accuracy: {checkin_accuracy})")
         except Exception as e:
             print(f"❌ Error geocoding check-in address: {e}")
-    
+
     # Check if we have valid coordinates for both locations
     if checkin_coords_lat is None or checkin_coords_lng is None:
         print(f"❌ Could not determine check-in coordinates")
         print(f"   GPS: {checkin_lat}, {checkin_lng}")
         print(f"   Address: {checkin_address}")
         return None
-    
+
     # Step 3: Calculate distance
     print(f"\n📏 Step 3: Calculating distance...")
     try:
         print(f"   QR coordinates: {qr_lat:.10f}, {qr_lng:.10f}")
         print(f"   Check-in coordinates: {checkin_coords_lat:.10f}, {checkin_coords_lng:.10f}")
         print(f"   Source: {checkin_source}")
-        
+
         distance = calculate_distance_miles(qr_lat, qr_lng, checkin_coords_lat, checkin_coords_lng)
         print(f"   Distance calculation result: {distance}")
-        
+
         if distance is not None:
             accuracy_level = get_location_accuracy_level_enhanced(distance)
             print(f"✅ Enhanced location accuracy calculated successfully!")
@@ -464,7 +464,7 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
         else:
             print(f"❌ Distance calculation returned None")
             return None
-            
+
     except Exception as e:
         print(f"❌ Error calculating distance: {e}")
         print(f"❌ Distance calculation traceback: {traceback.format_exc()}")
@@ -476,7 +476,7 @@ def generate_qr_url(name, qr_id):
     clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', name)
     clean_name = re.sub(r'\s+', '-', clean_name.strip())
     clean_name = clean_name.lower()
-    
+
     # Create unique URL
     url_slug = f"qr-{qr_id}-{clean_name}"
     return url_slug[:200]  # Limit length
@@ -486,15 +486,15 @@ def detect_device_info(user_agent_string):
     try:
         user_agent = parse(user_agent_string)
         device_info = f"{user_agent.device.family}"
-        
+
         if user_agent.os.family:
             device_info += f" - {user_agent.os.family}"
             if user_agent.os.version_string:
                 device_info += f" {user_agent.os.version_string}"
-        
+
         if user_agent.browser.family:
             device_info += f" ({user_agent.browser.family})"
-            
+
         return device_info[:200]  # Limit length
     except:
         return "Unknown Device"
@@ -512,7 +512,7 @@ def get_location_accuracy_level_enhanced(location_accuracy):
     """
     if not location_accuracy or location_accuracy is None:
         return 'unknown'
-    
+
     # More precise accuracy thresholds
     if location_accuracy <= 0.05:  # Within 264 feet (50 meters)
         return 'excellent'
@@ -540,7 +540,7 @@ def process_location_data(location_data):
         'source': location_data.get('location_source', 'manual'),
         'address': location_data.get('address', '')[:500] if location_data.get('address') else None
     }
-    
+
     try:
         # Process latitude
         if location_data.get('latitude') and location_data['latitude'] not in ['null', '']:
@@ -549,7 +549,7 @@ def process_location_data(location_data):
                 processed['latitude'] = lat
             else:
                 print(f"⚠️ Invalid latitude: {lat}")
-        
+
         # Process longitude
         if location_data.get('longitude') and location_data['longitude'] not in ['null', '']:
             lng = float(location_data['longitude'])
@@ -557,7 +557,7 @@ def process_location_data(location_data):
                 processed['longitude'] = lng
             else:
                 print(f"⚠️ Invalid longitude: {lng}")
-        
+
         # Process accuracy
         if location_data.get('accuracy') and location_data['accuracy'] not in ['null', '']:
             acc = float(location_data['accuracy'])
@@ -565,16 +565,16 @@ def process_location_data(location_data):
                 processed['accuracy'] = acc
             else:
                 print(f"⚠️ Invalid accuracy: {acc}")
-        
+
         # Process altitude
         if location_data.get('altitude') and location_data['altitude'] not in ['null', '']:
             alt = float(location_data['altitude'])
             # Altitude can be negative (below sea level)
             processed['altitude'] = alt
-            
+
     except (ValueError, TypeError) as e:
         print(f"⚠️ Error processing location data: {e}")
-    
+
     return processed
 
 def reverse_geocode_coordinates(latitude, longitude):
@@ -584,10 +584,10 @@ def reverse_geocode_coordinates(latitude, longitude):
     """
     if not latitude or not longitude:
         return None
-    
+
     try:
         print(f"🌍 Reverse geocoding coordinates: {latitude}, {longitude}")
-        
+
         # Using Nominatim (OpenStreetMap) reverse geocoding service
         url = "https://nominatim.openstreetmap.org/reverse"
         params = {
@@ -597,16 +597,16 @@ def reverse_geocode_coordinates(latitude, longitude):
             'addressdetails': 1,
             'zoom': 18  # High detail level
         }
-        
+
         headers = {
             'User-Agent': 'QR-Attendance-System/1.0'
         }
-        
+
         response = requests.get(url, params=params, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             if data and 'display_name' in data:
                 address = data['display_name']
                 print(f"✅ Reverse geocoded address: {address}")
@@ -617,7 +617,7 @@ def reverse_geocode_coordinates(latitude, longitude):
         else:
             print(f"⚠️ Reverse geocoding API returned status: {response.status_code}")
             return None
-            
+
     except Exception as e:
         print(f"❌ Error in reverse geocoding: {e}")
         return None
@@ -635,7 +635,7 @@ def process_location_data_enhanced(form_data):
         'source': form_data.get('location_source', 'manual'),
         'address': None
     }
-    
+
     try:
         # Process latitude
         if form_data.get('latitude') and form_data['latitude'] not in ['null', '', 'undefined']:
@@ -644,7 +644,7 @@ def process_location_data_enhanced(form_data):
                 processed['latitude'] = lat
             else:
                 print(f"⚠️ Invalid latitude: {lat}")
-        
+
         # Process longitude
         if form_data.get('longitude') and form_data['longitude'] not in ['null', '', 'undefined']:
             lng = float(form_data['longitude'])
@@ -652,7 +652,7 @@ def process_location_data_enhanced(form_data):
                 processed['longitude'] = lng
             else:
                 print(f"⚠️ Invalid longitude: {lng}")
-        
+
         # Process GPS accuracy
         if form_data.get('accuracy') and form_data['accuracy'] not in ['null', '', 'undefined']:
             acc = float(form_data['accuracy'])
@@ -660,12 +660,12 @@ def process_location_data_enhanced(form_data):
                 processed['accuracy'] = acc
             else:
                 print(f"⚠️ Invalid GPS accuracy: {acc}")
-        
+
         # Process altitude
         if form_data.get('altitude') and form_data['altitude'] not in ['null', '', 'undefined']:
             alt = float(form_data['altitude'])
             processed['altitude'] = alt
-        
+
         # Process address - First check if address was provided
         if form_data.get('address'):
             address = form_data['address'].strip()
@@ -679,9 +679,9 @@ def process_location_data_enhanced(form_data):
                     # This is a real address
                     processed['address'] = address[:500]  # Limit to 500 characters
                     print(f"✅ Using provided address: {processed['address'][:100]}...")
-        
+
         # CRITICAL: If we have coordinates but no real address, perform reverse geocoding
-        if (processed['latitude'] is not None and processed['longitude'] is not None 
+        if (processed['latitude'] is not None and processed['longitude'] is not None
             and not processed['address']):
             print(f"🌍 Performing reverse geocoding for coordinates: {processed['latitude']}, {processed['longitude']}")
             reverse_geocoded_address = reverse_geocode_coordinates(processed['latitude'], processed['longitude'])
@@ -691,15 +691,15 @@ def process_location_data_enhanced(form_data):
             else:
                 print(f"⚠️ Could not reverse geocode coordinates, keeping coordinates as fallback")
                 processed['address'] = f"{processed['latitude']:.10f}, {processed['longitude']:.10f}"
-        
+
         print(f"📍 Final processed location data:")
         print(f"   Coordinates: {processed['latitude']}, {processed['longitude']}")
         print(f"   GPS Accuracy: {processed['accuracy']}m")
         print(f"   Source: {processed['source']}")
         print(f"   Address: {processed['address'][:100] if processed['address'] else 'None'}...")
-        
+
         return processed
-        
+
     except Exception as e:
         print(f"❌ Error processing location data: {e}")
         return processed
@@ -710,7 +710,7 @@ def migrate_to_enhanced_location_accuracy():
     """
     try:
         print("🔄 Starting enhanced location accuracy migration...")
-        
+
         # Get all records that need recalculation
         records = db.session.execute(text("""
             SELECT ad.id, qc.location_address, ad.address, ad.latitude, ad.longitude, ad.location_accuracy
@@ -718,12 +718,12 @@ def migrate_to_enhanced_location_accuracy():
             LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
             WHERE qc.location_address IS NOT NULL
         """)).fetchall()
-        
+
         print(f"📊 Found {len(records)} records to process")
-        
+
         updated_count = 0
         improved_count = 0
-        
+
         for record in records:
             try:
                 # Calculate enhanced location accuracy
@@ -733,7 +733,7 @@ def migrate_to_enhanced_location_accuracy():
                     checkin_lat=record.latitude,
                     checkin_lng=record.longitude
                 )
-                
+
                 if new_accuracy is not None:
                     # Update the record
                     db.session.execute(text("""
@@ -744,27 +744,27 @@ def migrate_to_enhanced_location_accuracy():
                         'accuracy': new_accuracy,
                         'record_id': record.id
                     })
-                    
+
                     updated_count += 1
-                    
+
                     # Check if this is an improvement
                     if record.location_accuracy is None or abs(new_accuracy - (record.location_accuracy or 0)) > 0.001:
                         improved_count += 1
                         print(f"   ✅ Updated record {record.id}: {record.location_accuracy} → {new_accuracy:.4f} miles")
-                
+
             except Exception as e:
                 print(f"   ⚠️ Error processing record {record.id}: {e}")
-        
+
         # Commit all changes
         db.session.commit()
-        
+
         print(f"✅ Enhanced migration completed!")
         print(f"   📊 Records processed: {len(records)}")
         print(f"   ✅ Records updated: {updated_count}")
         print(f"   📈 Records improved: {improved_count}")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"❌ Enhanced migration failed: {e}")
         db.session.rollback()
@@ -783,10 +783,10 @@ def check_location_accuracy_column_exists():
             AND TABLE_NAME = 'attendance_data' 
             AND COLUMN_NAME = 'location_accuracy'
         """))
-        
+
         count = result.fetchone().count
         return count > 0
-        
+
     except Exception as e:
         print(f"Error checking location_accuracy column: {e}")
         return False
@@ -798,15 +798,15 @@ def get_employee_checkin_history(employee_id, qr_code_id, date_filter=None):
     try:
         if date_filter is None:
             date_filter = date.today()
-        
+
         checkins = AttendanceData.query.filter_by(
             employee_id=employee_id.upper(),
             qr_code_id=qr_code_id,
             check_in_date=date_filter
         ).order_by(AttendanceData.check_in_time.asc()).all()
-        
+
         return checkins
-        
+
     except Exception as e:
         print(f"❌ Error retrieving checkin history: {e}")
         return []
@@ -817,22 +817,22 @@ def format_checkin_intervals(checkins):
     """
     if len(checkins) < 2:
         return []
-    
+
     intervals = []
     for i in range(1, len(checkins)):
         previous_time = datetime.combine(checkins[i-1].check_in_date, checkins[i-1].check_in_time)
         current_time = datetime.combine(checkins[i].check_in_date, checkins[i].check_in_time)
-        
+
         interval = current_time - previous_time
         interval_minutes = int(interval.total_seconds() / 60)
-        
+
         intervals.append({
             'from_time': checkins[i-1].check_in_time.strftime('%H:%M'),
             'to_time': checkins[i].check_in_time.strftime('%H:%M'),
             'interval_minutes': interval_minutes,
             'interval_text': format_time_interval(interval_minutes)
         })
-    
+
     return intervals
 
 def format_time_interval(minutes):
@@ -855,7 +855,7 @@ def format_time_interval(minutes):
             return f"{days} day{'s' if days != 1 else ''}"
         else:
             return f"{days}d {remaining_hours}h"
-            
+
 # Authentication decorator
 def login_required(f):
     """Decorator to ensure user is logged in"""
@@ -874,12 +874,12 @@ def admin_required(f):
         if 'username' not in session:
             flash('Please log in to access this page.', 'error')
             return redirect(url_for('login'))
-        
+
         user_role = session.get('role')
         if not has_admin_privileges(user_role):
             flash('Administrator privileges required for this action.', 'error')
             return redirect(url_for('dashboard'))
-        
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -890,12 +890,12 @@ def staff_or_admin_required(f):
         if 'username' not in session:
             flash('Please log in to access this page.', 'error')
             return redirect(url_for('login'))
-        
+
         user_role = session.get('role')
         if not (has_admin_privileges(user_role) or has_staff_level_access(user_role)):
             flash('Insufficient privileges to access this page.', 'error')
             return redirect(url_for('dashboard'))
-        
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -917,7 +917,7 @@ def generate_qr_code(data, fill_color="black", back_color="white", box_size=10, 
         'Q': qrcode.constants.ERROR_CORRECT_Q,
         'H': qrcode.constants.ERROR_CORRECT_H
     }
-    
+
     try:
         qr = qrcode.QRCode(
             version=1,
@@ -927,15 +927,15 @@ def generate_qr_code(data, fill_color="black", back_color="white", box_size=10, 
         )
         qr.add_data(data)
         qr.make(fit=True)
-        
+
         # Generate QR code image with custom colors
         img = qr.make_image(fill_color=fill_color, back_color=back_color)
-        
+
         # Convert to base64
         buffer = io.BytesIO()
         img.save(buffer, format='PNG')
         img_str = base64.b64encode(buffer.getvalue()).decode()
-        
+
         # Log successful generation if logger is available
         try:
             logger_handler.log_qr_code_generated(
@@ -948,14 +948,14 @@ def generate_qr_code(data, fill_color="black", back_color="white", box_size=10, 
             )
         except:
             pass  # Ignore logging errors
-        
+
         return img_str
-        
+
     except Exception as e:
         logger_handler.log_database_error('qr_code_generation', e)
         # Return default QR code on error
         return generate_default_qr_code(data)
-    
+
 def generate_default_qr_code(data):
     """Fallback function for basic QR code generation"""
     qr = qrcode.QRCode(
@@ -966,13 +966,13 @@ def generate_default_qr_code(data):
     )
     qr.add_data(data)
     qr.make(fit=True)
-    
+
     img = qr.make_image(fill_color="black", back_color="white")
-    
+
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     img_str = base64.b64encode(buffer.getvalue()).decode()
-    
+
     return img_str
 
 def get_qr_styling(qr_code):
@@ -997,10 +997,10 @@ def strftime_filter(value, format='%m/%d/%Y'):
             return dt.strftime(format)
         except (ValueError, TypeError):
             return value
-    
+
     if hasattr(value, 'strftime'):
         return value.strftime(format)
-    
+
     return str(value)
 
 # Routes
@@ -1021,16 +1021,16 @@ def register():
             email = request.form['email']
             username = request.form['username']
             password = request.form['password']
-            
+
             # Check if user already exists
             if User.query.filter_by(username=username).first():
                 flash('Username already exists.', 'error')
                 return render_template('register.html')
-            
+
             if User.query.filter_by(email=email).first():
                 flash('Email already registered.', 'error')
                 return render_template('register.html')
-            
+
             # Create new user (default role: staff)
             new_user = User(
                 full_name=full_name,
@@ -1039,21 +1039,21 @@ def register():
                 role='staff'
             )
             new_user.set_password(password)
-            
+
             db.session.add(new_user)
             db.session.commit()
-            
+
             # Log successful user registration
             logger_handler.logger.info(f"New user registered: {username} ({email})")
-            
+
             flash('Registration successful! Please log in.', 'success')
             return redirect(url_for('login'))
-            
+
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('user_registration', e)
             flash('Registration failed. Please try again.', 'error')
-    
+
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1062,18 +1062,18 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        
+
         if not username or not password:
             flash('Please enter both username and password.', 'error')
             return render_template('login.html')
-        
+
         try:
             # Find user (case-insensitive username)
             user = User.query.filter(
                 User.username.like(username),
                 User.active_status == True
             ).first()
-            
+
             if user and user.check_password(password):
                 # Successful login
                 session['user_id'] = user.id
@@ -1081,25 +1081,25 @@ def login():
                 session['role'] = user.role
                 session['full_name'] = user.full_name
                 session['login_time'] = datetime.now().isoformat()
-                
+
                 # Update last login date
                 user.last_login_date = datetime.utcnow()
                 db.session.commit()
-                
+
                 # Log successful login
                 logger_handler.log_user_login(
                     user_id=user.id,
                     username=user.username,
                     success=True
                 )
-                
+
                 flash(f'Welcome back, {user.full_name}!', 'success')
                 print(f"User {user.username} logged in successfully")
-                
+
                 # Redirect to intended page or dashboard
                 next_page = request.args.get('next')
                 return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-                
+
             else:
                 # Invalid credentials - log failed attempt
                 user_id = user.id if user else None
@@ -1109,15 +1109,15 @@ def login():
                     success=False,
                     failure_reason="Invalid credentials"
                 )
-                
+
                 flash('Invalid username or password.', 'error')
                 print(f"Failed login attempt for username: {username}")
-                
+
         except Exception as e:
             logger_handler.log_database_error('user_login', e)
             print(f"Login error: {e}")
             flash('Login error. Please try again.', 'error')
-    
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -1126,7 +1126,7 @@ def logout():
     user_id = session.get('user_id')
     username = session.get('username')
     login_time_str = session.get('login_time')
-    
+
     # Calculate session duration
     session_duration = None
     if login_time_str:
@@ -1135,7 +1135,7 @@ def logout():
             session_duration = (datetime.now() - login_time).total_seconds() / 60  # minutes
         except:
             pass
-    
+
     # Log user logout
     if user_id and username:
         logger_handler.log_user_logout(
@@ -1143,7 +1143,7 @@ def logout():
             username=username,
             session_duration=session_duration
         )
-    
+
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
@@ -1154,19 +1154,19 @@ def dashboard():
     """Enhanced project-centric dashboard"""
     try:
         user = User.query.get(session['user_id'])
-        
+
         # Get ALL QR codes and projects for project-centric view
         qr_codes = QRCode.query.order_by(QRCode.created_date.desc()).all()
         projects = Project.query.order_by(Project.name.asc()).all()
-        
+
         # Log dashboard access with project info
         logger_handler.logger.info(f"User {session['username']} accessed project dashboard: {len(qr_codes)} QR codes, {len(projects)} projects")
-        
-        return render_template('dashboard.html', 
-                             user=user, 
-                             qr_codes=qr_codes, 
+
+        return render_template('dashboard.html',
+                             user=user,
+                             qr_codes=qr_codes,
                              projects=projects)
-        
+
     except Exception as e:
         logger_handler.log_database_error('dashboard_load', e)
         print(f"Error loading dashboard: {e}")
@@ -1181,50 +1181,50 @@ def profile():
     """User profile management with logging"""
     try:
         user = User.query.get(session['user_id'])
-        
+
         if request.method == 'POST':
             form_type = request.form.get('form_type')
-            
+
             if form_type == 'profile':
                 # Track changes for logging
                 old_name = user.full_name
                 old_email = user.email
-                
+
                 # Update profile information
                 user.full_name = request.form['full_name']
                 user.email = request.form['email']
-                
+
                 # Check for changes
                 changes = {}
                 if old_name != user.full_name:
                     changes['full_name'] = {'old': old_name, 'new': user.full_name}
                 if old_email != user.email:
                     changes['email'] = {'old': old_email, 'new': user.email}
-                
+
                 db.session.commit()
-                
+
                 # Log profile update if there were changes
                 if changes:
                     logger_handler.logger.info(f"User profile updated: {user.username} - Changes: {json.dumps(changes)}")
-                
+
                 flash('Profile updated successfully!', 'success')
-                
+
             elif form_type == 'password':
                 # Update password
                 current_password = request.form['current_password']
                 new_password = request.form['new_password']
-                
+
                 if user.check_password(current_password):
                     user.set_password(new_password)
                     db.session.commit()
-                    
+
                     # Log password change
                     logger_handler.log_security_event(
                         event_type="password_change",
                         description=f"User {user.username} changed password",
                         severity="MEDIUM"
                     )
-                    
+
                     flash('Password updated successfully!', 'success')
                 else:
                     # Log failed password change attempt
@@ -1234,9 +1234,9 @@ def profile():
                         severity="HIGH"
                     )
                     flash('Current password is incorrect.', 'error')
-        
+
         return render_template('profile.html', user=user)
-        
+
     except Exception as e:
         logger_handler.log_database_error('profile_update', e)
         flash('Profile update failed. Please try again.', 'error')
@@ -1266,21 +1266,21 @@ def create_user():
             username = request.form['username']
             password = request.form['password']
             role = request.form['role']
-            
+
             # Validate role
             if role not in VALID_ROLES:
                 flash(f'Invalid role selected. Valid roles: {", ".join(VALID_ROLES)}', 'error')
                 return render_template('create_user.html')
-            
+
             # Check if user already exists
             if User.query.filter_by(username=username).first():
                 flash('Username already exists.', 'error')
                 return render_template('create_user.html')
-            
+
             if User.query.filter_by(email=email).first():
                 flash('Email already registered.', 'error')
                 return render_template('create_user.html')
-            
+
             # Create new user
             new_user = User(
                 full_name=full_name,
@@ -1290,21 +1290,21 @@ def create_user():
                 created_by=session['user_id']
             )
             new_user.set_password(password)
-            
+
             db.session.add(new_user)
             db.session.commit()
-            
+
             # Log user creation
             logger_handler.logger.info(f"Admin user {session['username']} created new user: {username} with role {role}")
-            
+
             flash(f'User "{full_name}" created successfully with role "{role}".', 'success')
             return redirect(url_for('users'))
-            
+
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('user_creation', e)
             flash('Failed to create user. Please try again.', 'error')
-    
+
     return render_template('create_user.html', valid_roles=VALID_ROLES)
 
 @app.route('/users/<int:user_id>/delete', methods=['GET', 'POST'])
@@ -1314,32 +1314,32 @@ def delete_user(user_id):
     try:
         user_to_delete = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_delete:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         # Prevent self-deletion
         if user_to_delete.id == current_user.id:
             flash('You cannot deactivate your own account. Ask another admin to do this.', 'error')
             return redirect(url_for('users'))
-        
+
         # Check if trying to delete the last admin
         if user_to_delete.role == 'admin':
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot deactivate the last admin user. Promote another user to admin first.', 'error')
                 return redirect(url_for('users'))
-        
+
         # Deactivate the user instead of deleting
         user_to_delete.active_status = False
         db.session.commit()
-        
+
         flash(f'User "{user_to_delete.full_name}" has been deactivated successfully.', 'success')
         print(f"Admin {current_user.username} deactivated user: {user_to_delete.username}")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error deactivating user: {e}")
@@ -1353,11 +1353,11 @@ def reactivate_user(user_id):
     try:
         user_to_reactivate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_reactivate:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         if user_to_reactivate.active_status:
             flash('User is already active.', 'info')
         else:
@@ -1365,9 +1365,9 @@ def reactivate_user(user_id):
             db.session.commit()
             flash(f'User "{user_to_reactivate.full_name}" has been reactivated successfully.', 'success')
             print(f"Admin {current_user.username} reactivated user: {user_to_reactivate.username}")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error reactivating user: {e}")
@@ -1381,11 +1381,11 @@ def promote_user(user_id):
     try:
         user_to_promote = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_promote:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         if user_to_promote.role == 'admin':
             flash('User is already an admin.', 'info')
         else:
@@ -1393,9 +1393,9 @@ def promote_user(user_id):
             db.session.commit()
             flash(f'"{user_to_promote.full_name}" has been promoted to admin.', 'success')
             print(f"Admin {current_user.username} promoted user {user_to_promote.username} to admin")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error promoting user: {e}")
@@ -1409,22 +1409,22 @@ def demote_user(user_id):
     try:
         user_to_demote = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_demote:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         # Prevent self-demotion
         if user_to_demote.id == current_user.id:
             flash('You cannot demote yourself. Have another admin do this.', 'error')
             return redirect(url_for('users'))
-        
+
         # Check if this is the last admin
         active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
         if active_admin_count <= 1 and user_to_demote.role == 'admin':
             flash('Cannot demote the last admin user. Promote another user to admin first.', 'error')
             return redirect(url_for('users'))
-        
+
         if has_staff_level_access(user_to_demote.role):
             flash('User already has staff-level permissions.', 'info')
         else:
@@ -1432,9 +1432,9 @@ def demote_user(user_id):
             db.session.commit()
             flash(f'"{user_to_demote.full_name}" has been demoted to staff.', 'success')
             print(f"Admin {current_user.username} demoted user {user_to_demote.username} to staff")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error demoting user: {e}")
@@ -1448,7 +1448,7 @@ def edit_user(user_id):
     """Edit user details (Admin only)"""
     try:
         user_to_edit = User.query.get_or_404(user_id)
-        
+
         if request.method == 'POST':
             # Track changes
             changes = {}
@@ -1457,42 +1457,42 @@ def edit_user(user_id):
                 'email': user_to_edit.email,
                 'role': user_to_edit.role
             }
-            
+
             # Update user details
             user_to_edit.full_name = request.form['full_name']
             user_to_edit.email = request.form['email']
             new_role = request.form['role']
-            
+
             # Validate role
             if new_role not in VALID_ROLES:
                 flash(f'Invalid role selected. Valid roles: {", ".join(VALID_ROLES)}', 'error')
                 return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES)
-            
+
             user_to_edit.role = new_role
-            
+
             # Handle password update if provided
             new_password = request.form.get('password')
             if new_password and new_password.strip():
                 user_to_edit.set_password(new_password)
                 changes['password'] = 'Password updated'
-            
+
             # Track changes
             for field, old_value in old_values.items():
                 new_value = getattr(user_to_edit, field)
                 if old_value != new_value:
                     changes[field] = {'old': old_value, 'new': new_value}
-            
+
             db.session.commit()
-            
+
             # Log user update
             if changes:
                 logger_handler.logger.info(f"Admin user {session['username']} updated user {user_to_edit.username}: {json.dumps(changes)}")
-            
+
             flash(f'User "{user_to_edit.full_name}" updated successfully.', 'success')
             return redirect(url_for('users'))
-        
+
         return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES)
-        
+
     except Exception as e:
         logger_handler.log_database_error('user_update', e)
         flash('Error updating user. Please try again.', 'error')
@@ -1505,49 +1505,49 @@ def toggle_user_status(user_id):
     try:
         user_to_toggle = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_toggle:
             return jsonify({
                 'success': False,
                 'message': 'User not found.'
             }), 404
-        
+
         # Prevent self-deactivation
         if user_to_toggle.id == current_user.id:
             return jsonify({
                 'success': False,
                 'message': 'You cannot deactivate yourself.'
             }), 400
-        
+
         # Check if trying to deactivate the last admin
-        if (user_to_toggle.role == 'admin' and 
-            user_to_toggle.active_status and 
+        if (user_to_toggle.role == 'admin' and
+            user_to_toggle.active_status and
             User.query.filter_by(role='admin', active_status=True).count() <= 1):
             return jsonify({
                 'success': False,
                 'message': 'Cannot deactivate the last admin user.'
             }), 400
-        
+
         # Toggle the status
         new_status = not user_to_toggle.active_status
         user_to_toggle.active_status = new_status
         db.session.commit()
-        
+
         action = 'activated' if new_status else 'deactivated'
         message = f'"{user_to_toggle.full_name}" has been {action} successfully.'
-        
+
         # Log status change
         logger_handler.logger.info(f"Admin {current_user.username} {action} user {user_to_toggle.username}")
-        
+
         print(f"Admin {current_user.username} {action} user {user_to_toggle.username}")
-        
+
         return jsonify({
             'success': True,
             'message': message,
             'new_status': new_status,
             'user_id': user_id
         })
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_status_toggle', e)
@@ -1564,25 +1564,25 @@ def activate_user(user_id):
     try:
         user_to_activate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_activate:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         if user_to_activate.active_status:
             flash('User is already active.', 'info')
         else:
             user_to_activate.active_status = True
             db.session.commit()
-            
+
             # Log activation
             logger_handler.logger.info(f"Admin {current_user.username} activated user {user_to_activate.username}")
-            
+
             flash(f'"{user_to_activate.full_name}" has been activated.', 'success')
             print(f"Admin {current_user.username} activated user {user_to_activate.username}")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_activation', e)
@@ -1597,37 +1597,37 @@ def deactivate_user(user_id):
     try:
         user_to_deactivate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         if not user_to_deactivate:
             flash('User not found.', 'error')
             return redirect(url_for('users'))
-        
+
         # Prevent self-deactivation
         if user_to_deactivate.id == current_user.id:
             flash('You cannot deactivate yourself.', 'error')
             return redirect(url_for('users'))
-        
+
         # Check if this is the last admin
         if user_to_deactivate.role == 'admin' and user_to_deactivate.active_status:
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot deactivate the last admin user.', 'error')
                 return redirect(url_for('users'))
-        
+
         if not user_to_deactivate.active_status:
             flash('User is already inactive.', 'info')
         else:
             user_to_deactivate.active_status = False
             db.session.commit()
-            
+
             # Log deactivation
             logger_handler.logger.info(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
-            
+
             flash(f'"{user_to_deactivate.full_name}" has been deactivated.', 'success')
             print(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_deactivation', e)
@@ -1643,7 +1643,7 @@ def user_stats_api():
     try:
         # Get current date for recent activity calculations
         one_week_ago = datetime.now() - timedelta(days=7)
-        
+
         total_users = User.query.count()
         active_users = User.query.filter_by(active_status=True).count()
         admin_users = User.query.filter_by(role='admin', active_status=True).count()
@@ -1651,15 +1651,15 @@ def user_stats_api():
         payroll_users = User.query.filter_by(role='payroll', active_status=True).count()
         project_manager_users = User.query.filter_by(role='project_manager', active_status=True).count()
         inactive_users = User.query.filter_by(active_status=False).count()
-        
+
         recent_registrations = User.query.filter(
             User.created_date >= one_week_ago
         ).count()
-        
+
         recent_logins = User.query.filter(
             User.last_login_date >= one_week_ago
         ).count()
-        
+
         return jsonify({
             'total_users': total_users,
             'active_users': active_users,
@@ -1671,7 +1671,7 @@ def user_stats_api():
             'recent_registrations': recent_registrations,
             'recent_logins': recent_logins
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('user_stats_api', e)
         print(f"Error fetching user stats: {e}")
@@ -1685,18 +1685,18 @@ def role_permissions_api():
         permissions_data = {}
         for role in VALID_ROLES:
             permissions_data[role] = get_role_permissions(role)
-        
+
         return jsonify({
             'success': True,
             'roles': permissions_data,
             'valid_roles': VALID_ROLES,
             'staff_level_roles': STAFF_LEVEL_ROLES
         })
-        
+
     except Exception as e:
         print(f"Error fetching role permissions: {e}")
         return jsonify({'error': 'Failed to fetch role permissions'}), 500
-    
+
 @app.route('/api/geocode', methods=['POST'])
 @login_required
 def geocode_address():
@@ -1704,16 +1704,16 @@ def geocode_address():
     try:
         data = request.get_json()
         address = data.get('address', '').strip()
-        
+
         if not address:
             return jsonify({
                 'success': False,
                 'message': 'Address is required'
             }), 400
-        
+
         # Use the enhanced function that returns 3 values
         lat, lng, accuracy = geocode_address_enhanced(address)
-        
+
         if lat is not None and lng is not None:
             return jsonify({
                 'success': True,
@@ -1730,7 +1730,7 @@ def geocode_address():
                 'success': False,
                 'message': 'Unable to geocode the provided address. Please verify the address is complete and accurate.'
             }), 400
-            
+
     except Exception as e:
         logger_handler.log_flask_error('geocode_api_error', str(e))
         print(f"❌ Geocoding API error: {e}")
@@ -1746,38 +1746,38 @@ def permanently_delete_user(user_id):
     try:
         user_to_delete = User.query.get_or_404(user_id)
         current_user = User.query.get(session['user_id'])
-        
+
         # Security checks
         if user_to_delete.id == current_user.id:
             flash('You cannot delete your own account.', 'error')
             return redirect(url_for('users'))
-        
+
         # Only allow deletion of inactive users for safety
         if user_to_delete.active_status:
             flash('User must be deactivated before permanent deletion.', 'error')
             return redirect(url_for('users'))
-        
+
         # If deleting an admin, ensure at least one admin remains
         if user_to_delete.role == 'admin':
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot delete the last admin user in the system.', 'error')
                 return redirect(url_for('users'))
-        
+
         user_name = user_to_delete.full_name
         user_qr_count = user_to_delete.created_qr_codes.count()
         username = user_to_delete.username
-        
+
         # MODIFIED: Preserve QR codes by setting created_by to NULL instead of deleting them
         orphaned_qr_codes = QRCode.query.filter_by(created_by=user_id).all()
         for qr_code in orphaned_qr_codes:
             qr_code.created_by = None
-        
+
         # Update any users that were created by this user (set created_by to None)
         created_users = User.query.filter_by(created_by=user_id).all()
         for created_user in created_users:
             created_user.created_by = None
-        
+
         # Log user deletion before actual deletion
         logger_handler.log_security_event(
             event_type="user_permanent_deletion",
@@ -1785,24 +1785,24 @@ def permanently_delete_user(user_id):
             severity="HIGH",
             additional_data={'deleted_user': username, 'qr_codes_orphaned': user_qr_count}
         )
-        
+
         # Delete the user
         db.session.delete(user_to_delete)
         db.session.commit()
-        
+
         # Updated flash message to reflect QR codes are preserved
         flash(f'User "{user_name}" has been permanently deleted. {user_qr_count} QR codes created by this user are now orphaned but preserved.', 'success')
         print(f"Admin {current_user.username} permanently deleted user: {username}, preserved {user_qr_count} QR codes")
-        
+
         return redirect(url_for('users'))
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_permanent_deletion', e)
         print(f"Error permanently deleting user: {e}")
         flash('Error deleting user. Please try again.', 'error')
         return redirect(url_for('users'))
-    
+
 # Admin logging routes
 @app.route('/admin/logs')
 @admin_required
@@ -1829,15 +1829,15 @@ def api_recent_logs():
         category = request.args.get('category', '')
         severity = request.args.get('severity', '')
         search = request.args.get('search', '')
-        
+
         print(f"📊 API request - Days: {days}, Limit: {limit}, Page: {page}")
         print(f"📊 Filters - Category: {category}, Severity: {severity}, Search: {search}")
-        
+
         cutoff_date = datetime.now() - timedelta(days=days)
-        
+
         # Calculate offset for pagination
         offset = (page - 1) * limit
-        
+
         # Build the base SQL query with filters
         base_sql = """
         SELECT 
@@ -1854,46 +1854,46 @@ def api_recent_logs():
         FROM log_events 
         WHERE created_timestamp >= :cutoff_date
         """
-        
+
         count_sql = """
         SELECT COUNT(*) as total_count
         FROM log_events 
         WHERE created_timestamp >= :cutoff_date
         """
-        
+
         params = {'cutoff_date': cutoff_date}
-        
+
         # Add category filter
         if category:
             base_sql += " AND event_category = :category"
             count_sql += " AND event_category = :category"
             params['category'] = category
-        
+
         # Add severity filter
         if severity:
             base_sql += " AND severity_level = :severity"
             count_sql += " AND severity_level = :severity"
             params['severity'] = severity
-        
+
         # Add search filter
         if search:
             search_condition = " AND (event_type LIKE :search OR event_description LIKE :search OR username LIKE :search)"
             base_sql += search_condition
             count_sql += search_condition
             params['search'] = f'%{search}%'
-        
+
         # Get total count first
         count_result = db.session.execute(text(count_sql), params).fetchone()
         total_count = count_result.total_count if count_result else 0
-        
+
         # Add ordering, limit and offset to main query
         base_sql += " ORDER BY created_timestamp DESC LIMIT :limit OFFSET :offset"
         params['limit'] = limit
         params['offset'] = offset
-        
+
         # Execute main query
         result = db.session.execute(text(base_sql), params).fetchall()
-        
+
         logs = []
         for row in result:
             # Parse event_data if it's JSON
@@ -1903,7 +1903,7 @@ def api_recent_logs():
                     event_data = json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data
                 except (json.JSONDecodeError, TypeError):
                     event_data = row.event_data
-            
+
             logs.append({
                 'event_id': row.event_id,
                 'event_type': row.event_type,
@@ -1916,9 +1916,9 @@ def api_recent_logs():
                 'user_id': row.user_id,
                 'ip_address': row.ip_address or '-'
             })
-        
+
         print(f"📊 Returning {len(logs)} logs out of {total_count} total")
-        
+
         return jsonify({
             'success': True,
             'logs': logs,
@@ -1929,7 +1929,7 @@ def api_recent_logs():
             'has_next': offset + limit < total_count,
             'has_prev': page > 1
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('api_recent_logs', e)
         print(f"Error in api_recent_logs: {e}")
@@ -1945,11 +1945,11 @@ def api_log_stats():
     try:
         days = request.args.get('days', 7, type=int)
         print(f"📊 Getting log statistics for last {days} days")
-        
+
         # Get statistics from logger handler
         stats = logger_handler.get_log_statistics(days=days)
         print(f"📈 Retrieved stats: {stats}")
-        
+
         # Ensure all expected keys exist
         expected_stats = {
             'total_events': stats.get('total_events', 0),
@@ -1958,14 +1958,14 @@ def api_log_stats():
             'user_activities': stats.get('user_activities', 0),
             'system_events': stats.get('system_events', 0)
         }
-        
+
         return jsonify({
             'success': True,
             'stats': expected_stats,
             'days': days,
             'timestamp': datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('api_log_stats', e)
         print(f"❌ Error in api_log_stats: {e}")
@@ -1994,10 +1994,10 @@ def api_cleanup_logs():
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
-        
+
         days_to_keep = data.get('days_to_keep', 90)
         print(f"🧹 Cleanup request: keep last {days_to_keep} days")
-        
+
         # Validate input
         if not isinstance(days_to_keep, int) or days_to_keep < 7:
             print(f"❌ Invalid days_to_keep: {days_to_keep}")
@@ -2005,20 +2005,20 @@ def api_cleanup_logs():
                 'success': False,
                 'error': 'days_to_keep must be an integer >= 7'
             }), 400
-        
+
         if days_to_keep > 365:
             print(f"❌ days_to_keep too large: {days_to_keep}")
             return jsonify({
                 'success': False,
                 'error': 'days_to_keep cannot exceed 365 days'
             }), 400
-        
+
         # Perform cleanup using logger handler
         deleted_count = logger_handler.cleanup_old_logs(days_to_keep=days_to_keep)
-        
+
         admin_username = session.get('username', 'unknown')
         print(f"✅ Cleanup completed by {admin_username}: {deleted_count} records deleted")
-        
+
         # Log the admin action
         logger_handler.log_security_event(
             event_type="admin_log_cleanup",
@@ -2031,7 +2031,7 @@ def api_cleanup_logs():
                 'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
             }
         )
-        
+
         return jsonify({
             'success': True,
             'deleted_count': deleted_count,
@@ -2040,7 +2040,7 @@ def api_cleanup_logs():
             'performed_by': admin_username,
             'performed_at': datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('api_cleanup_logs', e)
         print(f"❌ Error in api_cleanup_logs: {e}")
@@ -2048,7 +2048,7 @@ def api_cleanup_logs():
             'success': False,
             'error': f'Failed to cleanup old logs: {str(e)}'
         }), 500
-    
+
 @app.route('/api/logs/clear', methods=['POST'])
 @admin_required
 def api_clear_logs():
@@ -2056,15 +2056,15 @@ def api_clear_logs():
     try:
         admin_username = session.get('username', 'unknown')
         print(f"🧹 Clear logs request by admin: {admin_username}")
-        
+
         # Count existing logs before deletion
         try:
             count_sql = "SELECT COUNT(*) as total_logs FROM log_events"
             count_result = db.session.execute(text(count_sql)).fetchone()
             total_logs = count_result.total_logs if count_result else 0
-            
+
             print(f"📊 Total logs to be cleared: {total_logs}")
-            
+
             if total_logs == 0:
                 print("✅ No logs found to clear")
                 return jsonify({
@@ -2072,20 +2072,20 @@ def api_clear_logs():
                     'deleted_count': 0,
                     'message': 'No logs found to clear'
                 })
-                
+
         except Exception as count_error:
             print(f"⚠️ Error counting logs: {count_error}")
             total_logs = 0
-        
+
         # Perform the clear operation
         try:
             clear_sql = "DELETE FROM log_events"
             result = db.session.execute(text(clear_sql))
             deleted_count = result.rowcount
             db.session.commit()
-            
+
             print(f"🗑️ Successfully cleared {deleted_count} log entries")
-            
+
             # Log the clear operation (this will be the first entry in the new log)
             logger_handler.log_security_event(
                 event_type="admin_log_clear",
@@ -2097,7 +2097,7 @@ def api_clear_logs():
                     'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
                 }
             )
-            
+
             return jsonify({
                 'success': True,
                 'deleted_count': deleted_count,
@@ -2105,7 +2105,7 @@ def api_clear_logs():
                 'performed_by': admin_username,
                 'performed_at': datetime.now().isoformat()
             })
-            
+
         except Exception as delete_error:
             print(f"❌ Error during log clearing: {delete_error}")
             db.session.rollback()
@@ -2113,7 +2113,7 @@ def api_clear_logs():
                 'success': False,
                 'error': f'Failed to clear logs: {str(delete_error)}'
             }), 500
-            
+
     except Exception as e:
         logger_handler.log_database_error('api_clear_logs', e)
         print(f"❌ Error in api_clear_logs: {e}")
@@ -2121,7 +2121,7 @@ def api_clear_logs():
             'success': False,
             'error': f'Failed to clear logs: {str(e)}'
         }), 500
-    
+
 @app.route('/api/logs/clear-old', methods=['POST'])
 @admin_required
 def api_clear_old_logs():
@@ -2135,11 +2135,11 @@ def api_clear_old_logs():
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
-        
+
         days_threshold = data.get('days_threshold', 90)
         admin_username = session.get('username', 'unknown')
         print(f"🧹 Clear old logs request by admin: {admin_username}, threshold: {days_threshold} days")
-        
+
         # Validate input
         if not isinstance(days_threshold, int) or days_threshold not in [30, 60, 90]:
             print(f"❌ Invalid days_threshold: {days_threshold}")
@@ -2147,18 +2147,18 @@ def api_clear_old_logs():
                 'success': False,
                 'error': 'days_threshold must be 30, 60, or 90'
             }), 400
-        
+
         # Calculate cutoff date
         cutoff_date = datetime.now() - timedelta(days=days_threshold)
-        
+
         # Count existing logs before deletion
         try:
             count_sql = "SELECT COUNT(*) as total_logs FROM log_events WHERE created_timestamp < :cutoff_date"
             count_result = db.session.execute(text(count_sql), {'cutoff_date': cutoff_date}).fetchone()
             total_logs = count_result.total_logs if count_result else 0
-            
+
             print(f"📊 Total logs older than {days_threshold} days to be cleared: {total_logs}")
-            
+
             if total_logs == 0:
                 print("✅ No old logs found to clear")
                 return jsonify({
@@ -2166,20 +2166,20 @@ def api_clear_old_logs():
                     'deleted_count': 0,
                     'message': f'No logs older than {days_threshold} days found to clear'
                 })
-                
+
         except Exception as count_error:
             print(f"⚠️ Error counting old logs: {count_error}")
             total_logs = 0
-        
+
         # Perform the clear operation
         try:
             clear_sql = "DELETE FROM log_events WHERE created_timestamp < :cutoff_date"
             result = db.session.execute(text(clear_sql), {'cutoff_date': cutoff_date})
             deleted_count = result.rowcount
             db.session.commit()
-            
+
             print(f"🗑️ Successfully cleared {deleted_count} log entries older than {days_threshold} days")
-            
+
             # Log the clear operation
             logger_handler.log_security_event(
                 event_type="admin_clear_old_logs",
@@ -2193,7 +2193,7 @@ def api_clear_old_logs():
                     'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
                 }
             )
-            
+
             return jsonify({
                 'success': True,
                 'deleted_count': deleted_count,
@@ -2202,7 +2202,7 @@ def api_clear_old_logs():
                 'performed_by': admin_username,
                 'performed_at': datetime.now().isoformat()
             })
-            
+
         except Exception as delete_error:
             print(f"❌ Error during old log clearing: {delete_error}")
             db.session.rollback()
@@ -2210,7 +2210,7 @@ def api_clear_old_logs():
                 'success': False,
                 'error': f'Failed to clear old logs: {str(delete_error)}'
             }), 500
-            
+
     except Exception as e:
         logger_handler.log_database_error('api_clear_old_logs', e)
         print(f"❌ Error in api_clear_old_logs: {e}")
@@ -2218,7 +2218,7 @@ def api_clear_old_logs():
             'success': False,
             'error': f'Failed to clear old logs: {str(e)}'
         }), 500
-    
+
 @app.route('/api/logs/export')
 @admin_required
 def api_export_logs():
@@ -2228,12 +2228,12 @@ def api_export_logs():
         category = request.args.get('category', '')
         severity = request.args.get('severity', '')
         search = request.args.get('search', '')
-        
+
         admin_username = session.get('username', 'unknown')
         print(f"📊 Export logs request by admin: {admin_username}")
-        
+
         cutoff_date = datetime.now() - timedelta(days=days)
-        
+
         # Build the SQL query with filters
         base_sql = """
         SELECT 
@@ -2250,28 +2250,28 @@ def api_export_logs():
         FROM log_events 
         WHERE created_timestamp >= :cutoff_date
         """
-        
+
         params = {'cutoff_date': cutoff_date}
-        
+
         # Add category filter
         if category:
             base_sql += " AND event_category = :category"
             params['category'] = category
-        
+
         # Add severity filter
         if severity:
             base_sql += " AND severity_level = :severity"
             params['severity'] = severity
-        
+
         # Add search filter
         if search:
             base_sql += " AND (event_type LIKE :search OR event_description LIKE :search OR username LIKE :search)"
             params['search'] = f'%{search}%'
-        
+
         base_sql += " ORDER BY created_timestamp DESC"
-        
+
         result = db.session.execute(text(base_sql), params).fetchall()
-        
+
         logs = []
         for row in result:
             # Parse event_data if it's JSON
@@ -2281,7 +2281,7 @@ def api_export_logs():
                     event_data = json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data
                 except (json.JSONDecodeError, TypeError):
                     event_data = row.event_data
-            
+
             logs.append({
                 'event_id': row.event_id,
                 'event_type': row.event_type,
@@ -2294,7 +2294,7 @@ def api_export_logs():
                 'user_id': row.user_id,
                 'ip_address': row.ip_address or '-'
             })
-        
+
         # Log the export operation
         logger_handler.log_security_event(
             event_type="admin_log_export",
@@ -2312,7 +2312,7 @@ def api_export_logs():
                 'ip_address': request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
             }
         )
-        
+
         return jsonify({
             'success': True,
             'logs': logs,
@@ -2324,7 +2324,7 @@ def api_export_logs():
                 'search': search
             }
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('api_export_logs', e)
         print(f"❌ Error in api_export_logs: {e}")
@@ -2355,33 +2355,33 @@ def create_project():
         try:
             name = request.form['name']
             description = request.form.get('description', '')
-            
+
             # Check if project name already exists
             if Project.query.filter_by(name=name).first():
                 flash('Project name already exists.', 'error')
                 return render_template('create_project.html')
-            
+
             # Create new project
             new_project = Project(
                 name=name,
                 description=description,
                 created_by=session['user_id']
             )
-            
+
             db.session.add(new_project)
             db.session.commit()
-            
+
             # Log project creation
             logger_handler.logger.info(f"User {session['username']} created new project: {name}")
-            
+
             flash(f'Project "{name}" created successfully.', 'success')
             return redirect(url_for('projects'))
-            
+
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('project_creation', e)
             flash('Project creation failed. Please try again.', 'error')
-    
+
     return render_template('create_project.html')
 
 @app.route('/projects/<int:project_id>/edit', methods=['GET', 'POST'])
@@ -2391,31 +2391,31 @@ def edit_project(project_id):
     """Edit existing project"""
     try:
         project = Project.query.get_or_404(project_id)
-        
+
         if request.method == 'POST':
             old_name = project.name
             old_description = project.description
-            
+
             project.name = request.form['name']
             project.description = request.form.get('description', '')
-            
+
             db.session.commit()
-            
+
             # Log project update
             changes = {}
             if old_name != project.name:
                 changes['name'] = {'old': old_name, 'new': project.name}
             if old_description != project.description:
                 changes['description'] = {'old': old_description, 'new': project.description}
-            
+
             if changes:
                 logger_handler.logger.info(f"User {session['username']} updated project {project_id}: {json.dumps(changes)}")
-            
+
             flash(f'Project "{project.name}" updated successfully.', 'success')
             return redirect(url_for('projects'))
-        
+
         return render_template('edit_project.html', project=project)
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('project_edit', e)
@@ -2431,20 +2431,20 @@ def toggle_project(project_id):
         project = Project.query.get_or_404(project_id)
         old_status = project.active_status
         project.active_status = not project.active_status
-        
+
         db.session.commit()
-        
+
         # Log status change
         status = "activated" if project.active_status else "deactivated"
         logger_handler.logger.info(f"User {session['username']} {status} project: {project.name}")
-        
+
         flash(f'Project "{project.name}" {status} successfully.', 'success')
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('project_toggle', e)
         flash('Failed to update project status.', 'error')
-    
+
     return redirect(url_for('projects'))
 
 # API ENDPOINTS FOR DROPDOWN FUNCTIONALITY
@@ -2454,7 +2454,7 @@ def api_active_projects():
     """Get active projects for dropdown"""
     try:
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
-        
+
         projects_data = [
             {
                 'id': project.id,
@@ -2464,19 +2464,19 @@ def api_active_projects():
             }
             for project in projects
         ]
-        
+
         return jsonify({
             'success': True,
             'projects': projects_data
         })
-        
+
     except Exception as e:
         logger_handler.log_database_error('api_active_projects', e)
         return jsonify({
             'success': False,
             'error': 'Failed to fetch projects'
         }), 500
-        
+
 # QR code management routes
 @app.route('/qr-codes/create', methods=['GET', 'POST'])
 @login_required
@@ -2491,12 +2491,12 @@ def create_qr_code():
             location_address = request.form['location_address']
             location_event = request.form.get('location_event', '')
             project_id = request.form.get('project_id')
-            
+
             # Extract coordinates data from form
             latitude = request.form.get('latitude')
             longitude = request.form.get('longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
-            
+
             # NEW: QR Code customization data
             fill_color = request.form.get('fill_color', '#000000')
             back_color = request.form.get('back_color', '#FFFFFF')
@@ -2504,18 +2504,18 @@ def create_qr_code():
             border = int(request.form.get('border', 4))
             error_correction = request.form.get('error_correction', 'L')
             style_id = request.form.get('style_id')  # Pre-defined style
-            
+
             # Validate colors (basic hex validation)
             if not (fill_color.startswith('#') and len(fill_color) == 7):
                 fill_color = '#000000'
             if not (back_color.startswith('#') and len(back_color) == 7):
                 back_color = '#FFFFFF'
-            
+
             # Convert coordinates to float if they exist
             address_latitude = None
             address_longitude = None
             has_coordinates = False
-            
+
             if latitude and longitude:
                 try:
                     address_latitude = float(latitude)
@@ -2527,7 +2527,7 @@ def create_qr_code():
                     address_latitude = None
                     address_longitude = None
                     has_coordinates = False
-            
+
             # Validate project_id if provided
             project = None
             if project_id:
@@ -2536,15 +2536,15 @@ def create_qr_code():
                     project = Project.query.get(project_id)
                     if not project or not project.active_status:
                         flash('Selected project is not valid or inactive.', 'error')
-                        return render_template('create_qr_code.html', 
+                        return render_template('create_qr_code.html',
                                              projects=Project.query.filter_by(active_status=True).all(),
                                              styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
                 except (ValueError, TypeError):
                     flash('Invalid project selection.', 'error')
-                    return render_template('create_qr_code.html', 
+                    return render_template('create_qr_code.html',
                                          projects=Project.query.filter_by(active_status=True).all(),
                                          styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
-            
+
             # Create new QR code record first (without URL and image)
             new_qr_code = QRCode(
                 name=name,
@@ -2569,14 +2569,14 @@ def create_qr_code():
                     'style_id': int(style_id) if style_id and style_id.isdigit() else None
                 } if hasattr(QRCode, 'fill_color') else {})
             )
-            
+
             # Add to session and flush to get the ID
             db.session.add(new_qr_code)
             db.session.flush()  # This assigns the ID without committing
-            
+
             # Now generate the readable URL using the ID
             qr_url = generate_qr_url(name, new_qr_code.id)
-            
+
             # Generate QR code data with the destination URL and custom styling
             qr_data = f"{request.url_root}qr/{qr_url}"
             qr_image = generate_qr_code(
@@ -2587,14 +2587,14 @@ def create_qr_code():
                 border=border,
                 error_correction=error_correction
             )
-            
+
             # Update the QR code with the URL and image
             new_qr_code.qr_url = qr_url
             new_qr_code.qr_code_image = qr_image
-            
+
             # Now commit all changes
             db.session.commit()
-            
+
             # Enhanced logging with customization information
             logger_handler.log_qr_code_created(
                 qr_code_id=new_qr_code.id,
@@ -2622,17 +2622,17 @@ def create_qr_code():
 
             flash(f'QR Code "{name}" created successfully{project_info}{coord_info}{style_info}! URL: {qr_url}', 'success')
             return redirect(url_for('dashboard'))
-            
+
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('qr_code_creation', e)
             flash('QR Code creation failed. Please try again.', 'error')
             print(f"❌ QR Code creation error: {e}")
-    
+
     # Get active projects and styles for dropdown
     projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
     styles = QRCodeStyle.query.order_by(QRCodeStyle.name.asc()).all() if 'QRCodeStyle' in globals() else []
-    
+
     return render_template('create_qr_code.html', projects=projects, styles=styles)
 
 @app.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'])
@@ -2642,7 +2642,7 @@ def edit_qr_code(qr_id):
     """Enhanced edit QR code with customization support"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
-        
+
         if request.method == 'POST':
             # Track changes for logging
             old_data = {
@@ -2659,19 +2659,19 @@ def edit_qr_code(qr_id):
                 'fill_color': getattr(qr_code, 'fill_color', '#000000'),
                 'back_color': getattr(qr_code, 'back_color', '#FFFFFF')
             }
-            
+
             # Update QR code fields
             new_name = request.form['name']
             qr_code.name = new_name
             qr_code.location = request.form['location']
             qr_code.location_address = request.form['location_address']
             qr_code.location_event = request.form.get('location_event', '')
-            
+
             # Handle coordinates
             latitude = request.form.get('address_latitude')
             longitude = request.form.get('address_longitude')
             coordinate_accuracy = request.form.get('coordinate_accuracy', 'geocoded')
-            
+
             if latitude and longitude:
                 try:
                     qr_code.address_latitude = float(latitude)
@@ -2685,7 +2685,7 @@ def edit_qr_code(qr_id):
                 qr_code.address_longitude = None
                 qr_code.coordinate_accuracy = None
                 qr_code.coordinates_updated_date = None
-            
+
             # Handle project association
             new_project_id = request.form.get('project_id')
             if new_project_id and new_project_id.strip():
@@ -2696,17 +2696,17 @@ def edit_qr_code(qr_id):
                         qr_code.project_id = new_project_id
                     else:
                         flash('Selected project is not valid or inactive.', 'error')
-                        return render_template('edit_qr_code.html', qr_code=qr_code, 
+                        return render_template('edit_qr_code.html', qr_code=qr_code,
                                              projects=Project.query.filter_by(active_status=True).all(),
                                              styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
                 except (ValueError, TypeError):
                     flash('Invalid project selection.', 'error')
-                    return render_template('edit_qr_code.html', qr_code=qr_code, 
+                    return render_template('edit_qr_code.html', qr_code=qr_code,
                                          projects=Project.query.filter_by(active_status=True).all(),
                                          styles=QRCodeStyle.query.all() if 'QRCodeStyle' in globals() else [])
             else:
                 qr_code.project_id = None
-            
+
             # Handle QR code customization (only if columns exist)
             fill_color = request.form.get('fill_color', '#000000')
             back_color = request.form.get('back_color', '#FFFFFF')
@@ -2714,7 +2714,7 @@ def edit_qr_code(qr_id):
             border = int(request.form.get('border', 4))
             error_correction = request.form.get('error_correction', 'L')
             style_id = request.form.get('style_id')
-            
+
             # Update styling fields if they exist
             if hasattr(qr_code, 'fill_color'):
                 qr_code.fill_color = fill_color
@@ -2723,21 +2723,21 @@ def edit_qr_code(qr_id):
                 qr_code.border = border
                 qr_code.error_correction = error_correction
                 qr_code.style_id = int(style_id) if style_id and style_id.isdigit() else None
-            
+
             # Check if QR code needs regeneration
             name_changed = old_data['name'] != new_name
-            styling_changed = (hasattr(qr_code, 'fill_color') and 
-                             (old_data['fill_color'] != fill_color or 
+            styling_changed = (hasattr(qr_code, 'fill_color') and
+                             (old_data['fill_color'] != fill_color or
                               old_data['back_color'] != back_color))
-            
+
             if name_changed:
                 new_qr_url = generate_qr_url(new_name, qr_code.id)
                 qr_code.qr_url = new_qr_url
-            
+
             # Regenerate QR code if name or styling changed
             if name_changed or styling_changed:
                 qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
-                
+
                 # Use new styling if available, otherwise use defaults
                 styling = get_qr_styling(qr_code)
                 qr_code.qr_code_image = generate_qr_code(
@@ -2748,19 +2748,19 @@ def edit_qr_code(qr_id):
                     border=styling['border'],
                     error_correction=styling['error_correction']
                 )
-            
+
             db.session.commit()
-            
+
             # Success message
             flash(f'QR Code "{qr_code.name}" updated successfully!', 'success')
             return redirect(url_for('dashboard'))
-        
+
         # GET request - render edit form
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
         styles = QRCodeStyle.query.order_by(QRCodeStyle.name.asc()).all() if 'QRCodeStyle' in globals() else []
-        
+
         return render_template('edit_qr_code.html', qr_code=qr_code, projects=projects, styles=styles)
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('qr_code_edit', e)
@@ -2775,42 +2775,42 @@ def delete_qr_code(qr_id):
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         print(f"✅ Found QR Code: {qr_code.name}")
-        
+
         if request.method == 'POST':
             qr_name = qr_code.name
             qr_code_id = qr_code.id
             print(f"🗑️ ATTEMPTING TO DELETE: {qr_name}")
-            
+
             # Check if QR exists before delete
             before_count = QRCode.query.count()
             print(f"📊 QR count before delete: {before_count}")
-            
+
             # Log QR code deletion before actual deletion
             logger_handler.log_qr_code_deleted(
                 qr_code_id=qr_code_id,
                 qr_code_name=qr_name,
                 deleted_by_user_id=session['user_id']
             )
-            
+
             # Delete the QR code
             db.session.delete(qr_code)
             print("💾 Called db.session.delete()")
-            
+
             db.session.commit()
             print("💾 Called db.session.commit()")
-            
+
             # Check count after delete
             after_count = QRCode.query.count()
             print(f"📊 QR count after delete: {after_count}")
             print(f"✅ DELETE SUCCESS! Removed {before_count - after_count} records")
-            
+
             flash(f'QR code "{qr_name}" has been permanently deleted!', 'success')
             return redirect(url_for('dashboard'))
-        
+
         # GET request - show confirmation page
         print("📄 Showing confirmation page")
         return render_template('confirm_delete_qr.html', qr_code=qr_code)
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('qr_code_deletion', e)
@@ -2819,14 +2819,14 @@ def delete_qr_code(qr_id):
         print(f"❌ Traceback: {traceback.format_exc()}")
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard'))
-    
+
 @app.route('/qr/<string:qr_url>')
 def qr_destination(qr_url):
     """QR code destination page where staff check in - PRESERVING EXACT ROUTE"""
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
-        
+
         if not qr_code:
             # Log invalid QR code access attempt
             logger_handler.log_security_event(
@@ -2836,16 +2836,16 @@ def qr_destination(qr_url):
             )
             flash('QR code not found or inactive.', 'error')
             return redirect(url_for('index'))
-        
+
         # Log QR code access
         logger_handler.log_qr_code_accessed(
             qr_code_id=qr_code.id,
             qr_code_name=qr_code.name,
             access_method='scan'
         )
-        
+
         return render_template('qr_destination.html', qr_code=qr_code)
-        
+
     except Exception as e:
         logger_handler.log_database_error('qr_code_scan', e)
         flash('Error processing QR code scan.', 'error')
@@ -2862,54 +2862,54 @@ def qr_checkin(qr_url):
         print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
         print(f"   QR URL: {qr_url}")
         print(f"   Timestamp: {datetime.now()}")
-        
+
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
-        
+
         if not qr_code:
             print(f"❌ QR code not found or inactive: {qr_url}")
             return jsonify({
                 'success': False,
                 'message': 'QR code not found or inactive.'
             }), 404
-        
+
         print(f"✅ Found QR code: {qr_code.name} (ID: {qr_code.id})")
         print(f"   Location: {qr_code.location}")
         print(f"   QR Address: {qr_code.location_address}")
-        
+
         # Get and validate employee ID
         employee_id = request.form.get('employee_id', '').strip()
-        
+
         if not employee_id:
             return jsonify({
                 'success': False,
                 'message': 'Employee ID is required.'
             }), 400
-        
+
         # Check for recent check-ins with 30-minute interval validation
         today = date.today()
         current_time = datetime.now()
         time_interval = int(os.environ.get('TIME_INTERVAL'))
         the_last_checkin_time = current_time - timedelta(minutes=time_interval)
-        
+
         # Find the most recent check-in for this employee at this location today
         recent_checkin = AttendanceData.query.filter_by(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
             check_in_date=today
         ).order_by(AttendanceData.check_in_time.desc()).first()
-        
+
         if recent_checkin:
             # Convert check_in_time (time) to datetime for comparison
             recent_checkin_datetime = datetime.combine(today, recent_checkin.check_in_time)
-            
+
             # Check if 30 minutes have passed since the last check-in
             if recent_checkin_datetime > the_last_checkin_time:
                 minutes_remaining = time_interval - int((current_time - recent_checkin_datetime).total_seconds() / 60)
                 print(f"⚠️ Too soon for another {qr_code.location_event} for {employee_id}")
                 print(f"   Last {qr_code.location_event}: {recent_checkin.check_in_time.strftime('%H:%M')}")
                 print(f"   Minutes remaining: {minutes_remaining}")
-                
+
                 return jsonify({
                     'success': False,
                     'message': f"You can {qr_code.location_event} again in {minutes_remaining} minutes. Last {qr_code.location_event} was at {recent_checkin.check_in_time.strftime("%H:%M")}. \n"
@@ -2919,22 +2919,22 @@ def qr_checkin(qr_url):
                 print(f"✅ 30-minute interval satisfied. Allowing new {qr_code.location_event} for {employee_id}")
         else:
             print(f"✅ First {qr_code.location_event} today for {employee_id}")
-        
+
         # Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
-        
+
         # Get device and network info
         user_agent_string = request.headers.get('User-Agent', '')
         device_info = detect_device_info(user_agent_string)
         client_ip = get_client_ip()
-        
+
         print(f"📱 Device Info: {device_info}")
         print(f"🌐 IP Address: {client_ip}")
         print(f"📍 Location Data: {location_data}")
-        
+
         # Create attendance record
         print(f"\n💾 CREATING ATTENDANCE RECORD:")
-        
+
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
@@ -2952,9 +2952,9 @@ def qr_checkin(qr_url):
             address=location_data['address'],
             status='present'
         )
-        
+
         print(f"✅ Created base attendance record")
-        
+
         # ENHANCED DEBUG: Calculate location accuracy with detailed logging
         print(f"\n🎯 CALCULATING LOCATION ACCURACY WITH ENHANCED DEBUG...")
         print(f"   📊 QR Code Details:")
@@ -2964,7 +2964,7 @@ def qr_checkin(qr_url):
         print(f"      Location Address: {qr_code.location_address}")
         print(f"      Has location_address: {qr_code.location_address is not None}")
         print(f"      Location Address Length: {len(qr_code.location_address) if qr_code.location_address else 0}")
-        
+
         print(f"   📍 Check-in Data:")
         print(f"      Latitude: {location_data['latitude']}")
         print(f"      Longitude: {location_data['longitude']}")
@@ -2972,9 +2972,9 @@ def qr_checkin(qr_url):
         print(f"      Address: {location_data['address']}")
         print(f"      Address Length: {len(location_data['address']) if location_data['address'] else 0}")
         print(f"      Source: {location_data['source']}")
-        
+
         location_accuracy = None
-        
+
         try:
             # Check if we have the required data
             if not qr_code.location_address:
@@ -2986,16 +2986,16 @@ def qr_checkin(qr_url):
                 print(f"   Check-in coords: {location_data['latitude']}, {location_data['longitude']}")
             else:
                 print(f"✅ Required data available, proceeding with calculation...")
-                
+
                 location_accuracy = calculate_location_accuracy_enhanced(
                     qr_address=qr_code.location_address,
                     checkin_address=location_data['address'],
                     checkin_lat=location_data['latitude'],
                     checkin_lng=location_data['longitude']
                 )
-                
+
                 print(f"📐 Location accuracy calculation result: {location_accuracy}")
-                
+
                 if location_accuracy is not None:
                     attendance.location_accuracy = location_accuracy
                     accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
@@ -3003,11 +3003,11 @@ def qr_checkin(qr_url):
                     print(f"📊 Final attendance.location_accuracy value: {attendance.location_accuracy}")
                 else:
                     print(f"⚠️ Could not calculate location accuracy - calculation returned None")
-                    
+
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
             print(f"❌ Full traceback: {traceback.format_exc()}")
-        
+
         # ENHANCED DEBUG: Save to database with verification
         try:
             print(f"\n💾 SAVING TO DATABASE...")
@@ -3018,20 +3018,20 @@ def qr_checkin(qr_url):
             print(f"      Longitude: {attendance.longitude}")
             print(f"      Address: {attendance.address}")
             print(f"      Location Accuracy: {attendance.location_accuracy}")
-            
+
             db.session.add(attendance)
             db.session.commit()
-            
+
             # VERIFICATION: Read back from database
             saved_record = AttendanceData.query.get(attendance.id)
             print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
             print(f"📊 Verification - location accuracy in database: {saved_record.location_accuracy}")
-            
+
             if saved_record.location_accuracy != attendance.location_accuracy:
                 print(f"⚠️ WARNING: Database value differs from object value!")
                 print(f"   Object value: {attendance.location_accuracy}")
                 print(f"   Database value: {saved_record.location_accuracy}")
-            
+
             # Add enhanced logging for location accuracy save
             if attendance.location_accuracy is not None:
                 logger_handler.logger.info(f"Location accuracy calculated and saved: {attendance.location_accuracy:.4f} miles for employee {attendance.employee_id}")
@@ -3044,9 +3044,9 @@ def qr_checkin(qr_url):
                 employee_id=employee_id.upper(),
                 check_in_date=today
             ).count()
-            
+
             checkin_sequence_text = f"{qr_code.location_event} details"
-            
+
         except Exception as e:
             print(f"❌ Database error: {e}")
             print(f"❌ Full traceback: {traceback.format_exc()}")
@@ -3056,7 +3056,7 @@ def qr_checkin(qr_url):
                 'success': False,
                 'message': 'Database error occurred.'
             }), 500
-        
+
         # Return success response with sequence information
         response_data = {
             'success': True,
@@ -3074,26 +3074,26 @@ def qr_checkin(qr_url):
                 'checkin_sequence': checkin_sequence_text
             }
         }
-        
+
         if location_data['address']:
             response_data['data']['address'] = location_data['address']
-            
+
         if location_data['latitude'] and location_data['longitude']:
             response_data['data']['coordinates'] = f"{location_data['latitude']:.10f}, {location_data['longitude']:.10f}"
-        
+
         print(f"✅ Check-in completed successfully")
         print(f"   Employee: {attendance.employee_id}")
         print(f"   Time: {attendance.check_in_time}")
         print(f"   Location: {attendance.location_name}")
         print(f"   Address: {attendance.address}")
         print(f"   Today's count: {today_checkin_count}")
-        
+
         return jsonify(response_data), 200
-        
+
     except Exception as e:
         print(f"❌ Unexpected error in check-in process: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         return jsonify({
             'success': False,
             'message': 'An unexpected error occurred during check-in.'
@@ -3105,21 +3105,21 @@ def toggle_qr_status(qr_id):
     """Toggle QR code active/inactive status"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
-        
+
         # Toggle the status
         qr_code.active_status = not qr_code.active_status
         db.session.commit()
-        
+
         status_text = "activated" if qr_code.active_status else "deactivated"
         flash(f'QR code "{qr_code.name}" has been {status_text} successfully!', 'success')
-        
+
         return jsonify({
             'success': True,
             'new_status': qr_code.active_status,
             'status_text': 'Active' if qr_code.active_status else 'Inactive',
             'message': f'QR code {status_text} successfully!'
         })
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error toggling QR status: {e}")
@@ -3136,7 +3136,7 @@ def activate_qr_code(qr_id):
         qr_code = QRCode.query.get_or_404(qr_id)
         qr_code.active_status = True
         db.session.commit()
-        
+
         flash(f'QR code "{qr_code.name}" has been activated successfully!', 'success')
         return jsonify({
             'success': True,
@@ -3144,7 +3144,7 @@ def activate_qr_code(qr_id):
             'status_text': 'Active',
             'message': 'QR code activated successfully!'
         })
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error activating QR code: {e}")
@@ -3161,7 +3161,7 @@ def deactivate_qr_code(qr_id):
         qr_code = QRCode.query.get_or_404(qr_id)
         qr_code.active_status = False
         db.session.commit()
-        
+
         flash(f'QR code "{qr_code.name}" has been deactivated successfully!', 'success')
         return jsonify({
             'success': True,
@@ -3169,7 +3169,7 @@ def deactivate_qr_code(qr_id):
             'status_text': 'Inactive',
             'message': 'QR code deactivated successfully!'
         })
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error deactivating QR code: {e}")
@@ -3177,7 +3177,7 @@ def deactivate_qr_code(qr_id):
             'success': False,
             'message': 'Error deactivating QR code. Please try again.'
         }), 500
-    
+
 @app.route('/qr-codes/<int:qr_id>/toggle-status', methods=['POST'])
 @admin_required
 def toggle_qr_status_api(qr_id):
@@ -3186,9 +3186,9 @@ def toggle_qr_status_api(qr_id):
         qr_code = QRCode.query.get_or_404(qr_id)
         qr_code.active_status = not qr_code.active_status
         db.session.commit()
-        
+
         status_text = "activated" if qr_code.active_status else "deactivated"
-        
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': True,
@@ -3199,10 +3199,10 @@ def toggle_qr_status_api(qr_id):
         else:
             flash(f'QR code "{qr_code.name}" has been {status_text} successfully!', 'success')
             return redirect(url_for('dashboard'))
-        
+
     except Exception as e:
         db.session.rollback()
-        
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
@@ -3218,18 +3218,18 @@ def attendance_report():
     """Safe attendance report with backward compatibility for location_accuracy and fixed datetime handling"""
     try:
         print("📊 Loading attendance report...")
-        
+
         # Log attendance report access
         try:
             user_role = session.get('role', 'unknown')
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed attendance report")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
-        
+
         # Check if location_accuracy column exists
         has_location_accuracy = check_location_accuracy_column_exists()
         print(f"🔍 Location accuracy column exists: {has_location_accuracy}")
-        
+
         # Get filter parameters
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
@@ -3288,44 +3288,44 @@ def attendance_report():
                 LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
                 WHERE 1=1
             """
-        
+
         conditions = []
         params = {}
-        
+
         # Apply date range filter
         if date_from:
             conditions.append("ad.check_in_date >= :date_from")
             params['date_from'] = date_from
-        
+
         if date_to:
             conditions.append("ad.check_in_date <= :date_to")
             params['date_to'] = date_to
-        
+
         # Apply location filter
         if location_filter:
             conditions.append("ad.location_name LIKE :location")
             params['location'] = f"%{location_filter}%"
-        
+
         # Apply employee filter
         if employee_filter:
             conditions.append("ad.employee_id LIKE :employee")
             params['employee'] = f"%{employee_filter}%"
-        
+
         # Apply project filter using SQL approach (not ORM)
         if project_filter:
             conditions.append("qc.project_id = :project_id")
             params['project_id'] = int(project_filter)
             print(f"📊 Applied project filter: {project_filter}")
-        
+
         # Add conditions to query
         if conditions:
             base_query += " AND " + " AND ".join(conditions)
-        
+
         # Add ordering
         base_query += " ORDER BY ad.check_in_date DESC, ad.check_in_time DESC"
-        
+
         print(f"🔍 Executing query with {len(params)} parameters")
-        
+
         # Execute query
         query_result = db.session.execute(text(base_query), params)
         attendance_records = query_result.fetchall()
@@ -3336,7 +3336,7 @@ def attendance_report():
             # Safe attribute access with fallbacks
             location_accuracy = getattr(record, 'location_accuracy', None)
             gps_accuracy = getattr(record, 'gps_accuracy', None)
-            
+
             # Create processed record with calculated fields
             processed_record = {
                 'id': record.id,
@@ -3356,7 +3356,7 @@ def attendance_report():
                 'created_timestamp': record.created_timestamp,
                 'updated_timestamp': record.updated_timestamp,
             }
-            
+
             # FIXED: Add address display logic based on location accuracy
             # If location accuracy < 0.3 miles, display QR address; otherwise display actual check-in address
             if location_accuracy is not None:
@@ -3380,7 +3380,7 @@ def attendance_report():
                 # No location accuracy data - use actual check-in address
                 processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
                 processed_record['address_source'] = 'checkin'
-            
+
             # Add accuracy level calculation if location_accuracy exists
             if location_accuracy is not None:
                 if location_accuracy <= 10:
@@ -3391,7 +3391,7 @@ def attendance_report():
                     processed_record['accuracy_level'] = 'Low'
             else:
                 processed_record['accuracy_level'] = 'Unknown'
-                
+
             # Add formatted datetime for display
             try:
                 if record.check_in_date and record.check_in_time:
@@ -3402,9 +3402,9 @@ def attendance_report():
             except Exception as e:
                 print(f"⚠️ Error formatting datetime for record {record.id}: {e}")
                 processed_record['formatted_datetime'] = 'Error'
-                
+
             processed_records.append(processed_record)
-        
+
         # Get unique locations for filter dropdown
         try:
             locations_query = db.session.execute(text("""
@@ -3435,7 +3435,7 @@ def attendance_report():
         except Exception as e:
             print(f"⚠️ Error loading projects: {e}")
             projects = []
-        
+
         # Get attendance statistics
         try:
             if has_location_accuracy:
@@ -3462,7 +3462,7 @@ def attendance_report():
                         0 as avg_location_accuracy
                     FROM attendance_data
                 """))
-            
+
             stats = stats_query.fetchone()
             print(f"✅ Loaded statistics: {stats.total_checkins} total check-ins")
         except Exception as e:
@@ -3477,14 +3477,14 @@ def attendance_report():
                 'records_with_accuracy': 0,
                 'avg_location_accuracy': 0
             })()
-        
+
         # Add today's date for template
         today_date = datetime.now().strftime('%Y-%m-%d')
         current_date_formatted = datetime.now().strftime('%B %d')
-        
+
         print("✅ Rendering attendance report template")
-        
-        return render_template('attendance_report.html', 
+
+        return render_template('attendance_report.html',
                              attendance_records=processed_records,
                              locations=locations,
                              projects=projects,
@@ -3498,18 +3498,18 @@ def attendance_report():
                              current_date_formatted=current_date_formatted,
                              has_location_accuracy_feature=has_location_accuracy,
                              user_role=user_role)
-        
+
     except Exception as e:
         print(f"❌ Error loading attendance report: {e}")
         print(f"❌ Exception type: {type(e)}")
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         # Log the error
         try:
             logger_handler.log_database_error('attendance_report', e)
         except Exception as log_error:
             print(f"⚠️ Additional logging error: {log_error}")
-        
+
         flash('Error loading attendance report. Please check the server logs for details.', 'error')
         return redirect(url_for('dashboard'))
 
@@ -3522,10 +3522,10 @@ def edit_attendance(record_id):
     if session.get('role') not in ['admin', 'payroll']:
         flash('Access denied. Only administrators and payroll staff can edit attendance records.', 'error')
         return redirect(url_for('attendance_report'))
-    
+
     try:
         attendance_record = AttendanceData.query.get_or_404(record_id)
-        
+
         if request.method == 'POST':
             # Track changes for logging
             changes = {}
@@ -3535,13 +3535,13 @@ def edit_attendance(record_id):
                 'check_in_time': attendance_record.check_in_time,
                 'location_name': attendance_record.location_name
             }
-            
+
             # Update attendance record fields
             new_employee_id = request.form['employee_id'].strip().upper()
             new_check_in_date = datetime.strptime(request.form['check_in_date'], '%Y-%m-%d').date()
             new_check_in_time = datetime.strptime(request.form['check_in_time'], '%H:%M').time()
             new_location_name = request.form['location_name'].strip()
-            
+
             # Track what changed
             if attendance_record.employee_id != new_employee_id:
                 changes['employee_id'] = f"{attendance_record.employee_id} → {new_employee_id}"
@@ -3551,16 +3551,16 @@ def edit_attendance(record_id):
                 changes['check_in_time'] = f"{attendance_record.check_in_time} → {new_check_in_time}"
             if attendance_record.location_name != new_location_name:
                 changes['location_name'] = f"{attendance_record.location_name} → {new_location_name}"
-            
+
             # Apply changes
             attendance_record.employee_id = new_employee_id
             attendance_record.check_in_date = new_check_in_date
             attendance_record.check_in_time = new_check_in_time
             attendance_record.location_name = new_location_name
             attendance_record.updated_timestamp = datetime.utcnow()
-            
+
             db.session.commit()
-            
+
             # Log the successful update
             if changes:
                 logger_handler.log_security_event(
@@ -3570,18 +3570,18 @@ def edit_attendance(record_id):
                     additional_data={'record_id': record_id, 'changes': changes, 'user_role': session.get('role')}
                 )
                 print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}: {changes}")
-            
+
             flash(f'Attendance record for {new_employee_id} updated successfully!', 'success')
             return redirect(url_for('attendance_report'))
-        
+
         # GET request - show edit form
         # Get available QR codes for location dropdown
         qr_codes = QRCode.query.filter_by(active_status=True).all()
-        
-        return render_template('edit_attendance.html', 
+
+        return render_template('edit_attendance.html',
                              attendance_record=attendance_record,
                              qr_codes=qr_codes)
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('attendance_update', e)
@@ -3604,15 +3604,15 @@ def delete_attendance(record_id):
         else:
             flash('Access denied. Only administrators and payroll staff can delete attendance records.', 'error')
             return redirect(url_for('attendance_report'))
-    
+
     try:
         attendance_record = AttendanceData.query.get_or_404(record_id)
-        
+
         # Store record info for logging before deletion
         employee_id = attendance_record.employee_id
         location_name = attendance_record.location_name
         check_in_date = attendance_record.check_in_date
-        
+
         # Log the deletion
         logger_handler.log_security_event(
             event_type="attendance_record_deletion",
@@ -3626,13 +3626,13 @@ def delete_attendance(record_id):
                 'user_role': session.get('role')
             }
         )
-        
+
         # Delete the record
         db.session.delete(attendance_record)
         db.session.commit()
-        
+
         print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} deleted attendance record {record_id} for employee {employee_id}")
-        
+
         # Return JSON response for AJAX requests
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
@@ -3642,12 +3642,12 @@ def delete_attendance(record_id):
         else:
             flash(f'Attendance record for {employee_id} deleted successfully!', 'success')
             return redirect(url_for('attendance_report'))
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('attendance_delete', e)
         print(f"[LOG] Error deleting attendance record {record_id}: {e}")
-        
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
@@ -3673,7 +3673,7 @@ def attendance_stats_api():
             GROUP BY check_in_date
             ORDER BY check_in_date DESC
         """)).fetchall()
-        
+
         # Location stats
         location_stats = db.session.execute(text("""
             SELECT 
@@ -3685,7 +3685,7 @@ def attendance_stats_api():
             ORDER BY total_checkins DESC
             LIMIT 10
         """)).fetchall()
-        
+
         # Peak hours
         hourly_stats = db.session.execute(text("""
             SELECT 
@@ -3696,13 +3696,13 @@ def attendance_stats_api():
             GROUP BY EXTRACT(hour FROM check_in_time)
             ORDER BY hour
         """)).fetchall()
-        
+
         return jsonify({
             'daily_stats': [{'date': str(row[0]), 'checkins': row[1], 'employees': row[2]} for row in daily_stats],
             'location_stats': [{'location': row[0], 'checkins': row[1], 'employees': row[2]} for row in location_stats],
             'hourly_stats': [{'hour': int(row[0]), 'checkins': row[1]} for row in hourly_stats]
         })
-        
+
     except Exception as e:
         print(f"Error fetching attendance stats: {e}")
         return jsonify({'error': 'Failed to fetch attendance statistics'}), 500
@@ -3719,14 +3719,14 @@ def export_configuration():
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access export configuration without permissions")
             flash('Access denied. Only administrators and payroll staff can access export configuration.', 'error')
             return redirect(url_for('attendance_report'))
-        
+
         # Log export configuration access using your existing logger
         try:
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} (role: {user_role}) accessed export configuration")
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed export configuration page")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
-        
+
         # Get current filters from session or request args
         filters = {
             'date_from': request.args.get('date_from', ''),
@@ -3735,16 +3735,16 @@ def export_configuration():
             'employee_filter': request.args.get('employee', ''),
             'project_filter': request.args.get('project', '')
         }
-        
+
         print(f"📊 Filters: {filters}")
-        
+
         # Check if location accuracy feature exists
         try:
             has_location_accuracy = check_location_accuracy_column_exists()
         except Exception as e:
             print(f"⚠️ Error checking location accuracy column: {e}")
             has_location_accuracy = False
-        
+
         # Define all available columns with their default settings
         available_columns = [
             {'key': 'employee_id', 'label': 'Employee ID', 'default_name': 'Employee ID', 'enabled': True},
@@ -3761,27 +3761,27 @@ def export_configuration():
             {'key': 'longitude', 'label': 'Longitude', 'default_name': 'GPS Longitude', 'enabled': False},
             {'key': 'accuracy', 'label': 'GPS Accuracy', 'default_name': 'GPS Accuracy (meters)', 'enabled': False},
         ]
-        
+
         # Add location accuracy column if feature exists
         if has_location_accuracy:
             available_columns.append({
-                'key': 'location_accuracy', 
-                'label': 'Location Accuracy', 
-                'default_name': 'Location Accuracy (miles)', 
+                'key': 'location_accuracy',
+                'label': 'Location Accuracy',
+                'default_name': 'Location Accuracy (miles)',
                 'enabled': False
             })
-        
+
         print(f"📊 Rendering export configuration with {len(available_columns)} columns")
-        
+
         return render_template('export_configuration.html',
                              available_columns=available_columns,
                              filters=filters,
                              has_location_accuracy_feature=has_location_accuracy)
-        
+
     except Exception as e:
         print(f"❌ Error in export_configuration route: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         # Use your existing logger error method with correct parameters
         try:
             logger_handler.log_flask_error(
@@ -3791,7 +3791,7 @@ def export_configuration():
             )
         except Exception as log_error:
             print(f"⚠️ Could not log error: {log_error}")
-            
+
         flash('Error loading export configuration page.', 'error')
         return redirect(url_for('attendance_report'))
 
@@ -3805,28 +3805,28 @@ def generate_excel_export():
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized Excel export")
             flash('Access denied. Only administrators and payroll staff can export data.', 'error')
             return redirect(url_for('attendance_report'))
-        
+
         print("📊 Excel export generation started")
-        
+
         # Log export action using your existing logger
         try:
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} generated Excel export")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
-        
+
         # Get selected columns and custom names from form
         selected_columns_raw = request.form.getlist('selected_columns')
         print(f"📊 Selected columns (raw): {selected_columns_raw}")
-        
+
         # Get column order from form
         column_order_json = request.form.get('column_order', '[]')
         try:
             column_order = json.loads(column_order_json) if column_order_json else []
         except (json.JSONDecodeError, TypeError):
             column_order = []
-        
+
         print(f"📊 Column order from form: {column_order}")
-        
+
         # Determine final column order
         if column_order:
             # Use the specified order, but only include actually selected columns
@@ -3838,17 +3838,17 @@ def generate_excel_export():
         else:
             # Fallback to raw selection order
             selected_columns = selected_columns_raw
-        
+
         print(f"📊 Final column order: {selected_columns}")
-        
+
         if not selected_columns:
             flash('Please select at least one column to export.', 'error')
             return redirect(url_for('export_configuration'))
-        
+
         column_names = {}
         for column in selected_columns:
             column_names[column] = request.form.get(f'name_{column}', column)
-        
+
         # Get filters
         filters = {
             'date_from': request.form.get('date_from'),
@@ -3857,34 +3857,34 @@ def generate_excel_export():
             'employee_filter': request.form.get('employee_filter'),
             'project_filter': request.form.get('project_filter')
         }
-        
+
         print(f"📊 Export filters: {filters}")
         print(f"📊 Column names: {column_names}")
-        
+
         # Save user preferences in session for next time
         session['export_preferences'] = {
             'selected_columns': selected_columns,
             'column_names': column_names,
             'column_order': selected_columns  # This is now the ordered list
         }
-        
+
         # Generate Excel file with ordered columns
         excel_file = create_excel_export_ordered(selected_columns, column_names, filters)
-        
+
         if excel_file:
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'attendance_report_{timestamp}.xlsx'
-            
+
             print(f"📊 Excel file generated successfully: {filename}")
             print(f"📊 Column order in export: {selected_columns}")
-            
+
             # Log successful export using your existing logger
             try:
                 logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns in custom order by user {session.get('username', 'unknown')}")
             except Exception as log_error:
                 print(f"⚠️ Logging error (non-critical): {log_error}")
-            
+
             return send_file(
                 excel_file,
                 as_attachment=True,
@@ -3894,11 +3894,11 @@ def generate_excel_export():
         else:
             flash('Error generating Excel file.', 'error')
             return redirect(url_for('export_configuration'))
-            
+
     except Exception as e:
         print(f"❌ Error in generate_excel_export route: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         # Use your existing logger error method with correct parameters
         try:
             logger_handler.log_flask_error(
@@ -3908,7 +3908,7 @@ def generate_excel_export():
             )
         except Exception as log_error:
             print(f"⚠️ Could not log error: {log_error}")
-            
+
         flash('Error generating Excel export.', 'error')
         return redirect(url_for('export_configuration'))
 
@@ -3916,7 +3916,7 @@ def create_excel_export(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data - Fixed to use QR address (not location)"""
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns")
-        
+
         # Import openpyxl modules
         try:
             from openpyxl import Workbook
@@ -3925,10 +3925,10 @@ def create_excel_export(selected_columns, column_names, filters):
             print(f"❌ openpyxl import error: {e}")
             print("💡 Install openpyxl: pip install openpyxl")
             return None
-        
+
         # Build query based on filters - JOIN with QRCode to get location_event and location_address
         query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
-        
+
         # Apply date filters
         if filters.get('date_from'):
             try:
@@ -3937,7 +3937,7 @@ def create_excel_export(selected_columns, column_names, filters):
                 print(f"📊 Applied date_from filter: {date_from}")
             except ValueError as e:
                 print(f"⚠️ Invalid date_from format: {e}")
-                
+
         if filters.get('date_to'):
             try:
                 date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
@@ -3945,40 +3945,40 @@ def create_excel_export(selected_columns, column_names, filters):
                 print(f"📊 Applied date_to filter: {date_to}")
             except ValueError as e:
                 print(f"⚠️ Invalid date_to format: {e}")
-        
+
         # Apply location filter
         if filters.get('location_filter'):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
-        
+
         # Apply employee filter
         if filters.get('employee_filter'):
             query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
-        
+
         # Apply project filter
         if filters.get('project_filter'):
             query = query.filter(QRCode.project_id == int(filters['project_filter']))
             print(f"📊 Applied project filter to export: {filters['project_filter']}")
-        
+
         # Execute query and get results
         results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
         print(f"📊 Found {len(results)} records for export")
-        
+
         if not results:
             print("⚠️ No records found for export")
             return None
-        
+
         # Create workbook
         wb = Workbook()
         ws = wb.active
         ws.title = "Attendance Report"
-        
+
         # Define header style
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center")
-        
+
         # Add headers
         for idx, column_key in enumerate(selected_columns, 1):
             cell = ws.cell(row=1, column=idx)
@@ -3986,12 +3986,12 @@ def create_excel_export(selected_columns, column_names, filters):
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
-        
+
         # Add data
         for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
             for col_idx, column_key in enumerate(selected_columns, 1):
                 cell = ws.cell(row=row_idx, column=col_idx)
-                
+
                 # Get value based on column key
                 try:
                     if column_key == 'employee_id':
@@ -4047,7 +4047,7 @@ def create_excel_export(selected_columns, column_names, filters):
                 except Exception as cell_error:
                     print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
-        
+
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
@@ -4060,15 +4060,15 @@ def create_excel_export(selected_columns, column_names, filters):
                     pass
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
-        
+
         # Save to BytesIO
         excel_buffer = io.BytesIO()
         wb.save(excel_buffer)
         excel_buffer.seek(0)
-        
+
         print("📊 Excel file created successfully with QR address (not QR location)")
         return excel_buffer
-        
+
     except Exception as e:
         print(f"❌ Error creating Excel export: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
@@ -4078,7 +4078,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data in specified column order"""
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
-        
+
         # Import openpyxl modules
         try:
             from openpyxl import Workbook
@@ -4087,10 +4087,10 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             print(f"❌ openpyxl import error: {e}")
             print("💡 Install openpyxl: pip install openpyxl")
             return None
-        
+
         # Build query based on filters - JOIN with QRCode to get location_event and location_address
         query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
-        
+
         # Apply date filters
         if filters.get('date_from'):
             try:
@@ -4099,7 +4099,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 print(f"📊 Applied date_from filter: {date_from}")
             except ValueError as e:
                 print(f"⚠️ Invalid date_from format: {e}")
-                
+
         if filters.get('date_to'):
             try:
                 date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
@@ -4107,40 +4107,40 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 print(f"📊 Applied date_to filter: {date_to}")
             except ValueError as e:
                 print(f"⚠️ Invalid date_to format: {e}")
-        
+
         # Apply location filter
         if filters.get('location_filter'):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
-        
+
         # Apply employee filter
         if filters.get('employee_filter'):
             query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
             print(f"📊 Applied employee filter: {filters['employee_filter']}")
-        
+
         # Apply project filter
         if filters.get('project_filter'):
             query = query.filter(QRCode.project_id == int(filters['project_filter']))
             print(f"📊 Applied project filter to export: {filters['project_filter']}")
-        
+
         # Execute query and get results
         results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
         print(f"📊 Found {len(results)} records for export")
-        
+
         if not results:
             print("⚠️ No records found for export")
             return None
-        
+
         # Create workbook
         wb = Workbook()
         ws = wb.active
         ws.title = "Attendance Report"
-        
+
         # Define header style
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center")
-        
+
         # Add headers in the specified order
         for idx, column_key in enumerate(selected_columns, 1):
             cell = ws.cell(row=1, column=idx)
@@ -4149,12 +4149,12 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             cell.fill = header_fill
             cell.alignment = header_alignment
             print(f"📊 Column {idx}: {column_key} -> '{cell.value}'")
-        
+
         # Add data in the same column order
         for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
             for col_idx, column_key in enumerate(selected_columns, 1):
                 cell = ws.cell(row=row_idx, column=col_idx)
-                
+
                 # Get value based on column key (same logic as before)
                 try:
                     if column_key == 'employee_id':
@@ -4245,7 +4245,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 except Exception as cell_error:
                     print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
-        
+
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
@@ -4258,15 +4258,15 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     pass
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
-        
+
         # Save to BytesIO
         excel_buffer = io.BytesIO()
         wb.save(excel_buffer)
         excel_buffer.seek(0)
-        
+
         print("📊 Excel file created successfully with custom column order")
         return excel_buffer
-        
+
     except Exception as e:
         print(f"❌ Error creating Excel export: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
@@ -4283,25 +4283,25 @@ def payroll_dashboard():
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access payroll dashboard without permissions")
             flash('Access denied. Only administrators and payroll staff can access payroll features.', 'error')
             return redirect(url_for('dashboard'))
-        
+
         print("📊 Loading payroll dashboard")
-        
+
         # Log payroll dashboard access
         logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed payroll dashboard")
-        
+
         # Get filter parameters with defaults
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
         project_filter = request.args.get('project_filter', '')
         include_travel_time = request.args.get('include_travel_time', 'true').lower() == 'true'
-        
+
         # Set default date range if not provided (last 2 weeks)
         if not date_from or not date_to:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=13)  # 2 weeks (14 days)
             date_from = start_date.strftime('%Y-%m-%d')
             date_to = end_date.strftime('%Y-%m-%d')
-        
+
         # Get list of projects for dropdown
         projects = []
         try:
@@ -4309,35 +4309,35 @@ def payroll_dashboard():
             print(f"📊 Found {len(projects)} active projects for filter")
         except Exception as e:
             print(f"⚠️ Error loading projects: {e}")
-        
+
         # Get attendance records for the period
         attendance_records = []
         working_hours_data = None
-        
+
         if date_from and date_to:
             try:
                 start_date = datetime.strptime(date_from, '%Y-%m-%d')
                 end_date = datetime.strptime(date_to, '%Y-%m-%d')
-                
+
                 # Query attendance records with optional project filter
                 query = db.session.query(AttendanceData).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
-                
+
                 # Apply date filter
                 query = query.filter(
                     AttendanceData.check_in_date >= start_date.date(),
                     AttendanceData.check_in_date <= end_date.date()
                 )
-                
+
                 # Apply project filter if selected
                 if project_filter and project_filter != '':
                     query = query.filter(QRCode.project_id == int(project_filter))
                     print(f"📊 Applied project filter: {project_filter}")
-                
+
                 query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
-                
+
                 attendance_records = query.all()
                 print(f"📊 Found {len(attendance_records)} attendance records for payroll calculation")
-                
+
                 # Calculate working hours if we have records
                 if attendance_records:
                     calculator = SingleCheckInCalculator()
@@ -4345,7 +4345,7 @@ def payroll_dashboard():
                         start_date, end_date, attendance_records
                     )
                     print(f"📊 Calculated hours for {working_hours_data['employee_count']} employees")
-                
+
             except ValueError as e:
                 print(f"⚠️ Invalid date format: {e}")
                 flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
@@ -4353,7 +4353,7 @@ def payroll_dashboard():
                 print(f"❌ Error calculating working hours: {e}")
                 logger_handler.log_database_error('payroll_calculation', e)
                 flash('Error calculating working hours. Please check the server logs.', 'error')
-        
+
         # Get employee names for display
         employee_names = {}
         if working_hours_data:
@@ -4372,19 +4372,19 @@ def payroll_dashboard():
                         WHERE ad.employee_id IN ({placeholders})
                         GROUP BY ad.employee_id, e.firstName, e.lastName
                     """))
-                    
+
                     for row in employee_query:
                         if row[1]:  # Only add if we got a name
                             employee_names[str(row[0])] = row[1]
-                
+
                 print(f"📊 Retrieved names for {len(employee_names)} employees using CAST method")
-                    
+
             except Exception as e:
                 print(f"⚠️ Could not load employee names: {e}")
                 import traceback
                 print(f"⚠️ Traceback: {traceback.format_exc()}")
                 # Continue without names - will use employee IDs
-        
+
         # Get selected project name for display
         selected_project_name = ''
         if project_filter:
@@ -4394,7 +4394,7 @@ def payroll_dashboard():
                     selected_project_name = selected_project.name
             except Exception as e:
                 print(f"⚠️ Error getting selected project name: {e}")
-        
+
         return render_template('payroll_dashboard.html',
                              working_hours_data=working_hours_data,
                              employee_names=employee_names,
@@ -4405,18 +4405,18 @@ def payroll_dashboard():
                              selected_project_name=selected_project_name,
                              include_travel_time=include_travel_time,
                              user_role=user_role)
-        
+
     except Exception as e:
         print(f"❌ Error loading payroll dashboard: {e}")
         import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         logger_handler.log_flask_error(
             error_type="payroll_dashboard_error",
             error_message=str(e),
             stack_trace=traceback.format_exc()
         )
-        
+
         flash('Error loading payroll dashboard. Please check the server logs.', 'error')
         return redirect(url_for('dashboard'))
 
@@ -4433,66 +4433,66 @@ def export_payroll_excel():
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized payroll Excel export")
             flash('Access denied. Only administrators and payroll staff can export payroll data.', 'error')
             return redirect(url_for('payroll_dashboard'))
-        
+
         print("📊 Payroll Excel export started")
-        
+
         # Get parameters from form
         date_from = request.form.get('date_from')
         date_to = request.form.get('date_to')
         project_filter = request.form.get('project_filter', '')
         include_travel_time = request.form.get('include_travel_time', 'false').lower() == 'true'
         report_type = request.form.get('report_type', 'payroll')  # 'payroll' or 'detailed'
-        
+
         if not date_from or not date_to:
             flash('Please provide both start and end dates for the export.', 'error')
             return redirect(url_for('payroll_dashboard'))
-        
+
         try:
             start_date = datetime.strptime(date_from, '%Y-%m-%d')
             end_date = datetime.strptime(date_to, '%Y-%m-%d')
         except ValueError:
             flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
             return redirect(url_for('payroll_dashboard'))
-        
+
         # Get attendance records with project filter and QR code data
         query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
-        
+
         # Apply date filter
         query = query.filter(
             AttendanceData.check_in_date >= start_date.date(),
             AttendanceData.check_in_date <= end_date.date()
         )
-        
+
         # Apply project filter if selected
         if project_filter and project_filter != '':
             query = query.filter(QRCode.project_id == int(project_filter))
             print(f"📊 Applied project filter to export: {project_filter}")
-        
+
         query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
-        
+
         # Get the results and attach QR code data to attendance records
         query_results = query.all()
         attendance_records = []
-        
+
         for attendance_data, qr_code in query_results:
             # Attach the QR code object to the attendance record
             attendance_data.qr_code = qr_code
             attendance_records.append(attendance_data)
-        
+
         print(f"📊 Export: Found {len(attendance_records)} records with QR data")
-        
+
         if not attendance_records:
             flash('No attendance records found for the selected date range and project.', 'warning')
             return redirect(url_for('payroll_dashboard'))
-        
+
         print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
-        
+
         # Create Excel exporter
         exporter = PayrollExcelExporter(
             company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
             contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
         )
-        
+
         # Get employee names using the same method as dashboard
         employee_names = {}
         try:
@@ -4509,18 +4509,18 @@ def export_payroll_excel():
                     WHERE ad.employee_id IN ({placeholders})
                     GROUP BY ad.employee_id, e.firstName, e.lastName
                 """))
-                
+
                 for row in employee_query:
                     if row[1]:  # Only add if we got a name
                         employee_names[str(row[0])] = row[1]
-            
+
             print(f"📊 Retrieved names for {len(employee_names)} employees for export using CAST method")
-                
+
         except Exception as e:
             print(f"⚠️ Could not load employee names for export: {e}")
             import traceback
             print(f"⚠️ Traceback: {traceback.format_exc()}")
-        
+
         # Generate Excel file with employee names
         if report_type == 'detailed':
             excel_file = exporter.create_detailed_hours_report(
@@ -4537,7 +4537,7 @@ def export_payroll_excel():
                         project_name = project.name
                 except Exception as e:
                     print(f"⚠️ Error getting project name for template: {e}")
-            
+
             excel_file = exporter.create_template_format_report(
                 start_date, end_date, attendance_records, employee_names, include_travel_time, project_name
             )
@@ -4547,7 +4547,7 @@ def export_payroll_excel():
                 start_date, end_date, attendance_records, employee_names, include_travel_time
             )
             filename_prefix = 'payroll_report'
-        
+
         # Get project name for filename
         project_name = ''
         if project_filter:
@@ -4557,15 +4557,15 @@ def export_payroll_excel():
                     project_name = f"_{project.name.replace(' ', '_')}"
             except Exception as e:
                 print(f"⚠️ Error getting project name for filename: {e}")
-        
+
         if excel_file:
             # Generate filename with timestamp and project name
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             travel_suffix = '_with_travel' if include_travel_time else '_no_travel'
             filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name}{travel_suffix}_{timestamp}.xlsx'
-            
+
             print(f"📊 Payroll Excel file generated successfully: {filename}")
-            
+
             # Log successful export
             logger_handler.logger.info(f"Payroll Excel export generated by user {session.get('username', 'unknown')}: {filename}")
             if report_type == 'template':
@@ -4580,18 +4580,18 @@ def export_payroll_excel():
         else:
             flash('Error generating payroll Excel file.', 'error')
             return redirect(url_for('payroll_dashboard'))
-            
+
     except Exception as e:
         print(f"❌ Error in export_payroll_excel route: {e}")
         import traceback
         print(f"❌ Traceback: {traceback.format_exc()}")
-        
+
         logger_handler.log_flask_error(
             error_type="payroll_excel_export_error",
             error_message=str(e),
             stack_trace=traceback.format_exc()
         )
-        
+
         flash('Error generating payroll Excel export. Please check the server logs.', 'error')
         return redirect(url_for('payroll_dashboard'))
 
@@ -4608,7 +4608,7 @@ def calculate_working_hours_api():
                 'success': False,
                 'message': 'Access denied. Insufficient permissions.'
             }), 403
-        
+
         # Get parameters from JSON request
         data = request.get_json()
         if not data:
@@ -4616,17 +4616,17 @@ def calculate_working_hours_api():
                 'success': False,
                 'message': 'No data provided'
             }), 400
-        
+
         employee_id = data.get('employee_id')
         date_from = data.get('date_from')
         date_to = data.get('date_to')
-        
+
         if not all([employee_id, date_from, date_to]):
             return jsonify({
                 'success': False,
                 'message': 'Missing required parameters: employee_id, date_from, date_to'
             }), 400
-        
+
         try:
             start_date = datetime.strptime(date_from, '%Y-%m-%d')
             end_date = datetime.strptime(date_to, '%Y-%m-%d')
@@ -4635,30 +4635,30 @@ def calculate_working_hours_api():
                 'success': False,
                 'message': 'Invalid date format. Use YYYY-MM-DD.'
             }), 400
-        
+
         # Get attendance records for the employee
         query = db.session.query(AttendanceData).filter(
             AttendanceData.employee_id == str(employee_id),
             AttendanceData.check_in_date >= start_date.date(),
             AttendanceData.check_in_date <= end_date.date()
         ).order_by(AttendanceData.check_in_date, AttendanceData.check_in_time)
-        
+
         attendance_records = query.all()
-        
+
         # Calculate working hours using single check-in calculator
         calculator = SingleCheckInCalculator()
         hours_data = calculator.calculate_employee_hours(
             str(employee_id), start_date, end_date, attendance_records
         )
-        
+
         # Log API usage
         logger_handler.logger.info(f"Working hours API used by {session.get('username', 'unknown')} for employee {employee_id}")
-        
+
         return jsonify({
             'success': True,
             'data': hours_data
         })
-        
+
     except Exception as e:
         print(f"❌ Error in calculate_working_hours_api: {e}")
         logger_handler.log_flask_error(
@@ -4666,7 +4666,162 @@ def calculate_working_hours_api():
             error_message=str(e),
             stack_trace=traceback.format_exc()
         )
-        
+
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error. Please check the server logs.'
+        }), 500
+
+
+@app.route('/api/employee/<employee_id>/miss-punch-details', methods=['GET'])
+@login_required
+@log_database_operations('miss_punch_details_api')
+def get_miss_punch_details(employee_id):
+    """API endpoint to get detailed miss punch information for an employee"""
+    try:
+        # Check permissions
+        user_role = session.get('role')
+        if user_role not in ['admin', 'payroll']:
+            return jsonify({
+                'success': False,
+                'message': 'Access denied. Insufficient permissions.'
+            }), 403
+
+        # Get date parameters from query string (from the current payroll filters)
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        project_filter = request.args.get('project_filter', '')
+        include_travel_time = request.args.get('include_travel_time', 'true').lower() == 'true'
+
+        if not all([date_from, date_to]):
+            return jsonify({
+                'success': False,
+                'message': 'Missing required parameters: date_from, date_to'
+            }), 400
+
+        try:
+            start_date = datetime.strptime(date_from, '%Y-%m-%d')
+            end_date = datetime.strptime(date_to, '%Y-%m-%d')
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid date format. Use YYYY-MM-DD.'
+            }), 400
+
+        # Get employee name
+        try:
+            employee_query = db.session.execute(text(
+                "SELECT employee_id, name FROM employees WHERE CAST(employee_id AS TEXT) = :emp_id"
+            ), {'emp_id': str(employee_id)})
+            employee_row = employee_query.fetchone()
+            employee_name = employee_row[1] if employee_row and employee_row[1] else f"Employee {employee_id}"
+        except Exception as e:
+            print(f"⚠️ Could not load employee name: {e}")
+            employee_name = f"Employee {employee_id}"
+
+        # Get attendance records for the employee within the period
+        query = db.session.query(AttendanceData).filter(
+            AttendanceData.employee_id == str(employee_id),
+            AttendanceData.check_in_date >= start_date.date(),
+            AttendanceData.check_in_date <= end_date.date()
+        )
+
+        # Apply project filter if provided
+        if project_filter:
+            try:
+                project_id = int(project_filter)
+                query = query.join(QRCode, AttendanceData.qr_code_id == QRCode.id) \
+                    .filter(QRCode.project_id == project_id)
+            except ValueError:
+                pass  # Invalid project_id, ignore filter
+
+        attendance_records = query.order_by(
+            AttendanceData.check_in_date,
+            AttendanceData.check_in_time
+        ).all()
+
+        # Convert to the format expected by the calculator
+        converted_records = []
+        for record in attendance_records:
+            converted_record = type('Record', (), {
+                'id': record.id,
+                'employee_id': str(record.employee_id),
+                'check_in_date': record.check_in_date,
+                'check_in_time': record.check_in_time,
+                'location_name': record.location_name or 'Unknown Location',
+                'latitude': record.latitude,
+                'longitude': record.longitude,
+                'qr_code': record.qr_code
+            })()
+            converted_records.append(converted_record)
+
+        # Calculate working hours using the same calculator as the dashboard
+        from single_checkin_calculator import SingleCheckInCalculator
+        calculator = SingleCheckInCalculator()
+
+        # Calculate hours for this employee
+        hours_data = calculator.calculate_employee_hours(
+            str(employee_id), start_date, end_date, converted_records
+        )
+
+        # Extract miss punch details
+        miss_punch_days = []
+        if 'daily_hours' in hours_data:
+            for date_str, day_data in hours_data['daily_hours'].items():
+                if day_data.get('is_miss_punch', False):
+                    # Get the actual records for this day
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    day_records = [r for r in converted_records if r.check_in_date == date_obj]
+
+                    # Format the records information with event types
+                    record_details = []
+                    for i, record in enumerate(day_records):
+                        # Determine event type based on position (alternating check-in/check-out)
+                        # First record is always check-in, then alternates
+                        event_type = "Check In" if i % 2 == 0 else "Check Out"
+
+                        record_details.append({
+                            'time': record.check_in_time.strftime('%H:%M:%S'),
+                            'event_type': event_type,
+                            'location': record.location_name or 'Unknown Location',
+                            'has_gps': record.latitude is not None and record.longitude is not None
+                        })
+
+                    miss_punch_days.append({
+                        'date': date_str,
+                        'date_formatted': datetime.strptime(date_str, '%Y-%m-%d').strftime('%B %d, %Y (%A)'),
+                        'records_count': day_data.get('records_count', 0),
+                        'records': record_details,
+                        'reason': 'Incomplete punch pairs - missing check-in or check-out' if len(
+                            day_records) % 2 != 0 else 'Invalid work period duration'
+                    })
+
+        # Log the API access
+        logger_handler.logger.info(
+            f"Miss punch details API accessed by {session.get('username', 'unknown')} for employee {employee_id}")
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'employee_id': employee_id,
+                'employee_name': employee_name,
+                'period': f"{date_from} to {date_to}",
+                'miss_punch_count': len(miss_punch_days),
+                'miss_punch_days': miss_punch_days
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Error in get_miss_punch_details: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+
+        logger_handler.log_flask_error(
+            error_type="miss_punch_details_api_error",
+            error_message=str(e),
+            stack_trace=traceback.format_exc()
+        )
+
         return jsonify({
             'success': False,
             'message': 'Internal server error. Please check the server logs.'
@@ -4680,14 +4835,14 @@ def get_employee_name(employee_id):
             FROM employee 
             WHERE id = :employee_id
         """), {'employee_id': employee_id})
-        
+
         row = result.fetchone()
         return row[0] if row else f"Employee {employee_id}"
-        
+
     except Exception as e:
         print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
         return f"Employee {employee_id}"
-    
+
 @app.context_processor
 def inject_payroll_utils():
     """Inject payroll utility functions into templates"""
@@ -4695,7 +4850,7 @@ def inject_payroll_utils():
         'get_employee_name': get_employee_name,
         'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
     }
-           
+
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
 def days_since_filter(date):
@@ -4714,7 +4869,7 @@ def time_ago_filter(date):
     from datetime import datetime
     now = datetime.utcnow()
     diff = now - date
-    
+
     if diff.days > 365:
         years = diff.days // 365
         return f"{years} year{'s' if years != 1 else ''} ago"
@@ -4739,7 +4894,7 @@ def internal_error(error):
     if app.debug:
         # Let Flask handle debug errors naturally
         return None
-    
+
     return '''
     <!DOCTYPE html>
     <html>
@@ -4773,7 +4928,7 @@ def create_tables():
     """Create database tables and default admin user with logging"""
     try:
         db.create_all()
-        
+
         # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()
         if not admin:
@@ -4786,13 +4941,13 @@ def create_tables():
             admin.set_password('admin123')  # Change this in production
             db.session.add(admin)
             db.session.commit()
-            
+
             # Log admin user creation
             logger_handler.logger.info("Default admin user created during initialization")
-            
+
         # Initialize logging table
         logger_handler._create_log_table()
-        
+
     except Exception as e:
         logger_handler.log_database_error('database_initialization', e)
         raise
@@ -4802,18 +4957,18 @@ def update_existing_qr_codes():
     try:
         qr_codes = QRCode.query.filter_by(active_status=True).all()
         updated_count = 0
-        
+
         for qr_code in qr_codes:
             if not qr_code.qr_url or not qr_code.qr_code_image:
                 try:
                     # Generate URL if missing
                     if not qr_code.qr_url:
                         qr_code.qr_url = generate_qr_url(qr_code.name, qr_code.id)
-                    
+
                     # Generate QR image if missing
                     if not qr_code.qr_code_image:
                         qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
-                        
+
                         # Use styling from database if available, otherwise defaults
                         styling = get_qr_styling(qr_code)
                         qr_code.qr_code_image = generate_qr_code(
@@ -4824,20 +4979,20 @@ def update_existing_qr_codes():
                             border=styling['border'],
                             error_correction=styling['error_correction']
                         )
-                    
+
                     updated_count += 1
-                    
+
                 except Exception as e:
                     logger_handler.log_flask_error(
                         error_type="qr_code_update_error",
                         error_message=f"Failed to update QR code {qr_code.id}: {str(e)}"
                     )
                     continue
-        
+
         if updated_count > 0:
             db.session.commit()
             logger_handler.logger.info(f"Updated {updated_count} existing QR codes with missing URLs/images")
-            
+
     except Exception as e:
         logger_handler.log_database_error('update_existing_qr_codes', e)
         print(f"Error updating existing QR codes: {e}")
@@ -4857,10 +5012,10 @@ def add_qr_customization_columns():
                 ADD COLUMN IF NOT EXISTS style_id INT,
                 ADD FOREIGN KEY (style_id) REFERENCES qr_code_styles(id)
             """)
-            
+
             # Create QRCodeStyle table
             db.create_all()
-            
+
             # Insert default styles
             default_styles = [
                 QRCodeStyle(name="Classic Black", fill_color="#000000", back_color="#FFFFFF", is_default=True),
@@ -4872,14 +5027,14 @@ def add_qr_customization_columns():
                 QRCodeStyle(name="Corporate Blue", fill_color="#1e40af", back_color="#f8fafc"),
                 QRCodeStyle(name="Minimalist Gray", fill_color="#6b7280", back_color="#FFFFFF")
             ]
-            
+
             for style in default_styles:
                 if not QRCodeStyle.query.filter_by(name=style.name).first():
                     db.session.add(style)
-            
+
             db.session.commit()
             print("QR Code customization tables and default styles created successfully!")
-            
+
     except Exception as e:
         db.session.rollback()
         print(f"Error adding QR customization columns: {e}")
@@ -4895,37 +5050,37 @@ def add_coordinate_columns():
             AND TABLE_NAME = 'qr_codes' 
             AND COLUMN_NAME IN ('address_latitude', 'address_longitude', 'coordinate_accuracy', 'coordinates_updated_date')
         """))
-        
+
         existing_columns = [row.COLUMN_NAME for row in result.fetchall()]
-        
+
         # Add missing columns
         if 'address_latitude' not in existing_columns:
             db.session.execute(text("""
                 ALTER TABLE qr_codes ADD COLUMN address_latitude FLOAT
             """))
             print("✅ Added address_latitude column")
-        
+
         if 'address_longitude' not in existing_columns:
             db.session.execute(text("""
                 ALTER TABLE qr_codes ADD COLUMN address_longitude FLOAT
             """))
             print("✅ Added address_longitude column")
-        
+
         if 'coordinate_accuracy' not in existing_columns:
             db.session.execute(text("""
                 ALTER TABLE qr_codes ADD COLUMN coordinate_accuracy VARCHAR(50) DEFAULT 'geocoded'
             """))
             print("✅ Added coordinate_accuracy column")
-        
+
         if 'coordinates_updated_date' not in existing_columns:
             db.session.execute(text("""
                 ALTER TABLE qr_codes ADD COLUMN coordinates_updated_date TIMESTAMP
             """))
             print("✅ Added coordinates_updated_date column")
-        
+
         db.session.commit()
         print("✅ Database migration completed successfully")
-        
+
     except Exception as e:
         print(f"❌ Database migration error: {e}")
         db.session.rollback()
@@ -4944,21 +5099,21 @@ def inject_logging_status():
 def log_request_info():
     """Log request information for security monitoring"""
     # Skip logging for static files and API calls
-    if (request.endpoint and 
-        (request.endpoint.startswith('static') or 
+    if (request.endpoint and
+        (request.endpoint.startswith('static') or
          request.path.startswith('/api/logs'))):
         return
-    
+
     # Log suspicious activity
     user_agent = request.headers.get('User-Agent', '')
     ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
-    
+
     # Check for potential security threats
     suspicious_patterns = [
         'sqlmap', 'nikto', 'nmap', 'dirb', 'dirbuster',
         'wget', 'curl.*bot', 'scanner', 'exploit'
     ]
-    
+
     if any(pattern in user_agent.lower() for pattern in suspicious_patterns):
         logger_handler.log_security_event(
             event_type="suspicious_user_agent",
@@ -4974,20 +5129,20 @@ def log_response_info(response):
     # Skip logging for static files
     if request.endpoint and request.endpoint.startswith('static'):
         return response
-    
+
     # Log slow requests (over 5 seconds)
     if hasattr(request, 'start_time'):
         duration = time.time() - request.start_time
         if duration > 5.0:
             logger_handler.logger.warning(f"Slow request: {request.path} took {duration:.2f} seconds")
-    
+
     # Log error responses
     if response.status_code >= 400:
         logger_handler.logger.warning(
             f"Error response: {response.status_code} for {request.path} "
             f"by user {session.get('username', 'anonymous')}"
         )
-    
+
     return response
 
 if __name__ == '__main__':
@@ -5000,7 +5155,7 @@ if __name__ == '__main__':
 
             # Log application startup
             logger_handler.logger.info("QR Attendance Management System started successfully")
-            
+
             print("🚀 QR Attendance Management System")
             print("="*50)
             print("✅ Database initialized")
@@ -5017,7 +5172,7 @@ if __name__ == '__main__':
             print("   • errors.log - Error events")
             print("   • security.log - Security-related events")
             print("\n💾 Database Logging: log_events table")
-            
+
         except Exception as e:
             print(f"❌ Application startup failed: {e}")
             if hasattr(app, 'logger_handler'):
@@ -5027,6 +5182,6 @@ if __name__ == '__main__':
                 )
             raise
 
-    app.run(debug=os.environ.get('DEBUG'), 
+    app.run(debug=os.environ.get('DEBUG'),
             host=os.environ.get('FLASK_HOST'),
             port=os.environ.get('FLASK_PORT'))

@@ -3,7 +3,8 @@
 
 {% block extra_head %}
 <style>
-    .payroll-page {
+    /* Fix layout compatibility with authenticated base */
+    .main-content {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         min-height: 100vh;
         padding: 2rem 0;
@@ -126,6 +127,11 @@
         color: white;
     }
 
+    .btn-info {
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+        color: white;
+    }
+
     .results-section {
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
@@ -231,6 +237,31 @@
         color: #c53030;
     }
 
+    /* Make miss punch badges clickable */
+    .miss-punch.clickable {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .miss-punch.clickable:hover {
+        background: #e53e3e;
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(229, 62, 62, 0.3);
+    }
+
+    .miss-punch.clickable::after {
+        content: '👁';
+        margin-left: 0.5rem;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .miss-punch.clickable:hover::after {
+        opacity: 1;
+    }
+
     .no-data {
         text-align: center;
         padding: 3rem;
@@ -264,6 +295,296 @@
         text-decoration: none;
     }
 
+    /* Modal Styles - Fixed for proper display */
+    .modal {
+        position: fixed;
+        z-index: 9999; /* Higher z-index to ensure it appears above everything */
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+        display: none; /* Hidden by default */
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.show {
+        display: flex !important; /* Force display when show class is added */
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 15px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 80vh;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease-out;
+        display: flex;
+        flex-direction: column;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9) translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #e53e3e, #c53030);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 2rem;
+        font-weight: bold;
+        cursor: pointer;
+        opacity: 0.8;
+        transition: opacity 0.3s ease;
+        color: white;
+        padding: 0;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-close:hover {
+        opacity: 1;
+    }
+
+    .modal-body {
+        padding: 2rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-footer {
+        padding: 1rem 2rem 2rem 2rem;
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    .employee-info {
+        background: linear-gradient(135deg, #f7fafc, #edf2f7);
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border-left: 4px solid #e53e3e;
+    }
+
+    .employee-info h4 {
+        margin: 0 0 0.5rem 0;
+        color: #2d3748;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+
+    .employee-info p {
+        margin: 0 0 1rem 0;
+        color: #718096;
+        font-size: 1rem;
+    }
+
+    .miss-punch-summary {
+        background: rgba(229, 62, 62, 0.1);
+        border: 1px solid rgba(229, 62, 62, 0.3);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .miss-punch-count {
+        background: #e53e3e;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+
+    .miss-punch-days {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .miss-punch-day {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .day-header {
+        background: linear-gradient(135deg, #feb2b2, #fed7d7);
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .day-header h5 {
+        margin: 0 0 0.25rem 0;
+        color: #c53030;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .day-header .day-info {
+        color: #e53e3e;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .day-content {
+        padding: 1.5rem;
+    }
+
+    .records-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .records-info h6 {
+        margin: 0 0 0.75rem 0;
+        color: #2d3748;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .record-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .record-item {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .record-time {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-weight: 600;
+        color: #4a5568;
+        background: #f1f5f9;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        flex-shrink: 0;
+    }
+
+    .record-event {
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+
+    .event-checkin {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .event-checkout {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .record-location {
+        color: #718096;
+        font-size: 0.9rem;
+        flex-grow: 1;
+    }
+
+    .gps-indicator {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 500;
+        flex-shrink: 0;
+    }
+
+    .gps-yes {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .gps-no {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .reason-box {
+        background: rgba(229, 62, 62, 0.05);
+        border: 1px solid rgba(229, 62, 62, 0.2);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
+    .reason-box strong {
+        color: #c53030;
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .reason-text {
+        color: #e53e3e;
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
+    /* Loading state */
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #718096;
+    }
+
+    .loading i {
+        font-size: 2rem;
+        color: #4299e1;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 768px) {
         .payroll-header h1 {
             font-size: 2rem;
@@ -282,228 +603,273 @@
         .export-actions {
             flex-direction: column;
         }
+
+        .modal-content {
+            width: 95%;
+        }
+
+        .modal-header,
+        .modal-body,
+        .modal-footer {
+            padding: 1rem;
+        }
+
+        .record-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .record-location {
+            margin-left: 0;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="payroll-page">
-    <div class="payroll-container">
-        <!-- Back Navigation -->
-        <a href="{{ url_for('dashboard') }}" class="back-nav">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back to Dashboard</span>
-        </a>
+<div class="payroll-container">
+    <!-- Back Navigation -->
+    <a href="{{ url_for('dashboard') }}" class="back-nav">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back to Dashboard</span>
+    </a>
 
-        <!-- Page Header -->
-        <div class="payroll-header">
-            <h1>
-                <i class="fas fa-calculator"></i>
-                Payroll Dashboard
-            </h1>
-            <p>Calculate employee working hours and generate payroll reports</p>
+    <!-- Page Header -->
+    <div class="payroll-header">
+        <h1>
+            <i class="fas fa-calculator"></i>
+            Payroll Dashboard
+        </h1>
+        <p>Calculate employee working hours and generate payroll reports</p>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+        <h3 style="margin-bottom: 1.5rem; color: #2d3748;">
+            <i class="fas fa-filter" style="color: #4299e1; margin-right: 0.5rem;"></i>
+            Calculation Parameters
+        </h3>
+
+        <form method="GET" action="{{ url_for('payroll_dashboard') }}" class="filters-form">
+            <div class="form-group">
+                <label for="date_from">Start Date</label>
+                <input type="date" id="date_from" name="date_from" value="{{ date_from }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="date_to">End Date</label>
+                <input type="date" id="date_to" name="date_to" value="{{ date_to }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="project_filter">Filter by Project</label>
+                <select id="project_filter" name="project_filter">
+                    <option value="">All Projects</option>
+                    {% for project in projects %}
+                    <option value="{{ project.id }}" {% if project_filter == project.id|string %}selected{% endif %}>
+                        {{ project.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-calculator"></i>
+                    Calculate Hours
+                </button>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="include_travel_time" name="include_travel_time"
+                       value="true" {% if include_travel_time %}checked{% endif %}>
+                <label for="include_travel_time">Include travel time between locations</label>
+            </div>
+        </form>
+    </div>
+
+    <!-- Results Section -->
+    {% if working_hours_data %}
+    <div class="results-section">
+        <h3 style="margin-bottom: 1.5rem; color: #2d3748;">
+            <i class="fas fa-chart-bar" style="color: #48bb78; margin-right: 0.5rem;"></i>
+            Working Hours Summary
+        </h3>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <h3>{{ working_hours_data.employee_count }}</h3>
+                <p>Total Employees</p>
+            </div>
+            <div class="summary-card">
+                <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.total_hours') | sum) }}</h3>
+                <p>Total Hours</p>
+            </div>
+            <div class="summary-card">
+                <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.regular_hours') | sum) }}</h3>
+                <p>Regular Hours</p>
+            </div>
+            <div class="summary-card">
+                <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.overtime_hours') | sum) }}</h3>
+                <p>Overtime Hours</p>
+            </div>
         </div>
 
-        <!-- Filters Section -->
-        <div class="filters-section">
-            <h3 style="margin-bottom: 1.5rem; color: #2d3748;">
-                <i class="fas fa-filter" style="color: #4299e1; margin-right: 0.5rem;"></i>
-                Calculation Parameters
-            </h3>
-            
-            <form method="GET" action="{{ url_for('payroll_dashboard') }}" class="filters-form">
-                <div class="form-group">
-                    <label for="date_from">Start Date</label>
-                    <input type="date" id="date_from" name="date_from" value="{{ date_from }}" required>
-                </div>
+        <!-- Employee Details Table -->
+        <div class="employees-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Employee ID</th>
+                        <th>Employee Name</th>
+                        <th>Total Hours</th>
+                        <th>Regular Hours</th>
+                        <th>Overtime Hours</th>
+                        <th>Working Days</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee_id, emp_data in working_hours_data.employees.items() %}
+                    <tr>
+                        <td>{{ employee_id }}</td>
+                        <td>{{ employee_names.get(employee_id, 'Employee ' + employee_id) }}</td>
+                        <td>
+                            <span class="hours-badge hours-total">
+                                {{ "%.2f"|format(emp_data.grand_totals.total_hours) }} hrs
+                            </span>
+                        </td>
+                        <td>
+                            <span class="hours-badge hours-regular">
+                                {{ "%.2f"|format(emp_data.grand_totals.regular_hours) }} hrs
+                            </span>
+                        </td>
+                        <td>
+                            {% if emp_data.grand_totals.overtime_hours > 0 %}
+                            <span class="hours-badge hours-overtime">
+                                {{ "%.2f"|format(emp_data.grand_totals.overtime_hours) }} hrs
+                            </span>
+                            {% else %}
+                            <span class="hours-badge" style="background: #f0f0f0; color: #666;">
+                                0.00 hrs
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set working_days = emp_data.daily_hours.values() | selectattr('total_hours', '>', 0) | list | length %}
+                            {{ working_days }} days
+                        </td>
+                        <td>
+                            {% set miss_punches = emp_data.daily_hours.values() | selectattr('is_miss_punch', 'equalto', true) | list | length %}
+                            {% if miss_punches > 0 %}
+                            <span class="hours-badge miss-punch">
+                                {{ miss_punches }} miss punch(es)
+                            </span>
+                            {% else %}
+                            <span class="hours-badge" style="background: #e6fffa; color: #38a169;">
+                                Complete
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-                <div class="form-group">
-                    <label for="date_to">End Date</label>
-                    <input type="date" id="date_to" name="date_to" value="{{ date_to }}" required>
-                </div>
+        <!-- Export Actions -->
+        <div class="export-actions">
+            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="project_filter" value="{{ project_filter }}">
+                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
+                <input type="hidden" name="report_type" value="payroll">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-file-excel"></i>
+                    Export Payroll Report
+                </button>
+            </form>
 
-                <div class="form-group">
-                    <label for="project_filter">Filter by Project</label>
-                    <select id="project_filter" name="project_filter">
-                        <option value="">All Projects</option>
-                        {% for project in projects %}
-                        <option value="{{ project.id }}" {% if project_filter == project.id|string %}selected{% endif %}>
-                            {{ project.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
+            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="project_filter" value="{{ project_filter }}">
+                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
+                <input type="hidden" name="report_type" value="detailed">
+                <button type="submit" class="btn btn-secondary">
+                    <i class="fas fa-list-alt"></i>
+                    Export Detailed Hours
+                </button>
+            </form>
 
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-calculator"></i>
-                        Calculate Hours
-                    </button>
-                </div>
-
-                <div class="checkbox-group">
-                    <input type="checkbox" id="include_travel_time" name="include_travel_time" 
-                           value="true" {% if include_travel_time %}checked{% endif %}>
-                    <label for="include_travel_time">Include travel time between locations</label>
-                </div>
+            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="project_filter" value="{{ project_filter }}">
+                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
+                <input type="hidden" name="report_type" value="template">
+                <button type="submit" class="btn btn-info">
+                    <i class="fas fa-file-contract"></i>
+                    Export Template Format
+                </button>
             </form>
         </div>
 
-        <!-- Results Section -->
-        {% if working_hours_data %}
-        <div class="results-section">
-            <h3 style="margin-bottom: 1.5rem; color: #2d3748;">
-                <i class="fas fa-chart-bar" style="color: #48bb78; margin-right: 0.5rem;"></i>
-                Working Hours Summary
-            </h3>
+        <div style="margin-top: 1rem; padding: 1rem; background: #f7fafc; border-radius: 8px; color: #4a5568; font-size: 0.9rem;">
+            <strong>Report Details:</strong><br>
+            Period: {{ working_hours_data.period_start }} to {{ working_hours_data.period_end }}<br>
+            Travel Time: {{ "Included" if working_hours_data.include_travel_time else "Excluded" }}<br>
+            Generated: {{ working_hours_data.calculation_date }}
+        </div>
+    </div>
+    {% else %}
+    <div class="results-section">
+        <div class="no-data">
+            <i class="fas fa-clock" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i><br>
+            {% if date_from and date_to %}
+            No attendance records found for the selected date range.<br>
+            Please try a different date range or check if attendance data has been recorded.
+            {% else %}
+            Please select a date range to calculate working hours.
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
 
-            <!-- Summary Cards -->
-            <div class="summary-cards">
-                <div class="summary-card">
-                    <h3>{{ working_hours_data.employee_count }}</h3>
-                    <p>Total Employees</p>
-                </div>
-                <div class="summary-card">
-                    <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.total_hours') | sum) }}</h3>
-                    <p>Total Hours</p>
-                </div>
-                <div class="summary-card">
-                    <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.regular_hours') | sum) }}</h3>
-                    <p>Regular Hours</p>
-                </div>
-                <div class="summary-card">
-                    <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.overtime_hours') | sum) }}</h3>
-                    <p>Overtime Hours</p>
+<!-- Miss Punch Details Modal -->
+<div class="modal" id="missPunchModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Miss Punch Details</h3>
+            <button class="modal-close" onclick="closeMissPunchModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="employee-info">
+                <h4 id="modalEmployeeName">Loading...</h4>
+                <p id="modalPeriod">Loading period...</p>
+                <div class="miss-punch-summary">
+                    <span id="missPunchCount" class="miss-punch-count">0</span> miss punch(es) found
                 </div>
             </div>
 
-            <!-- Employee Details Table -->
-            <div class="employees-table">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Employee ID</th>
-                            <th>Employee Name</th>
-                            <th>Total Hours</th>
-                            <th>Regular Hours</th>
-                            <th>Overtime Hours</th>
-                            <th>Working Days</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for employee_id, emp_data in working_hours_data.employees.items() %}
-                        <tr>
-                            <td>{{ employee_id }}</td>
-                            <td>{{ employee_names.get(employee_id, 'Employee ' + employee_id) }}</td>
-                            <td>
-                                <span class="hours-badge hours-total">
-                                    {{ "%.2f"|format(emp_data.grand_totals.total_hours) }} hrs
-                                </span>
-                            </td>
-                            <td>
-                                <span class="hours-badge hours-regular">
-                                    {{ "%.2f"|format(emp_data.grand_totals.regular_hours) }} hrs
-                                </span>
-                            </td>
-                            <td>
-                                {% if emp_data.grand_totals.overtime_hours > 0 %}
-                                <span class="hours-badge hours-overtime">
-                                    {{ "%.2f"|format(emp_data.grand_totals.overtime_hours) }} hrs
-                                </span>
-                                {% else %}
-                                <span class="hours-badge" style="background: #f0f0f0; color: #666;">
-                                    0.00 hrs
-                                </span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% set working_days = emp_data.daily_hours.values() | selectattr('total_hours', '>', 0) | list | length %}
-                                {{ working_days }} days
-                            </td>
-                            <td>
-                                {% set miss_punches = emp_data.daily_hours.values() | selectattr('is_miss_punch', 'equalto', true) | list | length %}
-                                {% if miss_punches > 0 %}
-                                <span class="hours-badge miss-punch">
-                                    {{ miss_punches }} miss punch(es)
-                                </span>
-                                {% else %}
-                                <span class="hours-badge" style="background: #e6fffa; color: #38a169;">
-                                    Complete
-                                </span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Export Actions -->
-            <div class="export-actions">
-                <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
-                    <input type="hidden" name="date_from" value="{{ date_from }}">
-                    <input type="hidden" name="date_to" value="{{ date_to }}">
-                    <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                    <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
-                    <input type="hidden" name="report_type" value="payroll">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-file-excel"></i>
-                        Export Payroll Report
-                    </button>
-                </form>
-
-                <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
-                    <input type="hidden" name="date_from" value="{{ date_from }}">
-                    <input type="hidden" name="date_to" value="{{ date_to }}">
-                    <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                    <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
-                    <input type="hidden" name="report_type" value="detailed">
-                    <button type="submit" class="btn btn-secondary">
-                        <i class="fas fa-list-alt"></i>
-                        Export Detailed Hours
-                    </button>
-                </form>
-
-                <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
-                    <input type="hidden" name="date_from" value="{{ date_from }}">
-                    <input type="hidden" name="date_to" value="{{ date_to }}">
-                    <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                    <input type="hidden" name="project_filter" value="{{ request.form.get('project_filter', '') }}">
-                    <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
-                    <input type="hidden" name="report_type" value="template">
-                    <button type="submit" class="btn btn-info">
-                        <i class="fas fa-file-contract"></i>
-                        Export Template Format
-                    </button>
-                </form>
-            </div>
-
-            <div style="margin-top: 1rem; padding: 1rem; background: #f7fafc; border-radius: 8px; color: #4a5568; font-size: 0.9rem;">
-                <strong>Report Details:</strong><br>
-                Period: {{ working_hours_data.period_start }} to {{ working_hours_data.period_end }}<br>
-                Travel Time: {{ "Included" if working_hours_data.include_travel_time else "Excluded" }}<br>
-                Generated: {{ working_hours_data.calculation_date }}
+            <div id="missPunchDays" class="miss-punch-days">
+                <!-- Miss punch days will be populated here -->
             </div>
         </div>
-        {% else %}
-        <div class="results-section">
-            <div class="no-data">
-                <i class="fas fa-clock" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i><br>
-                {% if date_from and date_to %}
-                No attendance records found for the selected date range.<br>
-                Please try a different date range or check if attendance data has been recorded.
-                {% else %}
-                Please select a date range to calculate working hours.
-                {% endif %}
-            </div>
+        <div class="modal-footer">
+            <button onclick="closeMissPunchModal()" class="btn btn-secondary">Close</button>
         </div>
-        {% endif %}
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Payroll dashboard JavaScript starting...');
+
     // Auto-submit form when travel time checkbox changes
     const travelTimeCheckbox = document.getElementById('include_travel_time');
     if (travelTimeCheckbox) {
@@ -511,7 +877,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Only auto-submit if we have dates
             const dateFrom = document.getElementById('date_from').value;
             const dateTo = document.getElementById('date_to').value;
-            
+
             if (dateFrom && dateTo) {
                 this.form.submit();
             }
@@ -540,6 +906,236 @@ document.addEventListener('DOMContentLoaded', function() {
 
     dateFromInput.addEventListener('change', validateDateRange);
     dateToInput.addEventListener('change', validateDateRange);
+
+    // Initialize miss punch click handlers
+    initializeMissPunchHandlers();
+
+    console.log('✅ Payroll dashboard JavaScript initialized');
 });
+
+// Function to initialize miss punch click handlers
+function initializeMissPunchHandlers() {
+    console.log('🔧 Starting miss punch handler initialization...');
+
+    // Find all miss punch badges and make them clickable
+    const missPunchBadges = document.querySelectorAll('.miss-punch');
+    console.log(`📊 Found ${missPunchBadges.length} miss punch badges`);
+
+    let handlerCount = 0;
+
+    missPunchBadges.forEach(function(badge, index) {
+        console.log(`🔍 Processing badge ${index + 1}: "${badge.textContent.trim()}"`);
+
+        if (badge.textContent.trim() !== 'Complete' && badge.textContent.includes('miss punch')) {
+            badge.classList.add('clickable');
+            badge.title = 'Click to view miss punch details';
+
+            // Get the employee ID from the same row
+            const row = badge.closest('tr');
+            const employeeIdCell = row.querySelector('td:first-child');
+            const employeeId = employeeIdCell ? employeeIdCell.textContent.trim() : null;
+
+            console.log(`👤 Employee ID found: ${employeeId}`);
+
+            if (employeeId) {
+                badge.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log(`🖱️ Click detected on badge for employee: ${employeeId}`);
+                    showMissPunchDetails(employeeId);
+                });
+                handlerCount++;
+                console.log(`✅ Handler attached to badge ${index + 1} for employee ${employeeId}`);
+            } else {
+                console.warn(`⚠️ Could not find employee ID for badge ${index + 1}`);
+            }
+        } else {
+            console.log(`⏭️ Skipping badge ${index + 1} - not a miss punch badge`);
+        }
+    });
+
+    console.log(`✅ Miss punch click handlers initialized - ${handlerCount} handlers attached`);
+}
+
+// Function to show miss punch details modal
+function showMissPunchDetails(employeeId) {
+    console.log(`🔍 Opening miss punch details for employee: ${employeeId}`);
+
+    // Get current filter values from the form
+    const dateFrom = document.querySelector('input[name="date_from"]')?.value || '';
+    const dateTo = document.querySelector('input[name="date_to"]')?.value || '';
+    const projectFilter = document.querySelector('select[name="project_filter"]')?.value || '';
+    const includeTravelTime = document.querySelector('input[name="include_travel_time"]')?.checked || false;
+
+    // Show modal with loading state
+    const modal = document.getElementById('missPunchModal');
+    console.log('📦 Modal element found:', modal);
+
+    // Use the show class method for better control
+    modal.classList.add('show');
+    console.log('✅ Modal should now be visible');
+
+    // Set loading state
+    document.getElementById('modalEmployeeName').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    document.getElementById('modalPeriod').textContent = 'Loading period...';
+    document.getElementById('missPunchCount').textContent = '0';
+    document.getElementById('missPunchDays').innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i><br>Loading miss punch details...</div>';
+
+    // Build API URL with parameters
+    const params = new URLSearchParams({
+        date_from: dateFrom,
+        date_to: dateTo,
+        project_filter: projectFilter,
+        include_travel_time: includeTravelTime.toString()
+    });
+
+    const apiUrl = `/api/employee/${employeeId}/miss-punch-details?${params.toString()}`;
+    console.log('🌐 API URL:', apiUrl);
+
+    // Fetch miss punch details from API
+    fetch(apiUrl)
+        .then(response => {
+            console.log('📡 API Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📄 API Response data:', data);
+            if (data.success) {
+                populateMissPunchModal(data.data);
+                console.log(`✅ Miss punch details loaded for employee ${employeeId}`);
+            } else {
+                console.error(`❌ API error for employee ${employeeId}:`, data.message);
+                showModalError(data.message || 'Failed to load miss punch details');
+            }
+        })
+        .catch(error => {
+            console.error(`❌ Network error loading miss punch details for employee ${employeeId}:`, error);
+            showModalError('Network error. Please try again.');
+        });
+}
+
+// Function to populate the modal with miss punch data
+function populateMissPunchModal(data) {
+    console.log('🔄 Populating modal with data:', data);
+
+    // Update header information
+    document.getElementById('modalEmployeeName').textContent = data.employee_name;
+    document.getElementById('modalPeriod').textContent = `Period: ${data.period}`;
+    document.getElementById('missPunchCount').textContent = data.miss_punch_count;
+
+    // Clear and populate miss punch days
+    const daysContainer = document.getElementById('missPunchDays');
+    daysContainer.innerHTML = '';
+
+    if (data.miss_punch_days && data.miss_punch_days.length > 0) {
+        data.miss_punch_days.forEach(function(day) {
+            const dayElement = createMissPunchDayElement(day);
+            daysContainer.appendChild(dayElement);
+        });
+    } else {
+        daysContainer.innerHTML = '<div class="no-data">No miss punch details found for this period.</div>';
+    }
+
+    console.log('✅ Modal populated successfully');
+}
+
+// Function to create a miss punch day element
+function createMissPunchDayElement(dayData) {
+    const dayDiv = document.createElement('div');
+    dayDiv.className = 'miss-punch-day';
+
+    // Create records HTML
+    let recordsHtml = '';
+    if (dayData.records && dayData.records.length > 0) {
+        recordsHtml = dayData.records.map((record, index) => {
+            // Fallback: determine event type if not provided by API
+            const eventType = record.event_type || (index % 2 === 0 ? 'Check In' : 'Check Out');
+            const eventClass = eventType.toLowerCase().includes('in') ? 'event-checkin' : 'event-checkout';
+
+            return `
+                <div class="record-item">
+                    <span class="record-time">${record.time}</span>
+                    <span class="record-event ${eventClass}">
+                        ${eventType}
+                    </span>
+                    <span class="record-location">${record.location}</span>
+                    <span class="gps-indicator ${record.has_gps ? 'gps-yes' : 'gps-no'}">
+                        ${record.has_gps ? '📍 GPS' : '❌ No GPS'}
+                    </span>
+                </div>
+            `;
+        }).join('');
+    } else {
+        recordsHtml = '<div class="no-data">No attendance records found for this day.</div>';
+    }
+
+    dayDiv.innerHTML = `
+        <div class="day-header">
+            <h5>${dayData.date_formatted}</h5>
+            <div class="day-info">${dayData.records_count} attendance record(s)</div>
+        </div>
+        <div class="day-content">
+            <div class="records-info">
+                <h6><i class="fas fa-clock"></i> Attendance Records:</h6>
+                <div class="record-list">
+                    ${recordsHtml}
+                </div>
+            </div>
+            <div class="reason-box">
+                <strong><i class="fas fa-exclamation-triangle"></i> Issue Detected:</strong>
+                <div class="reason-text">${dayData.reason}</div>
+            </div>
+        </div>
+    `;
+
+    return dayDiv;
+}
+
+// Function to show error in modal
+function showModalError(message) {
+    console.log('❌ Showing modal error:', message);
+    document.getElementById('modalEmployeeName').textContent = 'Error';
+    document.getElementById('modalPeriod').textContent = '';
+    document.getElementById('missPunchCount').textContent = '0';
+    document.getElementById('missPunchDays').innerHTML = `
+        <div class="no-data" style="color: #e53e3e;">
+            <i class="fas fa-exclamation-triangle"></i><br>
+            ${message}
+        </div>
+    `;
+}
+
+// Function to close the modal
+function closeMissPunchModal() {
+    const modal = document.getElementById('missPunchModal');
+    modal.classList.remove('show');
+    console.log('📝 Miss punch modal closed');
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('missPunchModal');
+    if (event.target === modal) {
+        closeMissPunchModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeMissPunchModal();
+    }
+});
+
+// Test function for debugging
+function testModal() {
+    console.log('🧪 Testing modal display...');
+    const modal = document.getElementById('missPunchModal');
+    modal.classList.add('show');
+    document.getElementById('modalEmployeeName').textContent = 'Test Employee';
+    document.getElementById('modalPeriod').textContent = 'Test Period';
+    document.getElementById('missPunchCount').textContent = '1';
+    document.getElementById('missPunchDays').innerHTML = '<div class="no-data">Test modal is working!</div>';
+}
 </script>
 {% endblock %}
