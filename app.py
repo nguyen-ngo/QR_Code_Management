@@ -4541,7 +4541,7 @@ def export_payroll_excel():
             excel_file = exporter.create_template_format_report(
                 start_date, end_date, attendance_records, employee_names, include_travel_time, project_name
             )
-            filename_prefix = 'template_hours_report'
+            filename_prefix = 'time_attendance_report'
         else:
             excel_file = exporter.create_payroll_report(
                 start_date, end_date, attendance_records, employee_names, include_travel_time

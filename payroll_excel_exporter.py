@@ -705,22 +705,22 @@ class PayrollExcelExporter:
         return current_row
 
     def _write_employee_section(self, worksheet, employee_id: str, employee_name: str, 
-                            emp_data: Dict, start_date: datetime, end_date: datetime,
-                            attendance_records: List[Dict], start_row: int) -> int:
-        """Write individual employee section and return next row number"""
+                        emp_data: Dict, start_date: datetime, end_date: datetime,
+                        attendance_records: List[Dict], start_row: int) -> int:
+        """Write individual employee section with multiple pairs per day, daily totals, weekly totals, and grand total"""
         current_row = start_row
         
         # Employee info header (merged across columns A-O)
         employee_info = f"Employee ID {employee_id}: {employee_name}"
         cell = worksheet.cell(row=current_row, column=1, value=employee_info)
         self._apply_style(cell, self.template_employee_style)
-        worksheet.merge_cells(f'A{current_row}:Q{current_row}')
+        worksheet.merge_cells(f'A{current_row}:N{current_row}')
         current_row += 1
         
         # Column headers for this employee
         headers = ["Day", "Date", "In", "Out", "Location", "Zone", "Hours/Building", 
-           "Daily Total", "Regular Hours", "OT Hours", "Building Address", 
-           "Recorded Location", "Distance", "Possible Violation"]
+        "Daily Total", "Regular Hours", "OT Hours", "Building Address", 
+        "Recorded Location", "Distance", "Possible Violation"]
         
         for col, header in enumerate(headers, 1):
             cell = worksheet.cell(row=current_row, column=col, value=header)
@@ -751,6 +751,20 @@ class PayrollExcelExporter:
                     day_info['location'] = sorted_records[0].qr_code.location or ''
                     day_info['building_address'] = sorted_records[0].qr_code.location_address or ''
         
+        # Initialize weekly totals tracking
+        weekly_regular_hours = 0
+        weekly_ot_hours = 0
+        weekly_total_hours = 0
+        
+        # Track overall totals for grand total
+        grand_regular_hours = 0
+        grand_ot_hours = 0
+        grand_total_hours = 0
+        total_pairs_written = 0  # Track total pairs across all days
+        
+        # Track week boundaries (assuming payroll period starts on Monday)
+        current_week_start = None
+        
         # Write data rows using the calculated daily hours from emp_data
         for date_str in sorted(emp_data['daily_hours'].keys()):
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -760,90 +774,286 @@ class PayrollExcelExporter:
             if day_hours_data.get('is_miss_punch', False) or day_hours_data.get('total_hours', 0) <= 0:
                 continue
             
+            # Calculate week boundaries
+            week_start = date_obj - timedelta(days=date_obj.weekday())  # Monday of the week
+            
+            # Check if we've moved to a new week and need to write weekly total
+            if current_week_start is not None and week_start != current_week_start:
+                # Write weekly total row for previous week
+                current_row = self._write_weekly_total_row(worksheet, current_row, 
+                                                        weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
+                
+                # Reset weekly counters
+                weekly_regular_hours = 0
+                weekly_ot_hours = 0
+                weekly_total_hours = 0
+            
+            current_week_start = week_start
+            
             total_hours = day_hours_data.get('total_hours', 0)
             regular_hours = min(total_hours, 8.0)  # Max 8 regular hours per day
             ot_hours = max(0, total_hours - 8.0)
+            
+            # Add to weekly and grand totals
+            weekly_regular_hours += regular_hours
+            weekly_ot_hours += ot_hours
+            weekly_total_hours += total_hours
+            
+            grand_regular_hours += regular_hours
+            grand_ot_hours += ot_hours
+            grand_total_hours += total_hours
             
             # Get location info for this date
             location_info = daily_location_data.get(date_str, {})
             location = location_info.get('location', '')
             building_address = location_info.get('building_address', '')
             
-            # Get check-in/out times from records
-            check_in_time = ''
-            check_out_time = ''
+            # Get all records for this day, sorted by time
+            day_records = []
             if date_str in daily_location_data:
-                records = daily_location_data[date_str]['records']
-                sorted_records = sorted(records, key=lambda x: x.check_in_time)
-                if sorted_records:
-                    check_in_time = sorted_records[0].check_in_time.strftime('%I:%M:%S %p')
-                    
-                    # For single check-in system, determine check-out time
-                    if len(sorted_records) > 1:
-                        check_out_time = sorted_records[-1].check_in_time.strftime('%I:%M:%S %p')
-                    else:
-                        # Single check-in - estimate check-out based on total hours
-                        check_in_datetime = datetime.combine(sorted_records[0].check_in_date, sorted_records[0].check_in_time)
-                        estimated_checkout = check_in_datetime + timedelta(hours=total_hours)
-                        check_out_time = estimated_checkout.strftime('%I:%M:%S %p')
+                day_records = sorted(daily_location_data[date_str]['records'], key=lambda x: x.check_in_time)
             
-            location_accuracy = None
-            recorded_location = ''
-            distance_value = ''
-            possible_violation = ''
-            
-            # Find attendance record for this date to get location accuracy
-            if date_str in daily_location_data:
-                records = daily_location_data[date_str]['records']
-                if records:
-                    # Get location accuracy from the first record of the day
-                    location_accuracy = getattr(records[0], 'location_accuracy', None)
-                    
-                    # Determine recorded location based on accuracy (same logic as attendance report)
-                    if location_accuracy is not None:
-                        try:
-                            accuracy_value = float(location_accuracy)
-                            distance_value = f"{accuracy_value:.3f}"
-                            
-                            if accuracy_value < 0.3:
-                                # High accuracy - use QR code address
-                                recorded_location = building_address  # This is already the QR location_address
-                                possible_violation = "No"
-                            else:
-                                # Lower accuracy - use actual check-in address
-                                recorded_location = getattr(records[0], 'address', '') or ''
-                                possible_violation = "Yes"
-                        except (ValueError, TypeError):
-                            # If accuracy can't be converted, use actual address
-                            recorded_location = getattr(records[0], 'address', '') or ''
-                            distance_value = 'N/A'
-                            possible_violation = 'Unknown'
-                    else:
-                        # No location accuracy data
-                        recorded_location = getattr(records[0], 'address', '') or ''
-                        distance_value = 'N/A'
-                        possible_violation = 'Unknown'
-
-            row_data = [
-                date_obj.strftime('%A').upper(),  # Day name
-                date_obj.strftime('%m/%d/%Y'),    # Date
-                check_in_time,                    # Check in
-                check_out_time,                   # Check out
-                location,                         # Location
-                '',                              # Zone
-                round(total_hours, 2),           # Hours/Building
-                round(total_hours, 2),           # Daily Total
-                round(regular_hours, 2) if regular_hours > 0 else '', # Regular Hours
-                round(ot_hours, 2) if ot_hours > 0 else '',          # OT Hours
-                building_address,                 # Building Address
-                recorded_location,                # Recorded Location
-                distance_value,                   # Distance
-                possible_violation                # Possible Violation
-            ]
-            
-            for col, value in enumerate(row_data, 1):
-                cell = worksheet.cell(row=current_row, column=col, value=value)
-                self._apply_style(cell, self.template_data_style)
-            current_row += 1
+            # Write multiple pairs for the day (like template shows FRIDAY appearing twice)
+            pairs_written = 0
+            if len(day_records) >= 2:
+                # Create pairs from consecutive records
+                for i in range(0, len(day_records) - 1, 2):
+                    if i + 1 < len(day_records):
+                        start_record = day_records[i]
+                        end_record = day_records[i + 1]
+                        
+                        current_row = self._write_record_pair_row(
+                            worksheet, current_row, date_obj, start_record, end_record,
+                            location, building_address, total_hours, regular_hours, ot_hours,
+                            pairs_written, total_hours  # Pass total_hours for daily total on last pair
+                        )
+                        pairs_written += 1
+                        total_pairs_written += 1  # Track total pairs
+            else:
+                # Single record or no records - write one row
+                start_record = day_records[0] if day_records else None
+                current_row = self._write_single_record_row(
+                    worksheet, current_row, date_obj, start_record,
+                    location, building_address, total_hours, regular_hours, ot_hours
+                )
+        
+        # Write final weekly total if we have data
+        if weekly_total_hours > 0:
+            current_row = self._write_weekly_total_row(worksheet, current_row, 
+                                                    weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
+        
+        # Write grand total row
+        current_row = self._write_grand_total_row(worksheet, current_row, 
+                                                grand_regular_hours, grand_ot_hours)
+        
+        # Add space between employees
+        current_row += 2
+        
+        # Log the export action (use print for now since logger_handler import is complex)
+        print(f"✅ Template format export: Employee {employee_id} ({employee_name}) data written with {total_pairs_written} record pairs, weekly totals, and grand total")
         
         return current_row
+
+    def _write_record_pair_row(self, worksheet, current_row: int, date_obj: datetime, 
+                          start_record, end_record, location: str, building_address: str,
+                          day_total_hours: float, regular_hours: float, ot_hours: float,
+                          pair_index: int, daily_total_hours: float) -> int:
+        """Write a single record pair row (in/out times)"""
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Calculate hours for this specific pair
+        if start_record and end_record:
+            start_time = start_record.check_in_time
+            end_time = end_record.check_in_time
+            start_datetime = datetime.combine(start_record.check_in_date, start_time)
+            end_datetime = datetime.combine(end_record.check_in_date, end_time)
+            pair_duration = (end_datetime - start_datetime).total_seconds() / 3600
+            pair_hours = round(pair_duration, 2)
+        else:
+            start_time = start_record.check_in_time if start_record else None
+            end_time = end_record.check_in_time if end_record else None
+            pair_hours = 0
+        
+        # Format times
+        check_in_time = start_time.strftime('%I:%M:%S %p') if start_time else ''
+        check_out_time = end_time.strftime('%I:%M:%S %p') if end_time else ''
+        
+        # Get location accuracy info
+        location_accuracy = None
+        recorded_location = ''
+        distance_value = ''
+        possible_violation = 'No'
+        
+        if start_record and hasattr(start_record, 'location_accuracy'):
+            location_accuracy = getattr(start_record, 'location_accuracy', None)
+            if location_accuracy is not None:
+                try:
+                    accuracy_value = float(location_accuracy)
+                    distance_value = f"{accuracy_value:.3f}"
+                    
+                    if accuracy_value < 0.3:
+                        recorded_location = building_address
+                        possible_violation = "No"
+                    else:
+                        recorded_location = f"GPS Location (Accuracy: {distance_value} miles)"
+                        possible_violation = "Yes" if accuracy_value > 0.5 else "Possible"
+                except (ValueError, TypeError):
+                    distance_value = "Unknown"
+                    recorded_location = "GPS Location (Unknown Accuracy)"
+                    possible_violation = "Possible"
+        
+        # Create building address hyperlink if available
+        building_address_display = building_address
+        if building_address and "," in building_address:
+            # Create Google Maps hyperlink
+            maps_url = f"https://www.google.com/maps/place/{building_address.replace(' ', '+')}"
+            building_address_display = f'=HYPERLINK("{maps_url}","{building_address}")'
+        
+        # Create recorded location hyperlink if it's a GPS location
+        recorded_location_display = recorded_location
+        if recorded_location and "GPS Location" not in recorded_location and "," in recorded_location:
+            maps_url = f"https://www.google.com/maps/place/{recorded_location.replace(' ', '+')}"
+            recorded_location_display = f'=HYPERLINK("{maps_url}","{recorded_location}")'
+        
+        # Determine if this is the last pair of the day (for daily total)
+        is_last_pair = pair_index > 0  # Show daily total on second+ pairs
+        daily_total_display = daily_total_hours if is_last_pair else ""
+        
+        row_data = [
+            day_name,                    # A - Day
+            date_str,                    # B - Date  
+            check_in_time,              # C - In
+            check_out_time,             # D - Out
+            location,                   # E - Location
+            "",                         # F - Zone (empty)
+            pair_hours,                 # G - Hours/Building
+            daily_total_display,        # H - Daily Total (only on last pair)
+            regular_hours if is_last_pair else "",  # I - Regular Hours (only on last pair)
+            ot_hours if is_last_pair else "",       # J - OT Hours (only on last pair)
+            building_address_display,   # K - Building Address
+            recorded_location_display,  # L - Recorded Location  
+            distance_value,             # M - Distance
+            possible_violation          # N - Possible Violation
+        ]
+        
+        # Write the row
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            self._apply_style(cell, self.template_data_style)
+        
+        return current_row + 1
+
+    def _write_single_record_row(self, worksheet, current_row: int, date_obj: datetime, 
+                            record, location: str, building_address: str,
+                            total_hours: float, regular_hours: float, ot_hours: float) -> int:
+        """Write a single record row when there's only one check-in"""
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Single record - estimate check-out time
+        if record:
+            check_in_time = record.check_in_time.strftime('%I:%M:%S %p')
+            # Estimate check-out based on total hours
+            check_in_datetime = datetime.combine(record.check_in_date, record.check_in_time)
+            estimated_checkout = check_in_datetime + timedelta(hours=total_hours)
+            check_out_time = estimated_checkout.strftime('%I:%M:%S %p')
+        else:
+            check_in_time = ''
+            check_out_time = ''
+        
+        # Get location accuracy info (same logic as pair row)
+        location_accuracy = None
+        recorded_location = ''
+        distance_value = ''
+        possible_violation = 'No'
+        
+        if record and hasattr(record, 'location_accuracy'):
+            location_accuracy = getattr(record, 'location_accuracy', None)
+            if location_accuracy is not None:
+                try:
+                    accuracy_value = float(location_accuracy)
+                    distance_value = f"{accuracy_value:.3f}"
+                    
+                    if accuracy_value < 0.3:
+                        recorded_location = building_address
+                        possible_violation = "No"
+                    else:
+                        recorded_location = f"GPS Location (Accuracy: {distance_value} miles)"
+                        possible_violation = "Yes" if accuracy_value > 0.5 else "Possible"
+                except (ValueError, TypeError):
+                    distance_value = "Unknown"
+                    recorded_location = "GPS Location (Unknown Accuracy)"
+                    possible_violation = "Possible"
+        
+        row_data = [
+            day_name,           # A - Day
+            date_str,           # B - Date
+            check_in_time,      # C - In
+            check_out_time,     # D - Out
+            location,           # E - Location
+            "",                 # F - Zone
+            total_hours,        # G - Hours/Building
+            total_hours,        # H - Daily Total
+            regular_hours,      # I - Regular Hours
+            ot_hours,          # J - OT Hours
+            building_address,   # K - Building Address
+            recorded_location,  # L - Recorded Location
+            distance_value,     # M - Distance
+            possible_violation  # N - Possible Violation
+        ]
+        
+        # Write the row
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            self._apply_style(cell, self.template_data_style)
+        
+        return current_row + 1
+
+    def _write_weekly_total_row(self, worksheet, current_row: int, 
+                            weekly_regular: float, weekly_ot: float, weekly_total: float) -> int:
+        """Write weekly total row matching template format"""
+        
+        # Weekly Total row (columns G-J)
+        cell = worksheet.cell(row=current_row, column=7, value="Weekly Total: ")  # G
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        cell = worksheet.cell(row=current_row, column=8, value=round(weekly_total, 2))  # H - Daily Total
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        cell = worksheet.cell(row=current_row, column=9, value=round(weekly_regular, 2))  # I - Regular Hours  
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        cell = worksheet.cell(row=current_row, column=10, value=round(weekly_ot, 2))  # J - OT Hours
+        self._apply_style(cell, self.template_data_style)  
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        # Log weekly total
+        print(f"✅ Template export: Weekly total written - Regular: {weekly_regular:.2f}, OT: {weekly_ot:.2f}, Total: {weekly_total:.2f}")
+        
+        return current_row + 1
+
+    def _write_grand_total_row(self, worksheet, current_row: int, 
+                            grand_regular: float, grand_ot: float) -> int:
+        """Write grand total row matching template format"""
+        
+        # Grand Total row (columns G, I, J)
+        cell = worksheet.cell(row=current_row, column=7, value="GRAND TOTAL: ")  # G
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        cell = worksheet.cell(row=current_row, column=9, value=round(grand_regular, 2))  # I - Regular Hours
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        cell = worksheet.cell(row=current_row, column=10, value=round(grand_ot, 2))  # J - OT Hours
+        self._apply_style(cell, self.template_data_style)
+        cell.font = Font(name="Arial", size=10, bold=True)
+        
+        # Log grand total
+        print(f"✅ Template export: Grand total written - Regular: {grand_regular:.2f}, OT: {grand_ot:.2f}")
+        
+        return current_row + 1
