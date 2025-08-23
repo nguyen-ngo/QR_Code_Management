@@ -4673,6 +4673,8 @@ def calculate_working_hours_api():
         }), 500
 
 
+# Add this complete API route to your app.py file
+
 @app.route('/api/employee/<employee_id>/miss-punch-details', methods=['GET'])
 @login_required
 @log_database_operations('miss_punch_details_api')
@@ -4708,15 +4710,22 @@ def get_miss_punch_details(employee_id):
                 'message': 'Invalid date format. Use YYYY-MM-DD.'
             }), 400
 
-        # Get employee name
+        # Get employee name using proper firstName and lastName fields
         try:
-            employee_query = db.session.execute(text(
-                "SELECT employee_id, name FROM employees WHERE CAST(employee_id AS TEXT) = :emp_id"
-            ), {'emp_id': str(employee_id)})
+            employee_query = db.session.execute(text("""
+                                                     SELECT e.id,
+                                                            CONCAT(e.firstName, ' ', e.lastName) as full_name
+                                                     FROM employee e
+                                                     WHERE e.id = :emp_id
+                                                     """), {'emp_id': int(employee_id)})
+
             employee_row = employee_query.fetchone()
-            employee_name = employee_row[1] if employee_row and employee_row[1] else f"Employee {employee_id}"
+            employee_name = employee_row.full_name if employee_row and employee_row.full_name else f"Employee {employee_id}"
+            print(f"📋 Retrieved employee name: {employee_name} for ID: {employee_id}")
         except Exception as e:
-            print(f"⚠️ Could not load employee name: {e}")
+            print(f"⚠️ Could not load employee name for ID {employee_id}: {e}")
+            import traceback
+            print(f"⚠️ Traceback: {traceback.format_exc()}")
             employee_name = f"Employee {employee_id}"
 
         # Get attendance records for the employee within the period
