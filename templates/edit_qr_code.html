@@ -1316,28 +1316,33 @@
   function geocodeAddress(address) {
     showStatus('info', 'Getting coordinates...');
     
-    // Using OpenStreetMap Nominatim API (free alternative to Google)
+    // Using server API which prefers Google Maps with OpenStreetMap fallback
     const encodedAddress = encodeURIComponent(address);
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
     
-    fetch(url)
-      .then(response => response.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          const result = data[0];
-          const lat = parseFloat(result.lat);
-          const lng = parseFloat(result.lon);
-          
-          updateCoordinates(lat, lng, 'geocoded');
-          showStatus('success', 'Coordinates updated successfully');
-        } else {
-          showStatus('warning', 'No coordinates found for this address');
-        }
-      })
-      .catch(error => {
-        console.error('Geocoding error:', error);
-        showStatus('error', 'Failed to get coordinates. Please try again.');
-      });
+    // First try the server API
+    fetch('/api/geocode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ address: address })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const lat = data.data.latitude;
+        const lng = data.data.longitude;
+        
+        updateCoordinates(lat, lng, 'geocoded');
+        showStatus('success', data.message || 'Coordinates updated successfully');
+      } else {
+        showStatus('warning', data.message || 'No coordinates found for this address');
+      }
+    })
+    .catch(error => {
+      console.error('Geocoding error:', error);
+      showStatus('error', 'Failed to get coordinates. Please try again.');
+    });
   }
 
   function updateCoordinates(lat, lng, accuracy) {

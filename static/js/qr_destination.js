@@ -570,12 +570,17 @@ function handleLocationError(error) {
 }
 
 function reverseGeocode(lat, lng) {
-  console.log(`🌍 Starting reverse geocoding for: ${lat}, ${lng}`);
+  console.log(`🌍 Reverse geocoding for: ${lat}, ${lng}`);
 
-  // Using Nominatim (OpenStreetMap) reverse geocoding service
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
+  // The server will use Google Maps API first, then fall back to OpenStreetMap
+  // This provides better accuracy and address formatting
+  const url = '/api/reverse-geocode'; // You may want to create this endpoint
+  
+  // For now, using direct OpenStreetMap as fallback
+  // In production, this should go through your server API
+  const osmUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
 
-  fetch(url, {
+  fetch(osmUrl, {
     method: "GET",
     headers: {
       "User-Agent": "QR-Attendance-System/1.0",

@@ -5,7 +5,7 @@ from functools import wraps
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
-import io, os, base64, re, uuid, requests, json, qrcode, math, traceback
+import io, os, base64, re, uuid, requests, json, qrcode, math, traceback, googlemaps
 from PIL import Image, ImageDraw
 from math import radians, sin, cos, asin, sqrt
 from dotenv import load_dotenv
@@ -27,6 +27,56 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 
 # Initialize database
 db = SQLAlchemy(app)
+
+# Initialize Google Maps client
+try:
+    GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY')
+    if GOOGLE_MAPS_API_KEY:
+        gmaps_client = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
+        print("✅ Google Maps client initialized successfully")
+    else:
+        gmaps_client = None
+        print("⚠️ Google Maps API key not found, falling back to OpenStreetMap")
+except Exception as e:
+    gmaps_client = None
+    print(f"❌ Error initializing Google Maps client: {e}")
+
+# Geocoding cache to reduce API calls and costs
+geocoding_cache = {}
+CACHE_MAX_SIZE = 1000
+CACHE_EXPIRY_HOURS = 24
+
+def get_cached_coordinates(address):
+    """Get coordinates from cache if available and not expired"""
+    if address in geocoding_cache:
+        cached_data = geocoding_cache[address]
+        cache_time = cached_data.get('timestamp', datetime.min)
+        
+        # Check if cache is still valid (24 hours)
+        if datetime.now() - cache_time < timedelta(hours=CACHE_EXPIRY_HOURS):
+            print(f"📋 Using cached coordinates for: {address[:50]}...")
+            return cached_data.get('lat'), cached_data.get('lng'), cached_data.get('accuracy')
+    
+    return None, None, None
+
+def cache_coordinates(address, lat, lng, accuracy):
+    """Cache coordinates to reduce future API calls"""
+    try:
+        # Implement simple cache size limit
+        if len(geocoding_cache) >= CACHE_MAX_SIZE:
+            # Remove oldest entries (simple FIFO)
+            oldest_key = min(geocoding_cache.keys(), key=lambda k: geocoding_cache[k]['timestamp'])
+            del geocoding_cache[oldest_key]
+        
+        geocoding_cache[address] = {
+            'lat': lat,
+            'lng': lng,
+            'accuracy': accuracy,
+            'timestamp': datetime.now()
+        }
+        print(f"💾 Cached coordinates for: {address[:50]}...")
+    except Exception as e:
+        print(f"⚠️ Error caching coordinates: {e}")
 
 # Valid user roles with new additions
 VALID_ROLES = ['admin', 'staff', 'payroll', 'project_manager']
@@ -118,17 +168,57 @@ def get_role_permissions(role):
     }
     return permissions.get(role, {})
 
+def log_google_maps_usage(operation_type):
+    """Log Google Maps API usage for monitoring"""
+    try:
+        logger_handler.log_user_activity('google_maps_api_usage', f'Google Maps API used: {operation_type}')
+    except Exception as e:
+        print(f"⚠️ Usage logging error: {e}")
+
 def get_coordinates_from_address(address):
     """
-    Get latitude and longitude from address using geocoding service
+    Get latitude and longitude from address using Google Maps Geocoding API
+    Falls back to OpenStreetMap if Google Maps is unavailable
     Returns (lat, lng) tuple or (None, None) if failed
     """
     if not address or address.strip() == '':
         return None, None
 
+    address = address.strip()
+    print(f"🌍 Geocoding address: {address}")
+
+    # Log geocoding action
     try:
-        # Using a free geocoding service (Nominatim/OpenStreetMap)
-        # In production, consider using Google Maps Geocoding API for better accuracy
+        logger_handler.log_user_activity('geocoding', f'Geocoding address: {address[:50]}...')
+    except Exception as log_error:
+        print(f"⚠️ Logging error (non-critical): {log_error}")
+
+    try:
+        # Primary: Use Google Maps Geocoding API
+        if gmaps_client:
+            print(f"🗺️ Using Google Maps Geocoding API")
+            
+            geocode_result = gmaps_client.geocode(address)
+            
+            if geocode_result:
+                location = geocode_result[0]['geometry']['location']
+                lat = location['lat']
+                lng = location['lng']
+                
+                print(f"✅ Google Maps geocoded address '{address[:50]}...' to coordinates: {lat}, {lng}")
+                
+                # Log successful geocoding
+                try:
+                    logger_handler.log_user_activity('geocoding_success', f'Successfully geocoded: {address[:50]}... -> {lat}, {lng}')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
+                
+                return lat, lng
+            else:
+                print(f"⚠️ Google Maps: No results found for address: {address}")
+        
+        # Fallback: Use OpenStreetMap Nominatim
+        print(f"🌐 Falling back to OpenStreetMap Nominatim")
         url = "https://nominatim.openstreetmap.org/search"
         params = {
             'q': address,
@@ -148,19 +238,40 @@ def get_coordinates_from_address(address):
             if data and len(data) > 0:
                 lat = float(data[0]['lat'])
                 lng = float(data[0]['lon'])
-                print(f"✅ Geocoded address '{address[:50]}...' to coordinates: {lat}, {lng}")
+                print(f"✅ OSM geocoded address '{address[:50]}...' to coordinates: {lat}, {lng}")
+                
+                # Log fallback geocoding
+                try:
+                    logger_handler.log_user_activity('geocoding_fallback', f'OSM fallback geocoded: {address[:50]}... -> {lat}, {lng}')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
+                
                 return lat, lng
 
         print(f"⚠️ Could not geocode address: {address}")
+        
+        # Log geocoding failure
+        try:
+            logger_handler.log_user_activity('geocoding_failed', f'Failed to geocode: {address[:50]}...')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None, None
 
     except Exception as e:
         print(f"❌ Error geocoding address '{address}': {e}")
+        
+        # Log geocoding error
+        try:
+            logger_handler.log_flask_error('geocoding_error', f'Error geocoding {address[:50]}...: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None, None
 
 def get_coordinates_from_address_enhanced(address):
     """
-    Enhanced geocoding function with better error handling
+    Enhanced geocoding function using Google Maps with caching and better error handling
     Returns (latitude, longitude, accuracy_level)
     """
     if not address or address.strip() == "":
@@ -170,8 +281,71 @@ def get_coordinates_from_address_enhanced(address):
     address = address.strip()
     print(f"🌍 Enhanced geocoding for: {address}")
 
+    # Check cache first
+    cached_lat, cached_lng, cached_accuracy = get_cached_coordinates(address)
+    if cached_lat is not None:
+        return cached_lat, cached_lng, cached_accuracy
+
+    # Log enhanced geocoding action
     try:
-        # Primary geocoding using Nominatim (OpenStreetMap)
+        logger_handler.log_user_activity('enhanced_geocoding', f'Enhanced geocoding: {address[:50]}...')
+    except Exception as log_error:
+        print(f"⚠️ Logging error (non-critical): {log_error}")
+
+    try:
+        # Primary: Use Google Maps Geocoding API
+        if gmaps_client:
+            print(f"🗺️ Using Google Maps Geocoding API (Enhanced)")
+            
+            geocode_result = gmaps_client.geocode(address)
+            
+            if geocode_result:
+                result = geocode_result[0]
+                location = result['geometry']['location']
+                lat = location['lat']
+                lng = location['lng']
+                
+                # Determine accuracy based on Google Maps location type
+                location_type = result['geometry'].get('location_type', 'UNKNOWN')
+                place_types = result.get('types', [])
+                
+                # Enhanced accuracy assessment based on Google Maps data
+                if location_type == 'ROOFTOP':
+                    accuracy = 'excellent'  # Building-level accuracy
+                elif location_type == 'RANGE_INTERPOLATED':
+                    accuracy = 'good'       # Street-level accuracy
+                elif location_type == 'GEOMETRIC_CENTER':
+                    if any(ptype in place_types for ptype in ['premise', 'subpremise', 'street_address']):
+                        accuracy = 'good'
+                    elif any(ptype in place_types for ptype in ['neighborhood', 'sublocality']):
+                        accuracy = 'fair'
+                    else:
+                        accuracy = 'poor'
+                elif location_type == 'APPROXIMATE':
+                    accuracy = 'poor'      # City/region level
+                else:
+                    accuracy = 'fair'      # Unknown, assume moderate
+
+                print(f"✅ Google Maps enhanced geocoding successful:")
+                print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
+                print(f"   Accuracy: {accuracy} (location_type: {location_type})")
+                print(f"   Place types: {place_types[:3]}")  # Show first 3 types
+                
+                # Cache the result
+                cache_coordinates(address, lat, lng, accuracy)
+                
+                # Log successful enhanced geocoding
+                try:
+                    logger_handler.log_user_activity('enhanced_geocoding_success', f'Google Maps enhanced: {address[:50]}... -> {lat}, {lng} ({accuracy})')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
+
+                return lat, lng, accuracy
+            else:
+                print(f"⚠️ Google Maps: No results found for enhanced geocoding: {address}")
+
+        # Fallback: Use OpenStreetMap Nominatim with enhanced accuracy
+        print(f"🌐 Falling back to OpenStreetMap Nominatim (Enhanced)")
         nominatim_url = "https://nominatim.openstreetmap.org/search"
         params = {
             'q': address,
@@ -195,32 +369,54 @@ def get_coordinates_from_address_enhanced(address):
                 lat = float(result['lat'])
                 lng = float(result['lon'])
 
-                # Enhanced accuracy assessment
+                # Enhanced accuracy assessment for OSM fallback
                 place_type = result.get('type', 'unknown')
                 osm_type = result.get('osm_type', 'unknown')
                 importance = float(result.get('importance', 0))
 
-                # More sophisticated accuracy determination
                 if place_type in ['house', 'building', 'shop', 'office'] or osm_type == 'way':
-                    accuracy = 'excellent'
+                    accuracy = 'good'  # Building-level (slightly lower than Google's excellent)
                 elif place_type in ['neighbourhood', 'suburb', 'quarter', 'residential']:
-                    accuracy = 'good'
-                elif place_type in ['city', 'town', 'village'] and importance > 0.5:
                     accuracy = 'fair'
+                elif place_type in ['city', 'town', 'village'] and importance > 0.5:
+                    accuracy = 'poor'
                 else:
                     accuracy = 'poor'
 
-                print(f"✅ Enhanced geocoding successful:")
+                print(f"✅ OSM enhanced geocoding successful:")
                 print(f"   Coordinates: {lat:.10f}, {lng:.10f}")
-                print(f"   Accuracy: {accuracy}")
+                print(f"   Accuracy: {accuracy} (fallback)")
+                
+                # Cache the fallback result
+                cache_coordinates(address, lat, lng, accuracy)
+                
+                # Log fallback enhanced geocoding
+                try:
+                    logger_handler.log_user_activity('enhanced_geocoding_fallback', f'OSM enhanced fallback: {address[:50]}... -> {lat}, {lng} ({accuracy})')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
 
                 return lat, lng, accuracy
 
         print(f"⚠️ No results from enhanced geocoding for: {address}")
+        
+        # Log enhanced geocoding failure
+        try:
+            logger_handler.log_user_activity('enhanced_geocoding_failed', f'Enhanced geocoding failed: {address[:50]}...')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None, None, None
 
     except Exception as e:
         print(f"❌ Enhanced geocoding error: {e}")
+        
+        # Log enhanced geocoding error
+        try:
+            logger_handler.log_flask_error('enhanced_geocoding_error', f'Enhanced geocoding error {address[:50]}...: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None, None, None
 
 def geocode_address_enhanced(address):
@@ -284,7 +480,8 @@ def geocode_address_enhanced(address):
 
 def calculate_distance_miles(lat1, lng1, lat2, lng2):
     """
-    Enhanced Haversine formula to calculate distance between two points in miles
+    Calculate distance between two points using Google Maps Distance Matrix API for road distance
+    Falls back to Haversine formula for straight-line distance if Google Maps is unavailable
     Improved with better precision and error handling
     """
     if any(coord is None for coord in [lat1, lng1, lat2, lng2]):
@@ -301,15 +498,77 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
             print(f"⚠️ Invalid longitude values: {lng1}, {lng2}")
             return None
 
+        # Log distance calculation
+        try:
+            logger_handler.log_user_activity('distance_calculation', f'Calculating distance: ({lat1}, {lng1}) to ({lat2}, {lng2})')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+
+        # Primary: Use Google Maps Distance Matrix API for road distance
+        if gmaps_client:
+            try:
+                print(f"🗺️ Using Google Maps Distance Matrix API")
+                
+                origins = [(lat1, lng1)]
+                destinations = [(lat2, lng2)]
+                
+                # Get distance matrix (driving distance)
+                matrix = gmaps_client.distance_matrix(
+                    origins=origins,
+                    destinations=destinations,
+                    mode="driving",
+                    units="imperial",
+                    avoid="tolls"
+                )
+                
+                if (matrix['status'] == 'OK' and 
+                    matrix['rows'][0]['elements'][0]['status'] == 'OK'):
+                    
+                    # Extract distance in miles
+                    distance_data = matrix['rows'][0]['elements'][0]['distance']
+                    distance_text = distance_data['text']
+                    distance_value = distance_data['value']  # in meters
+                    
+                    # Convert to miles if needed
+                    if 'mi' in distance_text:
+                        distance_miles = float(distance_text.replace(' mi', '').replace(',', ''))
+                    else:
+                        distance_miles = distance_value * 0.000621371  # Convert meters to miles
+                    
+                    # Round to 4 decimal places for consistency
+                    distance_miles = round(distance_miles, 4)
+                    
+                    print(f"📏 Google Maps road distance calculation:")
+                    print(f"   Point 1: {lat1:.10f}, {lng1:.10f}")
+                    print(f"   Point 2: {lat2:.10f}, {lng2:.10f}")
+                    print(f"   Road Distance: {distance_miles:.4f} miles")
+                    print(f"   Distance Text: {distance_text}")
+                    
+                    # Log successful distance calculation
+                    try:
+                        logger_handler.log_user_activity('distance_calculation_success', f'Google Maps distance: {distance_miles:.4f} miles')
+                    except Exception as log_error:
+                        print(f"⚠️ Logging error (non-critical): {log_error}")
+                    
+                    return distance_miles
+                else:
+                    print(f"⚠️ Google Maps Distance Matrix API returned no valid results")
+            
+            except Exception as gmaps_error:
+                print(f"⚠️ Google Maps Distance Matrix API error: {gmaps_error}")
+
+        # Fallback: Use Enhanced Haversine formula for straight-line distance
+        print(f"📐 Falling back to Haversine formula for straight-line distance")
+        
         # Convert decimal degrees to radians
-        lat1, lng1, lat2, lng2 = map(radians, [float(lat1), float(lng1), float(lat2), float(lng2)])
+        lat1_rad, lng1_rad, lat2_rad, lng2_rad = map(radians, [float(lat1), float(lng1), float(lat2), float(lng2)])
 
         # Enhanced Haversine formula for better precision
-        dlng = lng2 - lng1
-        dlat = lat2 - lat1
+        dlng = lng2_rad - lng1_rad
+        dlat = lat2_rad - lat1_rad
 
         # Haversine calculation
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlng/2)**2
+        a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlng/2)**2
         c = 2 * asin(sqrt(a))
 
         # Earth's radius in miles (more precise value)
@@ -321,15 +580,28 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         # Round to 4 decimal places for better precision
         distance = round(distance, 4)
 
-        print(f"📏 Enhanced distance calculation:")
-        print(f"   Point 1: {lat1*180/3.14159:.10f}, {lng1*180/3.14159:.10f}")
-        print(f"   Point 2: {lat2*180/3.14159:.10f}, {lng2*180/3.14159:.10f}")
-        print(f"   Distance: {distance:.4f} miles")
+        print(f"📏 Haversine straight-line distance calculation:")
+        print(f"   Point 1: {lat1:.10f}, {lng1:.10f}")
+        print(f"   Point 2: {lat2:.10f}, {lng2:.10f}")
+        print(f"   Straight-line Distance: {distance:.4f} miles")
+
+        # Log fallback distance calculation
+        try:
+            logger_handler.log_user_activity('distance_calculation_fallback', f'Haversine fallback distance: {distance:.4f} miles')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
 
         return distance
 
     except Exception as e:
-        print(f"❌ Error in enhanced distance calculation: {e}")
+        print(f"❌ Error in distance calculation: {e}")
+        
+        # Log distance calculation error
+        try:
+            logger_handler.log_flask_error('distance_calculation_error', f'Distance calculation error: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None
 
 def calculate_location_accuracy(qr_address, checkin_address, checkin_lat=None, checkin_lng=None):
@@ -579,7 +851,8 @@ def process_location_data(location_data):
 
 def reverse_geocode_coordinates(latitude, longitude):
     """
-    Convert GPS coordinates to human-readable address using reverse geocoding
+    Convert GPS coordinates to human-readable address using Google Maps Reverse Geocoding
+    Falls back to OpenStreetMap if Google Maps is unavailable
     Returns address string or None if failed
     """
     if not latitude or not longitude:
@@ -587,8 +860,36 @@ def reverse_geocode_coordinates(latitude, longitude):
 
     try:
         print(f"🌍 Reverse geocoding coordinates: {latitude}, {longitude}")
+        
+        # Log reverse geocoding action
+        try:
+            logger_handler.log_user_activity('reverse_geocoding', f'Reverse geocoding: {latitude}, {longitude}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
 
-        # Using Nominatim (OpenStreetMap) reverse geocoding service
+        # Primary: Use Google Maps Reverse Geocoding API
+        if gmaps_client:
+            print(f"🗺️ Using Google Maps Reverse Geocoding API")
+            
+            reverse_geocode_result = gmaps_client.reverse_geocode((latitude, longitude))
+            
+            if reverse_geocode_result:
+                # Get the most detailed address (usually the first result)
+                address = reverse_geocode_result[0]['formatted_address']
+                print(f"✅ Google Maps reverse geocoded address: {address}")
+                
+                # Log successful reverse geocoding
+                try:
+                    logger_handler.log_user_activity('reverse_geocoding_success', f'Google Maps reverse geocoded: {latitude}, {longitude} -> {address[:50]}...')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
+                
+                return address
+            else:
+                print(f"⚠️ Google Maps: No address found for coordinates")
+
+        # Fallback: Use OpenStreetMap Nominatim reverse geocoding
+        print(f"🌐 Falling back to OpenStreetMap Nominatim reverse geocoding")
         url = "https://nominatim.openstreetmap.org/reverse"
         params = {
             'lat': latitude,
@@ -609,7 +910,14 @@ def reverse_geocode_coordinates(latitude, longitude):
 
             if data and 'display_name' in data:
                 address = data['display_name']
-                print(f"✅ Reverse geocoded address: {address}")
+                print(f"✅ OSM reverse geocoded address: {address}")
+                
+                # Log fallback reverse geocoding
+                try:
+                    logger_handler.log_user_activity('reverse_geocoding_fallback', f'OSM reverse geocoded: {latitude}, {longitude} -> {address[:50]}...')
+                except Exception as log_error:
+                    print(f"⚠️ Logging error (non-critical): {log_error}")
+                
                 return address
             else:
                 print(f"⚠️ No address found for coordinates")
@@ -620,6 +928,13 @@ def reverse_geocode_coordinates(latitude, longitude):
 
     except Exception as e:
         print(f"❌ Error in reverse geocoding: {e}")
+        
+        # Log reverse geocoding error
+        try:
+            logger_handler.log_flask_error('reverse_geocoding_error', f'Reverse geocoding error {latitude}, {longitude}: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
         return None
 
 def process_location_data_enhanced(form_data):
@@ -1699,8 +2014,8 @@ def role_permissions_api():
 
 @app.route('/api/geocode', methods=['POST'])
 @login_required
-def geocode_address():
-    """API endpoint to geocode an address and return coordinates"""
+def geocode_address_api():
+    """API endpoint to geocode an address and return coordinates using Google Maps"""
     try:
         data = request.get_json()
         address = data.get('address', '').strip()
@@ -1711,32 +2026,111 @@ def geocode_address():
                 'message': 'Address is required'
             }), 400
 
+        # Log API geocoding request
+        try:
+            logger_handler.log_user_activity('api_geocoding_request', f'API geocoding request: {address[:50]}...')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+
         # Use the enhanced function that returns 3 values
-        lat, lng, accuracy = geocode_address_enhanced(address)
+        lat, lng, accuracy = get_coordinates_from_address_enhanced(address)
 
         if lat is not None and lng is not None:
+            # Log successful API geocoding
+            try:
+                logger_handler.log_user_activity('api_geocoding_success', f'API geocoding success: {address[:50]}... -> {lat}, {lng} ({accuracy})')
+            except Exception as log_error:
+                print(f"⚠️ Logging error (non-critical): {log_error}")
+
             return jsonify({
                 'success': True,
                 'data': {
                     'latitude': lat,
                     'longitude': lng,
                     'accuracy': accuracy,
-                    'coordinates_display': f"{lat:.10f}, {lng:.10f}"
+                    'coordinates_display': f"{lat:.10f}, {lng:.10f}",
+                    'service_used': 'Google Maps' if gmaps_client else 'OpenStreetMap'
                 },
-                'message': f'Address geocoded successfully with {accuracy} accuracy'
+                'message': f'Address geocoded successfully with {accuracy} accuracy using {"Google Maps" if gmaps_client else "OpenStreetMap"}'
+            })
+        else:
+            # Log failed API geocoding
+            try:
+                logger_handler.log_user_activity('api_geocoding_failed', f'API geocoding failed: {address[:50]}...')
+            except Exception as log_error:
+                print(f"⚠️ Logging error (non-critical): {log_error}")
+
+            return jsonify({
+                'success': False,
+                'message': 'Unable to geocode the provided address. Please verify the address is complete and accurate.'
+            }), 404
+
+    except Exception as e:
+        print(f"❌ Geocoding API error: {e}")
+        
+        # Log API geocoding error
+        try:
+            logger_handler.log_flask_error('api_geocoding_error', f'API geocoding error: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error during geocoding. Please try again.'
+        }), 500
+
+@app.route('/api/reverse-geocode', methods=['POST'])
+@login_required
+def reverse_geocode_api():
+    """API endpoint for reverse geocoding coordinates to address using Google Maps"""
+    try:
+        data = request.get_json()
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        if not latitude or not longitude:
+            return jsonify({
+                'success': False,
+                'message': 'Latitude and longitude are required'
+            }), 400
+
+        # Log API reverse geocoding request
+        try:
+            logger_handler.log_user_activity('api_reverse_geocoding_request', f'API reverse geocoding: {latitude}, {longitude}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+
+        # Use the reverse geocoding function
+        address = reverse_geocode_coordinates(latitude, longitude)
+
+        if address:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'address': address,
+                    'coordinates': f"{latitude}, {longitude}",
+                    'service_used': 'Google Maps' if gmaps_client else 'OpenStreetMap'
+                },
+                'message': f'Coordinates reverse geocoded successfully using {"Google Maps" if gmaps_client else "OpenStreetMap"}'
             })
         else:
             return jsonify({
                 'success': False,
-                'message': 'Unable to geocode the provided address. Please verify the address is complete and accurate.'
-            }), 400
+                'message': 'Unable to reverse geocode the provided coordinates.'
+            }), 404
 
     except Exception as e:
-        logger_handler.log_flask_error('geocode_api_error', str(e))
-        print(f"❌ Geocoding API error: {e}")
+        print(f"❌ Reverse geocoding API error: {e}")
+        
+        # Log API reverse geocoding error
+        try:
+            logger_handler.log_flask_error('api_reverse_geocoding_error', f'API reverse geocoding error: {str(e)}')
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+
         return jsonify({
             'success': False,
-            'message': 'An error occurred while geocoding the address'
+            'message': 'Internal server error during reverse geocoding. Please try again.'
         }), 500
 
 @app.route('/users/<int:user_id>/permanently-delete', methods=['GET', 'POST'])
@@ -1816,6 +2210,38 @@ def admin_logs():
         logger_handler.log_database_error('admin_logs_load', e)
         flash('Error loading log statistics.', 'error')
         return redirect(url_for('dashboard'))
+
+def check_google_maps_health():
+    """Check if Google Maps services are working properly"""
+    try:
+        if not gmaps_client:
+            return False, "Google Maps client not initialized"
+        
+        # Test with a known address
+        test_result = gmaps_client.geocode("1600 Amphitheatre Parkway, Mountain View, CA")
+        
+        if test_result:
+            return True, "Google Maps services are operational"
+        else:
+            return False, "Google Maps API not returning results"
+            
+    except Exception as e:
+        return False, f"Google Maps health check failed: {str(e)}"
+
+# Optional: Add health check route
+@app.route('/admin/health/google-maps')
+@admin_required
+def google_maps_health():
+    """Admin route to check Google Maps service health"""
+    is_healthy, message = check_google_maps_health()
+    
+    return jsonify({
+        'healthy': is_healthy,
+        'message': message,
+        'service': 'Google Maps',
+        'fallback_available': True,
+        'timestamp': datetime.now().isoformat()
+    })
 
 # API endpoints for logging data (admin only)
 @app.route('/api/logs/recent')
@@ -4420,7 +4846,6 @@ def payroll_dashboard():
         flash('Error loading payroll dashboard. Please check the server logs.', 'error')
         return redirect(url_for('dashboard'))
 
-
 @app.route('/payroll/export-excel', methods=['POST'])
 @login_required
 @log_database_operations('payroll_excel_export')
@@ -4671,9 +5096,6 @@ def calculate_working_hours_api():
             'success': False,
             'message': 'Internal server error. Please check the server logs.'
         }), 500
-
-
-# Add this complete API route to your app.py file
 
 @app.route('/api/employee/<employee_id>/miss-punch-details', methods=['GET'])
 @login_required

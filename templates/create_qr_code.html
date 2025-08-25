@@ -1225,7 +1225,7 @@
       }
 
       function fallbackToOSMGeocoding(address) {
-        // Using OpenStreetMap Nominatim API as fallback
+        // Using OpenStreetMap Nominatim API as fallback when Google Maps fails
         const encodedAddress = encodeURIComponent(address);
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
         
@@ -1242,7 +1242,7 @@
               
               updateCoordinatesDisplay();
               updateHiddenFields();
-              showStatus('success', 'Coordinates found successfully (fallback service)');
+              showStatus('success', 'Coordinates found successfully (OpenStreetMap fallback - Google Maps unavailable)');
               showCoordinatesSection();
             } else {
               showStatus('warning', 'No coordinates found for this address');
