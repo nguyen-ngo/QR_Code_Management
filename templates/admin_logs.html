@@ -496,6 +496,21 @@ Management{% endblock %} {% block extra_head %}
     // No need to filter here - filtering is now done on backend
     logs.forEach((log, index) => {
       const row = document.createElement("tr");
+      const transformedLog = {
+        description: log.description || log.event_description || "No description",
+        severity: log.severity || log.severity_level || "INFO", 
+        timestamp: log.timestamp || log.created_timestamp,
+        event_type: log.event_type || "Unknown",
+        event_category: log.event_category || "system",
+        event_id: log.event_id || "-",
+        username: log.username || "System",
+        user_id: log.user_id || "-",
+        ip_address: log.ip_address || "-",
+        event_data: log.event_data
+      };
+      // Store the transformed log
+      logs[index] = transformedLog;
+
       row.className = getSeverityClass(log.severity);
 
       const timestamp = new Date(log.timestamp).toLocaleString();
@@ -644,61 +659,93 @@ Management{% endblock %} {% block extra_head %}
 
   // View log details in modal
   function viewLogDetails(logIndex) {
-    const log = window.currentLogs[logIndex];
-    if (!log) return;
+    console.log(`🔍 Opening log details for index: ${logIndex}`);
+    console.log('📊 Available logs count:', window.currentLogs ? window.currentLogs.length : 0);
 
-    // Populate modal with log details
-    document.getElementById("detailEventId").textContent = log.event_id || "-";
-    document.getElementById("detailEventType").textContent =
-      log.event_type || "-";
-    document.getElementById("detailCategory").textContent =
-      log.event_category || "-";
-    document.getElementById(
-      "detailSeverity"
-    ).innerHTML = `<span class="severity-badge ${(
-      log.severity || "info"
-    ).toLowerCase()}">${log.severity || "INFO"}</span>`;
-    document.getElementById("detailTimestamp").textContent = new Date(
-      log.timestamp
-    ).toLocaleString();
-    document.getElementById("detailUsername").textContent =
-      log.username || "System";
-    document.getElementById("detailUserId").textContent = log.user_id || "-";
-    document.getElementById("detailIpAddress").textContent =
-      log.ip_address || "-";
-    document.getElementById("detailDescription").textContent =
-      log.description || "-";
-
-    // Show additional data if available
-    const eventDataSection = document.getElementById("eventDataSection");
-    const eventDataElement = document.getElementById("detailEventData");
-
-    if (log.event_data) {
-      try {
-        const formattedData =
-          typeof log.event_data === "string"
-            ? JSON.stringify(JSON.parse(log.event_data), null, 2)
-            : JSON.stringify(log.event_data, null, 2);
-        eventDataElement.textContent = formattedData;
-        eventDataSection.style.display = "block";
-      } catch (e) {
-        eventDataElement.textContent = log.event_data;
-        eventDataSection.style.display = "block";
-      }
-    } else {
-      eventDataSection.style.display = "none";
+    if (!window.currentLogs || !window.currentLogs[logIndex]) {
+      console.error(`❌ No log found at index ${logIndex}`);
+      showError("Unable to load log details. Please refresh the page and try again.");
+      return;
     }
 
-    // Store current log for copying
-    window.currentLogDetails = log;
+    const log = window.currentLogs[logIndex];
+    console.log('📝 Selected log data:', log);
 
-    // Show modal
-    document.getElementById("logDetailsModal").style.display = "flex";
+    try {
+      // Map the API response fields to what we expect
+      const logData = {
+        event_id: log.event_id || log.id || "-",
+        event_type: log.event_type || "Unknown", 
+        event_category: log.event_category || log.category || "system",
+        severity: log.severity || log.severity_level || "INFO",
+        timestamp: log.timestamp || log.created_timestamp,
+        username: log.username || "System",
+        user_id: log.user_id || "-",
+        ip_address: log.ip_address || "-",
+        description: log.description || log.event_description || "-",
+        event_data: log.event_data
+      };
+
+      // Populate modal with log details
+      document.getElementById("detailEventId").textContent = logData.event_id;
+      document.getElementById("detailEventType").textContent = logData.event_type;
+      document.getElementById("detailCategory").textContent = logData.event_category;
+      document.getElementById("detailSeverity").innerHTML = 
+        `<span class="severity-badge ${logData.severity.toLowerCase()}">${logData.severity}</span>`;
+      document.getElementById("detailTimestamp").textContent = 
+        logData.timestamp ? new Date(logData.timestamp).toLocaleString() : "-";
+      document.getElementById("detailUsername").textContent = logData.username;
+      document.getElementById("detailUserId").textContent = logData.user_id;
+      document.getElementById("detailIpAddress").textContent = logData.ip_address;
+      document.getElementById("detailDescription").textContent = logData.description;
+
+      // Handle event data
+      const eventDataSection = document.getElementById("eventDataSection");
+      const eventDataElement = document.getElementById("detailEventData");
+
+      if (logData.event_data) {
+        try {
+          const formattedData = typeof logData.event_data === "string" 
+            ? JSON.stringify(JSON.parse(logData.event_data), null, 2)
+            : JSON.stringify(logData.event_data, null, 2);
+          eventDataElement.textContent = formattedData;
+          eventDataSection.style.display = "block";
+        } catch (e) {
+          eventDataElement.textContent = logData.event_data;
+          eventDataSection.style.display = "block";
+        }
+      } else {
+        eventDataSection.style.display = "none";
+      }
+
+      // Store current log for copying
+      window.currentLogDetails = logData;
+
+      // Show modal using the same pattern as clearOldLogs
+      const modal = document.getElementById("logDetailsModal");
+      if (modal) {
+        modal.style.display = "flex";
+        modal.style.visibility = "visible";
+        modal.style.opacity = "1";
+        console.log('✅ Modal should be visible now');
+      } else {
+        console.error('❌ logDetailsModal element not found!');
+      }
+      
+    } catch (error) {
+      console.error('💥 Error in viewLogDetails:', error);
+      showError("Error displaying log details: " + error.message);
+    }
   }
 
   // Close log details modal
   function closeLogDetailsModal() {
-    document.getElementById("logDetailsModal").style.display = "none";
+    const modal = document.getElementById("logDetailsModal");
+    if (modal) {
+      modal.style.display = "none";
+      modal.style.visibility = "hidden";
+      modal.style.opacity = "0";
+    }
   }
 
   // Copy log details to clipboard

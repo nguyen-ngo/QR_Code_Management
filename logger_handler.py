@@ -911,6 +911,34 @@ def verify_log_table_exists(self):
         print(f"❌ Error verifying log table: {e}")
         return False
     
+def log_modal_interaction(self, event_type, description, additional_data=None):
+    """Log modal interactions for debugging"""
+    try:
+        context = self._get_request_context()
+        
+        event_data = {
+            'interaction_type': event_type,
+            'event_timestamp': datetime.now().isoformat(),
+            'request_context': context
+        }
+        
+        if additional_data:
+            event_data['additional_data'] = additional_data
+        
+        message = f"Modal interaction: {event_type} - {description}"
+        
+        # Log to database
+        self._log_to_database(
+            event_type='modal_interaction',
+            event_category='ui',
+            description=message,
+            event_data=event_data,
+            severity='INFO'
+        )
+        
+    except Exception as e:
+        print(f"Error logging modal interaction: {e}")
+    
 # INITIALIZATION FUNCTION
 def init_logging(app, db):
     """Initialize the logging system with the Flask app"""
