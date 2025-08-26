@@ -3342,7 +3342,7 @@ def qr_checkin(qr_url):
                                f"Puedes volver a registrarte en {minutes_remaining} minutos. El último registro fue a las {recent_checkin.check_in_time.strftime("%H:%M")}."
                 }), 400
             else:
-                print(f"✅ 30-minute interval satisfied. Allowing new {qr_code.location_event} for {employee_id}")
+                print(f"✅ {time_interval}-minute interval satisfied. Allowing new {qr_code.location_event} for {employee_id}")
         else:
             print(f"✅ First {qr_code.location_event} today for {employee_id}")
 
