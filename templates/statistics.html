@@ -1,0 +1,659 @@
+{% extends "base_authenticated.html" %}
+
+{% block title %}QR Code Statistics - QR Code Management{% endblock %}
+
+{% block extra_head %}
+<!-- Statistics-specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/statistics.css') }}">
+<!-- Chart.js for analytics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="statistics-page">
+    <!-- Header Section -->
+    <div class="statistics-header">
+        <div class="header-content">
+            <h1>
+                <i class="fas fa-chart-pie"></i>
+                QR Code Analytics
+            </h1>
+            <p>Comprehensive insights into QR code usage, devices, locations, and user behavior</p>
+        </div>
+        
+        <div class="header-actions">
+            <button onclick="refreshStatistics()" class="btn btn-secondary">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+        <div class="filters-card">
+            <div class="filters-header">
+                <h3>
+                    <i class="fas fa-filter"></i>
+                    Filter Analytics
+                </h3>
+            </div>
+            <div class="filters-form">
+                <form method="GET" action="{{ url_for('qr_statistics') }}" id="statisticsFilters">
+                    <div class="filter-row">
+                        <!-- Date Range -->
+                        <div class="filter-group">
+                            <label for="date_from">
+                                <i class="fas fa-calendar-alt"></i>
+                                From Date
+                            </label>
+                            <input type="date" 
+                                   id="date_from" 
+                                   name="date_from" 
+                                   value="{{ date_from }}"
+                                   max="{{ today_date }}">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="date_to">
+                                <i class="fas fa-calendar-alt"></i>
+                                To Date
+                            </label>
+                            <input type="date" 
+                                   id="date_to" 
+                                   name="date_to" 
+                                   value="{{ date_to }}"
+                                   max="{{ today_date }}">
+                        </div>
+
+                        <!-- QR Code Filter -->
+                        <div class="filter-group">
+                            <label for="qr_code">
+                                <i class="fas fa-qrcode"></i>
+                                QR Code
+                            </label>
+                            <select id="qr_code" name="qr_code">
+                                <option value="">All QR Codes</option>
+                                {% for qr in qr_codes_list %}
+                                <option value="{{ qr.id }}" 
+                                        {% if qr_code_filter|string == qr.id|string %}selected{% endif %}>
+                                    {{ qr.name }} - {{ qr.location }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Project Filter -->
+                        <div class="filter-group">
+                            <label for="project">
+                                <i class="fas fa-folder"></i>
+                                Project
+                            </label>
+                            <select id="project" name="project">
+                                <option value="">All Projects</option>
+                                {% for project in projects_list %}
+                                <option value="{{ project.id }}" 
+                                        {% if project_filter|string == project.id|string %}selected{% endif %}>
+                                    {{ project.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            Apply Filters
+                        </button>
+                        <a href="{{ url_for('qr_statistics') }}" class="btn btn-outline">
+                            <i class="fas fa-times"></i>
+                            Clear Filters
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overview Statistics Cards -->
+    <div class="stats-overview">
+        <div class="section-header collapsible" data-target="overview-content">
+            <h2>
+                <i class="fas fa-chart-bar"></i>
+                Overview Statistics
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </h2>
+        </div>
+        <div class="section-content" id="overview-content">
+            <div class="stats-grid">
+                <div class="stat-card primary">
+                    <div class="stat-icon">
+                        <i class="fas fa-mouse-pointer"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ "{:,}".format(general_stats.total_scans) }}</h3>
+                        <p>Total Scans</p>
+                        <span class="stat-change">
+                            <i class="fas fa-calendar-day"></i>
+                            {{ general_stats.today_scans }} today
+                        </span>
+                    </div>
+                </div>
+
+                <div class="stat-card success">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ "{:,}".format(general_stats.unique_users) }}</h3>
+                        <p>Unique Users</p>
+                        <span class="stat-change">
+                            <i class="fas fa-chart-line"></i>
+                            Across {{ general_stats.active_days }} days
+                        </span>
+                    </div>
+                </div>
+
+                <div class="stat-card warning">
+                    <div class="stat-icon">
+                        <i class="fas fa-qrcode"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ general_stats.active_qr_codes }}</h3>
+                        <p>Active QR Codes</p>
+                        <span class="stat-change">
+                            <i class="fas fa-chart-bar"></i>
+                            Currently in use
+                        </span>
+                    </div>
+                </div>
+
+                <div class="stat-card info">
+                    <div class="stat-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ "{:.1f}".format((general_stats.gps_enabled_scans / general_stats.total_scans * 100) if general_stats.total_scans > 0 else 0) }}%</h3>
+                        <p>GPS Usage</p>
+                        <span class="stat-change">
+                            <i class="fas fa-satellite-dish"></i>
+                            {{ "{:,}".format(general_stats.gps_enabled_scans) }} with location
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+        <div class="section-header collapsible" data-target="charts-content">
+            <h2>
+                <i class="fas fa-chart-pie"></i>
+                Analytics Charts
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </h2>
+        </div>
+        <div class="section-content" id="charts-content">
+            <div class="charts-grid">
+                <!-- Device Distribution Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>
+                            <i class="fas fa-mobile-alt"></i>
+                            Device Distribution
+                        </h3>
+                    </div>
+                    <div class="chart-container compact">
+                        {% if device_stats %}
+                            <canvas id="deviceChart"></canvas>
+                        {% else %}
+                            <div class="no-data-message">
+                                <i class="fas fa-mobile-alt"></i>
+                                <p>No device data available</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Browser Distribution Chart -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>
+                            <i class="fas fa-globe"></i>
+                            Browser Usage
+                        </h3>
+                    </div>
+                    <div class="chart-container compact">
+                        {% if browser_stats %}
+                            <canvas id="browserChart"></canvas>
+                        {% else %}
+                            <div class="no-data-message">
+                                <i class="fas fa-globe"></i>
+                                <p>No browser data available</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Tables Section -->
+    <div class="tables-section">
+        <!-- Location Statistics Table -->
+        <div class="table-card">
+            <div class="table-header collapsible" data-target="location-table">
+                <h3>
+                    <i class="fas fa-map-marker-alt"></i>
+                    QR Code Location Analytics
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </h3>
+                <span class="table-count">{{ location_stats|length }} locations</span>
+            </div>
+            <div class="table-container section-content" id="location-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>QR Code</th>
+                            <th>Location</th>
+                            <th>Event</th>
+                            <th>Total Scans</th>
+                            <th>Unique Users</th>
+                            <th>GPS Scans</th>
+                            <th>Date Range</th>
+                            <th>GPS Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for location in location_stats %}
+                        <tr>
+                            <td>
+                                <strong>{{ location.qr_name }}</strong>
+                            </td>
+                            <td>{{ location.qr_location }}</td>
+                            <td>{{ location.location_event }}</td>
+                            <td>
+                                <span class="metric-badge primary">
+                                    {{ "{:,}".format(location.total_scans) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge success">
+                                    {{ location.unique_users }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge info">
+                                    {{ location.gps_scans }}
+                                </span>
+                            </td>
+                            <td>
+                                <small>{{ location.first_scan.strftime('%m/%d') }} - {{ location.last_scan.strftime('%m/%d') }}</small>
+                            </td>
+                            <td>
+                                {% set gps_rate = (location.gps_scans / location.total_scans * 100) if location.total_scans > 0 else 0 %}
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ gps_rate }}%"></div>
+                                    <span class="progress-text">{{ "{:.0f}".format(gps_rate) }}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- IP Address Analysis Table -->
+        <div class="table-card">
+            <div class="table-header collapsible" data-target="ip-table">
+                <h3>
+                    <i class="fas fa-network-wired"></i>
+                    IP Address Analysis (Top 3)
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </h3>
+                <span class="table-count">{{ ip_stats|length }} unique IPs</span>
+            </div>
+            <div class="table-container section-content" id="ip-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Total Scans</th>
+                            <th>Unique Users</th>
+                            <th>QR Codes Used</th>
+                            <th>First Seen</th>
+                            <th>Last Seen</th>
+                            <th>Activity Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ip in ip_stats %}
+                        <tr>
+                            <td>
+                                <code class="ip-address">{{ ip.ip_address }}</code>
+                            </td>
+                            <td>
+                                <span class="metric-badge primary">
+                                    {{ "{:,}".format(ip.scan_count) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge success">
+                                    {{ ip.unique_users }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge info">
+                                    {{ ip.qr_codes_used }}
+                                </span>
+                            </td>
+                            <td>{{ ip.first_scan.strftime('%m/%d/%Y') }}</td>
+                            <td>{{ ip.last_scan.strftime('%m/%d/%Y') }}</td>
+                            <td>
+                                {% set activity_score = (ip.scan_count * ip.unique_users * ip.qr_codes_used) %}
+                                <div class="activity-score" data-score="{{ activity_score }}">
+                                    {% if activity_score > 100 %}
+                                        <span class="score high">High</span>
+                                    {% elif activity_score > 20 %}
+                                        <span class="score medium">Medium</span>
+                                    {% else %}
+                                        <span class="score low">Low</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Project Statistics Table (if projects exist) -->
+        {% if project_stats %}
+        <div class="table-card">
+            <div class="table-header collapsible" data-target="project-table">
+                <h3>
+                    <i class="fas fa-folder-open"></i>
+                    Project Analytics
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </h3>
+                <span class="table-count">{{ project_stats|length }} projects</span>
+            </div>
+            <div class="table-container section-content" id="project-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Project Name</th>
+                            <th>Total Scans</th>
+                            <th>Unique Users</th>
+                            <th>QR Codes</th>
+                            <th>GPS Usage</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in project_stats %}
+                        <tr>
+                            <td>
+                                <strong>{{ project.project_name }}</strong>
+                            </td>
+                            <td>
+                                <span class="metric-badge primary">
+                                    {{ "{:,}".format(project.total_scans) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge success">
+                                    {{ project.unique_users }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="metric-badge info">
+                                    {{ project.qr_codes_in_project }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ project.gps_usage_percentage }}%"></div>
+                                    <span class="progress-text">{{ "{:.0f}".format(project.gps_usage_percentage) }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% set avg_scans_per_qr = (project.total_scans / project.qr_codes_in_project) if project.qr_codes_in_project > 0 else 0 %}
+                                <div class="performance-indicator">
+                                    {% if avg_scans_per_qr > 50 %}
+                                        <span class="perf excellent">Excellent</span>
+                                    {% elif avg_scans_per_qr > 20 %}
+                                        <span class="perf good">Good</span>
+                                    {% elif avg_scans_per_qr > 5 %}
+                                        <span class="perf fair">Fair</span>
+                                    {% else %}
+                                        <span class="perf poor">Poor</span>
+                                    {% endif %}
+                                    <small>{{ "{:.1f}".format(avg_scans_per_qr) }} scans/QR</small>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Chart.js Configuration and Data
+document.addEventListener('DOMContentLoaded', function() {
+    // Collapsible functionality
+    document.querySelectorAll('.collapsible').forEach(function(header) {
+        header.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const content = document.getElementById(targetId);
+            const toggleIcon = this.querySelector('.toggle-icon');
+            
+            if (content) {
+                content.classList.toggle('collapsed');
+                toggleIcon.classList.toggle('rotated');
+                
+                // If section is being expanded and contains charts, reinitialize them
+                if (!content.classList.contains('collapsed')) {
+                    setTimeout(() => {
+                        initializeChartsInSection(content);
+                    }, 300);
+                }
+            }
+        });
+    });
+
+    // Chart.js default configuration
+    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.plugins.legend.position = 'bottom';
+    Chart.defaults.plugins.legend.labels.padding = 20;
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+
+    // Initialize all charts
+    initializeAllCharts();
+
+    function initializeAllCharts() {
+        initializeDeviceChart();
+        initializeBrowserChart();
+    }
+
+    function initializeChartsInSection(section) {
+        if (section.querySelector('#deviceChart')) initializeDeviceChart();
+        if (section.querySelector('#browserChart')) initializeBrowserChart();
+    }
+
+    function initializeDeviceChart() {
+        const deviceCanvas = document.getElementById('deviceChart');
+        if (!deviceCanvas) return;
+
+        const deviceCtx = deviceCanvas.getContext('2d');
+        
+        // Check if we have device data
+        const deviceLabels = [
+            {% for device in device_stats %}
+            '{{ device.device_type }}'{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+        
+        const deviceData = [
+            {% for device in device_stats %}
+            {{ device.scan_count }}{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        if (deviceLabels.length === 0 || deviceData.length === 0) {
+            console.log('No device data available');
+            return;
+        }
+
+        new Chart(deviceCtx, {
+            type: 'bar',
+            data: {
+                labels: deviceLabels,
+                datasets: [{
+                    label: 'Scans',
+                    data: deviceData,
+                    backgroundColor: [
+                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((context.parsed.x * 100) / total).toFixed(1);
+                                return context.label + ': ' + context.parsed.x.toLocaleString() + 
+                                       ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function initializeBrowserChart() {
+        const browserCanvas = document.getElementById('browserChart');
+        if (!browserCanvas) return;
+
+        const browserCtx = browserCanvas.getContext('2d');
+        
+        // Check if we have browser data
+        const browserLabels = [
+            {% for browser in browser_stats %}
+            '{{ browser.browser_type }}'{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+        
+        const browserData = [
+            {% for browser in browser_stats %}
+            {{ browser.scan_count }}{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        if (browserLabels.length === 0 || browserData.length === 0) {
+            console.log('No browser data available');
+            return;
+        }
+
+        new Chart(browserCtx, {
+            type: 'bar',
+            data: {
+                labels: browserLabels,
+                datasets: [{
+                    label: 'Scans',
+                    data: browserData,
+                    backgroundColor: [
+                        '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((context.parsed.x * 100) / total).toFixed(1);
+                                return context.label + ': ' + context.parsed.x.toLocaleString() + 
+                                       ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+
+// Utility Functions
+function refreshStatistics() {
+    window.location.reload();
+}
+
+// Auto-refresh functionality (optional)
+let autoRefresh = false;
+function toggleAutoRefresh() {
+    autoRefresh = !autoRefresh;
+    if (autoRefresh) {
+        setInterval(refreshStatistics, 300000); // Refresh every 5 minutes
+    }
+}
+</script>
+
+{% endblock %}

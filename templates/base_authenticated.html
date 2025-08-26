@@ -72,6 +72,10 @@
                 <i class="fas fa-calculator"></i>
                 <span class="menu-text">Payroll</span>
               </a>
+              <a href="{{ url_for('qr_statistics') }}" class="menu-item {% if request.endpoint == 'qr_statistics' %}active{% endif %}">
+                <i class="fas fa-chart-pie"></i>
+                <span class="menu-text">Statistics</span>
+              </a>
               <a href="{{ url_for('admin_logs') }}" 
                  class="menu-item {% if request.endpoint == 'admin_logs' %}active{% endif %}">
                 <i class="fas fa-clipboard-list"></i>
