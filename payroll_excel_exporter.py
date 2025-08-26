@@ -628,6 +628,7 @@ class PayrollExcelExporter:
         # Column header style
         self.template_header_style = {
             'font': Font(name="Arial", size=10, bold=True),
+            'fill': PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
             'alignment': Alignment(horizontal="center", vertical="center"),
             'border': Border(
                 left=Side(style="thin"),
