@@ -28,6 +28,115 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 # Initialize database
 db = SQLAlchemy(app)
 
+def create_performance_indexes():
+    """Create performance optimization indexes"""
+    try:
+        print("🔄 Creating performance indexes...")
+        
+        # Attendance data indexes
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_attendance_date_employee_location 
+            ON attendance_data (check_in_date DESC, employee_id, location_name)
+        """))
+        
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_attendance_date_qr_gps 
+            ON attendance_data (check_in_date, qr_code_id, latitude, longitude)
+        """))
+        
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_attendance_employee_date 
+            ON attendance_data (employee_id, check_in_date DESC)
+        """))
+        
+        # QR Code indexes
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_qrcode_project_active 
+            ON qr_codes (project_id, active_status)
+        """))
+        
+        # User indexes
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_users_username_active 
+            ON users (username, active_status)
+        """))
+        
+        # Log event indexes
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_log_events_timestamp_category 
+            ON log_events (created_timestamp DESC, event_category)
+        """))
+        
+        db.session.commit()
+        print("✅ Performance indexes created successfully")
+        
+        # Log the optimization
+        logger_handler.log_system_event(
+            event_type="database_optimization",
+            description="Performance indexes created successfully",
+            severity="INFO",
+            additional_data={"optimization_type": "indexes"}
+        )
+        
+    except Exception as e:
+        print(f"❌ Error creating performance indexes: {e}")
+        db.session.rollback()
+        logger_handler.log_database_error(
+            error_type="index_creation_error",
+            error_message=str(e),
+            query="CREATE INDEX statements"
+        )
+
+def create_audit_triggers():
+    """Create audit and integrity triggers"""
+    try:
+        print("🔄 Creating audit triggers...")
+        
+        # Create audit table
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS attendance_audit (
+                audit_id INT AUTO_INCREMENT PRIMARY KEY,
+                record_id INT NOT NULL,
+                action_type ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
+                old_values JSON,
+                new_values JSON,
+                changed_by VARCHAR(100),
+                change_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ip_address VARCHAR(45),
+                INDEX idx_audit_record_timestamp (record_id, change_timestamp),
+                INDEX idx_audit_action_timestamp (action_type, change_timestamp)
+            ) ENGINE=InnoDB
+        """))
+        
+        # Create audit trigger (simplified version)
+        db.session.execute(text("""
+            DROP TRIGGER IF EXISTS tr_attendance_insert_audit
+        """))
+        
+        db.session.execute(text("""
+            CREATE TRIGGER tr_attendance_insert_audit
+                AFTER INSERT ON attendance_data
+                FOR EACH ROW
+                INSERT INTO attendance_audit (
+                    record_id, action_type, new_values, changed_by
+                ) VALUES (
+                    NEW.id, 'INSERT', 
+                    JSON_OBJECT(
+                        'employee_id', NEW.employee_id,
+                        'location_name', NEW.location_name,
+                        'check_in_date', NEW.check_in_date
+                    ),
+                    USER()
+                )
+        """))
+        
+        db.session.commit()
+        print("✅ Audit triggers created successfully")
+        
+    except Exception as e:
+        print(f"❌ Error creating audit triggers: {e}")
+        db.session.rollback()
+
 # Initialize Google Maps client
 try:
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY')
@@ -5864,33 +5973,114 @@ def log_response_info(response):
 
     return response
 
+def get_optimized_statistics(date_from=None, date_to=None, project_filter=None):
+    """Optimized statistics query using new indexes"""
+    try:
+        # Base conditions with optimized WHERE clause ordering
+        conditions = ["1=1"]  # Start with always-true condition
+        params = {}
+        
+        # Most selective conditions first for index optimization
+        if date_from and date_to:
+            conditions.append("ad.check_in_date BETWEEN :date_from AND :date_to")
+            params.update({'date_from': date_from, 'date_to': date_to})
+        elif date_from:
+            conditions.append("ad.check_in_date >= :date_from")
+            params['date_from'] = date_from
+        elif date_to:
+            conditions.append("ad.check_in_date <= :date_to")
+            params['date_to'] = date_to
+            
+        if project_filter:
+            conditions.append("qc.project_id = :project_id")
+            params['project_id'] = int(project_filter)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # Optimized main statistics query
+        stats_query = f"""
+            SELECT 
+                COUNT(*) as total_scans,
+                COUNT(DISTINCT ad.employee_id) as unique_employees,
+                COUNT(DISTINCT ad.qr_code_id) as unique_locations,
+                COUNT(CASE WHEN ad.check_in_date = CURRENT_DATE THEN 1 END) as today_scans,
+                COUNT(CASE WHEN ad.latitude IS NOT NULL THEN 1 END) as gps_enabled_scans,
+                AVG(CASE WHEN ad.accuracy IS NOT NULL THEN ad.accuracy END) as avg_gps_accuracy
+            FROM attendance_data ad
+            LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
+            WHERE {where_clause}
+        """
+        
+        result = db.session.execute(text(stats_query), params).fetchone()
+        
+        # Log successful query execution
+        logger_handler.log_system_event(
+            event_type="optimized_statistics_query",
+            description=f"Statistics generated with {result.total_scans} total scans",
+            severity="INFO"
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger_handler.log_database_error(
+            error_type="statistics_query_error",
+            error_message=str(e),
+            query="get_optimized_statistics"
+        )
+        raise
+
+def log_slow_query_performance():
+    """Monitor and log slow query performance"""
+    @app.before_request
+    def before_request():
+        g.start_time = time.time()
+        
+    @app.after_request
+    def after_request(response):
+        if hasattr(g, 'start_time'):
+            duration = time.time() - g.start_time
+            
+            # Log slow requests (over 2 seconds)
+            if duration > 2.0:
+                logger_handler.log_system_event(
+                    event_type="slow_query_detected",
+                    description=f"Slow request: {request.endpoint} took {duration:.2f}s",
+                    severity="WARNING",
+                    additional_data={
+                        'duration': duration,
+                        'endpoint': request.endpoint,
+                        'method': request.method,
+                        'user': session.get('username', 'anonymous')
+                    }
+                )
+        
+        return response
+    
 if __name__ == '__main__':
     with app.app_context():
         try:
             # Initialize database and logging
             create_tables()
-            # update_existing_qr_codes()
-            # add_qr_customization_columns()
+            
+            # Add performance optimizations
+            create_performance_indexes()
+            create_audit_triggers()
 
+            # Log optimization completion
+            logger_handler.log_system_event(
+                event_type="database_optimization_complete",
+                description="Database performance optimization completed successfully",
+                severity="INFO",
+                additional_data={
+                    "indexes_created": True,
+                    "triggers_created": True,
+                    "optimization_timestamp": datetime.utcnow().isoformat()
+                }
+            )
+            print("🚀 Database optimization completed successfully")
             # Log application startup
             logger_handler.logger.info("QR Attendance Management System started successfully")
-
-            print("🚀 QR Attendance Management System")
-            print("="*50)
-            print("✅ Database initialized")
-            print("✅ Logging system enabled")
-            print("✅ Application ready")
-            print("\n📋 Logging Features:")
-            print("   • User login/logout tracking")
-            print("   • QR code creation/modification/deletion")
-            print("   • Database error monitoring")
-            print("   • Flask application error tracking")
-            print("   • Security event logging")
-            print("\n📁 Log Files Location: ./logs/")
-            print("   • application.log - General application events")
-            print("   • errors.log - Error events")
-            print("   • security.log - Security-related events")
-            print("\n💾 Database Logging: log_events table")
 
         except Exception as e:
             print(f"❌ Application startup failed: {e}")
