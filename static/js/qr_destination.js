@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // CRITICAL: Initialize systems in correct order
   initializeLanguage();
-  initializeLocationServicesCheck();
+  // initializeLocationServicesCheck();
   initializeStaffIdPersistence();
   initializeForm();
   initializeLocation();
