@@ -164,12 +164,12 @@ def health_check():
                 print("2. Verify database connection and table creation")
                 print("3. Check Flask app initialization")
             elif health_status['overall'] == 'warning':
-                print("1. Add performance indexes: python simple_maintenance.py add-indexes")
+                print("1. Add performance indexes: python db_maintenance.py add-indexes")
                 print("2. Set up audit triggers for data tracking")
                 print("3. Run regular maintenance")
             else:
                 print("1. System is healthy!")
-                print("2. Run regular maintenance: python simple_maintenance.py cleanup")
+                print("2. Run regular maintenance: python db_maintenance.py cleanup")
                 print("3. Monitor performance metrics")
                 
             return health_status

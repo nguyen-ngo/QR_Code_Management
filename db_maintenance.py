@@ -1,4 +1,4 @@
-# fixed_simple_maintenance.py
+# db_maintenance.py
 """
 Fixed Simple Maintenance Script
 ==============================
@@ -437,7 +437,7 @@ def analyze_performance():
                     print(f"• {table_info['table']}: Add performance indexes")
                     print(f"  Rows: {table_info['rows']:,}, Priority: {table_info['priority']}")
                 
-                print(f"\nTo add indexes: python fixed_simple_maintenance.py add-indexes")
+                print(f"\nTo add indexes: python db_maintenance.py add-indexes")
             else:
                 print(f"\n[GOOD] All major tables have performance indexes")
             
@@ -483,9 +483,9 @@ def main():
         print("  health-check            - Run health check")
         print("")
         print("Examples:")
-        print("  python fixed_simple_maintenance.py cleanup --dry-run")
-        print("  python fixed_simple_maintenance.py add-indexes")
-        print("  python fixed_simple_maintenance.py table-info")
+        print("  python db_maintenance.py cleanup --dry-run")
+        print("  python db_maintenance.py add-indexes")
+        print("  python db_maintenance.py table-info")
         return
     
     command = sys.argv[1].lower()
@@ -507,7 +507,7 @@ def main():
         elif command == 'health-check':
             # Run health check from the other script
             try:
-                from simple_health_check import health_check
+                from db_health_check import health_check
                 health_check()
             except ImportError:
                 print("[ERROR] simple_health_check.py not found")
