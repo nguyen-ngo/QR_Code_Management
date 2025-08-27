@@ -1,0 +1,521 @@
+{% extends "base_authenticated.html" %}
+{% set page_title = "Employee Details - " + employee.full_name %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
+<style>
+.employee-detail-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.employee-profile {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.profile-header {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  padding: 2rem;
+  position: relative;
+}
+
+.profile-header::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+}
+
+.profile-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.profile-info h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.profile-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+  opacity: 0.9;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.meta-item i {
+  width: 16px;
+  text-align: center;
+}
+
+.employee-actions {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.profile-body {
+  padding: 2rem;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.info-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.info-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 1rem;
+}
+
+.info-value {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.info-value strong {
+  color: #0f172a;
+}
+
+.attendance-stats {
+  margin-top: 2rem;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.stats-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s ease-in-out;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.stat-icon.total {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+}
+
+.stat-icon.recent {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+}
+
+.stat-icon.projects {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+}
+
+.stat-icon.latest {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #ffffff;
+}
+
+.stat-info h3 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.stat-info p {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.projects-list {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.projects-header {
+  background: #f8fafc;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.projects-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.projects-body {
+  padding: 1.5rem;
+}
+
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.project-item:last-child {
+  margin-bottom: 0;
+}
+
+.project-item:hover {
+  border-color: #2563eb;
+  background: #f8fafc;
+}
+
+.project-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.project-info h4 {
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.project-info p {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.no-projects {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+}
+
+.no-projects i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+  .employee-detail-page {
+    padding: 1rem;
+  }
+  
+  .profile-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .employee-actions {
+    position: static;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  
+  .info-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .profile-meta {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="employee-detail-page">
+  <!-- Navigation -->
+  <div class="employees-header" style="margin-bottom: 1rem;">
+    <div class="header-content">
+      <div class="header-navigation">
+        <a href="{{ url_for('employees') }}" class="back-button">
+          <i class="fas fa-arrow-left"></i>
+          Back to Employees
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Employee Profile -->
+  <div class="employee-profile">
+    <div class="profile-header">
+      <div class="profile-content">
+        <div class="profile-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="profile-info">
+          <h1>{{ employee.full_name }}</h1>
+          <div class="profile-meta">
+            <div class="meta-item">
+              <i class="fas fa-id-card"></i>
+              Employee ID: {{ employee.id }}
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-briefcase"></i>
+              {{ employee.display_title }}
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-file-contract"></i>
+              Contract ID: {{ employee.contractId }}
+            </div>
+            {% if attendance_stats.latest_attendance %}
+            <div class="meta-item">
+              <i class="fas fa-clock"></i>
+              Last seen: {{ attendance_stats.latest_attendance.check_in_date.strftime('%B %d, %Y') }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      {% if session.role == 'admin' %}
+      <div class="employee-actions">
+        <a href="{{ url_for('edit_employee', employee_index=employee.index) }}" 
+           class="btn btn-warning btn-sm">
+          <i class="fas fa-edit"></i>
+          Edit
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="profile-body">
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>
+            <i class="fas fa-user"></i>
+            Personal Information
+          </h3>
+          <div class="info-value">
+            <p><strong>First Name:</strong> {{ employee.firstName }}</p>
+            <p><strong>Last Name:</strong> {{ employee.lastName }}</p>
+            <p><strong>Full Name:</strong> {{ employee.full_name }}</p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>
+            <i class="fas fa-id-badge"></i>
+            Employment Details
+          </h3>
+          <div class="info-value">
+            <p><strong>Employee ID:</strong> {{ employee.id }}</p>
+            <p><strong>Job Title:</strong> {{ employee.display_title }}</p>
+            <p><strong>Contract ID:</strong> {{ employee.contractId }}</p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>
+            <i class="fas fa-database"></i>
+            System Information
+          </h3>
+          <div class="info-value">
+            <p><strong>Database Index:</strong> {{ employee.index }}</p>
+            <p><strong>Record Status:</strong> Active</p>
+            <p><strong>Attendance Records:</strong> {{ attendance_stats.total_attendance }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendance Statistics -->
+  <div class="attendance-stats">
+    <div class="stats-header">
+      <h2>
+        <i class="fas fa-chart-bar"></i>
+        Attendance Statistics
+      </h2>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon total">
+          <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="stat-info">
+          <h3>{{ attendance_stats.total_attendance }}</h3>
+          <p>Total Attendance</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon recent">
+          <i class="fas fa-calendar-week"></i>
+        </div>
+        <div class="stat-info">
+          <h3>{{ attendance_stats.recent_attendance }}</h3>
+          <p>Last 30 Days</p>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon projects">
+          <i class="fas fa-project-diagram"></i>
+        </div>
+        <div class="stat-info">
+          <h3>{{ attendance_stats.unique_projects }}</h3>
+          <p>Unique Projects</p>
+        </div>
+      </div>
+
+      {% if attendance_stats.latest_attendance %}
+      <div class="stat-card">
+        <div class="stat-icon latest">
+          <i class="fas fa-clock"></i>
+        </div>
+        <div class="stat-info">
+          <h3>{{ attendance_stats.latest_attendance.check_in_date.strftime('%m/%d') }}</h3>
+          <p>Latest Check-in</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Projects List -->
+    {% if attendance_stats.projects %}
+    <div class="projects-list">
+      <div class="projects-header">
+        <h3>
+          <i class="fas fa-project-diagram"></i>
+          Projects Participated ({{ attendance_stats.unique_projects }})
+        </h3>
+      </div>
+      <div class="projects-body">
+        {% for project in attendance_stats.projects %}
+        <div class="project-item">
+          <div class="project-icon">
+            <i class="fas fa-folder"></i>
+          </div>
+          <div class="project-info">
+            <h4>{{ project.name }}</h4>
+            <p>
+              {% if project.description %}
+                {{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}
+              {% else %}
+                No description available
+              {% endif %}
+            </p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="projects-list">
+      <div class="projects-body">
+        <div class="no-projects">
+          <i class="fas fa-folder-open"></i>
+          <h3>No Projects Yet</h3>
+          <p>This employee hasn't participated in any projects yet.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

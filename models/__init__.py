@@ -17,5 +17,6 @@ def set_db(database):
     from .qrcode import QRCode, QRCodeStyle
     from .project import Project
     from .attendance import AttendanceData
+    from .employee import Employee
     
-    return User, QRCode, QRCodeStyle, Project, AttendanceData
+    return User, QRCode, QRCodeStyle, Project, AttendanceData, Employee

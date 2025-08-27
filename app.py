@@ -195,7 +195,7 @@ STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
 
 # Import and initialize models
 from models import set_db
-User, QRCode, QRCodeStyle, Project, AttendanceData = set_db(db)
+User, QRCode, QRCodeStyle, Project, AttendanceData, Employee = set_db(db)
 
 # Initialize the logging system
 logger_handler = AppLogger(app, db)
@@ -1597,7 +1597,7 @@ def dashboard():
         flash('Error loading dashboard. Please try again.', 'error')
         return redirect(url_for('login'))
 
-# User management routes
+# USER MANAGEMENT ROUTES
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 @log_user_activity('profile_update')
@@ -3012,7 +3012,7 @@ def api_active_projects():
             'error': 'Failed to fetch projects'
         }), 500
 
-# QR code management routes
+# QR CODE MANAGEMENT ROUTES
 @app.route('/qr-codes/create', methods=['GET', 'POST'])
 @login_required
 @log_database_operations('qr_code_creation')
@@ -5678,6 +5678,337 @@ def export_statistics():
         
         flash('Error loading statistics. Please try again.', 'error')
         return redirect(url_for('dashboard'))
+
+# EMPLOYEE MANAGEMENT ROUTES
+@app.route('/employees')
+@admin_required
+def employees():
+    """Display employee management page with search and pagination"""
+    try:
+        # Log user accessing employee management
+        try:
+            logger_handler.logger.info(f"User {session['username']} accessed employee management list")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
+        # Get search parameters
+        search = request.args.get('search', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # Number of employees per page
+        
+        # Build query based on search
+        query = Employee.query
+        
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Employee.firstName.like(search_pattern),
+                    Employee.lastName.like(search_pattern),
+                    Employee.title.like(search_pattern),
+                    Employee.id.like(search_pattern)
+                )
+            )
+        
+        # Order by first name, then last name
+        query = query.order_by(Employee.firstName, Employee.lastName)
+        
+        # Paginate results
+        employees = query.paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        # Get summary statistics
+        total_employees = Employee.query.count()
+        employees_with_title = Employee.query.filter(Employee.title.isnot(None)).filter(Employee.title != '').count()
+        unique_titles = db.session.query(Employee.title).filter(Employee.title.isnot(None)).filter(Employee.title != '').distinct().count()
+        
+        stats = {
+            'total_employees': total_employees,
+            'employees_with_title': employees_with_title,
+            'unique_titles': unique_titles,
+            'search_results': employees.total if search else total_employees
+        }
+        
+        return render_template('employees.html', 
+                             employees=employees, 
+                             search=search,
+                             stats=stats)
+        
+    except Exception as e:
+        logger_handler.log_database_error('employee_list', e)
+        flash('Error loading employee list. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/employees/create', methods=['GET', 'POST'])
+@admin_required
+@log_database_operations('employee_creation')
+def create_employee():
+    """Create new employee (Admin only)"""
+    if request.method == 'POST':
+        try:
+            # Get form data
+            employee_id = request.form['employee_id'].strip()
+            first_name = request.form['first_name'].strip()
+            last_name = request.form['last_name'].strip()
+            title = request.form.get('title', '').strip()
+            contract_id = request.form.get('contract_id', '1').strip()
+            
+            # Validate required fields
+            if not all([employee_id, first_name, last_name]):
+                flash('Employee ID, First Name, and Last Name are required.', 'error')
+                return render_template('create_employee.html')
+            
+            # Validate employee ID is numeric
+            try:
+                employee_id_int = int(employee_id)
+                contract_id_int = int(contract_id)
+            except ValueError:
+                flash('Employee ID and Contract ID must be numeric.', 'error')
+                return render_template('create_employee.html')
+            
+            # Check if employee ID already exists
+            existing_employee = Employee.query.filter_by(id=employee_id_int).first()
+            if existing_employee:
+                flash(f'Employee with ID {employee_id} already exists.', 'error')
+                return render_template('create_employee.html')
+            
+            # Create new employee
+            new_employee = Employee(
+                id=employee_id_int,
+                firstName=first_name,
+                lastName=last_name,
+                title=title if title else None,
+                contractId=contract_id_int
+            )
+            
+            db.session.add(new_employee)
+            db.session.commit()
+            
+            # Log employee creation
+            try:
+                logger_handler.logger.info(f"Admin user {session['username']} created new employee: {employee_id_int} - {first_name} {last_name}")
+            except Exception as log_error:
+                print(f"⚠️ Logging error (non-critical): {log_error}")
+            
+            flash(f'Employee "{first_name} {last_name}" (ID: {employee_id}) created successfully.', 'success')
+            return redirect(url_for('employees'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger_handler.log_database_error('employee_creation', e)
+            flash('Failed to create employee. Please try again.', 'error')
+            return render_template('create_employee.html')
+    
+    return render_template('create_employee.html')
+
+@app.route('/employees/<int:employee_index>/edit', methods=['GET', 'POST'])
+@admin_required  
+@log_database_operations('employee_update')
+def edit_employee(employee_index):
+    """Edit existing employee (Admin only)"""
+    try:
+        # Get employee by index (primary key)
+        employee = Employee.query.get_or_404(employee_index)
+        
+        if request.method == 'POST':
+            # Get form data
+            employee_id = request.form['employee_id'].strip()
+            first_name = request.form['first_name'].strip()
+            last_name = request.form['last_name'].strip()
+            title = request.form.get('title', '').strip()
+            contract_id = request.form.get('contract_id', '1').strip()
+            stats = {
+                'total_employees': 0,
+                'employees_with_title': 0, 
+                'unique_titles': 0,
+                'search_results': 0
+            }
+
+            # Validate required fields
+            if not all([employee_id, first_name, last_name]):
+                flash('Employee ID, First Name, and Last Name are required.', 'error')
+                return render_template('edit_employee.html', employee=employee)
+            
+            # Validate numeric fields
+            try:
+                employee_id_int = int(employee_id)
+                contract_id_int = int(contract_id)
+            except ValueError:
+                flash('Employee ID and Contract ID must be numeric.', 'error')
+                return render_template('edit_employee.html', employee=employee)
+            
+            # Check if employee ID already exists (but not for this employee)
+            existing_employee = Employee.query.filter_by(id=employee_id_int).first()
+            if existing_employee and existing_employee.index != employee.index:
+                flash(f'Employee with ID {employee_id} already exists.', 'error')
+                return render_template('edit_employee.html', employee=employee, stats=stats)
+            
+            # Store original values for logging
+            original_data = {
+                'id': employee.id,
+                'firstName': employee.firstName,
+                'lastName': employee.lastName,
+                'title': employee.title,
+                'contractId': employee.contractId
+            }
+            
+            # Update employee data
+            employee.id = employee_id_int
+            employee.firstName = first_name
+            employee.lastName = last_name
+            employee.title = title if title else None
+            employee.contractId = contract_id_int
+            
+            db.session.commit()
+            
+            # Log employee update
+            try:
+                logger_handler.logger.info(f"Admin user {session['username']} updated employee: {employee_index} - {first_name} {last_name}")
+            except Exception as log_error:
+                print(f"⚠️ Logging error (non-critical): {log_error}")
+            
+            flash(f'Employee "{first_name} {last_name}" updated successfully.', 'success')
+            return redirect(url_for('employees'))
+        
+        return render_template('edit_employee.html', employee=employee)
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('employee_update', e)
+        flash('Error updating employee. Please try again.', 'error')
+        return redirect(url_for('employees'))
+
+@app.route('/employees/<int:employee_index>/delete', methods=['POST'])
+@admin_required
+@log_database_operations('employee_deletion')
+def delete_employee(employee_index):
+    """Delete employee (Admin only)"""
+    try:
+        # Get employee by index (primary key)
+        employee = Employee.query.get_or_404(employee_index)
+        
+        # Store employee data for logging before deletion
+        employee_data = {
+            'index': employee.index,
+            'id': employee.id,
+            'firstName': employee.firstName,
+            'lastName': employee.lastName,
+            'title': employee.title,
+            'contractId': employee.contractId
+        }
+        
+        # Check if employee has attendance records
+        from models.attendance import AttendanceData
+        attendance_count = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
+        
+        if attendance_count > 0:
+            flash(f'Cannot delete employee "{employee.full_name}". Employee has {attendance_count} attendance records. Please contact system administrator.', 'error')
+            return redirect(url_for('employees'))
+        
+        db.session.delete(employee)
+        db.session.commit()
+        
+        # Log employee deletion
+        try:
+            logger_handler.logger.info(f"Admin user {session['username']} deleted employee: {employee_data['firstName']} {employee_data['lastName']} (ID: {employee_data['id']})")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
+        flash(f'Employee "{employee_data["firstName"]} {employee_data["lastName"]}" deleted successfully.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('employee_deletion', e)
+        flash('Error deleting employee. Please try again.', 'error')
+    
+    return redirect(url_for('employees'))
+
+@app.route('/api/employees/search')
+@login_required
+def api_employees_search():
+    """API endpoint for employee search (for AJAX)"""
+    try:
+        search = request.args.get('q', '').strip()
+        limit = request.args.get('limit', 10, type=int)
+        
+        if not search:
+            return jsonify({'employees': []})
+        
+        employees = Employee.search_employees(search)[:limit]
+        
+        result = {
+            'employees': [emp.to_dict() for emp in employees]
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger_handler.log_database_error('employee_search_api', e)
+        return jsonify({'error': 'Search failed'}), 500
+
+@app.route('/employees/<int:employee_index>')
+@admin_required
+def employee_detail(employee_index):
+    """View employee details with attendance summary"""
+    try:
+        # Get employee by index (primary key)
+        employee = Employee.query.get_or_404(employee_index)
+        
+        # Get attendance statistics for this employee
+        from models.attendance import AttendanceData
+        
+        # Total attendance records
+        total_attendance = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
+        
+        # Recent attendance (last 30 days)
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        recent_attendance = AttendanceData.query.filter(
+            AttendanceData.employee_id == str(employee.id),
+            AttendanceData.check_in_date >= thirty_days_ago.date()
+        ).count()
+        
+        # Most recent attendance record
+        latest_attendance = AttendanceData.query.filter_by(employee_id=str(employee.id)).order_by(
+            AttendanceData.check_in_date.desc(),
+            AttendanceData.check_in_time.desc()
+        ).first()
+        
+        # Get unique projects this employee has attended
+        unique_projects = db.session.query(Project).join(
+            QRCode, Project.id == QRCode.project_id
+        ).join(
+            AttendanceData, QRCode.id == AttendanceData.qr_code_id
+        ).filter(
+            AttendanceData.employee_id == str(employee.id)
+        ).distinct().all()
+        
+        attendance_stats = {
+            'total_attendance': total_attendance,
+            'recent_attendance': recent_attendance,
+            'latest_attendance': latest_attendance,
+            'unique_projects': len(unique_projects),
+            'projects': unique_projects
+        }
+        
+        # Log employee detail view
+        try:
+            logger_handler.logger.info(f"User {session['username']} viewed employee detail: {employee.full_name} (ID: {employee.id})")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+        
+        return render_template('employee_detail.html', 
+                             employee=employee, 
+                             attendance_stats=attendance_stats)
+        
+    except Exception as e:
+        logger_handler.log_database_error('employee_detail', e)
+        flash('Error loading employee details. Please try again.', 'error')
+        return redirect(url_for('employees'))
+    
 
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
