@@ -5879,10 +5879,15 @@ def edit_employee(employee_index):
 @admin_required
 @log_database_operations('employee_deletion')
 def delete_employee(employee_index):
-    """Delete employee (Admin only)"""
+    """Delete employee (Admin only) - Enhanced with better logging"""
     try:
+        print(f"🗑️ DELETE REQUEST: Employee index {employee_index}")
+        print(f"📋 Request method: {request.method}")
+        print(f"👤 User: {session.get('username', 'Unknown')}")
+        
         # Get employee by index (primary key)
         employee = Employee.query.get_or_404(employee_index)
+        print(f"✅ Found employee: {employee.firstName} {employee.lastName} (ID: {employee.id})")
         
         # Store employee data for logging before deletion
         employee_data = {
@@ -5897,28 +5902,42 @@ def delete_employee(employee_index):
         # Check if employee has attendance records
         from models.attendance import AttendanceData
         attendance_count = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
+        print(f"📊 Attendance records found: {attendance_count}")
         
         if attendance_count > 0:
-            flash(f'Cannot delete employee "{employee.full_name}". Employee has {attendance_count} attendance records. Please contact system administrator.', 'error')
+            error_msg = f'Cannot delete employee "{employee.full_name}". Employee has {attendance_count} attendance records. Please contact system administrator.'
+            print(f"❌ DELETION BLOCKED: {error_msg}")
+            flash(error_msg, 'error')
             return redirect(url_for('employees'))
+        
+        # Proceed with deletion
+        print(f"🗑️ Proceeding with deletion of employee: {employee_data['firstName']} {employee_data['lastName']}")
         
         db.session.delete(employee)
         db.session.commit()
+        print("✅ Employee successfully deleted from database")
         
         # Log employee deletion
         try:
             logger_handler.logger.info(f"Admin user {session['username']} deleted employee: {employee_data['firstName']} {employee_data['lastName']} (ID: {employee_data['id']})")
+            print(f"📋 Deletion logged successfully")
         except Exception as log_error:
             print(f"⚠️ Logging error (non-critical): {log_error}")
         
-        flash(f'Employee "{employee_data["firstName"]} {employee_data["lastName"]}" deleted successfully.', 'success')
+        success_msg = f'Employee "{employee_data["firstName"]} {employee_data["lastName"]}" deleted successfully.'
+        flash(success_msg, 'success')
+        print(f"✅ SUCCESS: {success_msg}")
+        
+        return redirect(url_for('employees'))
         
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('employee_deletion', e)
-        flash('Error deleting employee. Please try again.', 'error')
-    
-    return redirect(url_for('employees'))
+        error_msg = f'Error deleting employee. Please try again.'
+        print(f"❌ ERROR in delete_employee: {e}")
+        print(f"❌ Exception type: {type(e)}")
+        flash(error_msg, 'error')
+        return redirect(url_for('employees'))
 
 @app.route('/api/employees/search')
 @login_required
