@@ -5820,12 +5820,6 @@ def edit_employee(employee_index):
             last_name = request.form['last_name'].strip()
             title = request.form.get('title', '').strip()
             contract_id = request.form.get('contract_id', '1').strip()
-            stats = {
-                'total_employees': 0,
-                'employees_with_title': 0, 
-                'unique_titles': 0,
-                'search_results': 0
-            }
 
             # Validate required fields
             if not all([employee_id, first_name, last_name]):
@@ -5844,7 +5838,7 @@ def edit_employee(employee_index):
             existing_employee = Employee.query.filter_by(id=employee_id_int).first()
             if existing_employee and existing_employee.index != employee.index:
                 flash(f'Employee with ID {employee_id} already exists.', 'error')
-                return render_template('edit_employee.html', employee=employee, stats=stats)
+                return render_template('edit_employee.html', employee=employee)
             
             # Store original values for logging
             original_data = {
@@ -5868,7 +5862,7 @@ def edit_employee(employee_index):
             try:
                 logger_handler.logger.info(f"Admin user {session['username']} updated employee: {employee_index} - {first_name} {last_name}")
             except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+                print(f"Warning: Logging error (non-critical): {log_error}")
             
             flash(f'Employee "{first_name} {last_name}" updated successfully.', 'success')
             return redirect(url_for('employees'))
