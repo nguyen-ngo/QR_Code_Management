@@ -938,18 +938,34 @@
         }
 
         locationCaptureActive = true;
-        console.log("📍 Requesting enhanced location data...");
+        console.log("📍 Requesting enhanced location data (high accuracy)...");
 
-        const options = {
+        const highAccuracyOptions = {
           enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000,
+          timeout: 15000, // 15 sec for GPS attempt
+          maximumAge: 300000
         };
 
         navigator.geolocation.getCurrentPosition(
           handleEnhancedLocationSuccess,
-          handleEnhancedLocationError,
-          options
+          function(error) {
+            console.warn("⚠️ High accuracy failed:", error.message);
+
+            // Fallback to low accuracy
+            const lowAccuracyOptions = {
+              enableHighAccuracy: false,
+              timeout: 10000,
+              maximumAge: 600000
+            };
+
+            console.log("📍 Retrying with low accuracy...");
+            navigator.geolocation.getCurrentPosition(
+              handleEnhancedLocationSuccess,
+              handleEnhancedLocationError,
+              lowAccuracyOptions
+            );
+          },
+          highAccuracyOptions
         );
       }
 
