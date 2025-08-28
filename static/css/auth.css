@@ -252,3 +252,36 @@
     transform: none !important;
   }
 }
+
+/* Turnstile Integration */
+.turnstile-container {
+  display: flex !important;
+  justify-content: center !important;
+  margin: 1.5rem 0 !important;
+}
+
+.turnstile-container .cf-turnstile {
+  transform: scale(0.95) !important;
+  transform-origin: center !important;
+}
+
+/* Responsive Turnstile */
+@media screen and (max-width: 480px) {
+  .turnstile-container .cf-turnstile {
+    transform: scale(0.85) !important;
+  }
+}
+
+/* Form validation enhancement for Turnstile */
+.auth-form .form-group.turnstile-error {
+  border: 2px solid var(--error-color) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 1rem !important;
+  background-color: rgba(239, 68, 68, 0.05) !important;
+}
+
+/* Dark theme support */
+.turnstile-container .cf-turnstile[data-theme="dark"] {
+  background-color: var(--gray-800) !important;
+  border-radius: var(--radius-lg) !important;
+}

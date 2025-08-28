@@ -17,7 +17,7 @@
       <p>Sign in to your account</p>
     </div>
 
-    <form method="POST" class="auth-form">
+    <form method="POST" class="auth-form" id="loginForm">
       <div class="form-group">
         <label for="username">
           <i class="fas fa-user"></i>
@@ -34,20 +34,30 @@
         <input type="password" id="password" name="password" required />
       </div>
 
+      <!-- Turnstile Integration -->
+      {% if turnstile_enabled %}
+      <div class="form-group turnstile-container">
+        <div class="cf-turnstile" 
+             data-sitekey="{{ turnstile_site_key }}" 
+             data-callback="onTurnstileSuccess"
+             data-expired-callback="onTurnstileExpired"
+             data-theme="light"
+             data-language="en">
+        </div>
+      </div>
+      {% endif %}
+
       <button type="submit" class="btn btn-primary btn-full">
         <i class="fas fa-sign-in-alt"></i>
         Sign In
       </button>
     </form>
-
-    <!-- Register link removed as requested -->
   </div>
 </div>
 {% endblock %} 
 
 {% block extra_scripts %}
 <script>
-  // Enhanced form validation and user experience improvements
   document.addEventListener("DOMContentLoaded", function () {
     const form = document.querySelector(".auth-form");
     const inputs = form.querySelectorAll("input");
@@ -70,37 +80,53 @@
       }
     });
 
-    // Enhanced form submission with loading state
-    form.addEventListener("submit", function () {
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const originalContent = submitBtn.innerHTML;
-      
-      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
-      submitBtn.disabled = true;
-      
-      // Re-enable button after 10 seconds as fallback
-      setTimeout(() => {
-        if (submitBtn.disabled) {
-          submitBtn.innerHTML = originalContent;
-          submitBtn.disabled = false;
+    // Enhanced form validation with Turnstile
+    form.addEventListener("submit", function(e) {
+      {% if turnstile_enabled %}
+      // Check if Turnstile is completed
+      const turnstileResponse = document.querySelector('[name="cf-turnstile-response"]');
+      if (!turnstileResponse || !turnstileResponse.value) {
+        e.preventDefault();
+        
+        // Highlight Turnstile container
+        const turnstileContainer = document.querySelector('.turnstile-container');
+        if (turnstileContainer) {
+          turnstileContainer.classList.add('turnstile-error');
+          setTimeout(() => {
+            turnstileContainer.classList.remove('turnstile-error');
+          }, 3000);
         }
-      }, 10000);
+        
+        // Show error message
+        alert('Please complete the security verification.');
+        return false;
+      }
+      {% endif %}
+      
+      // Show loading state
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+      }
     });
-
-    // Add keyboard navigation enhancement
-    inputs.forEach((input, index) => {
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" && index < inputs.length - 1) {
-          e.preventDefault();
-          inputs[index + 1].focus();
-        }
-      });
-    });
-
-    // Auto-focus first input
-    if (inputs.length > 0) {
-      inputs[0].focus();
-    }
   });
+
+  // Turnstile callback functions
+  {% if turnstile_enabled %}
+  function onTurnstileSuccess(token) {
+    // Remove any error styling
+    const turnstileContainer = document.querySelector('.turnstile-container');
+    if (turnstileContainer) {
+      turnstileContainer.classList.remove('turnstile-error');
+    }
+    console.log('Turnstile verification successful');
+  }
+
+  function onTurnstileExpired() {
+    // Reset form if Turnstile expires
+    console.log('Turnstile expired, please verify again');
+  }
+  {% endif %}
 </script>
 {% endblock %}

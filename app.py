@@ -17,6 +17,7 @@ from payroll_excel_exporter import PayrollExcelExporter
 
 # Load environment variables in .env
 load_dotenv()
+from turnstile_utils import turnstile_utils
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -1482,14 +1483,27 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Enhanced user authentication with comprehensive logging"""
+    """Enhanced user authentication with Turnstile and comprehensive logging"""
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        turnstile_response = request.form.get('cf-turnstile-response', '')
 
         if not username or not password:
             flash('Please enter both username and password.', 'error')
             return render_template('login.html')
+
+        # Verify Turnstile if enabled
+        if turnstile_utils.is_enabled():
+            if not turnstile_utils.verify_turnstile(turnstile_response):
+                # Log failed Turnstile attempt
+                logger_handler.log_security_event(
+                    event_type="turnstile_verification_failed",
+                    description=f"Failed Turnstile verification for username: {username}",
+                    severity="HIGH"
+                )
+                flash('Please complete the security verification.', 'error')
+                return render_template('login.html')
 
         try:
             # Find user (case-insensitive username)
@@ -1510,12 +1524,20 @@ def login():
                 user.last_login_date = datetime.utcnow()
                 db.session.commit()
 
-                # Log successful login
+                # Log successful login with Turnstile info
                 logger_handler.log_user_login(
                     user_id=user.id,
                     username=user.username,
                     success=True
                 )
+                
+                # Log successful Turnstile verification
+                if turnstile_utils.is_enabled():
+                    logger_handler.log_security_event(
+                        event_type="turnstile_verification_success",
+                        description=f"Successful Turnstile verification for user: {user.username}",
+                        severity="INFO"
+                    )
 
                 flash(f'Welcome back, {user.full_name}!', 'success')
                 print(f"User {user.username} logged in successfully")
@@ -6264,6 +6286,14 @@ def inject_logging_status():
     return {
         'logging_enabled': hasattr(app, 'logger_handler'),
         'is_admin': has_admin_privileges(session.get('role', ''))
+    }
+
+@app.context_processor
+def inject_turnstile():
+    """Inject Turnstile settings into all templates"""
+    return {
+        'turnstile_enabled': turnstile_utils.is_enabled(),
+        'turnstile_site_key': turnstile_utils.get_site_key()
     }
 
 # Before request handler for request logging

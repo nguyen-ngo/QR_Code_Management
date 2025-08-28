@@ -85,5 +85,9 @@
         csrfToken: '{{ csrf_token() if csrf_token else '' }}'
       };
     </script>
+    {% if turnstile_enabled %}
+    <!-- Cloudflare Turnstile -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {% endif %}
   </body>
 </html>
