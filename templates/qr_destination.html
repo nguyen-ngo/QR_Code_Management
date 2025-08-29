@@ -26,7 +26,7 @@
         --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         --border-radius: 0.5rem;
         --transition: all 0.2s ease-in-out;
-        
+
         /* Language Color Coding - High Contrast Theme */
         --english-color: #1e40af;
         --english-bg: rgba(59, 130, 246, 0.1);
@@ -173,12 +173,20 @@
 
       /* Check In - Blue Icon */
       .check-in .header-icon {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+        background: linear-gradient(
+          135deg,
+          var(--primary-color),
+          var(--primary-hover)
+        );
       }
 
       /* Check Out - Orange Icon */
       .check-out .header-icon {
-        background: linear-gradient(135deg, var(--orange-color), var(--orange-hover));
+        background: linear-gradient(
+          135deg,
+          var(--orange-color),
+          var(--orange-hover)
+        );
       }
 
       .header-icon i {
@@ -516,8 +524,12 @@
       }
 
       @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
       }
 
       .fade-transition {
@@ -710,11 +722,11 @@
           flex-direction: column;
           gap: 0.5rem;
         }
-        
+
         .warning-actions {
           justify-content: center;
         }
-        
+
         .warning-retry-btn,
         .warning-dismiss-btn {
           flex: 1;
@@ -724,34 +736,36 @@
       }
     </style>
   </head>
-  <body class="{% if qr_code.location_event == 'Check Out' %}check-out{% else %}check-in{% endif %}">
+  <body
+    class="{% if qr_code.location_event == 'Check Out' %}check-out{% else %}check-in{% endif %}"
+  >
     <div class="destination-container">
       <!-- Header Section with Dynamic Styling and Color-Coded Languages -->
       <div class="destination-header fade-transition active">
         <div class="header-icon">
           <!-- Company Logo -->
-          <img 
-            src="{{ url_for('static', filename='images/logo.png') }}" 
+          <img
+            src="{{ url_for('static', filename='images/logo.png') }}"
             alt="Company Logo"
             class="company-logo"
             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
           />
           <!-- Fallback QR Icon (hidden by default, shown if logo fails to load) -->
-          <i class="fas fa-qrcode fallback-icon" style="display: none;"></i>
+          <i class="fas fa-qrcode fallback-icon" style="display: none"></i>
         </div>
         {% if qr_code.location_event == 'Check In' %}
-          <h1>
-            <span class="english-text">{{ qr_code.location_event }}</span>
-            <span class="language-separator">/</span>
-            <span class="spanish-text">Entrada</span>
-          </h1>
+        <h1>
+          <span class="english-text">{{ qr_code.location_event }}</span>
+          <span class="language-separator">/</span>
+          <span class="spanish-text">Entrada</span>
+        </h1>
         {% else %}
-          <h1>
-            <span class="english-text">{{ qr_code.location_event }}</span>
-            <span class="language-separator">/</span>
-            <span class="spanish-text">Salida</span>
-          </h1>
-        {% endif %} 
+        <h1>
+          <span class="english-text">{{ qr_code.location_event }}</span>
+          <span class="language-separator">/</span>
+          <span class="spanish-text">Salida</span>
+        </h1>
+        {% endif %}
         <p class="location-info">
           <i class="fas fa-map-marker-alt"></i>
           {{ qr_code.location }}
@@ -773,7 +787,9 @@
             <p>
               <span class="english-text">Please enter your Employee ID.</span>
               <span class="language-separator">/</span>
-              <span class="spanish-text">Por favor ingrese su ID de empleado.</span>
+              <span class="spanish-text"
+                >Por favor ingrese su ID de empleado.</span
+              >
             </p>
           </div>
         </div>
@@ -799,15 +815,15 @@
 
           <button type="submit" class="btn btn-primary" id="submitButton">
             {% if qr_code.location_event == 'Check In' %}
-              <i class="fas fa-sign-in-alt"></i>
-              <span class="english-text">Check In</span>
-              <span class="language-separator">/</span>
-              <span class="spanish-text">Registrar Entrada</span>
+            <i class="fas fa-sign-in-alt"></i>
+            <span class="english-text">Check In</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Registrar Entrada</span>
             {% else %}
-              <i class="fas fa-sign-out-alt"></i>
-              <span class="english-text">Check Out</span>
-              <span class="language-separator">/</span>
-              <span class="spanish-text">Registrar Salida</span>
+            <i class="fas fa-sign-out-alt"></i>
+            <span class="english-text">Check Out</span>
+            <span class="language-separator">/</span>
+            <span class="spanish-text">Registrar Salida</span>
             {% endif %}
           </button>
         </form>
@@ -825,9 +841,13 @@
         </h2>
         <div class="bilingual-container">
           <p>
-            <span class="english-text">Your submission has been recorded successfully.</span>
+            <span class="english-text"
+              >Your submission has been recorded successfully.</span
+            >
             <span class="language-separator">/</span>
-            <span class="spanish-text">Su registro ha sido guardado exitosamente.</span>
+            <span class="spanish-text"
+              >Su registro ha sido guardado exitosamente.</span
+            >
           </p>
         </div>
         <div class="success-details" id="successDetails">
@@ -853,21 +873,21 @@
       let locationCaptureActive = false;
 
       // Initialize the page when DOM is loaded
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 QR Destination page loaded successfully');
-        console.log('📱 Enhanced with color-coded bilingual support');
-        
+      document.addEventListener("DOMContentLoaded", function () {
+        console.log("🚀 QR Destination page loaded successfully");
+        console.log("📱 Enhanced with color-coded bilingual support");
+
         // Initialize Employee ID auto-fill FIRST (before other functionality)
         initializeEmployeeIdAutoFill();
-        
+
         // Then initialize other functionality
         initializeFormHandling();
         initializeLocationCapture();
-        
+
         // Add fade-in animations
         setTimeout(() => {
-          document.querySelectorAll('.fade-transition').forEach(el => {
-            el.classList.add('active');
+          document.querySelectorAll(".fade-transition").forEach((el) => {
+            el.classList.add("active");
           });
         }, 100);
       });
@@ -875,8 +895,8 @@
       // FIXED Employee ID auto-fill functionality
       function initializeEmployeeIdAutoFill() {
         console.log("👤 Initializing Employee ID auto-fill functionality");
-        
-        const employeeIdInput = document.getElementById('employee_id');
+
+        const employeeIdInput = document.getElementById("employee_id");
         if (!employeeIdInput) {
           console.log("❌ Employee ID input not found");
           return;
@@ -884,17 +904,19 @@
 
         // Load and auto-fill last used Employee ID immediately
         try {
-          const lastEmployeeId = localStorage.getItem('qr_last_employee_id');
-          console.log(`📱 Checking localStorage for last employee ID: ${lastEmployeeId}`);
-          
-          if (lastEmployeeId && lastEmployeeId.trim() !== '') {
+          const lastEmployeeId = localStorage.getItem("qr_last_employee_id");
+          console.log(
+            `📱 Checking localStorage for last employee ID: ${lastEmployeeId}`
+          );
+
+          if (lastEmployeeId && lastEmployeeId.trim() !== "") {
             employeeIdInput.value = lastEmployeeId.trim();
             console.log(`✅ Auto-filled employee ID: ${lastEmployeeId}`);
-            
+
             // Visual feedback that it's auto-filled
-            employeeIdInput.style.backgroundColor = '#f0f9ff';
+            employeeIdInput.style.backgroundColor = "#f0f9ff";
             setTimeout(() => {
-              employeeIdInput.style.backgroundColor = '';
+              employeeIdInput.style.backgroundColor = "";
             }, 2000);
           } else {
             console.log(`📱 No previous employee ID found`);
@@ -904,11 +926,12 @@
         }
 
         // Save Employee ID when it's entered successfully
-        employeeIdInput.addEventListener('input', function() {
+        employeeIdInput.addEventListener("input", function () {
           const currentId = this.value.trim();
-          if (currentId.length >= 2) { // Save if at least 2 characters
+          if (currentId.length >= 2) {
+            // Save if at least 2 characters
             try {
-              localStorage.setItem('qr_last_employee_id', currentId);
+              localStorage.setItem("qr_last_employee_id", currentId);
               console.log(`💾 Saved employee ID: ${currentId}`);
             } catch (error) {
               console.log(`❌ Error saving employee ID: ${error.message}`);
@@ -945,34 +968,33 @@
         }
 
         locationCaptureActive = true;
-        console.log("📍 Requesting enhanced location data (high accuracy)...");
+        console.log("📍 Requesting enhanced location data...");
 
-        const highAccuracyOptions = {
+        const options = {
           enableHighAccuracy: true,
-          timeout: 15000, // 15 sec for GPS attempt
-          maximumAge: 300000
+          timeout: 10000,
+          maximumAge: 300000,
         };
 
         navigator.geolocation.getCurrentPosition(
           handleEnhancedLocationSuccess,
-          function(error) {
-            console.warn("⚠️ High accuracy failed:", error.message);
+          (error) => {
+            console.log("❌ High accuracy failed, trying low accuracy...");
 
-            // Fallback to low accuracy
+            // Simple fallback with low accuracy
             const lowAccuracyOptions = {
               enableHighAccuracy: false,
-              timeout: 10000,
-              maximumAge: 600000
+              timeout: 15000,
+              maximumAge: 600000,
             };
 
-            console.log("📍 Retrying with low accuracy...");
             navigator.geolocation.getCurrentPosition(
               handleEnhancedLocationSuccess,
               handleEnhancedLocationError,
               lowAccuracyOptions
             );
           },
-          highAccuracyOptions
+          options
         );
       }
 
@@ -993,7 +1015,10 @@
         console.log("📍 Enhanced location data:", currentUserLocation);
 
         // Reverse geocode to get address
-        reverseGeocodeEnhanced(currentUserLocation.latitude, currentUserLocation.longitude);
+        reverseGeocodeEnhanced(
+          currentUserLocation.latitude,
+          currentUserLocation.longitude
+        );
 
         locationCaptureActive = false;
       }
@@ -1007,7 +1032,9 @@
 
       // Reverse geocode coordinates to address (renamed to avoid conflicts)
       function reverseGeocodeEnhanced(lat, lng) {
-        console.log(`🌍 Starting enhanced reverse geocoding for: ${lat}, ${lng}`);
+        console.log(
+          `🌍 Starting enhanced reverse geocoding for: ${lat}, ${lng}`
+        );
 
         // Using Nominatim (OpenStreetMap) reverse geocoding service
         const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
@@ -1022,74 +1049,88 @@
           .then((data) => {
             if (data && data.display_name) {
               currentUserLocation.address = data.display_name;
-              console.log(`✅ Enhanced reverse geocoded address: ${currentUserLocation.address}`);
+              console.log(
+                `✅ Enhanced reverse geocoded address: ${currentUserLocation.address}`
+              );
             } else {
               console.log(`⚠️ No address found, using coordinates as fallback`);
-              currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+              currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(
+                10
+              )}`;
             }
           })
           .catch((error) => {
             console.error(`❌ Enhanced reverse geocoding error:`, error);
             // Fallback to coordinates if reverse geocoding fails
-            currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
+            currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(
+              10
+            )}`;
           });
       }
 
       // Enhanced form handling with bilingual status messages
       function initializeFormHandling() {
-        const form = document.getElementById('checkinForm');
-        const submitButton = document.getElementById('submitButton');
-        
-        console.log('🔧 Initializing enhanced form handling...');
-        console.log('Form element:', form);
-        console.log('Submit button:', submitButton);
-        
+        const form = document.getElementById("checkinForm");
+        const submitButton = document.getElementById("submitButton");
+
+        console.log("🔧 Initializing enhanced form handling...");
+        console.log("Form element:", form);
+        console.log("Submit button:", submitButton);
+
         if (form && submitButton) {
           // Remove any existing event listeners
-          form.removeEventListener('submit', handleEnhancedFormSubmission);
-          submitButton.removeEventListener('click', handleEnhancedFormSubmission);
-          
+          form.removeEventListener("submit", handleEnhancedFormSubmission);
+          submitButton.removeEventListener(
+            "click",
+            handleEnhancedFormSubmission
+          );
+
           // Add form submit event listener
-          form.addEventListener('submit', function(e) {
-            console.log('📝 Enhanced form submit event triggered');
+          form.addEventListener("submit", function (e) {
+            console.log("📝 Enhanced form submit event triggered");
             e.preventDefault();
             handleEnhancedFormSubmission();
           });
-          
+
           // Also add click event listener to button as backup
-          submitButton.addEventListener('click', function(e) {
-            console.log('🖱️ Enhanced button click event triggered');
+          submitButton.addEventListener("click", function (e) {
+            console.log("🖱️ Enhanced button click event triggered");
             e.preventDefault();
             handleEnhancedFormSubmission();
           });
-          
-          console.log('✅ Enhanced form handling initialized successfully');
+
+          console.log("✅ Enhanced form handling initialized successfully");
         } else {
-          console.error('❌ Form or submit button not found!');
+          console.error("❌ Form or submit button not found!");
         }
       }
 
       // Handle form submission with location data (renamed to avoid conflicts)
       function handleEnhancedFormSubmission() {
-        console.log('🚀 handleEnhancedFormSubmission called');
-        
-        const employeeId = document.getElementById('employee_id').value.trim();
-        const submitButton = document.getElementById('submitButton');
-        
-        console.log('Employee ID:', employeeId);
-        console.log('Submit button:', submitButton);
-        
+        console.log("🚀 handleEnhancedFormSubmission called");
+
+        const employeeId = document.getElementById("employee_id").value.trim();
+        const submitButton = document.getElementById("submitButton");
+
+        console.log("Employee ID:", employeeId);
+        console.log("Submit button:", submitButton);
+
         if (!employeeId) {
-          console.log('❌ No employee ID provided');
-          showStatusMessage('Please enter your Employee ID / Por favor ingrese su ID de empleado', 'error');
+          console.log("❌ No employee ID provided");
+          showStatusMessage(
+            "Please enter your Employee ID / Por favor ingrese su ID de empleado",
+            "error"
+          );
           return;
         }
 
-        console.log('✅ Employee ID valid, proceeding with enhanced submission');
+        console.log(
+          "✅ Employee ID valid, proceeding with enhanced submission"
+        );
 
         // Save Employee ID to localStorage for next time
         try {
-          localStorage.setItem('qr_last_employee_id', employeeId);
+          localStorage.setItem("qr_last_employee_id", employeeId);
           console.log(`💾 Saved employee ID for next time: ${employeeId}`);
         } catch (error) {
           console.log(`❌ Error saving employee ID: ${error.message}`);
@@ -1106,81 +1147,93 @@
           `;
         }
 
-        showStatusMessage('Processing check-in... / Procesando registro...', 'processing');
+        showStatusMessage(
+          "Processing check-in... / Procesando registro...",
+          "processing"
+        );
 
         // Get current URL to determine QR URL
-        const pathParts = window.location.pathname.split('/');
+        const pathParts = window.location.pathname.split("/");
         const qrUrl = pathParts[pathParts.length - 1];
-        
-        console.log('QR URL:', qrUrl);
-        console.log('Current enhanced location data:', currentUserLocation);
+
+        console.log("QR URL:", qrUrl);
+        console.log("Current enhanced location data:", currentUserLocation);
 
         // Prepare form data with location information
         const formData = new FormData();
-        formData.append('employee_id', employeeId);
-        
+        formData.append("employee_id", employeeId);
+
         // Add location data to form submission
         if (currentUserLocation.latitude !== null) {
-          formData.append('latitude', currentUserLocation.latitude.toString());
+          formData.append("latitude", currentUserLocation.latitude.toString());
         }
         if (currentUserLocation.longitude !== null) {
-          formData.append('longitude', currentUserLocation.longitude.toString());
+          formData.append(
+            "longitude",
+            currentUserLocation.longitude.toString()
+          );
         }
         if (currentUserLocation.accuracy !== null) {
-          formData.append('accuracy', currentUserLocation.accuracy.toString());
+          formData.append("accuracy", currentUserLocation.accuracy.toString());
         }
         if (currentUserLocation.altitude !== null) {
-          formData.append('altitude', currentUserLocation.altitude.toString());
+          formData.append("altitude", currentUserLocation.altitude.toString());
         }
         if (currentUserLocation.address) {
-          formData.append('address', currentUserLocation.address);
+          formData.append("address", currentUserLocation.address);
         }
-        formData.append('location_source', currentUserLocation.source);
+        formData.append("location_source", currentUserLocation.source);
 
-        console.log('📤 Submitting enhanced form with location data:', {
+        console.log("📤 Submitting enhanced form with location data:", {
           employee_id: employeeId,
           latitude: currentUserLocation.latitude,
           longitude: currentUserLocation.longitude,
           accuracy: currentUserLocation.accuracy,
           altitude: currentUserLocation.altitude,
           address: currentUserLocation.address,
-          location_source: currentUserLocation.source
+          location_source: currentUserLocation.source,
         });
 
         // Submit to backend
         fetch(`/qr/${qrUrl}/checkin`, {
-          method: 'POST',
-          body: formData
+          method: "POST",
+          body: formData,
         })
-        .then(response => {
-          console.log('📨 Received enhanced response:', response);
-          return response.json();
-        })
-        .then(data => {
-          console.log('📨 Enhanced response data:', data);
-          if (data.success) {
-            showStatusMessage('Submission successful! / Envío exitoso', 'success');
-            showEnhancedSuccessCard(data);
-          } else {
-            showStatusMessage(data.message || 'Submission failed / Envío fallido', 'error');
+          .then((response) => {
+            console.log("📨 Received enhanced response:", response);
+            return response.json();
+          })
+          .then((data) => {
+            console.log("📨 Enhanced response data:", data);
+            if (data.success) {
+              showStatusMessage(
+                "Submission successful! / Envío exitoso",
+                "success"
+              );
+              showEnhancedSuccessCard(data);
+            } else {
+              showStatusMessage(
+                data.message || "Submission failed / Envío fallido",
+                "error"
+              );
+              resetEnhancedSubmitButton();
+            }
+          })
+          .catch((error) => {
+            console.error("❌ Enhanced fetch error:", error);
+            showStatusMessage("Network error / Error de red", "error");
             resetEnhancedSubmitButton();
-          }
-        })
-        .catch(error => {
-          console.error('❌ Enhanced fetch error:', error);
-          showStatusMessage('Network error / Error de red', 'error');
-          resetEnhancedSubmitButton();
-        });
+          });
       }
 
       // Reset submit button (renamed to avoid conflicts)
       function resetEnhancedSubmitButton() {
-        const submitButton = document.getElementById('submitButton');
+        const submitButton = document.getElementById("submitButton");
         submitButton.disabled = false;
-        
+
         // Get the current location event from the page
-        const isCheckOut = document.body.classList.contains('check-out');
-        
+        const isCheckOut = document.body.classList.contains("check-out");
+
         if (isCheckOut) {
           submitButton.innerHTML = `
             <i class="fas fa-sign-out-alt"></i>
@@ -1200,50 +1253,55 @@
 
       // Enhanced status message display with color coding
       function showStatusMessage(message, type) {
-        const statusMessage = document.getElementById('statusMessage');
-        const statusSpan = statusMessage.querySelector('span');
-        
+        const statusMessage = document.getElementById("statusMessage");
+        const statusSpan = statusMessage.querySelector("span");
+
         statusSpan.innerHTML = message;
         statusMessage.className = `status-message ${type} show`;
-        
+
         setTimeout(() => {
-          statusMessage.classList.remove('show');
+          statusMessage.classList.remove("show");
         }, 5000);
       }
 
       // Enhanced success display with bilingual details (renamed to avoid conflicts)
       function showEnhancedSuccessCard(data) {
-        const successCard = document.getElementById('successCard');
-        const checkinCard = document.querySelector('.checkin-card');
-        const successDetails = document.getElementById('successDetails');
-        
+        const successCard = document.getElementById("successCard");
+        const checkinCard = document.querySelector(".checkin-card");
+        const successDetails = document.getElementById("successDetails");
+
         // Hide check-in form
-        checkinCard.style.display = 'none';
-        
+        checkinCard.style.display = "none";
+
         // Get employee ID from form input (since data.employee_id might be undefined)
-        const employeeIdInput = document.getElementById('employee_id');
-        const employeeId = data.employee_id || (employeeIdInput ? employeeIdInput.value.trim() : 'N/A');
-        
+        const employeeIdInput = document.getElementById("employee_id");
+        const employeeId =
+          data.employee_id ||
+          (employeeIdInput ? employeeIdInput.value.trim() : "N/A");
+
         // Use QR code location instead of GPS address for main location display
-        const qrLocationElement = document.querySelector('.location-info');
-        let qrLocationName = 'Unknown Location';
+        const qrLocationElement = document.querySelector(".location-info");
+        let qrLocationName = "Unknown Location";
         if (qrLocationElement) {
           // Extract text content, removing the icon
-          const locationText = qrLocationElement.textContent || qrLocationElement.innerText;
+          const locationText =
+            qrLocationElement.textContent || qrLocationElement.innerText;
           qrLocationName = locationText.trim();
         }
-        
+
         // Get location event (Check In or Check Out)
-        const isCheckOut = document.body.classList.contains('check-out');
-        const locationEvent = isCheckOut ? 'Check Out' : 'Check In';
-        const locationEventSpanish = isCheckOut ? 'Salida' : 'Entrada';
-        
+        const isCheckOut = document.body.classList.contains("check-out");
+        const locationEvent = isCheckOut ? "Check Out" : "Check In";
+        const locationEventSpanish = isCheckOut ? "Salida" : "Entrada";
+
         // Alternative: try to get from page title or header
-        if (qrLocationName === 'Unknown Location') {
-          const headerElement = document.querySelector('.destination-header h1');
+        if (qrLocationName === "Unknown Location") {
+          const headerElement = document.querySelector(
+            ".destination-header h1"
+          );
           if (headerElement) {
             // Extract just the location event part (Check In/Check Out)
-            qrLocationName = data.location || 'Check-in Location';
+            qrLocationName = data.location || "Check-in Location";
           }
         }
 
@@ -1274,7 +1332,9 @@
               <span class="language-separator">/</span>
               <span class="spanish-text">Hora</span>
             </span>
-            <span class="detail-value">${data.timestamp || new Date().toLocaleString()}</span>
+            <span class="detail-value">${
+              data.timestamp || new Date().toLocaleString()
+            }</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">
@@ -1285,15 +1345,15 @@
             <span class="detail-value">${qrLocationName}</span>
           </div>
         `;
-        
+
         // Show success card
-        successCard.classList.add('show');
-        
-        console.log('✅ Enhanced success card displayed with:', {
+        successCard.classList.add("show");
+
+        console.log("✅ Enhanced success card displayed with:", {
           employeeId: employeeId,
           locationEvent: locationEvent,
           qrLocation: qrLocationName,
-          timestamp: data.timestamp || new Date().toLocaleString()
+          timestamp: data.timestamp || new Date().toLocaleString(),
         });
       }
     </script>

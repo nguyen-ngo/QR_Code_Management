@@ -76,12 +76,12 @@ document.addEventListener("DOMContentLoaded", function () {
 // ENHANCED STAFF ID PERSISTENCE FUNCTIONALITY
 function initializeStaffIdPersistence() {
   console.log("👤 Initializing staff ID persistence functionality");
-  
+
   // Load last staff ID from localStorage
   lastStaffId = loadLastStaffId();
   if (lastStaffId) {
     console.log(`📱 Found last staff ID: ${lastStaffId}`);
-    
+
     // Automatically fill the last staff ID
     const employeeIdInput = document.getElementById("employee_id");
     if (employeeIdInput) {
@@ -96,7 +96,7 @@ function initializeStaffIdPersistence() {
 
 function loadLastStaffId() {
   try {
-    const saved = localStorage.getItem('qr_last_staff_id');
+    const saved = localStorage.getItem("qr_last_staff_id");
     if (saved && saved.trim().length >= 2) {
       return saved.trim().toUpperCase();
     }
@@ -110,18 +110,18 @@ function loadLastStaffId() {
 
 function saveLastStaffId(staffId) {
   try {
-    if (!staffId || typeof staffId !== 'string' || staffId.trim().length < 2) {
+    if (!staffId || typeof staffId !== "string" || staffId.trim().length < 2) {
       console.log("⚠️ Invalid staff ID, not saving");
       return false;
     }
-    
+
     const cleanId = staffId.trim().toUpperCase();
     lastStaffId = cleanId;
-    
+
     // Save to localStorage
-    localStorage.setItem('qr_last_staff_id', cleanId);
+    localStorage.setItem("qr_last_staff_id", cleanId);
     console.log(`💾 Last staff ID saved: ${cleanId}`);
-    
+
     return true;
   } catch (error) {
     console.error("❌ Error saving last staff ID to localStorage:", error);
@@ -545,7 +545,22 @@ function requestLocationData() {
 
   navigator.geolocation.getCurrentPosition(
     handleLocationSuccess,
-    handleLocationError,
+    (error) => {
+      console.log("❌ High accuracy failed, trying low accuracy...");
+
+      // Simple fallback with low accuracy
+      const lowAccuracyOptions = {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 600000,
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        handleLocationSuccess,
+        handleLocationError,
+        lowAccuracyOptions
+      );
+    },
     options
   );
 }
@@ -582,8 +597,8 @@ function reverseGeocode(lat, lng) {
 
   // The server will use Google Maps API first, then fall back to OpenStreetMap
   // This provides better accuracy and address formatting
-  const url = '/api/reverse-geocode'; // You may want to create this endpoint
-  
+  const url = "/api/reverse-geocode"; // You may want to create this endpoint
+
   // For now, using direct OpenStreetMap as fallback
   // In production, this should go through your server API
   const osmUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
@@ -614,7 +629,7 @@ function reverseGeocode(lat, lng) {
 // ENHANCED LANGUAGE FUNCTIONALITY WITH PERSISTENCE
 function initializeLanguage() {
   console.log("🌐 Initializing language functionality with persistence");
-  
+
   // Load saved language preference from localStorage
   const savedLanguage = loadLanguagePreference();
   if (savedLanguage && savedLanguage !== currentLanguage) {
@@ -637,15 +652,17 @@ function toggleLanguage() {
   // Switch between languages
   const newLanguage = currentLanguage === "en" ? "es" : "en";
   currentLanguage = newLanguage;
-  
+
   // Save new language preference to localStorage
   saveLanguagePreference(currentLanguage);
-  
+
   // Apply translations immediately
   applyTranslations();
-  
-  console.log(`🌐 Language switched to: ${currentLanguage} (saved to localStorage)`);
-  
+
+  console.log(
+    `🌐 Language switched to: ${currentLanguage} (saved to localStorage)`
+  );
+
   // Optional: Show brief confirmation message
   showLanguageChangeConfirmation();
 }
@@ -653,23 +670,28 @@ function toggleLanguage() {
 function loadLanguagePreference() {
   try {
     // Retrieve language preference from localStorage
-    const savedLanguage = localStorage.getItem('qr_staff_language');
-    
+    const savedLanguage = localStorage.getItem("qr_staff_language");
+
     // Validate saved language is supported
     if (savedLanguage && translations.hasOwnProperty(savedLanguage)) {
       console.log(`📱 Found saved language preference: ${savedLanguage}`);
       return savedLanguage;
     } else if (savedLanguage) {
-      console.log(`⚠️ Invalid saved language preference: ${savedLanguage}, using default`);
+      console.log(
+        `⚠️ Invalid saved language preference: ${savedLanguage}, using default`
+      );
       // Clean up invalid preference
-      localStorage.removeItem('qr_staff_language');
+      localStorage.removeItem("qr_staff_language");
     } else {
       console.log("📱 No saved language preference found, using default");
     }
-    
+
     return null;
   } catch (error) {
-    console.error("❌ Error loading language preference from localStorage:", error);
+    console.error(
+      "❌ Error loading language preference from localStorage:",
+      error
+    );
     return null;
   }
 }
@@ -681,13 +703,16 @@ function saveLanguagePreference(language) {
       console.error(`❌ Invalid language code: ${language}`);
       return false;
     }
-    
+
     // Save to localStorage
-    localStorage.setItem('qr_staff_language', language);
+    localStorage.setItem("qr_staff_language", language);
     console.log(`💾 Language preference saved: ${language}`);
     return true;
   } catch (error) {
-    console.error("❌ Error saving language preference to localStorage:", error);
+    console.error(
+      "❌ Error saving language preference to localStorage:",
+      error
+    );
     return false;
   }
 }
@@ -699,7 +724,7 @@ function showLanguageChangeConfirmation() {
     // Add temporary visual feedback
     languageToggle.style.transform = "scale(1.05)";
     languageToggle.style.background = "rgba(255, 255, 255, 0.4)";
-    
+
     setTimeout(() => {
       languageToggle.style.transform = "";
       languageToggle.style.background = "";
@@ -718,7 +743,7 @@ function applyTranslations() {
   document.querySelectorAll(`[data-${currentLanguage}]`).forEach((element) => {
     element.textContent = element.getAttribute(`data-${currentLanguage}`);
   });
-  
+
   // Update any dynamic content that might have been generated after initial load
   updateDynamicTranslations();
 }
@@ -726,7 +751,7 @@ function applyTranslations() {
 function updateDynamicTranslations() {
   // Update submit button text if it exists and has been modified
   const submitButton = document.getElementById("submitCheckin");
-  if (submitButton && submitButton.innerHTML.includes('data-')) {
+  if (submitButton && submitButton.innerHTML.includes("data-")) {
     // Re-apply translations to submit button content
     const spans = submitButton.querySelectorAll(`[data-${currentLanguage}]`);
     spans.forEach((span) => {
@@ -750,7 +775,7 @@ function startClock() {
 
 function checkLocationServicesStatus() {
   console.log("📱 Checking location services status...");
-  
+
   // Check if geolocation is supported
   if (!navigator.geolocation) {
     console.log("❌ Geolocation not supported by this browser");
@@ -775,7 +800,7 @@ function checkLocationServicesStatus() {
       // Error - location services may be disabled
       clearTimeout(timeoutId);
       console.log("❌ Location services error:", error.message);
-      
+
       switch (error.code) {
         case error.PERMISSION_DENIED:
           showLocationServicesWarning("permission_denied");
@@ -794,7 +819,7 @@ function checkLocationServicesStatus() {
     {
       enableHighAccuracy: false,
       timeout: 2500,
-      maximumAge: 60000
+      maximumAge: 60000,
     }
   );
 }
@@ -805,31 +830,42 @@ function checkLocationServicesStatus() {
 function showLocationServicesWarning(errorType) {
   // Remove existing warning if present
   hideLocationServicesWarning();
-  
+
   const warningMessages = {
     en: {
-      not_supported: "Location services are not supported by your browser.<br>Los servicios de ubicación no son compatibles con su navegador.",
-      permission_denied: "Location access has been denied. Please enable location services for accurate check-in.<br>Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
-      position_unavailable: "Location services appear to be disabled. Please turn on location services for accurate check-in.<br>Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
-      timeout: "Location services may be disabled. Please check your location settings for accurate check-in.<br>Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
-      unknown_error: "Unable to access location services. Please check your location settings.<br>No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación."
+      not_supported:
+        "Location services are not supported by your browser.<br>Los servicios de ubicación no son compatibles con su navegador.",
+      permission_denied:
+        "Location access has been denied. Please enable location services for accurate check-in.<br>Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
+      position_unavailable:
+        "Location services appear to be disabled. Please turn on location services for accurate check-in.<br>Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
+      timeout:
+        "Location services may be disabled. Please check your location settings for accurate check-in.<br>Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
+      unknown_error:
+        "Unable to access location services. Please check your location settings.<br>No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación.",
     },
     es: {
-      not_supported: "Los servicios de ubicación no son compatibles con su navegador.",
-      permission_denied: "Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
-      position_unavailable: "Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
-      timeout: "Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
-      unknown_error: "No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación."
-    }
+      not_supported:
+        "Los servicios de ubicación no son compatibles con su navegador.",
+      permission_denied:
+        "Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
+      position_unavailable:
+        "Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
+      timeout:
+        "Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
+      unknown_error:
+        "No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación.",
+    },
   };
 
-  const currentLang = currentLanguage || 'en';
-  const message = warningMessages[currentLang][errorType] || warningMessages['en'][errorType];
-  
+  const currentLang = currentLanguage || "en";
+  const message =
+    warningMessages[currentLang][errorType] || warningMessages["en"][errorType];
+
   // Create warning banner
-  const warningBanner = document.createElement('div');
-  warningBanner.id = 'locationServicesWarning';
-  warningBanner.className = 'location-warning-banner';
+  const warningBanner = document.createElement("div");
+  warningBanner.id = "locationServicesWarning";
+  warningBanner.className = "location-warning-banner";
   warningBanner.innerHTML = `
     <div class="warning-content">
       <i class="fas fa-exclamation-triangle warning-icon"></i>
@@ -854,7 +890,7 @@ function showLocationServicesWarning(errorType) {
   `;
 
   // Insert warning at the top of the page
-  const container = document.querySelector('.destination-container');
+  const container = document.querySelector(".destination-container");
   if (container) {
     container.insertBefore(warningBanner, container.firstChild);
   }
@@ -867,7 +903,7 @@ function showLocationServicesWarning(errorType) {
  * Hide location services warning banner
  */
 function hideLocationServicesWarning() {
-  const existingWarning = document.getElementById('locationServicesWarning');
+  const existingWarning = document.getElementById("locationServicesWarning");
   if (existingWarning) {
     existingWarning.remove();
     console.log("✅ Location services warning hidden");
@@ -883,13 +919,13 @@ function initializeLocationServicesCheck() {
   setTimeout(() => {
     checkLocationServicesStatus();
   }, 1000); // Small delay to ensure page is fully loaded
-  
+
   // Also check before form submission
   const originalHandleFormSubmit = handleFormSubmit;
-  window.handleFormSubmit = function(event) {
+  window.handleFormSubmit = function (event) {
     // Quick location check before submission
     checkLocationServicesStatus();
-    
+
     // Continue with original form submission after brief delay
     setTimeout(() => {
       originalHandleFormSubmit.call(this, event);
