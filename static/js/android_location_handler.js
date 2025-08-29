@@ -162,28 +162,6 @@ function attemptIPBasedLocation() {
     
     // Try multiple IP geolocation services for better accuracy
     const ipLocationServices = [
-        { 
-            url: 'https://ipapi.co/json/',
-            parseResponse: (data) => ({
-                lat: data.latitude,
-                lng: data.longitude,
-                city: data.city,
-                region: data.region,
-                country: data.country_name,
-                accuracy: data.city ? 10000 : 50000 // Better accuracy if city is available
-            })
-        },
-        {
-            url: 'https://ip-api.com/json/',
-            parseResponse: (data) => ({
-                lat: data.lat,
-                lng: data.lon,
-                city: data.city,
-                region: data.regionName,
-                country: data.country,
-                accuracy: data.city ? 10000 : 50000 // Better accuracy if city is available
-            })
-        },
         {
             url: 'https://ipinfo.io/json',
             parseResponse: (data) => {
@@ -200,7 +178,18 @@ function attemptIPBasedLocation() {
                 }
                 return null;
             }
-        }
+        },
+        { 
+            url: 'https://ipapi.co/json/',
+            parseResponse: (data) => ({
+                lat: data.latitude,
+                lng: data.longitude,
+                city: data.city,
+                region: data.region,
+                country: data.country_name,
+                accuracy: data.city ? 10000 : 50000 // Better accuracy if city is available
+            })
+        },
     ];
     
     let serviceIndex = 0;
