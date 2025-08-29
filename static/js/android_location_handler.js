@@ -1,13 +1,11 @@
 /**
- * Enhanced Android Location Fix - Separate Module
+ * Android Location Fix - GPS + IP Geolocation Only
  * File: static/js/android_location_handler.js
  * 
- * This module addresses Android-specific geolocation issues:
- * 1. Android Chrome timeout handling
- * 2. Progressive fallback strategy
- * 3. Enhanced permission detection
- * 4. Network location fallback
- * 5. Multiple retry attempts with different configurations
+ * This version includes only precise location methods:
+ * 1. Progressive GPS fallback (4 attempts)
+ * 2. IP-based geolocation (3 services) - 5-50km accuracy
+ * No timezone analysis (removed 100km accuracy method)
  */
 
 // Android-specific geolocation configuration
@@ -15,46 +13,52 @@ const ANDROID_LOCATION_CONFIG = {
     // Primary attempt - High accuracy with reasonable timeout
     highAccuracy: {
         enableHighAccuracy: true,
-        timeout: 15000,  // Increased from 10000 for Android
-        maximumAge: 60000 // Reduced cache time for fresh location
+        timeout: 15000,
+        maximumAge: 60000
     },
     
     // Fallback attempt - Network-based location
     networkBased: {
         enableHighAccuracy: false,
-        timeout: 20000,  // Longer timeout for network-based
+        timeout: 20000,
         maximumAge: 300000
     },
     
     // Final attempt - Any available location
     anyLocation: {
         enableHighAccuracy: false,
-        timeout: 30000,  // Maximum patience for Android
+        timeout: 30000,
         maximumAge: 600000
     }
 };
 
-// Enhanced location request with Android-specific handling
+// Global variables for location state
+let locationAttemptInProgress = false;
+let currentLocationMethod = '';
+
+// Enhanced location request with GPS + IP fallback only
 function requestAndroidEnhancedLocation() {
-    console.log("📱 Starting Android-enhanced location request...");
+    console.log("📱 Starting Android location request (GPS + IP methods only)...");
     
+    if (locationAttemptInProgress) {
+        console.log("📍 Location attempt already in progress, skipping");
+        return;
+    }
+
     if (typeof locationRequestActive !== 'undefined' && locationRequestActive) {
-        console.log("📍 Location request already active, skipping Android enhancement");
+        console.log("📍 Location request already active, skipping");
         return;
     }
 
     if (!navigator.geolocation) {
-        console.log("❌ Geolocation not supported");
-        if (typeof userLocation !== 'undefined') {
-            userLocation.source = "manual";
-        }
-        if (typeof currentUserLocation !== 'undefined') {
-            currentUserLocation.source = "manual";
-        }
+        console.log("❌ Geolocation not supported, trying IP-based location");
+        attemptIPBasedLocation();
         return;
     }
 
-    // Set active flag
+    locationAttemptInProgress = true;
+
+    // Set active flags
     if (typeof locationRequestActive !== 'undefined') {
         locationRequestActive = true;
     }
@@ -62,19 +66,18 @@ function requestAndroidEnhancedLocation() {
         locationCaptureActive = true;
     }
 
-    console.log("📱 Attempting Android-optimized location sequence...");
-    
-    // Start progressive location attempts
+    console.log("📱 Attempting GPS-based location sequence...");
     attemptAndroidLocationSequence();
 }
 
+// GPS-based sequence (Steps 1-4)
 function attemptAndroidLocationSequence() {
-    console.log("🔄 Android Location Sequence - Attempt 1: High Accuracy GPS");
+    console.log("🔄 Step 1/5: High Accuracy GPS");
+    currentLocationMethod = 'gps_high_accuracy';
     
-    // Attempt 1: High accuracy with Android-optimized timeout
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            console.log("✅ Android high-accuracy location success!");
+            console.log("✅ GPS high-accuracy success!");
             handleAndroidLocationSuccess(position, "gps_high_accuracy");
         },
         (error) => {
@@ -86,11 +89,12 @@ function attemptAndroidLocationSequence() {
 }
 
 function attemptNetworkBasedLocation() {
-    console.log("🔄 Android Location Sequence - Attempt 2: Network-based");
+    console.log("🔄 Step 2/5: Network-based GPS");
+    currentLocationMethod = 'network';
     
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            console.log("✅ Android network-based location success!");
+            console.log("✅ Network-based GPS success!");
             handleAndroidLocationSuccess(position, "network");
         },
         (error) => {
@@ -102,15 +106,16 @@ function attemptNetworkBasedLocation() {
 }
 
 function attemptAnyAvailableLocation() {
-    console.log("🔄 Android Location Sequence - Attempt 3: Any available");
+    console.log("🔄 Step 3/5: Any available GPS");
+    currentLocationMethod = 'any';
     
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            console.log("✅ Android any-location success!");
+            console.log("✅ Any-location GPS success!");
             handleAndroidLocationSuccess(position, "any");
         },
         (error) => {
-            console.log(`❌ All location attempts failed (${error.message}), trying watchPosition...`);
+            console.log(`❌ Any location failed (${error.message}), trying watchPosition...`);
             attemptWatchPosition();
         },
         ANDROID_LOCATION_CONFIG.anyLocation
@@ -118,77 +123,220 @@ function attemptAnyAvailableLocation() {
 }
 
 function attemptWatchPosition() {
-    console.log("🔄 Android Location Sequence - Attempt 4: Watch Position (single shot)");
+    console.log("🔄 Step 4/5: Watch Position (persistent)");
+    currentLocationMethod = 'watch';
     
     let watchId = null;
     let watchTimeout = null;
     
-    // Set timeout for watch attempt
     watchTimeout = setTimeout(() => {
         if (watchId !== null) {
             navigator.geolocation.clearWatch(watchId);
         }
-        console.log("❌ Watch position timed out, location failed");
-        handleAndroidLocationError("All location methods failed");
+        console.log("❌ Watch position timed out, trying IP-based location...");
+        attemptIPBasedLocation();
     }, 25000);
     
-    // Use watchPosition for more persistent location tracking
     watchId = navigator.geolocation.watchPosition(
         (position) => {
-            console.log("✅ Android watch position success!");
-            
-            // Clear watch and timeout
+            console.log("✅ Watch position success!");
             navigator.geolocation.clearWatch(watchId);
             clearTimeout(watchTimeout);
-            
             handleAndroidLocationSuccess(position, "watch");
         },
         (error) => {
             console.log(`❌ Watch position error: ${error.message}`);
-            // Don't clear watch immediately, let timeout handle it
         },
         {
             enableHighAccuracy: false,
             timeout: 20000,
-            maximumAge: 0  // Force fresh location
+            maximumAge: 0
         }
     );
 }
 
+// IP-based geolocation (Step 5) - Final fallback
+function attemptIPBasedLocation() {
+    console.log("🔄 Step 5/5: IP-based Geolocation (Final Fallback)");
+    currentLocationMethod = 'ip_geolocation';
+    
+    // Try multiple IP geolocation services for better accuracy
+    const ipLocationServices = [
+        { 
+            url: 'https://ipapi.co/json/',
+            parseResponse: (data) => ({
+                lat: data.latitude,
+                lng: data.longitude,
+                city: data.city,
+                region: data.region,
+                country: data.country_name,
+                accuracy: data.city ? 10000 : 50000 // Better accuracy if city is available
+            })
+        },
+        {
+            url: 'https://ip-api.com/json/',
+            parseResponse: (data) => ({
+                lat: data.lat,
+                lng: data.lon,
+                city: data.city,
+                region: data.regionName,
+                country: data.country,
+                accuracy: data.city ? 10000 : 50000 // Better accuracy if city is available
+            })
+        },
+        {
+            url: 'https://ipinfo.io/json',
+            parseResponse: (data) => {
+                if (data.loc) {
+                    const [lat, lng] = data.loc.split(',');
+                    return {
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        city: data.city,
+                        region: data.region,
+                        country: data.country,
+                        accuracy: data.city ? 15000 : 50000 // Better accuracy if city is available
+                    };
+                }
+                return null;
+            }
+        }
+    ];
+    
+    let serviceIndex = 0;
+    
+    function tryNextIPService() {
+        if (serviceIndex >= ipLocationServices.length) {
+            console.log("❌ All IP geolocation services failed - location detection complete");
+            handleAndroidLocationError("All GPS and IP geolocation methods failed");
+            return;
+        }
+        
+        const service = ipLocationServices[serviceIndex];
+        console.log(`🌐 Trying IP geolocation service ${serviceIndex + 1}: ${service.url}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        fetch(service.url, {
+            method: 'GET',
+            signal: controller.signal,
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearTimeout(timeoutId);
+            console.log(`🌐 IP service ${serviceIndex + 1} response:`, data);
+            
+            const parsed = service.parseResponse(data);
+            
+            if (parsed && parsed.lat && parsed.lng && !isNaN(parsed.lat) && !isNaN(parsed.lng)) {
+                // Validate coordinates are reasonable
+                if (parsed.lat >= -90 && parsed.lat <= 90 && parsed.lng >= -180 && parsed.lng <= 180) {
+                    console.log(`✅ IP-based location success: ${parsed.lat}, ${parsed.lng}`);
+                    console.log(`📊 Location: ${parsed.city}, ${parsed.region}, ${parsed.country}`);
+                    console.log(`📊 Estimated accuracy: ${parsed.accuracy}m (~${Math.round(parsed.accuracy/1000)}km)`);
+                    
+                    const ipLocationData = {
+                        coords: {
+                            latitude: parsed.lat,
+                            longitude: parsed.lng,
+                            accuracy: parsed.accuracy,
+                            altitude: null
+                        },
+                        locationInfo: {
+                            city: parsed.city,
+                            region: parsed.region,
+                            country: parsed.country,
+                            source: `IP Service ${serviceIndex + 1}`,
+                            serviceUrl: service.url
+                        }
+                    };
+                    
+                    handleAndroidLocationSuccess(ipLocationData, "ip_geolocation");
+                    return;
+                }
+            }
+            
+            console.log(`❌ Invalid or missing coordinates from service ${serviceIndex + 1}, trying next...`);
+            serviceIndex++;
+            tryNextIPService();
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                console.log(`❌ IP service ${serviceIndex + 1} timed out (10s), trying next...`);
+            } else {
+                console.log(`❌ IP service ${serviceIndex + 1} failed: ${error.message}, trying next...`);
+            }
+            serviceIndex++;
+            tryNextIPService();
+        });
+    }
+    
+    tryNextIPService();
+}
+
+// Enhanced success handler for GPS and IP location methods
 function handleAndroidLocationSuccess(position, source) {
     console.log(`✅ Android location obtained successfully via ${source}`);
-    console.log(`📍 Coordinates: ${position.coords.latitude}, ${position.coords.longitude}`);
-    console.log(`📊 Accuracy: ${position.coords.accuracy}m`);
+    
+    let locationData;
+    
+    if (source === "ip_geolocation") {
+        // Handle IP-based location
+        locationData = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            timestamp: new Date(),
+            source: source,
+            address: null,
+            locationInfo: position.locationInfo || null
+        };
+        
+        console.log(`📍 IP-estimated coordinates: ${position.coords.latitude}, ${position.coords.longitude}`);
+        console.log(`📊 IP-estimated accuracy: ${position.coords.accuracy}m (~${Math.round(position.coords.accuracy/1000)}km)`);
+        if (position.locationInfo) {
+            console.log(`🏢 Location info: ${position.locationInfo.city}, ${position.locationInfo.region}`);
+        }
+    } else {
+        // Handle GPS-based location
+        locationData = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            timestamp: new Date(),
+            source: source,
+            address: null,
+        };
+        
+        console.log(`📍 GPS coordinates: ${position.coords.latitude}, ${position.coords.longitude}`);
+        console.log(`📊 GPS accuracy: ${position.coords.accuracy}m`);
+    }
 
-    // Create location object
-    const locationData = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        altitude: position.coords.altitude,
-        timestamp: new Date(),
-        source: source,
-        address: null,
-    };
-
-    // Update global location variables based on what's available
+    // Update global location variables
     if (typeof userLocation !== 'undefined') {
         Object.assign(userLocation, locationData);
-        console.log("📍 Updated userLocation with Android data");
+        console.log("📍 Updated userLocation with location data");
         
-        // Trigger reverse geocoding if function exists
-        if (typeof reverseGeocode === 'function') {
-            reverseGeocode(userLocation.latitude, userLocation.longitude);
+        // Trigger reverse geocoding if we have coordinates but no address
+        if (typeof reverseGeocode === 'function' && locationData.latitude && locationData.longitude && !locationData.address) {
+            reverseGeocode(locationData.latitude, locationData.longitude);
         }
     }
 
     if (typeof currentUserLocation !== 'undefined') {
         Object.assign(currentUserLocation, locationData);
-        console.log("📍 Updated currentUserLocation with Android data");
+        console.log("📍 Updated currentUserLocation with location data");
         
-        // Trigger enhanced reverse geocoding if function exists
-        if (typeof reverseGeocodeEnhanced === 'function') {
-            reverseGeocodeEnhanced(currentUserLocation.latitude, currentUserLocation.longitude);
+        // Trigger enhanced reverse geocoding if available
+        if (typeof reverseGeocodeEnhanced === 'function' && locationData.latitude && locationData.longitude && !locationData.address) {
+            reverseGeocodeEnhanced(locationData.latitude, locationData.longitude);
         }
     }
 
@@ -199,19 +347,24 @@ function handleAndroidLocationSuccess(position, source) {
     if (typeof locationCaptureActive !== 'undefined') {
         locationCaptureActive = false;
     }
+    locationAttemptInProgress = false;
 
-    // Log success for monitoring
-    logLocationAction('android_location_success', {
-        source: source,
-        accuracy: position.coords.accuracy,
-        coordinates: `${position.coords.latitude},${position.coords.longitude}`
+    // Console logging
+    console.log(`📊 LOCATION SUCCESS LOG:`, {
+        method: source,
+        success: true,
+        coordinates: `${locationData.latitude},${locationData.longitude}`,
+        accuracy: `${locationData.accuracy}m`,
+        accuracyKm: `~${Math.round(locationData.accuracy/1000)}km`,
+        locationInfo: locationData.locationInfo,
+        timestamp: new Date().toISOString()
     });
 }
 
 function handleAndroidLocationError(errorMessage) {
-    console.log(`❌ Android location error: ${errorMessage}`);
+    console.log(`❌ All Android location methods failed: ${errorMessage}`);
     
-    // Update global location variables
+    // Update global location variables to indicate manual source
     if (typeof userLocation !== 'undefined') {
         userLocation.source = "manual";
     }
@@ -226,69 +379,40 @@ function handleAndroidLocationError(errorMessage) {
     if (typeof locationCaptureActive !== 'undefined') {
         locationCaptureActive = false;
     }
+    locationAttemptInProgress = false;
 
-    // Log error for monitoring
-    logLocationAction('android_location_error', {
+    console.log(`📊 LOCATION ERROR LOG:`, {
         error: errorMessage,
-        userAgent: navigator.userAgent
+        method: currentLocationMethod,
+        finalResult: 'manual_entry_required',
+        gpsAttempts: 4,
+        ipAttempts: 3,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString()
     });
 }
 
-// Enhanced permission checking for Android
-function checkAndroidLocationPermissions() {
-    console.log("📱 Checking Android location permissions...");
-    
-    // Check if permissions API is available (newer Android browsers)
-    if ('permissions' in navigator) {
-        navigator.permissions.query({name: 'geolocation'}).then(function(result) {
-            console.log(`📱 Geolocation permission: ${result.state}`);
-            
-            if (result.state === 'granted') {
-                console.log("✅ Android location permission granted");
-                requestAndroidEnhancedLocation();
-            } else if (result.state === 'prompt') {
-                console.log("⚠️ Android location permission will be prompted");
-                requestAndroidEnhancedLocation();
-            } else {
-                console.log("❌ Android location permission denied");
-                handleAndroidLocationError("Permission denied");
-            }
-        }).catch(function(error) {
-            console.log("⚠️ Could not check permissions, proceeding with location request");
-            requestAndroidEnhancedLocation();
-        });
-    } else {
-        // Fallback for older Android browsers
-        console.log("📱 Permissions API not available, proceeding with location request");
-        requestAndroidEnhancedLocation();
-    }
-}
-
-// Detect if device is Android
+// Device detection functions
 function isAndroidDevice() {
     const userAgent = navigator.userAgent.toLowerCase();
     return userAgent.includes('android');
 }
 
-// Detect if browser is Chrome on Android
 function isAndroidChrome() {
     const userAgent = navigator.userAgent.toLowerCase();
     return userAgent.includes('android') && userAgent.includes('chrome') && !userAgent.includes('edg');
 }
 
-// Enhanced location initialization for Android
+// Main initialization function
 function initializeAndroidLocation() {
-    console.log("📱 Initializing Android-enhanced location services...");
+    console.log("📱 Initializing Android location services (GPS + IP only)...");
     
     if (isAndroidDevice()) {
-        console.log("📱 Android device detected, using enhanced location handling");
-        
-        // Use Android-specific permission checking
-        checkAndroidLocationPermissions();
+        console.log("📱 Android device detected, using GPS + IP location methods (5 steps)");
+        requestAndroidEnhancedLocation();
     } else {
         console.log("📱 Non-Android device, using standard location request");
         
-        // Fall back to standard location request
         if (typeof requestLocationData === 'function') {
             requestLocationData();
         } else if (typeof requestEnhancedLocation === 'function') {
@@ -297,54 +421,22 @@ function initializeAndroidLocation() {
     }
 }
 
-// Location action logging function
-function logLocationAction(action, data) {
-    try {
-        console.log(`📊 Location Action Log: ${action}`, data);
-        
-        // Send to server for monitoring if endpoint exists
-        if (typeof fetch !== 'undefined') {
-            fetch('/api/log-location-action', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: action,
-                    data: data,
-                    timestamp: new Date().toISOString(),
-                    userAgent: navigator.userAgent
-                })
-            }).catch(error => {
-                console.log('📊 Could not send location log to server:', error);
-            });
-        }
-    } catch (error) {
-        console.log('📊 Location logging error:', error);
-    }
-}
-
-// Override standard location initialization if this is an Android device
+// Override standard location initialization for Android devices
 document.addEventListener('DOMContentLoaded', function() {
-    // Small delay to ensure other scripts are loaded
     setTimeout(() => {
         if (isAndroidDevice()) {
-            console.log("📱 Android detected - overriding standard location initialization");
+            console.log("📱 Android detected - overriding with GPS + IP location handler");
             
-            // Replace standard initialization with Android-enhanced version
             if (typeof initializeLocation === 'function') {
-                const originalInitializeLocation = initializeLocation;
                 window.initializeLocation = function() {
-                    console.log("📱 Using Android-enhanced location initialization");
+                    console.log("📱 Using GPS + IP Android location initialization");
                     initializeAndroidLocation();
                 };
             }
             
-            // Also handle the enhanced location capture
             if (typeof requestEnhancedLocation === 'function') {
-                const originalRequestEnhanced = requestEnhancedLocation;
                 window.requestEnhancedLocation = function() {
-                    console.log("📱 Using Android-enhanced location request");
+                    console.log("📱 Using GPS + IP Android location request");
                     initializeAndroidLocation();
                 };
             }
@@ -352,14 +444,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 
-// Export functions for external use
+// Export functions
 if (typeof window !== 'undefined') {
     window.AndroidLocationHandler = {
         requestAndroidEnhancedLocation,
-        checkAndroidLocationPermissions,
         isAndroidDevice,
         isAndroidChrome,
         initializeAndroidLocation,
-        logLocationAction
+        attemptIPBasedLocation
     };
 }
