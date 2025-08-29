@@ -838,6 +838,7 @@
 
     <!-- Enhanced JavaScript with preserved functionality -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/android_location_handler.js') }}"></script>
     <script>
       // Use different variable name to avoid conflict with external JS
       let currentUserLocation = {
@@ -926,6 +927,12 @@
 
       // Request location data from device (renamed to avoid conflicts)
       function requestUserLocationData() {
+        if (typeof AndroidLocationHandler !== 'undefined' && AndroidLocationHandler.isAndroidDevice()) {
+          console.log("📱 Using Android-enhanced location request");
+          AndroidLocationHandler.initializeAndroidLocation();
+          return;
+        }
+        
         if (locationCaptureActive) {
           console.log("📍 Location request already active, skipping");
           return;

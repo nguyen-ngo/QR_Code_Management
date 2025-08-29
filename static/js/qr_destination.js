@@ -511,7 +511,15 @@ function validateEmployeeId() {
 // All location and language functions remain unchanged from original
 function initializeLocation() {
   console.log("📍 Initializing location services");
-  requestLocationData();
+  
+  // Check if Android enhanced location handler is available
+  if (typeof AndroidLocationHandler !== 'undefined' && AndroidLocationHandler.isAndroidDevice()) {
+    console.log("📱 Using Android-enhanced location initialization");
+    AndroidLocationHandler.initializeAndroidLocation();
+  } else {
+    console.log("📍 Using standard location initialization");
+    requestLocationData();
+  }
 }
 
 function requestLocationData() {

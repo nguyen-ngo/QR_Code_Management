@@ -138,6 +138,8 @@ def create_audit_triggers():
         print(f"❌ Error creating audit triggers: {e}")
         db.session.rollback()
 
+from location_logging import *
+
 # Initialize Google Maps client
 try:
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY')
@@ -6044,6 +6046,7 @@ def employee_detail(employee_index):
         flash('Error loading employee details. Please try again.', 'error')
         return redirect(url_for('employees'))
     
+create_location_logging_routes(app, db, logger_handler)
 
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
