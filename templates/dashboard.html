@@ -1128,13 +1128,6 @@ Management{% endblock %} {% block extra_head %}
                   <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
                 </div>
 
-                {% if qr.qr_url %}
-                <div class="qr-detail-item">
-                  <i class="fas fa-link"></i>
-                  <span>{{ qr.qr_url }}</span>
-                </div>
-                {% endif %}
-
                 <span
                   class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
                 >
