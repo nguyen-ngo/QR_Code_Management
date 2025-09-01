@@ -31,6 +31,13 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 # Initialize database
 db = SQLAlchemy(app)
 
+@app.context_processor
+def inject_company_name():
+    """Make COMPANY_NAME available to all templates"""
+    return {
+        'COMPANY_NAME': os.environ.get('COMPANY_NAME', 'QR Code Management System')
+    }
+
 def create_performance_indexes():
     """Create performance optimization indexes"""
     try:

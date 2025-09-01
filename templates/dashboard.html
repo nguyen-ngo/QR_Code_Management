@@ -1,965 +1,968 @@
-{% extends "base_authenticated.html" %}
-{% block title %}Dashboard - QR Code Management{% endblock %}
-
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% extends "base_authenticated.html" %} {% block title %}Dashboard - QR Code
+Management{% endblock %} {% block extra_head %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/dashboard.css') }}"
+/>
 <style>
-/* Project-Centric Dashboard Styles */
-.projects-dashboard {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-}
-
-.project-list-item {
-  border-bottom: 1px solid var(--gray-200);
-  transition: var(--transition);
-}
-
-.project-list-item:last-child {
-  border-bottom: none;
-}
-
-.project-header {
-  padding: var(--spacing-4) var(--spacing-6);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--white);
-  transition: var(--transition);
-  position: relative;
-}
-
-.project-header:hover {
-  background: #f8fafc;
-}
-
-.project-header.expanded {
-  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
-  border-left: 4px solid var(--primary-color);
-}
-
-.project-info {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  flex: 1;
-}
-
-.project-icon {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--white);
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.project-icon.inactive {
-  background: linear-gradient(135deg, #6b7280, #4b5563);
-}
-
-.project-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.project-name {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--gray-900);
-  margin: 0 0 var(--spacing-1) 0;
-  line-height: 1.4;
-}
-
-.project-description {
-  color: var(--gray-600);
-  font-size: var(--font-size-sm);
-  line-height: 1.4;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
-  flex-shrink: 0;
-}
-
-.project-stats {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--font-size-sm);
-  color: var(--gray-600);
-}
-
-.project-qr-count {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  font-weight: 500;
-  color: var(--primary-color);
-}
-
-.project-status {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.project-status.active {
-  background: rgba(16, 185, 129, 0.1);
-  color: #047857;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-}
-
-.project-status.inactive {
-  background: rgba(107, 114, 128, 0.1);
-  color: #4b5563;
-  border: 1px solid rgba(107, 114, 128, 0.2);
-}
-
-.project-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: transparent;
-  border: none;
-  color: var(--gray-500);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.project-toggle:hover {
-  background: var(--gray-100);
-  color: var(--primary-color);
-}
-
-.project-toggle i {
-  transition: transform 0.3s ease;
-}
-
-.project-toggle.expanded i {
-  transform: rotate(180deg);
-}
-
-.project-qr-codes {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.4s ease-in-out;
-  background: #fafbfc;
-}
-
-.project-qr-codes.expanded {
-  max-height: 2000px;
-  border-top: 1px solid var(--gray-200);
-}
-
-.project-qr-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: var(--spacing-4);
-  padding: var(--spacing-6);
-}
-
-/* QR Card Base Styles */
-.qr-card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-4);
-  transition: var(--transition);
-  cursor: pointer;
-  position: relative;
-}
-
-.qr-card:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-  transform: translateY(-2px);
-}
-
-.qr-card.inactive {
-  opacity: 0.7;
-  background: linear-gradient(135deg, var(--white), #f8fafc);
-}
-
-/* Compact QR Card Layout for Unassigned Cards */
-.qr-card-compact {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  width: 100%;
-  padding: var(--spacing-3);
-  min-height: 80px;
-}
-
-.qr-preview-compact {
-  width: 60px;
-  height: 60px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 2px solid var(--gray-200);
-  transition: var(--transition);
-}
-
-.qr-preview-compact img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.qr-card:hover .qr-preview-compact {
-  border-color: var(--primary-color);
-}
-
-.qr-info-compact {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.qr-name-compact {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--gray-900);
-  margin: 0;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qr-details-row {
-  display: flex;
-  gap: var(--spacing-3);
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.qr-url-short {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qr-status-compact {
-  flex-shrink: 0;
-}
-
-.qr-actions-compact {
-  display: flex;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-}
-
-/* Standard QR Card Layout for Project Cards */
-.qr-card-layout {
-  display: flex;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-3);
-  align-items: flex-start;
-}
-
-.qr-preview-large {
-  width: 80px;
-  height: 80px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 2px solid var(--gray-200);
-  transition: var(--transition);
-}
-
-.qr-preview-large img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.qr-card:hover .qr-preview-large {
-  border-color: var(--primary-color);
-}
-
-.qr-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.qr-name {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--gray-900);
-  margin: 0 0 var(--spacing-1) 0;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qr-detail-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: var(--font-size-xs);
-  color: var(--gray-600);
-  min-width: 0;
-}
-
-.qr-detail-item i {
-  font-size: 0.65rem;
-  width: auto;
-  flex-shrink: 0;
-  color: var(--gray-400);
-}
-
-.qr-detail-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.qr-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: 0.2rem 0.4rem;
-  border-radius: var(--radius-full);
-  font-size: 0.65rem;
-  font-weight: 500;
-  margin-top: var(--spacing-1);
-}
-
-.qr-status-badge.active {
-  background: rgba(16, 185, 129, 0.1);
-  color: #047857;
-}
-
-.qr-status-badge.inactive {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-}
-
-.qr-card-actions {
-  display: flex;
-  gap: var(--spacing-1);
-  justify-content: flex-start;
-  padding-top: var(--spacing-2);
-  border-top: 1px solid var(--gray-200);
-  margin-top: var(--spacing-2);
-}
-
-.qr-action-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-md);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: var(--transition);
-  font-size: 0.75rem;
-  text-decoration: none;
-}
-
-.qr-action-btn.edit {
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--primary-color);
-}
-
-.qr-action-btn.edit:hover {
-  background: var(--primary-color);
-  color: var(--white);
-}
-
-.qr-action-btn.download {
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
-}
-
-.qr-action-btn.download:hover {
-  background: #059669;
-  color: var(--white);
-}
-
-.qr-action-btn.toggle {
-  background: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-}
-
-.qr-action-btn.toggle:hover {
-  background: #d97706;
-  color: var(--white);
-}
-
-/* Empty States */
-.empty-project-qr {
-  text-align: center;
-  padding: var(--spacing-8) var(--spacing-4);
-  color: var(--gray-600);
-}
-
-.empty-project-qr .empty-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto var(--spacing-4);
-  background: var(--gray-100);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  color: var(--gray-400);
-}
-
-.empty-project-qr h4 {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--gray-900);
-  margin-bottom: var(--spacing-2);
-}
-
-.empty-project-qr p {
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--spacing-4);
-}
-
-.dashboard-empty {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--gray-600);
-}
-
-.dashboard-empty .empty-icon {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 2rem;
-  background: var(--gray-100);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3rem;
-  color: var(--gray-400);
-}
-
-.dashboard-empty h3 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--gray-900);
-  margin-bottom: 1rem;
-}
-
-.dashboard-empty p {
-  font-size: 1.125rem;
-  margin-bottom: 2rem;
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Unassigned QR Section */
-.unassigned-qr-section {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  margin-top: var(--spacing-6);
-  overflow: hidden;
-}
-
-.unassigned-header {
-  padding: var(--spacing-4) var(--spacing-6);
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border-bottom: 1px solid #f59e0b;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.unassigned-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: #92400e;
-  margin: 0;
-}
-
-.unassigned-count {
-  background: rgba(245, 158, 11, 0.2);
-  color: #92400e;
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.3s ease;
-}
-
-.modal-content {
-  background: var(--white);
-  border-radius: var(--radius-xl);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: auto;
-  animation: slideIn 0.3s ease;
-}
-
-.qr-modal-content {
-  max-width: 900px;
-  width: 90vw;
-  max-height: 80vh;
-}
-
-.modal-header {
-  padding: var(--spacing-6);
-  border-bottom: 1px solid var(--gray-200);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  color: var(--gray-900);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: var(--font-size-xl);
-  color: var(--gray-500);
-  cursor: pointer;
-  padding: var(--spacing-2);
-  border-radius: var(--radius-md);
-  transition: var(--transition);
-}
-
-.modal-close:hover {
-  background: var(--gray-100);
-  color: var(--gray-700);
-}
-
-.qr-modal-body {
-  padding: var(--spacing-6);
-}
-
-.qr-modal-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: var(--spacing-8);
-  align-items: start;
-}
-
-.qr-modal-image {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-4);
-}
-
-.qr-modal-image img {
-  width: 280px;
-  height: 280px;
-  border: 3px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  background: var(--white);
-  padding: var(--spacing-2);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.qr-modal-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.qr-detail-section {
-  background: #f8fafc;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-6);
-}
-
-.qr-detail-section h4 {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: 0 0 var(--spacing-6) 0;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--primary-color);
-  border-bottom: 2px solid var(--primary-color);
-  padding-bottom: var(--spacing-2);
-}
-
-.qr-detail-section .qr-detail-item {
-  display: grid;
-  grid-template-columns: 100px 1fr;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-  align-items: start;
-}
-
-.qr-detail-section .qr-detail-item:last-child {
-  margin-bottom: 0;
-}
-
-.qr-detail-section .qr-detail-item label {
-  font-weight: 600;
-  color: var(--gray-700);
-  font-size: var(--font-size-sm);
-  padding-top: 2px;
-}
-
-.qr-detail-section .qr-detail-item span {
-  color: var(--gray-900);
-  font-size: var(--font-size-base);
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.qr-destination-link a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  color: var(--primary-color);
-  text-decoration: none;
-  font-weight: 500;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--primary-color);
-  border-radius: var(--radius-md);
-  transition: var(--transition);
-  font-size: var(--font-size-sm);
-}
-
-.qr-destination-link a:hover {
-  background: var(--primary-color);
-  color: var(--white);
-}
-
-.qr-modal-footer {
-  padding: var(--spacing-6);
-  border-top: 1px solid var(--gray-200);
-  display: flex;
-  gap: var(--spacing-3);
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  background: #f8fafc;
-}
-
-.qr-modal-footer .btn {
-  min-width: 140px;
-}
-
-/* Image Lightbox Styles */
-.image-lightbox {
-  display: none;
-  position: fixed;
-  z-index: 2000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.9);
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.3s ease;
-  cursor: pointer;
-}
-
-.lightbox-content {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  text-align: center;
-}
-
-.lightbox-image {
-  max-width: 100%;
-  max-height: 80vh;
-  border-radius: var(--radius-lg);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  background: var(--white);
-  padding: var(--spacing-4);
-}
-
-.lightbox-close {
-  position: absolute;
-  top: -50px;
-  right: 0;
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  font-size: 1.2rem;
-  color: var(--gray-700);
-  cursor: pointer;
-  transition: var(--transition);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lightbox-close:hover {
-  background: var(--white);
-  color: var(--gray-900);
-}
-
-.lightbox-info {
-  color: var(--white);
-  margin-top: var(--spacing-4);
-  font-size: var(--font-size-lg);
-  font-weight: 500;
-}
-
-.lightbox-hint {
-  color: rgba(255, 255, 255, 0.7);
-  margin-top: var(--spacing-2);
-  font-size: var(--font-size-sm);
-}
-
-/* Make QR images clickable */
-.qr-preview-large,
-.qr-preview-compact {
-  cursor: zoom-in;
-  position: relative;
-}
-
-.qr-preview-large::after,
-.qr-preview-compact::after {
-  content: '🔍';
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: var(--transition);
-}
-
-.qr-card:hover .qr-preview-large::after,
-.qr-card:hover .qr-preview-compact::after {
-  opacity: 1;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-50px);
+  /* Project-Centric Dashboard Styles */
+  .projects-dashboard {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
-/* Responsive Design */
-@media (max-width: 768px) {
+  .project-list-item {
+    border-bottom: 1px solid var(--gray-200);
+    transition: var(--transition);
+  }
+
+  .project-list-item:last-child {
+    border-bottom: none;
+  }
+
   .project-header {
-    padding: var(--spacing-3) var(--spacing-4);
+    padding: var(--spacing-4) var(--spacing-6);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--white);
+    transition: var(--transition);
+    position: relative;
   }
-  
+
+  .project-header:hover {
+    background: #f8fafc;
+  }
+
+  .project-header.expanded {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border-left: 4px solid var(--primary-color);
+  }
+
   .project-info {
-    gap: var(--spacing-3);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    flex: 1;
   }
-  
+
   .project-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1rem;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    font-size: 1.25rem;
+    flex-shrink: 0;
   }
-  
+
+  .project-icon.inactive {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+  }
+
+  .project-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .project-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0 0 var(--spacing-1) 0;
+    line-height: 1.4;
+  }
+
+  .project-description {
+    color: var(--gray-600);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .project-meta {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--spacing-2);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    flex-shrink: 0;
+  }
+
+  .project-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    font-size: var(--font-size-sm);
+    color: var(--gray-600);
+  }
+
+  .project-qr-count {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    font-weight: 500;
+    color: var(--primary-color);
+  }
+
+  .project-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .project-status.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .project-status.inactive {
+    background: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+  }
+
+  .project-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    border: none;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .project-toggle:hover {
+    background: var(--gray-100);
+    color: var(--primary-color);
+  }
+
+  .project-toggle i {
+    transition: transform 0.3s ease;
+  }
+
+  .project-toggle.expanded i {
+    transform: rotate(180deg);
+  }
+
+  .project-qr-codes {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out;
+    background: #fafbfc;
+  }
+
+  .project-qr-codes.expanded {
+    max-height: 2000px;
+    border-top: 1px solid var(--gray-200);
   }
 
   .project-qr-grid {
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--spacing-3);
-    padding: var(--spacing-4);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--spacing-4);
+    padding: var(--spacing-6);
   }
 
+  /* QR Card Base Styles */
+  .qr-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .qr-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .qr-card.inactive {
+    opacity: 0.7;
+    background: linear-gradient(135deg, var(--white), #f8fafc);
+  }
+
+  /* Compact QR Card Layout for Unassigned Cards */
   .qr-card-compact {
-    flex-direction: column;
-    text-align: center;
-    gap: var(--spacing-2);
-    padding: var(--spacing-2);
-  }
-  
-  .qr-info-compact {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
     width: 100%;
+    padding: var(--spacing-3);
+    min-height: 80px;
   }
-  
-  .qr-details-row {
+
+  .qr-preview-compact {
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--gray-200);
+    transition: var(--transition);
+  }
+
+  .qr-preview-compact img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .qr-card:hover .qr-preview-compact {
+    border-color: var(--primary-color);
+  }
+
+  .qr-info-compact {
+    flex: 1;
+    min-width: 0;
+    display: flex;
     flex-direction: column;
     gap: var(--spacing-1);
+  }
+
+  .qr-name-compact {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qr-details-row {
+    display: flex;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
     align-items: center;
   }
-  
+
+  .qr-url-short {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .qr-status-compact {
+    flex-shrink: 0;
+  }
+
+  .qr-actions-compact {
+    display: flex;
+    gap: var(--spacing-1);
+    flex-shrink: 0;
+  }
+
+  /* Standard QR Card Layout for Project Cards */
+  .qr-card-layout {
+    display: flex;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-3);
+    align-items: flex-start;
+  }
+
+  .qr-preview-large {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--gray-200);
+    transition: var(--transition);
+  }
+
+  .qr-preview-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .qr-card:hover .qr-preview-large {
+    border-color: var(--primary-color);
+  }
+
+  .qr-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-width: 0;
+  }
+
+  .qr-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0 0 var(--spacing-1) 0;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qr-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--font-size-xs);
+    color: var(--gray-600);
+    min-width: 0;
+  }
+
+  .qr-detail-item i {
+    font-size: 0.65rem;
+    width: auto;
+    flex-shrink: 0;
+    color: var(--gray-400);
+  }
+
+  .qr-detail-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .qr-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: 0.2rem 0.4rem;
+    border-radius: var(--radius-full);
+    font-size: 0.65rem;
+    font-weight: 500;
+    margin-top: var(--spacing-1);
+  }
+
+  .qr-status-badge.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #047857;
+  }
+
+  .qr-status-badge.inactive {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+
+  .qr-card-actions {
+    display: flex;
+    gap: var(--spacing-1);
+    justify-content: flex-start;
+    padding-top: var(--spacing-2);
+    border-top: 1px solid var(--gray-200);
+    margin-top: var(--spacing-2);
+  }
+
+  .qr-action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+
+  .qr-action-btn.edit {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+  }
+
+  .qr-action-btn.edit:hover {
+    background: var(--primary-color);
+    color: var(--white);
+  }
+
+  .qr-action-btn.download {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+  }
+
+  .qr-action-btn.download:hover {
+    background: #059669;
+    color: var(--white);
+  }
+
+  .qr-action-btn.toggle {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+  }
+
+  .qr-action-btn.toggle:hover {
+    background: #d97706;
+    color: var(--white);
+  }
+
+  /* Empty States */
+  .empty-project-qr {
+    text-align: center;
+    padding: var(--spacing-8) var(--spacing-4);
+    color: var(--gray-600);
+  }
+
+  .empty-project-qr .empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--spacing-4);
+    background: var(--gray-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--gray-400);
+  }
+
+  .empty-project-qr h4 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: var(--spacing-2);
+  }
+
+  .empty-project-qr p {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .dashboard-empty {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--gray-600);
+  }
+
+  .dashboard-empty .empty-icon {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 2rem;
+    background: var(--gray-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: var(--gray-400);
+  }
+
+  .dashboard-empty h3 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 1rem;
+  }
+
+  .dashboard-empty p {
+    font-size: 1.125rem;
+    margin-bottom: 2rem;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Unassigned QR Section */
+  .unassigned-qr-section {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    margin-top: var(--spacing-6);
+    overflow: hidden;
+  }
+
+  .unassigned-header {
+    padding: var(--spacing-4) var(--spacing-6);
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-bottom: 1px solid #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .unassigned-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: #92400e;
     margin: 0;
   }
-  
-  .qr-actions-compact {
-    justify-content: center;
+
+  .unassigned-count {
+    background: rgba(245, 158, 11, 0.2);
+    color: #92400e;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
   }
 
-  .qr-card-layout {
-    flex-direction: column;
-    text-align: center;
-    align-items: center;
-  }
-  
-  .qr-preview-large {
-    width: 70px;
-    height: 70px;
-  }
-  
-  .qr-details {
-    align-items: center;
+  /* Modal Styles */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
     width: 100%;
-  }
-  
-  .qr-detail-item {
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
     justify-content: center;
+    animation: fadeIn 0.3s ease;
   }
-  
-  .unassigned-header {
-    padding: var(--spacing-3) var(--spacing-4);
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-2);
+
+  .modal-content {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+    animation: slideIn 0.3s ease;
   }
-  
+
   .qr-modal-content {
-    width: 95vw;
-    max-height: 95vh;
-  }
-  
-  .qr-modal-layout {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-6);
-  }
-  
-  .qr-modal-image {
-    order: 1;
-  }
-  
-  .qr-modal-info {
-    order: 2;
-  }
-  
-  .qr-modal-image img {
-    width: 240px;
-    height: 240px;
-  }
-  
-  .qr-modal-footer {
-    flex-direction: column;
-  }
-  
-  .qr-modal-footer .btn {
-    width: 100%;
-    min-width: unset;
-  }
-}
-
-@media (max-width: 480px) {
-  .project-description {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
+    max-width: 900px;
+    width: 90vw;
+    max-height: 80vh;
   }
 
-  .project-qr-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-2);
-    padding: var(--spacing-3);
-  }
-  
   .modal-header {
-    padding: var(--spacing-4);
+    padding: var(--spacing-6);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
-  
-  .qr-modal-body {
-    padding: var(--spacing-4);
-  }
-  
-  .qr-detail-section {
-    padding: var(--spacing-4);
-  }
-  
-  .qr-modal-image img {
-    width: 200px;
-    height: 200px;
-  }
-  
-  .qr-modal-footer {
-    padding: var(--spacing-4);
-  }
-}
-</style>
-{% endblock %}
 
-{% block content %}
+  .modal-header h3 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: var(--font-size-xl);
+    color: var(--gray-500);
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+  }
+
+  .modal-close:hover {
+    background: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  .qr-modal-body {
+    padding: var(--spacing-6);
+  }
+
+  .qr-modal-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--spacing-8);
+    align-items: start;
+  }
+
+  .qr-modal-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+  }
+
+  .qr-modal-image img {
+    width: 280px;
+    height: 280px;
+    border: 3px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    padding: var(--spacing-2);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .qr-modal-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .qr-detail-section {
+    background: #f8fafc;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-6);
+  }
+
+  .qr-detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin: 0 0 var(--spacing-6) 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: var(--spacing-2);
+  }
+
+  .qr-detail-section .qr-detail-item {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-4);
+    align-items: start;
+  }
+
+  .qr-detail-section .qr-detail-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .qr-detail-section .qr-detail-item label {
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: var(--font-size-sm);
+    padding-top: 2px;
+  }
+
+  .qr-detail-section .qr-detail-item span {
+    color: var(--gray-900);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .qr-destination-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid var(--primary-color);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+    font-size: var(--font-size-sm);
+  }
+
+  .qr-destination-link a:hover {
+    background: var(--primary-color);
+    color: var(--white);
+  }
+
+  .qr-modal-footer {
+    padding: var(--spacing-6);
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: var(--spacing-3);
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    background: #f8fafc;
+  }
+
+  .qr-modal-footer .btn {
+    min-width: 140px;
+  }
+
+  /* Image Lightbox Styles */
+  .image-lightbox {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+    cursor: pointer;
+  }
+
+  .lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    text-align: center;
+  }
+
+  .lightbox-image {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    background: var(--white);
+    padding: var(--spacing-4);
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lightbox-close:hover {
+    background: var(--white);
+    color: var(--gray-900);
+  }
+
+  .lightbox-info {
+    color: var(--white);
+    margin-top: var(--spacing-4);
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+  }
+
+  .lightbox-hint {
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: var(--spacing-2);
+    font-size: var(--font-size-sm);
+  }
+
+  /* Make QR images clickable */
+  .qr-preview-large,
+  .qr-preview-compact {
+    cursor: zoom-in;
+    position: relative;
+  }
+
+  .qr-preview-large::after,
+  .qr-preview-compact::after {
+    content: "🔍";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: var(--transition);
+  }
+
+  .qr-card:hover .qr-preview-large::after,
+  .qr-card:hover .qr-preview-compact::after {
+    opacity: 1;
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .project-header {
+      padding: var(--spacing-3) var(--spacing-4);
+    }
+
+    .project-info {
+      gap: var(--spacing-3);
+    }
+
+    .project-icon {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
+
+    .project-meta {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--spacing-2);
+    }
+
+    .project-qr-grid {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--spacing-3);
+      padding: var(--spacing-4);
+    }
+
+    .qr-card-compact {
+      flex-direction: column;
+      text-align: center;
+      gap: var(--spacing-2);
+      padding: var(--spacing-2);
+    }
+
+    .qr-info-compact {
+      width: 100%;
+    }
+
+    .qr-details-row {
+      flex-direction: column;
+      gap: var(--spacing-1);
+      align-items: center;
+    }
+
+    .qr-status-compact {
+      margin: 0;
+    }
+
+    .qr-actions-compact {
+      justify-content: center;
+    }
+
+    .qr-card-layout {
+      flex-direction: column;
+      text-align: center;
+      align-items: center;
+    }
+
+    .qr-preview-large {
+      width: 70px;
+      height: 70px;
+    }
+
+    .qr-details {
+      align-items: center;
+      width: 100%;
+    }
+
+    .qr-detail-item {
+      justify-content: center;
+    }
+
+    .unassigned-header {
+      padding: var(--spacing-3) var(--spacing-4);
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-2);
+    }
+
+    .qr-modal-content {
+      width: 95vw;
+      max-height: 95vh;
+    }
+
+    .qr-modal-layout {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-6);
+    }
+
+    .qr-modal-image {
+      order: 1;
+    }
+
+    .qr-modal-info {
+      order: 2;
+    }
+
+    .qr-modal-image img {
+      width: 240px;
+      height: 240px;
+    }
+
+    .qr-modal-footer {
+      flex-direction: column;
+    }
+
+    .qr-modal-footer .btn {
+      width: 100%;
+      min-width: unset;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .project-description {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+    }
+
+    .project-qr-grid {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-2);
+      padding: var(--spacing-3);
+    }
+
+    .modal-header {
+      padding: var(--spacing-4);
+    }
+
+    .qr-modal-body {
+      padding: var(--spacing-4);
+    }
+
+    .qr-detail-section {
+      padding: var(--spacing-4);
+    }
+
+    .qr-modal-image img {
+      width: 200px;
+      height: 200px;
+    }
+
+    .qr-modal-footer {
+      padding: var(--spacing-4);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
 <div class="dashboard-container">
   <!-- Dashboard Header -->
   <div class="dashboard-header">
@@ -968,87 +971,87 @@
       <p>Manage your QR codes organized by projects</p>
       <div class="user-info-badge">
         <div class="role-indicator {{ session.role }}">
-          <i class="fas {{ 'fa-crown' if session.role == 'admin' else 'fa-user' }}"></i>
+          <i
+            class="fas {{ 'fa-crown' if session.role == 'admin' else 'fa-user' }}"
+          ></i>
           {{ session.role.title() }}
         </div>
         {% if session.last_login_date %}
         <div class="last-login">
           <i class="fas fa-clock"></i>
-          Last login: {{ session.last_login_date.strftime('%b %d, %Y at %H:%M') }}
+          Last login: {{ session.last_login_date.strftime('%b %d, %Y at %H:%M')
+          }}
         </div>
         {% endif %}
       </div>
     </div>
-    <div class="quick-actions">
-      <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary btn-lg">
-        <i class="fas fa-plus"></i>
-        Create QR Code
-      </a>
-      {% if session.role == 'admin' %}
-      <a href="{{ url_for('users') }}" class="btn btn-secondary btn-lg">
-        <i class="fas fa-users"></i>
-        Manage Users
-      </a>
-      {% endif %}
-    </div>
-  </div>
 
-  <!-- Statistics Section -->
-  {% if session.role == 'admin' %}
-  <div class="stats-section">
-    <div class="stats-grid">
-      <div class="stat-card primary">
-        <div class="stat-icon">
-          <i class="fas fa-qrcode"></i>
+    <!-- QR Statistics in Header -->
+    {% if session.role == 'admin' %}
+    <div class="header-stats">
+      <div class="header-stats-grid">
+        <div class="header-stat-card primary">
+          <div class="header-stat-icon">
+            <i class="fas fa-qrcode"></i>
+          </div>
+          <div class="header-stat-content">
+            <h3>{{ qr_codes|length }}</h3>
+            <p>Total QR Codes</p>
+          </div>
         </div>
-        <div class="stat-content">
-          <h3>{{ qr_codes|length }}</h3>
-          <p>Total QR Codes</p>
+        <div class="header-stat-card success">
+          <div class="header-stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="header-stat-content">
+            <h3>
+              {{ qr_codes|selectattr('active_status', 'equalto',
+              True)|list|length }}
+            </h3>
+            <p>Active QR Codes</p>
+          </div>
         </div>
-      </div>
-      <div class="stat-card success">
-        <div class="stat-icon">
-          <i class="fas fa-check-circle"></i>
+        <div class="header-stat-card danger">
+          <div class="header-stat-icon">
+            <i class="fas fa-pause-circle"></i>
+          </div>
+          <div class="header-stat-content">
+            <h3>
+              {{ qr_codes|selectattr('active_status', 'equalto',
+              False)|list|length }}
+            </h3>
+            <p>Inactive QR Codes</p>
+          </div>
         </div>
-        <div class="stat-content">
-          <h3>{{ qr_codes|selectattr('active_status', 'equalto', True)|list|length }}</h3>
-          <p>Active QR Codes</p>
-        </div>
-      </div>
-      <div class="stat-card danger">
-        <div class="stat-icon">
-          <i class="fas fa-pause-circle"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ qr_codes|selectattr('active_status', 'equalto', False)|list|length }}</h3>
-          <p>Inactive QR Codes</p>
-        </div>
-      </div>
-      <div class="stat-card warning">
-        <div class="stat-icon">
-          <i class="fas fa-folder"></i>
-        </div>
-        <div class="stat-content">
-          <h3>{{ projects|length }}</h3>
-          <p>Total Projects</p>
+        <div class="header-stat-card info">
+          <div class="header-stat-icon">
+            <i class="fas fa-folder"></i>
+          </div>
+          <div class="header-stat-content">
+            <h3>{{ projects|length if projects else 0 }}</h3>
+            <p>Total Projects</p>
+          </div>
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
-  {% endif %}
-
   <!-- Projects Dashboard -->
   {% if projects %}
   <div class="projects-dashboard">
-    {% for project in projects %}
-    {% set project_qr_codes = qr_codes|selectattr('project_id', 'equalto', project.id)|list %}
-    
+    {% for project in projects %} {% set project_qr_codes =
+    qr_codes|selectattr('project_id', 'equalto', project.id)|list %}
+
     <div class="project-list-item">
       <!-- Project Header -->
       <div class="project-header" onclick="toggleProject({{ project.id }})">
         <div class="project-info">
-          <div class="project-icon {{ 'inactive' if not project.active_status }}">
-            <i class="fas fa-folder{{ '-open' if project.active_status else '' }}"></i>
+          <div
+            class="project-icon {{ 'inactive' if not project.active_status }}"
+          >
+            <i
+              class="fas fa-folder{{ '-open' if project.active_status else '' }}"
+            ></i>
           </div>
           <div class="project-details">
             <h3 class="project-name">{{ project.name }}</h3>
@@ -1057,14 +1060,19 @@
             {% endif %}
           </div>
         </div>
-        
+
         <div class="project-meta">
           <div class="project-stats">
             <div class="project-qr-count">
               <i class="fas fa-qrcode"></i>
-              <span>{{ project_qr_codes|length }} QR Code{{ 's' if project_qr_codes|length != 1 else '' }}</span>
+              <span
+                >{{ project_qr_codes|length }} QR Code{{ 's' if
+                project_qr_codes|length != 1 else '' }}</span
+              >
             </div>
-            <span class="project-status {{ 'active' if project.active_status else 'inactive' }}">
+            <span
+              class="project-status {{ 'active' if project.active_status else 'inactive' }}"
+            >
               {{ 'Active' if project.active_status else 'Inactive' }}
             </span>
           </div>
@@ -1073,66 +1081,91 @@
           </button>
         </div>
       </div>
-      
+
       <!-- Project QR Codes -->
       <div class="project-qr-codes" id="project-qr-{{ project.id }}">
         {% if project_qr_codes %}
         <div class="project-qr-grid">
           {% for qr in project_qr_codes %}
-          <div class="qr-card {{ 'inactive' if not qr.active_status }}" 
-               data-qr-id="{{ qr.id }}"
-               data-qr-name="{{ qr.name }}"
-               data-qr-location="{{ qr.location }}"
-               data-qr-address="{{ qr.location_address }}"
-               data-qr-event="{{ qr.location_event }}"
-               data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
-               onclick="openQRModalFromData(this)">
-            
+          <div
+            class="qr-card {{ 'inactive' if not qr.active_status }}"
+            data-qr-id="{{ qr.id }}"
+            data-qr-name="{{ qr.name }}"
+            data-qr-location="{{ qr.location }}"
+            data-qr-address="{{ qr.location_address }}"
+            data-qr-event="{{ qr.location_event }}"
+            data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+            onclick="openQRModalFromData(this)"
+          >
             <div class="qr-card-layout">
-              <div class="qr-preview-large" onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')">
-                <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+              <div
+                class="qr-preview-large"
+                onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+              >
+                <img
+                  src="data:image/png;base64,{{ qr.qr_code_image }}"
+                  alt="QR Code for {{ qr.name }}"
+                  loading="lazy"
+                />
               </div>
-              
+
               <div class="qr-details">
                 <h4 class="qr-name">{{ qr.name }}</h4>
                 <div class="qr-detail-item">
                   <i class="fas fa-map-marker-alt"></i>
                   <span>{{ qr.location }}</span>
                 </div>
-                
+
                 {% if qr.location_address %}
                 <div class="qr-detail-item">
                   <i class="fas fa-home"></i>
                   <span>{{ qr.location_address }}</span>
                 </div>
-                {% endif %}
-                
-                {% if qr.qr_url %}
+                {% endif %} {% if qr.qr_url %}
                 <div class="qr-detail-item">
                   <i class="fas fa-link"></i>
                   <span>{{ qr.qr_url }}</span>
                 </div>
                 {% endif %}
-                
-                <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
-                  <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
+
+                <span
+                  class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+                >
+                  <i
+                    class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
+                  ></i>
                   {{ 'Active' if qr.active_status else 'Inactive' }}
                 </span>
               </div>
             </div>
 
             <div class="qr-card-actions">
-              <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
+              <button
+                class="qr-action-btn download"
+                onclick="event.stopPropagation(); downloadQRFromCard(this)"
+                title="Download QR Code"
+              >
                 <i class="fas fa-download"></i>
               </button>
-              
-              <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
+
+              <a
+                href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+                class="qr-action-btn edit"
+                onclick="event.stopPropagation()"
+                title="Edit QR Code"
+              >
                 <i class="fas fa-edit"></i>
               </a>
-              
+
               {% if session.role == 'admin' %}
-              <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
-                <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+              <button
+                class="qr-action-btn toggle"
+                onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})"
+                title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
+              >
+                <i
+                  class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+                ></i>
               </button>
               {% endif %}
             </div>
@@ -1159,33 +1192,44 @@
   {% endif %}
 
   <!-- Unassigned QR Codes Section -->
-  {% set unassigned_qr_codes = qr_codes|selectattr('project_id', 'equalto', None)|list %}
-  {% if unassigned_qr_codes %}
+  {% set unassigned_qr_codes = qr_codes|selectattr('project_id', 'equalto',
+  None)|list %} {% if unassigned_qr_codes %}
   <div class="unassigned-qr-section">
     <div class="unassigned-header">
       <h3 class="unassigned-title">
         <i class="fas fa-exclamation-triangle"></i>
         Unassigned QR Codes
       </h3>
-      <span class="unassigned-count">{{ unassigned_qr_codes|length }} QR Code{{ 's' if unassigned_qr_codes|length != 1 else '' }}</span>
+      <span class="unassigned-count"
+        >{{ unassigned_qr_codes|length }} QR Code{{ 's' if
+        unassigned_qr_codes|length != 1 else '' }}</span
+      >
     </div>
-    
+
     <div class="project-qr-grid">
       {% for qr in unassigned_qr_codes %}
-      <div class="qr-card {{ 'inactive' if not qr.active_status }}" 
-           data-qr-id="{{ qr.id }}"
-           data-qr-name="{{ qr.name }}"
-           data-qr-location="{{ qr.location }}"
-           data-qr-address="{{ qr.location_address }}"
-           data-qr-event="{{ qr.location_event }}"
-           data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
-           onclick="openQRModalFromData(this)">
-        
+      <div
+        class="qr-card {{ 'inactive' if not qr.active_status }}"
+        data-qr-id="{{ qr.id }}"
+        data-qr-name="{{ qr.name }}"
+        data-qr-location="{{ qr.location }}"
+        data-qr-address="{{ qr.location_address }}"
+        data-qr-event="{{ qr.location_event }}"
+        data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+        onclick="openQRModalFromData(this)"
+      >
         <div class="qr-card-compact">
-          <div class="qr-preview-compact" onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')">
-            <img src="data:image/png;base64,{{ qr.qr_code_image }}" alt="QR Code for {{ qr.name }}" loading="lazy">
+          <div
+            class="qr-preview-compact"
+            onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+          >
+            <img
+              src="data:image/png;base64,{{ qr.qr_code_image }}"
+              alt="QR Code for {{ qr.name }}"
+              loading="lazy"
+            />
           </div>
-          
+
           <div class="qr-info-compact">
             <h4 class="qr-name-compact">{{ qr.name }}</h4>
             <div class="qr-details-row">
@@ -1193,42 +1237,62 @@
                 <i class="fas fa-map-marker-alt"></i>
                 <span>{{ qr.location }}</span>
               </div>
-              
+
               {% if qr.location_address %}
               <div class="qr-detail-item">
                 <i class="fas fa-home"></i>
                 <span>{{ qr.location_address }}</span>
               </div>
-              {% endif %}
-              
-              {% if qr.qr_url %}
+              {% endif %} {% if qr.qr_url %}
               <div class="qr-detail-item">
                 <i class="fas fa-link"></i>
-                <span class="qr-url-short">{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif %}</span>
+                <span class="qr-url-short"
+                  >{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif
+                  %}</span
+                >
               </div>
               {% endif %}
             </div>
           </div>
-          
+
           <div class="qr-status-compact">
-            <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
-              <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
+            <span
+              class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+            >
+              <i
+                class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
+              ></i>
               {{ 'Active' if qr.active_status else 'Inactive' }}
             </span>
           </div>
-          
+
           <div class="qr-actions-compact">
-            <button class="qr-action-btn download" onclick="event.stopPropagation(); downloadQRFromCard(this)" title="Download QR Code">
+            <button
+              class="qr-action-btn download"
+              onclick="event.stopPropagation(); downloadQRFromCard(this)"
+              title="Download QR Code"
+            >
               <i class="fas fa-download"></i>
             </button>
-            
-            <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" class="qr-action-btn edit" onclick="event.stopPropagation()" title="Edit QR Code">
+
+            <a
+              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              class="qr-action-btn edit"
+              onclick="event.stopPropagation()"
+              title="Edit QR Code"
+            >
               <i class="fas fa-edit"></i>
             </a>
-            
+
             {% if session.role == 'admin' %}
-            <button class="qr-action-btn toggle" onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})" title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
-              <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+            <button
+              class="qr-action-btn toggle"
+              onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})"
+              title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
+            >
+              <i
+                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+              ></i>
             </button>
             {% endif %}
           </div>
@@ -1246,8 +1310,13 @@
       <i class="fas fa-folder-open"></i>
     </div>
     <h3>Welcome to Your QR Code Dashboard</h3>
-    <p>Get started by creating your first project and QR codes to organize your digital assets effectively.</p>
-    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+    <p>
+      Get started by creating your first project and QR codes to organize your
+      digital assets effectively.
+    </p>
+    <div
+      style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap"
+    >
       {% if session.role == 'admin' %}
       <a href="{{ url_for('create_project') }}" class="btn btn-primary">
         <i class="fas fa-folder-plus"></i>
@@ -1269,7 +1338,7 @@
     <button class="lightbox-close" onclick="closeImageLightbox()">
       <i class="fas fa-times"></i>
     </button>
-    <img id="lightboxImage" src="" alt="" class="lightbox-image">
+    <img id="lightboxImage" src="" alt="" class="lightbox-image" />
     <div class="lightbox-info" id="lightboxInfo"></div>
     <div class="lightbox-hint">Click anywhere outside the image to close</div>
   </div>
@@ -1287,33 +1356,33 @@
     <div class="modal-body qr-modal-body">
       <div class="qr-modal-layout">
         <div class="qr-modal-image">
-          <img id="modalQRImage" src="" alt="QR Code">
+          <img id="modalQRImage" src="" alt="QR Code" />
         </div>
-        
+
         <div class="qr-modal-info">
           <div class="qr-detail-section">
             <h4><i class="fas fa-qrcode"></i> QR Code Information</h4>
-            
+
             <div class="qr-detail-item">
               <label>Name:</label>
               <span id="modalQRName">-</span>
             </div>
-            
+
             <div class="qr-detail-item">
               <label>Location:</label>
               <span id="modalQRLocation">-</span>
             </div>
-            
+
             <div class="qr-detail-item">
               <label>Address:</label>
               <span id="modalQRAddress">-</span>
             </div>
-            
+
             <div class="qr-detail-item">
               <label>Event:</label>
               <span id="modalQREvent">-</span>
             </div>
-            
+
             <div class="qr-detail-item">
               <label>QR Destination:</label>
               <span id="modalQRDestination" class="qr-destination-link">
@@ -1327,7 +1396,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="modal-footer qr-modal-footer">
       <button class="btn btn-primary" onclick="downloadModalQR()">
         <i class="fas fa-download"></i>
@@ -1350,351 +1419,404 @@
 </div>
 
 <script>
-class ProjectDashboardManager {
-  constructor() {
-    this.expandedProjects = new Set();
-    this.currentModalQR = null;
-    this.initialize();
-  }
-
-  initialize() {
-    const saved = localStorage.getItem('expandedProjects');
-    if (saved) {
-      this.expandedProjects = new Set(JSON.parse(saved));
-      this.restoreProjectStates();
+  class ProjectDashboardManager {
+    constructor() {
+      this.expandedProjects = new Set();
+      this.currentModalQR = null;
+      this.initialize();
     }
-  }
 
-  restoreProjectStates() {
-    this.expandedProjects.forEach(projectId => {
-      this.expandProject(projectId, false);
-    });
-  }
-
-  toggleProject(projectId) {
-    const isExpanded = this.expandedProjects.has(projectId);
-    
-    if (isExpanded) {
-      this.collapseProject(projectId);
-    } else {
-      this.expandProject(projectId);
-    }
-    
-    this.saveExpandedState();
-  }
-
-  expandProject(projectId, animate = true) {
-    const projectQR = document.getElementById(`project-qr-${projectId}`);
-    const toggle = document.getElementById(`toggle-${projectId}`);
-    const header = toggle?.closest('.project-header');
-    
-    if (projectQR && toggle) {
-      projectQR.classList.add('expanded');
-      toggle.classList.add('expanded');
-      header?.classList.add('expanded');
-      this.expandedProjects.add(projectId);
-      
-      if (animate) {
-        setTimeout(() => {
-          projectQR.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'nearest' 
-          });
-        }, 200);
+    initialize() {
+      const saved = localStorage.getItem("expandedProjects");
+      if (saved) {
+        this.expandedProjects = new Set(JSON.parse(saved));
+        this.restoreProjectStates();
       }
     }
-  }
 
-  collapseProject(projectId) {
-    const projectQR = document.getElementById(`project-qr-${projectId}`);
-    const toggle = document.getElementById(`toggle-${projectId}`);
-    const header = toggle?.closest('.project-header');
-    
-    if (projectQR && toggle) {
-      projectQR.classList.remove('expanded');
-      toggle.classList.remove('expanded');
-      header?.classList.remove('expanded');
-      this.expandedProjects.delete(projectId);
-    }
-  }
-
-  saveExpandedState() {
-    localStorage.setItem('expandedProjects', JSON.stringify([...this.expandedProjects]));
-  }
-
-  async toggleQRCodeStatus(qrId) {
-    try {
-      const response = await fetch(`/qr-codes/${qrId}/toggle-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+    restoreProjectStates() {
+      this.expandedProjects.forEach((projectId) => {
+        this.expandProject(projectId, false);
       });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          if (window.showToast) {
-            window.showToast(result.message, 'success');
-          }
-          
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        } else {
-          throw new Error(result.message || 'Failed to toggle QR code status');
-        }
+    }
+
+    toggleProject(projectId) {
+      const isExpanded = this.expandedProjects.has(projectId);
+
+      if (isExpanded) {
+        this.collapseProject(projectId);
       } else {
-        throw new Error('Failed to toggle QR code status');
+        this.expandProject(projectId);
       }
-    } catch (error) {
-      console.error('Toggle status failed:', error);
-      if (window.showToast) {
-        window.showToast('Failed to update QR code status', 'error');
+
+      this.saveExpandedState();
+    }
+
+    expandProject(projectId, animate = true) {
+      const projectQR = document.getElementById(`project-qr-${projectId}`);
+      const toggle = document.getElementById(`toggle-${projectId}`);
+      const header = toggle?.closest(".project-header");
+
+      if (projectQR && toggle) {
+        projectQR.classList.add("expanded");
+        toggle.classList.add("expanded");
+        header?.classList.add("expanded");
+        this.expandedProjects.add(projectId);
+
+        if (animate) {
+          setTimeout(() => {
+            projectQR.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+            });
+          }, 200);
+        }
       }
     }
-  }
 
-  openQRModalFromData(element) {
-    const qrData = {
-      name: element.dataset.qrName,
-      image: element.querySelector('img').src,
-      location: element.dataset.qrLocation,
-      address: element.dataset.qrAddress,
-      event: element.dataset.qrEvent,
-      qr_url: element.dataset.qrUrl
-    };
-    
-    this.openQRModal(qrData);
-  }
+    collapseProject(projectId) {
+      const projectQR = document.getElementById(`project-qr-${projectId}`);
+      const toggle = document.getElementById(`toggle-${projectId}`);
+      const header = toggle?.closest(".project-header");
 
-  openQRModal(qrData) {
-    const modal = document.getElementById('qrModal');
-    const modalImage = document.getElementById('modalQRImage');
-    const modalTitle = document.getElementById('modalTitle');
-    
-    const modalQRName = document.getElementById('modalQRName');
-    const modalQRLocation = document.getElementById('modalQRLocation');
-    const modalQRAddress = document.getElementById('modalQRAddress');
-    const modalQREvent = document.getElementById('modalQREvent');
-    const modalQRDestination = document.getElementById('modalQRDestination');
-    
-    if (modal && modalImage && modalTitle) {
-      modalTitle.textContent = `QR Code: ${qrData.name}`;
-      modalImage.src = qrData.image;
-      modalImage.alt = `QR Code for ${qrData.name}`;
-      
-      if (modalQRName) modalQRName.textContent = qrData.name || '-';
-      if (modalQRLocation) modalQRLocation.textContent = qrData.location || '-';
-      if (modalQRAddress) modalQRAddress.textContent = qrData.address || '-';
-      if (modalQREvent) modalQREvent.textContent = qrData.event || 'No event specified';
-      
-      if (modalQRDestination && qrData.qr_url) {
-        const destinationUrl = `${window.location.origin}/qr/${qrData.qr_url}`;
-        const linkElement = modalQRDestination.querySelector('a');
-        if (linkElement) {
-          linkElement.href = destinationUrl;
-          linkElement.innerHTML = `
+      if (projectQR && toggle) {
+        projectQR.classList.remove("expanded");
+        toggle.classList.remove("expanded");
+        header?.classList.remove("expanded");
+        this.expandedProjects.delete(projectId);
+      }
+    }
+
+    saveExpandedState() {
+      localStorage.setItem(
+        "expandedProjects",
+        JSON.stringify([...this.expandedProjects])
+      );
+    }
+
+    async toggleQRCodeStatus(qrId) {
+      try {
+        const response = await fetch(`/qr-codes/${qrId}/toggle-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            if (window.showToast) {
+              window.showToast(result.message, "success");
+            }
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          } else {
+            throw new Error(
+              result.message || "Failed to toggle QR code status"
+            );
+          }
+        } else {
+          throw new Error("Failed to toggle QR code status");
+        }
+      } catch (error) {
+        console.error("Toggle status failed:", error);
+        if (window.showToast) {
+          window.showToast("Failed to update QR code status", "error");
+        }
+      }
+    }
+
+    openQRModalFromData(element) {
+      const qrData = {
+        name: element.dataset.qrName,
+        image: element.querySelector("img").src,
+        location: element.dataset.qrLocation,
+        address: element.dataset.qrAddress,
+        event: element.dataset.qrEvent,
+        qr_url: element.dataset.qrUrl,
+      };
+
+      this.openQRModal(qrData);
+    }
+
+    openQRModal(qrData) {
+      const modal = document.getElementById("qrModal");
+      const modalImage = document.getElementById("modalQRImage");
+      const modalTitle = document.getElementById("modalTitle");
+
+      const modalQRName = document.getElementById("modalQRName");
+      const modalQRLocation = document.getElementById("modalQRLocation");
+      const modalQRAddress = document.getElementById("modalQRAddress");
+      const modalQREvent = document.getElementById("modalQREvent");
+      const modalQRDestination = document.getElementById("modalQRDestination");
+
+      if (modal && modalImage && modalTitle) {
+        modalTitle.textContent = `QR Code: ${qrData.name}`;
+        modalImage.src = qrData.image;
+        modalImage.alt = `QR Code for ${qrData.name}`;
+
+        if (modalQRName) modalQRName.textContent = qrData.name || "-";
+        if (modalQRLocation)
+          modalQRLocation.textContent = qrData.location || "-";
+        if (modalQRAddress) modalQRAddress.textContent = qrData.address || "-";
+        if (modalQREvent)
+          modalQREvent.textContent = qrData.event || "No event specified";
+
+        if (modalQRDestination && qrData.qr_url) {
+          const destinationUrl = `${window.location.origin}/qr/${qrData.qr_url}`;
+          const linkElement = modalQRDestination.querySelector("a");
+          if (linkElement) {
+            linkElement.href = destinationUrl;
+            linkElement.innerHTML = `
             <i class="fas fa-external-link-alt"></i>
             ${destinationUrl}
           `;
+          }
+        } else if (modalQRDestination) {
+          modalQRDestination.innerHTML =
+            '<span style="color: var(--gray-500); font-style: italic;">No destination URL available</span>';
         }
-      } else if (modalQRDestination) {
-        modalQRDestination.innerHTML = '<span style="color: var(--gray-500); font-style: italic;">No destination URL available</span>';
-      }
-      
-      this.currentModalQR = {
-        name: qrData.name,
-        image: qrData.image,
-        location: qrData.location,
-        address: qrData.address,
-        event: qrData.event,
-        qr_url: qrData.qr_url,
-        destination_url: qrData.qr_url ? `${window.location.origin}/qr/${qrData.qr_url}` : null
-      };
-      
-      modal.style.display = 'flex';
-      
-      document.addEventListener('keydown', this.handleModalKeydown.bind(this));
-    }
-  }
 
-  closeQRModal() {
-    const modal = document.getElementById('qrModal');
-    if (modal) {
-      modal.style.display = 'none';
-      this.currentModalQR = null;
-      
-      document.removeEventListener('keydown', this.handleModalKeydown.bind(this));
-    }
-  }
+        this.currentModalQR = {
+          name: qrData.name,
+          image: qrData.image,
+          location: qrData.location,
+          address: qrData.address,
+          event: qrData.event,
+          qr_url: qrData.qr_url,
+          destination_url: qrData.qr_url
+            ? `${window.location.origin}/qr/${qrData.qr_url}`
+            : null,
+        };
 
-  handleModalKeydown(event) {
-    if (event.key === 'Escape') {
-      this.closeQRModal();
-    }
-  }
+        modal.style.display = "flex";
 
-  downloadQRFromCard(button) {
-    const qrCard = button.closest('.qr-card');
-    const img = qrCard.querySelector('img');
-    const qrName = qrCard.dataset.qrName;
-    
-    if (img && img.src) {
-      const base64Data = img.src.split('base64,')[1];
-      this.downloadQR(base64Data, qrName);
-    }
-  }
-
-  downloadQR(base64Image, filename) {
-    try {
-      const base64Data = base64Image.includes('base64,') 
-        ? base64Image.split('base64,')[1] 
-        : base64Image;
-      
-      const link = document.createElement('a');
-      link.href = `data:image/png;base64,${base64Data}`;
-      link.download = `${filename.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      if (window.showToast) {
-        window.showToast('QR code downloaded successfully!', 'success');
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      if (window.showToast) {
-        window.showToast('Failed to download QR code', 'error');
+        document.addEventListener(
+          "keydown",
+          this.handleModalKeydown.bind(this)
+        );
       }
     }
-  }
 
-  downloadModalQR() {
-    if (this.currentModalQR) {
-      const base64Data = this.currentModalQR.image.split('base64,')[1];
-      this.downloadQR(base64Data, this.currentModalQR.name);
+    closeQRModal() {
+      const modal = document.getElementById("qrModal");
+      if (modal) {
+        modal.style.display = "none";
+        this.currentModalQR = null;
+
+        document.removeEventListener(
+          "keydown",
+          this.handleModalKeydown.bind(this)
+        );
+      }
     }
-  }
 
-  copyModalQRData() {
-    if (this.currentModalQR) {
-      const data = `QR Code: ${this.currentModalQR.name}\nLocation: ${this.currentModalQR.location}\nAddress: ${this.currentModalQR.address}\nEvent: ${this.currentModalQR.event}${this.currentModalQR.destination_url ? `\nQR Link: ${this.currentModalQR.destination_url}` : ''}`;
-      
-      navigator.clipboard.writeText(data)
-        .then(() => {
-          if (window.showToast) {
-            window.showToast('QR code information copied to clipboard!', 'success');
-          }
-        })
-        .catch(() => {
-          const textArea = document.createElement('textarea');
-          textArea.value = data;
-          document.body.appendChild(textArea);
-          textArea.select();
-          try {
-            document.execCommand('copy');
+    handleModalKeydown(event) {
+      if (event.key === "Escape") {
+        this.closeQRModal();
+      }
+    }
+
+    downloadQRFromCard(button) {
+      const qrCard = button.closest(".qr-card");
+      const img = qrCard.querySelector("img");
+      const qrName = qrCard.dataset.qrName;
+
+      if (img && img.src) {
+        const base64Data = img.src.split("base64,")[1];
+        this.downloadQR(base64Data, qrName);
+      }
+    }
+
+    downloadQR(base64Image, filename) {
+      try {
+        const base64Data = base64Image.includes("base64,")
+          ? base64Image.split("base64,")[1]
+          : base64Image;
+
+        const link = document.createElement("a");
+        link.href = `data:image/png;base64,${base64Data}`;
+        link.download = `${filename
+          .replace(/[^a-z0-9]/gi, "_")
+          .toLowerCase()}_qr_code.png`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        if (window.showToast) {
+          window.showToast("QR code downloaded successfully!", "success");
+        }
+      } catch (error) {
+        console.error("Download error:", error);
+        if (window.showToast) {
+          window.showToast("Failed to download QR code", "error");
+        }
+      }
+    }
+
+    downloadModalQR() {
+      if (this.currentModalQR) {
+        const base64Data = this.currentModalQR.image.split("base64,")[1];
+        this.downloadQR(base64Data, this.currentModalQR.name);
+      }
+    }
+
+    copyModalQRData() {
+      if (this.currentModalQR) {
+        const data = `QR Code: ${this.currentModalQR.name}\nLocation: ${
+          this.currentModalQR.location
+        }\nAddress: ${this.currentModalQR.address}\nEvent: ${
+          this.currentModalQR.event
+        }${
+          this.currentModalQR.destination_url
+            ? `\nQR Link: ${this.currentModalQR.destination_url}`
+            : ""
+        }`;
+
+        navigator.clipboard
+          .writeText(data)
+          .then(() => {
             if (window.showToast) {
-              window.showToast('QR code information copied to clipboard!', 'success');
+              window.showToast(
+                "QR code information copied to clipboard!",
+                "success"
+              );
             }
-          } catch (err) {
-            if (window.showToast) {
-              window.showToast('Failed to copy to clipboard', 'error');
+          })
+          .catch(() => {
+            const textArea = document.createElement("textarea");
+            textArea.value = data;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+              document.execCommand("copy");
+              if (window.showToast) {
+                window.showToast(
+                  "QR code information copied to clipboard!",
+                  "success"
+                );
+              }
+            } catch (err) {
+              if (window.showToast) {
+                window.showToast("Failed to copy to clipboard", "error");
+              }
             }
-          }
-          document.body.removeChild(textArea);
-        });
-    }
-  }
-
-  copyQRDestination() {
-    if (this.currentModalQR && this.currentModalQR.destination_url) {
-      navigator.clipboard.writeText(this.currentModalQR.destination_url)
-        .then(() => {
-          if (window.showToast) {
-            window.showToast('QR destination link copied to clipboard!', 'success');
-          }
-        })
-        .catch(() => {
-          if (window.showToast) {
-            window.showToast('Failed to copy QR link', 'error');
-          }
-        });
-    } else {
-      if (window.showToast) {
-        window.showToast('No QR destination link available', 'warning');
+            document.body.removeChild(textArea);
+          });
       }
     }
-  }
 
-  // Image Lightbox Functions
-  openImageLightbox(previewElement, qrName) {
-    console.log('Opening lightbox for:', qrName); // Debug log
-    
-    const img = previewElement.querySelector('img');
-    
-    if (img && img.src) {
-      const lightbox = document.getElementById('imageLightbox');
-      const lightboxImage = document.getElementById('lightboxImage');
-      const lightboxInfo = document.getElementById('lightboxInfo');
-      
-      console.log('Lightbox elements found:', !!lightbox, !!lightboxImage, !!lightboxInfo); // Debug log
-      
-      if (lightbox && lightboxImage && lightboxInfo) {
-        lightboxImage.src = img.src;
-        lightboxImage.alt = img.alt;
-        lightboxInfo.textContent = `QR Code: ${qrName}`;
-        
-        lightbox.style.display = 'flex';
-        console.log('Lightbox should be visible now'); // Debug log
-        
-        // Add keyboard listener for ESC key
-        document.addEventListener('keydown', this.handleLightboxKeydown.bind(this));
+    copyQRDestination() {
+      if (this.currentModalQR && this.currentModalQR.destination_url) {
+        navigator.clipboard
+          .writeText(this.currentModalQR.destination_url)
+          .then(() => {
+            if (window.showToast) {
+              window.showToast(
+                "QR destination link copied to clipboard!",
+                "success"
+              );
+            }
+          })
+          .catch(() => {
+            if (window.showToast) {
+              window.showToast("Failed to copy QR link", "error");
+            }
+          });
       } else {
-        console.error('Lightbox elements not found');
+        if (window.showToast) {
+          window.showToast("No QR destination link available", "warning");
+        }
       }
-    } else {
-      console.error('Image element not found or no src');
+    }
+
+    // Image Lightbox Functions
+    openImageLightbox(previewElement, qrName) {
+      console.log("Opening lightbox for:", qrName); // Debug log
+
+      const img = previewElement.querySelector("img");
+
+      if (img && img.src) {
+        const lightbox = document.getElementById("imageLightbox");
+        const lightboxImage = document.getElementById("lightboxImage");
+        const lightboxInfo = document.getElementById("lightboxInfo");
+
+        console.log(
+          "Lightbox elements found:",
+          !!lightbox,
+          !!lightboxImage,
+          !!lightboxInfo
+        ); // Debug log
+
+        if (lightbox && lightboxImage && lightboxInfo) {
+          lightboxImage.src = img.src;
+          lightboxImage.alt = img.alt;
+          lightboxInfo.textContent = `QR Code: ${qrName}`;
+
+          lightbox.style.display = "flex";
+          console.log("Lightbox should be visible now"); // Debug log
+
+          // Add keyboard listener for ESC key
+          document.addEventListener(
+            "keydown",
+            this.handleLightboxKeydown.bind(this)
+          );
+        } else {
+          console.error("Lightbox elements not found");
+        }
+      } else {
+        console.error("Image element not found or no src");
+      }
+    }
+
+    closeImageLightbox() {
+      console.log("Closing lightbox"); // Debug log
+      const lightbox = document.getElementById("imageLightbox");
+      if (lightbox) {
+        lightbox.style.display = "none";
+
+        // Remove keyboard listener
+        document.removeEventListener(
+          "keydown",
+          this.handleLightboxKeydown.bind(this)
+        );
+      }
+    }
+
+    handleLightboxKeydown(event) {
+      if (event.key === "Escape") {
+        this.closeImageLightbox();
+      }
     }
   }
 
-  closeImageLightbox() {
-    console.log('Closing lightbox'); // Debug log
-    const lightbox = document.getElementById('imageLightbox');
-    if (lightbox) {
-      lightbox.style.display = 'none';
-      
-      // Remove keyboard listener
-      document.removeEventListener('keydown', this.handleLightboxKeydown.bind(this));
-    }
-  }
+  let dashboardManager;
 
-  handleLightboxKeydown(event) {
-    if (event.key === 'Escape') {
-      this.closeImageLightbox();
-    }
-  }
-}
+  document.addEventListener("DOMContentLoaded", function () {
+    dashboardManager = new ProjectDashboardManager();
 
-let dashboardManager;
+    window.toggleProject = (projectId) =>
+      dashboardManager.toggleProject(projectId);
+    window.toggleQRCodeStatus = (qrId) =>
+      dashboardManager.toggleQRCodeStatus(qrId);
+    window.openQRModalFromData = (element) =>
+      dashboardManager.openQRModalFromData(element);
+    window.closeQRModal = () => dashboardManager.closeQRModal();
+    window.downloadModalQR = () => dashboardManager.downloadModalQR();
+    window.copyModalQRData = () => dashboardManager.copyModalQRData();
+    window.copyQRDestination = () => dashboardManager.copyQRDestination();
+    window.downloadQRFromCard = (button) =>
+      dashboardManager.downloadQRFromCard(button);
+    window.openImageLightbox = (element, qrName) =>
+      dashboardManager.openImageLightbox(element, qrName);
+    window.closeImageLightbox = () => dashboardManager.closeImageLightbox();
 
-document.addEventListener('DOMContentLoaded', function() {
-  dashboardManager = new ProjectDashboardManager();
-  
-  window.toggleProject = (projectId) => dashboardManager.toggleProject(projectId);
-  window.toggleQRCodeStatus = (qrId) => dashboardManager.toggleQRCodeStatus(qrId);
-  window.openQRModalFromData = (element) => dashboardManager.openQRModalFromData(element);
-  window.closeQRModal = () => dashboardManager.closeQRModal();
-  window.downloadModalQR = () => dashboardManager.downloadModalQR();
-  window.copyModalQRData = () => dashboardManager.copyModalQRData();
-  window.copyQRDestination = () => dashboardManager.copyQRDestination();
-  window.downloadQRFromCard = (button) => dashboardManager.downloadQRFromCard(button);
-  window.openImageLightbox = (element, qrName) => dashboardManager.openImageLightbox(element, qrName);
-  window.closeImageLightbox = () => dashboardManager.closeImageLightbox();
-  
-  console.log('Project Dashboard initialized successfully');
-});
+    console.log("Project Dashboard initialized successfully");
+  });
 </script>
 {% endblock %}
