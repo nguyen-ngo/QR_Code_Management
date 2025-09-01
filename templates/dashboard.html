@@ -1121,7 +1121,14 @@ Management{% endblock %} {% block extra_head %}
                   <i class="fas fa-home"></i>
                   <span>{{ qr.location_address }}</span>
                 </div>
-                {% endif %} {% if qr.qr_url %}
+                {% endif %}
+
+                <div class="qr-detail-item qr-checkins-count">
+                  <i class="fas fa-users"></i>
+                  <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
+                </div>
+
+                {% if qr.qr_url %}
                 <div class="qr-detail-item">
                   <i class="fas fa-link"></i>
                   <span>{{ qr.qr_url }}</span>
@@ -1140,6 +1147,22 @@ Management{% endblock %} {% block extra_head %}
             </div>
 
             <div class="qr-card-actions">
+              <button
+                class="qr-action-btn copy"
+                onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
+                title="Copy QR Code URL"
+              >
+                <i class="fas fa-copy"></i>
+              </button>
+
+              <button
+                class="qr-action-btn link"
+                onclick="event.stopPropagation(); openQRLink({{ qr.id }})"
+                title="Open QR Code Link"
+              >
+                <i class="fas fa-external-link-alt"></i>
+              </button>
+
               <button
                 class="qr-action-btn download"
                 onclick="event.stopPropagation(); downloadQRFromCard(this)"
@@ -1243,7 +1266,14 @@ Management{% endblock %} {% block extra_head %}
                 <i class="fas fa-home"></i>
                 <span>{{ qr.location_address }}</span>
               </div>
-              {% endif %} {% if qr.qr_url %}
+              {% endif %}
+
+              <div class="qr-detail-item qr-checkins-count">
+                <i class="fas fa-users"></i>
+                <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
+              </div>
+
+              {% if qr.qr_url %}
               <div class="qr-detail-item">
                 <i class="fas fa-link"></i>
                 <span class="qr-url-short"
@@ -1267,6 +1297,22 @@ Management{% endblock %} {% block extra_head %}
           </div>
 
           <div class="qr-actions-compact">
+            <button
+              class="qr-action-btn copy"
+              onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
+              title="Copy QR Code URL"
+            >
+              <i class="fas fa-copy"></i>
+            </button>
+
+            <button
+              class="qr-action-btn link"
+              onclick="event.stopPropagation(); openQRLink({{ qr.id }})"
+              title="Open QR Code Link"
+            >
+              <i class="fas fa-external-link-alt"></i>
+            </button>
+
             <button
               class="qr-action-btn download"
               onclick="event.stopPropagation(); downloadQRFromCard(this)"

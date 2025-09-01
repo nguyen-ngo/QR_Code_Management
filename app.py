@@ -3483,7 +3483,7 @@ def delete_qr_code(qr_id):
         print(f"❌ Traceback: {traceback.format_exc()}")
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard'))
-
+    
 @app.route('/qr/<string:qr_url>')
 def qr_destination(qr_url):
     """QR code destination page where staff check in - PRESERVING EXACT ROUTE"""
@@ -3790,6 +3790,52 @@ def toggle_qr_status(qr_id):
         return jsonify({
             'success': False,
             'message': 'Error updating QR code status. Please try again.'
+        }), 500
+
+@app.route('/qr-codes/<int:qr_id>/copy-url', methods=['POST'])
+@login_required
+def copy_qr_url(qr_id):
+    """Log QR code URL copy action"""
+    try:
+        qr_code = QRCode.query.get_or_404(qr_id)
+        
+        # Log URL copy action
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} copied URL for QR code {qr_code.name} (ID: {qr_id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'QR code URL copied to clipboard!',
+            'url': f"{request.url_root}qr/{qr_code.qr_url}"
+        })
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error copying QR URL for ID {qr_id}: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error copying QR code URL.'
+        }), 500
+
+@app.route('/qr-codes/<int:qr_id>/open-link', methods=['POST'])
+@login_required
+def open_qr_link(qr_id):
+    """Log QR code link open action"""
+    try:
+        qr_code = QRCode.query.get_or_404(qr_id)
+        
+        # Log link open action
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} opened link for QR code {qr_code.name} (ID: {qr_id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Opening QR code link...',
+            'url': f"{request.url_root}qr/{qr_code.qr_url}"
+        })
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error opening QR link for ID {qr_id}: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error opening QR code link.'
         }), 500
 
 @app.route('/qr-codes/<int:qr_id>/activate', methods=['POST'])
@@ -5512,12 +5558,29 @@ def get_employee_name(employee_id):
         print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
         return f"Employee {employee_id}"
 
+def get_qr_code_checkin_count(qr_code_id):
+    """Helper function to get total check-ins count for a QR code"""
+    try:
+        count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
+        logger_handler.logger.info(f"QR Code {qr_code_id} total check-ins: {count}")
+        return count
+    except Exception as e:
+        logger_handler.logger.error(f"Error getting check-ins count for QR {qr_code_id}: {e}")
+        return 0
+    
 @app.context_processor
 def inject_payroll_utils():
     """Inject payroll utility functions into templates"""
     return {
         'get_employee_name': get_employee_name,
         'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
+    }
+
+@app.context_processor
+def inject_dashboard_utils():
+    """Inject dashboard utility functions into templates"""
+    return {
+        'get_qr_code_checkin_count': get_qr_code_checkin_count
     }
 
 @app.route('/statistics')

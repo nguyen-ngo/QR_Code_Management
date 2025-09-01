@@ -1270,3 +1270,70 @@
     max-width: calc(100vw - 2rem);
   }
 }
+
+/* Enhanced QR Action Buttons */
+.qr-action-btn.copy {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.qr-action-btn.copy:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+}
+
+.qr-action-btn.link {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.qr-action-btn.link:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+/* Check-ins Counter Styling */
+.qr-checkins-count {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.5rem;
+  font-weight: 500;
+  color: #1e40af;
+}
+
+.qr-checkins-count i {
+  color: #3b82f6;
+}
+
+/* Responsive Action Buttons */
+@media (max-width: 768px) {
+  .qr-actions-compact {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .qr-action-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Enhanced QR Actions Layout */
+.qr-actions-compact {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.qr-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: var(--spacing-3);
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}

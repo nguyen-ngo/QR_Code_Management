@@ -188,10 +188,13 @@ class DashboardManager {
 
     try {
       // Show loading state
-      const deleteBtn = document.querySelector(`[onclick*="deleteQRCode(${qrId}"]`);
+      const deleteBtn = document.querySelector(
+        `[onclick*="deleteQRCode(${qrId}"]`
+      );
       if (deleteBtn) {
         deleteBtn.disabled = true;
-        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        deleteBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin"></i> Deleting...';
       }
 
       const response = await fetch(`/qr-codes/${qrId}/delete`, {
@@ -216,26 +219,25 @@ class DashboardManager {
 
         // Use simple alert instead of problematic showToast
         alert(`QR code "${qrName}" deleted successfully!`);
-
       } else {
         throw new Error(`Server error: ${response.status}`);
       }
-
     } catch (error) {
       console.error("Delete error:", error);
-      
+
       // Restore button if there was an error
-      const deleteBtn = document.querySelector(`[onclick*="deleteQRCode(${qrId}"]`);
+      const deleteBtn = document.querySelector(
+        `[onclick*="deleteQRCode(${qrId}"]`
+      );
       if (deleteBtn) {
         deleteBtn.disabled = false;
         deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
       }
-      
+
       // Use simple alert instead of problematic showToast
       alert("Failed to delete QR code. Please try again.");
     }
   }
-  
 
   // Show custom delete confirmation dialog
   showDeleteConfirmation(qrName) {
@@ -299,19 +301,26 @@ class DashboardManager {
   async bulkDeleteQRCodes() {
     if (this.selectedQRCodes.size === 0) return;
 
-    const confirmed = await this.showBulkDeleteConfirmation(this.selectedQRCodes.size);
+    const confirmed = await this.showBulkDeleteConfirmation(
+      this.selectedQRCodes.size
+    );
     if (!confirmed) return;
 
-    const deletePromises = Array.from(this.selectedQRCodes).map(qrId => {
+    const deletePromises = Array.from(this.selectedQRCodes).map((qrId) => {
       const qrItem = document.querySelector(`[data-qr-id="${qrId}"]`);
-      const qrName = qrItem ? qrItem.querySelector('.qr-name')?.textContent || 'Unknown' : 'Unknown';
+      const qrName = qrItem
+        ? qrItem.querySelector(".qr-name")?.textContent || "Unknown"
+        : "Unknown";
       return this.deleteQRCode(qrId, qrName);
     });
 
     try {
       await Promise.all(deletePromises);
       this.selectedQRCodes.clear();
-      window.showToast(`Successfully deleted ${deletePromises.length} QR codes`, "success");
+      window.showToast(
+        `Successfully deleted ${deletePromises.length} QR codes`,
+        "success"
+      );
     } catch (error) {
       console.error("Bulk delete error:", error);
       window.showToast("Some QR codes could not be deleted", "error");
@@ -437,6 +446,96 @@ class DashboardManager {
       counter.textContent = `${qrItems.length} results`;
     }
   }
+
+  showToast(message, type = "info") {
+    // Create toast if showToast doesn't exist globally
+    if (typeof window.showToast === "function") {
+      window.showToast(message, type);
+    } else {
+      // Fallback to console or simple alert
+      console.log(`${type.toUpperCase()}: ${message}`);
+      // Or use a simple notification
+      const toast = document.createElement("div");
+      toast.className = `toast toast-${type}`;
+      toast.textContent = message;
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${
+          type === "success"
+            ? "#10b981"
+            : type === "error"
+            ? "#ef4444"
+            : "#3b82f6"
+        };
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        z-index: 9999;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      `;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateX(100%)";
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  }
+
+  // Copy QR Code URL
+  async copyQRUrl(qrId) {
+    try {
+      const response = await fetch(`/qr-codes/${qrId}/copy-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.url) {
+        // Copy to clipboard
+        await navigator.clipboard.writeText(data.url);
+        this.showToast("QR code URL copied to clipboard!", "success");
+      } else {
+        this.showToast("Failed to copy URL", "error");
+      }
+    } catch (error) {
+      console.error("Copy URL error:", error);
+      this.showToast("Failed to copy URL", "error");
+    }
+  }
+
+  // Open QR Code Link
+  async openQRLink(qrId) {
+    try {
+      const response = await fetch(`/qr-codes/${qrId}/open-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.url) {
+        // Open in new tab
+        window.open(data.url, "_blank");
+        this.showToast("QR code link opened!", "success");
+      } else {
+        this.showToast("Failed to open link", "error");
+      }
+    } catch (error) {
+      console.error("Open link error:", error);
+      this.showToast("Failed to open link", "error");
+    }
+  }
 }
 
 // Initialize dashboard when DOM is loaded
@@ -455,3 +554,12 @@ document.addEventListener("DOMContentLoaded", function () {
   window.copyQRData = (name, location, address, event) =>
     window.dashboardManager.copyQRData(name, location, address, event);
 });
+
+// Global functions for new features
+function copyQRUrl(qrId) {
+  window.dashboardManager?.copyQRUrl(qrId);
+}
+
+function openQRLink(qrId) {
+  window.dashboardManager?.openQRLink(qrId);
+}
