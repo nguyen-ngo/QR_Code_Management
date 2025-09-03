@@ -4243,6 +4243,14 @@ def edit_attendance(record_id):
         attendance_record = AttendanceData.query.get_or_404(record_id)
 
         if request.method == 'POST':
+            # Get the audit note from form - REQUIRED
+            edit_note = request.form.get('edit_note', '').strip()
+            if not edit_note:
+                flash('Edit reason is required for audit purposes.', 'error')
+                return render_template('edit_attendance.html',
+                                     attendance_record=attendance_record,
+                                     qr_codes=QRCode.query.filter_by(active_status=True).all())
+
             # Track changes for logging
             changes = {}
             old_values = {
@@ -4274,20 +4282,56 @@ def edit_attendance(record_id):
             attendance_record.check_in_time = new_check_in_time
             attendance_record.location_name = new_location_name
             attendance_record.updated_timestamp = datetime.utcnow()
+            
+            # Store the audit note with timestamp and user info
+            timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+            username = session.get('username', 'Unknown')
+            role = session.get('role', 'unknown')
+            
+            new_note_entry = f"[{timestamp}] {role.title()} '{username}': {edit_note}"
+            
+            if attendance_record.edit_note:
+                # Append to existing notes
+                attendance_record.edit_note = f"{attendance_record.edit_note}\n\n{new_note_entry}"
+            else:
+                # First edit note
+                attendance_record.edit_note = new_note_entry
 
             db.session.commit()
 
-            # Log the successful update
+            # Enhanced logging with audit note
             if changes:
                 logger_handler.log_security_event(
                     event_type="attendance_record_update",
                     description=f"{session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}",
                     severity="MEDIUM",
-                    additional_data={'record_id': record_id, 'changes': changes, 'user_role': session.get('role')}
+                    additional_data={
+                        'record_id': record_id, 
+                        'changes': changes, 
+                        'user_role': session.get('role'),
+                        'edit_reason': edit_note,
+                        'editor_username': session.get('username')
+                    }
                 )
                 print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}: {changes}")
+                print(f"[LOG] Edit reason: {edit_note}")
+            else:
+                # Log even if no changes were made (for audit purposes)
+                logger_handler.log_security_event(
+                    event_type="attendance_record_edit_no_changes",
+                    description=f"{session.get('role', 'unknown').title()} {session.get('username')} accessed edit form for record {record_id} but made no changes",
+                    severity="LOW",
+                    additional_data={
+                        'record_id': record_id,
+                        'user_role': session.get('role'),
+                        'edit_reason': edit_note,
+                        'editor_username': session.get('username')
+                    }
+                )
+                print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} edited record {record_id} with no changes")
+                print(f"[LOG] Edit reason: {edit_note}")
 
-            flash(f'Attendance record for {new_employee_id} updated successfully!', 'success')
+            flash(f'Attendance record for {new_employee_id} updated successfully! Edit reason logged for audit.', 'success')
             return redirect(url_for('attendance_report'))
 
         # GET request - show edit form

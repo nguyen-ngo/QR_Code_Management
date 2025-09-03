@@ -33,7 +33,7 @@ class AttendanceData(base.db.Model):
     altitude = base.db.Column(base.db.Float, nullable=True)
     location_source = base.db.Column(base.db.String(50), default='manual')
     address = base.db.Column(base.db.String(500), nullable=True)
-    
+    edit_note = base.db.Column(base.db.Text, nullable=True)
     # Relationships
     qr_code = base.db.relationship('QRCode', backref=base.db.backref('attendance_records', lazy='dynamic'))
     

@@ -1,9 +1,7 @@
-{% extends "base_authenticated.html" %} {% block title %}Edit Attendance Record
-- QR Code Management{% endblock %} {% block extra_head %}
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/forms.css') }}"
-/>
+{% extends "base_authenticated.html" %} 
+{% block title %}Edit Attendance Record - QR Code Management{% endblock %} 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}" />
 <style>
   .edit-attendance-container {
     max-width: 800px;
@@ -67,8 +65,61 @@
     color: #6b7280;
     margin: 0.25rem 0;
   }
+
+  .audit-note-section {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .audit-note-section h3 {
+    color: #b45309;
+    border-bottom-color: #f59e0b;
+  }
+
+  .audit-note-section .form-group label {
+    color: #b45309;
+    font-weight: 600;
+  }
+
+  .audit-note-section textarea {
+    border-color: #f59e0b;
+  }
+
+  .audit-note-section textarea:focus {
+    border-color: #d97706;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+  }
+
+  .existing-notes {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .existing-notes h4 {
+    color: #374151;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .notes-display textarea {
+    resize: vertical;
+    min-height: 80px;
+    border: 1px solid #d1d5db;
+  }
+
+  .audit-note-section textarea {
+    width: 95%;
+  }
 </style>
-{% endblock %} {% block content %}
+{% endblock %} 
+
+{% block content %}
 <div class="edit-attendance-container">
   <div class="form-header">
     <h1>
@@ -82,26 +133,47 @@
   <div class="record-info">
     <h4><i class="fas fa-info-circle"></i> Current Record Information</h4>
     <p><strong>Record ID:</strong> {{ attendance_record.id }}</p>
-    <p>
-      <strong>Current Employee:</strong> {{ attendance_record.employee_id }}
-    </p>
-    <p>
-      <strong>Current Date:</strong> {{
-      attendance_record.check_in_date.strftime('%Y-%m-%d') }}
-    </p>
-    <p>
-      <strong>Current Time:</strong> {{
-      attendance_record.check_in_time.strftime('%H:%M') }}
-    </p>
-    <p>
-      <strong>Current Location:</strong> {{ attendance_record.location_name }}
-    </p>
+    <p><strong>Current Employee:</strong> {{ attendance_record.employee_id }}</p>
+    <p><strong>Current Date:</strong> {{ attendance_record.check_in_date.strftime('%Y-%m-%d') }}</p>
+    <p><strong>Current Time:</strong> {{ attendance_record.check_in_time.strftime('%H:%M') }}</p>
+    <p><strong>Current Location:</strong> {{ attendance_record.location_name }}</p>
   </div>
 
-  <form
-    method="POST"
-    action="{{ url_for('edit_attendance', record_id=attendance_record.id) }}"
-  >
+  <form method="POST" action="{{ url_for('edit_attendance', record_id=attendance_record.id) }}">
+    
+    <!-- Audit Note Section -->
+    <div class="audit-note-section">
+      <h3><i class="fas fa-clipboard-list"></i> Audit Information</h3>
+      
+      {% if attendance_record.edit_note %}
+      <div class="existing-notes">
+        <h4><i class="fas fa-history"></i> Previous Edit History</h4>
+        <div class="notes-display">
+          <textarea readonly class="form-control" rows="4" style="background-color: #f8f9fa; font-family: monospace; font-size: 0.9em;">{{ attendance_record.edit_note }}</textarea>
+        </div>
+      </div>
+      {% endif %}
+      
+      <div class="form-group" style="margin-top: 1rem;">
+        <label for="edit_note">{% if attendance_record.edit_note %}New Edit Reason (Required) *{% else %}Reason for Edit (Required) *{% endif %}</label>
+        <textarea
+          id="edit_note"
+          name="edit_note"
+          required
+          class="form-control"
+          rows="3"
+          placeholder="Please provide a reason for editing this attendance record (for audit purposes)"
+        ></textarea>
+        <small class="form-help">
+          {% if attendance_record.edit_note %}
+          <strong>Note:</strong> Your new reason will be appended to the existing audit trail.
+          {% else %}
+          This note will be logged for audit purposes and added to the record's audit trail.
+          {% endif %}
+        </small>
+      </div>
+    </div>
+
     <!-- Employee Information -->
     <div class="form-section">
       <h3><i class="fas fa-user"></i> Employee Information</h3>
@@ -178,26 +250,27 @@
     </div>
   </form>
 </div>
-{% endblock %} {% block extra_scripts %}
+{% endblock %} 
+
+{% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     // Form validation
     const form = document.querySelector("form");
     form.addEventListener("submit", function (e) {
       const employeeId = document.getElementById("employee_id").value.trim();
-      const locationName = document
-        .getElementById("location_name")
-        .value.trim();
+      const locationName = document.getElementById("location_name").value.trim();
+      const editNote = document.getElementById("edit_note").value.trim();
 
-      if (!employeeId || !locationName) {
+      if (!employeeId || !locationName || !editNote) {
         e.preventDefault();
-        alert("Please fill in all required fields.");
+        alert("Please fill in all required fields, including the audit note.");
         return;
       }
 
       // Confirm update
       const confirmUpdate = confirm(
-        "Are you sure you want to update this attendance record?"
+        "Are you sure you want to update this attendance record?\n\nThis action will be logged for audit purposes."
       );
       if (!confirmUpdate) {
         e.preventDefault();
@@ -205,11 +278,34 @@
     });
 
     // Auto-uppercase employee ID
-    document
-      .getElementById("employee_id")
-      .addEventListener("input", function () {
-        this.value = this.value.toUpperCase();
-      });
+    document.getElementById("employee_id").addEventListener("input", function () {
+      this.value = this.value.toUpperCase();
+    });
+
+    // Character counter for audit note
+    const noteTextarea = document.getElementById("edit_note");
+    const maxLength = 500;
+    
+    // Add character counter
+    const charCounter = document.createElement("small");
+    charCounter.className = "form-help";
+    charCounter.style.float = "right";
+    charCounter.style.color = "#6b7280";
+    noteTextarea.parentNode.appendChild(charCounter);
+
+    function updateCharCounter() {
+      const remaining = maxLength - noteTextarea.value.length;
+      charCounter.textContent = `${remaining} characters remaining`;
+      if (remaining < 50) {
+        charCounter.style.color = "#ef4444";
+      } else {
+        charCounter.style.color = "#6b7280";
+      }
+    }
+
+    noteTextarea.setAttribute("maxlength", maxLength);
+    noteTextarea.addEventListener("input", updateCharCounter);
+    updateCharCounter();
   });
 </script>
 {% endblock %}
