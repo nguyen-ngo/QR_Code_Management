@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}QR Code Management System{% endblock %}</title>
+    <title>{% block title %}{{ COMPANY_NAME }}{% endblock %}</title>
 
     <!-- Main CSS -->
     <link
@@ -55,8 +55,10 @@
               </a>
 
               {% if session.role == 'admin' %}
-              <a href="{{ url_for('projects') }}" 
-                 class="menu-item {% if request.endpoint in ['projects', 'create_project', 'edit_project'] %}active{% endif %}">
+              <a
+                href="{{ url_for('projects') }}"
+                class="menu-item {% if request.endpoint in ['projects', 'create_project', 'edit_project'] %}active{% endif %}"
+              >
                 <i class="fas fa-folder"></i>
                 <span class="menu-text">Projects</span>
               </a>
@@ -65,8 +67,8 @@
                 <span class="menu-text">Users</span>
               </a>
               <a href="{{ url_for('employees') }}" class="menu-item">
-                  <i class="fas fa-user"></i>
-                  <span class="menu-text">Employees</span>
+                <i class="fas fa-user"></i>
+                <span class="menu-text">Employees</span>
               </a>
               <a href="{{ url_for('attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
@@ -76,12 +78,17 @@
                 <i class="fas fa-calculator"></i>
                 <span class="menu-text">Payroll</span>
               </a>
-              <a href="{{ url_for('qr_statistics') }}" class="menu-item {% if request.endpoint == 'qr_statistics' %}active{% endif %}">
+              <a
+                href="{{ url_for('qr_statistics') }}"
+                class="menu-item {% if request.endpoint == 'qr_statistics' %}active{% endif %}"
+              >
                 <i class="fas fa-chart-pie"></i>
                 <span class="menu-text">Statistics</span>
               </a>
-              <a href="{{ url_for('admin_logs') }}" 
-                 class="menu-item {% if request.endpoint == 'admin_logs' %}active{% endif %}">
+              <a
+                href="{{ url_for('admin_logs') }}"
+                class="menu-item {% if request.endpoint == 'admin_logs' %}active{% endif %}"
+              >
                 <i class="fas fa-clipboard-list"></i>
                 <span class="menu-text">System Logs</span>
               </a>
@@ -137,9 +144,11 @@
               <span class="hamburger-line"></span>
               <span class="hamburger-line"></span>
             </button>
-            <h1 class="page-title">{% block page_title %}QR Code Management System{% endblock %}</h1>
+            <h1 class="page-title">
+              {% block page_title %}{{ COMPANY_NAME }}{% endblock %}
+            </h1>
           </div>
-          
+
           <div class="header-right">
             <div class="user-info">
               <span class="user-name">{{ session.full_name or 'User' }}</span>
@@ -172,9 +181,7 @@
           {% endif %} {% endwith %}
 
           <!-- Page Content -->
-          <div class="container">
-            {% block content %}{% endblock %}
-          </div>
+          <div class="container">{% block content %}{% endblock %}</div>
         </main>
 
         <!-- Footer -->

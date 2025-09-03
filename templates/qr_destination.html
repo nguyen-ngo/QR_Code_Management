@@ -874,9 +874,6 @@
 
       // Initialize the page when DOM is loaded
       document.addEventListener("DOMContentLoaded", function () {
-        console.log("🚀 QR Destination page loaded successfully");
-        console.log("📱 Enhanced with color-coded bilingual support");
-
         // Initialize Employee ID auto-fill FIRST (before other functionality)
         initializeEmployeeIdAutoFill();
 
@@ -894,32 +891,23 @@
 
       // FIXED Employee ID auto-fill functionality
       function initializeEmployeeIdAutoFill() {
-        console.log("👤 Initializing Employee ID auto-fill functionality");
-
         const employeeIdInput = document.getElementById("employee_id");
         if (!employeeIdInput) {
-          console.log("❌ Employee ID input not found");
           return;
         }
 
         // Load and auto-fill last used Employee ID immediately
         try {
           const lastEmployeeId = localStorage.getItem("qr_last_employee_id");
-          console.log(
-            `📱 Checking localStorage for last employee ID: ${lastEmployeeId}`
-          );
 
           if (lastEmployeeId && lastEmployeeId.trim() !== "") {
             employeeIdInput.value = lastEmployeeId.trim();
-            console.log(`✅ Auto-filled employee ID: ${lastEmployeeId}`);
 
             // Visual feedback that it's auto-filled
             employeeIdInput.style.backgroundColor = "#f0f9ff";
             setTimeout(() => {
               employeeIdInput.style.backgroundColor = "";
             }, 2000);
-          } else {
-            console.log(`📱 No previous employee ID found`);
           }
         } catch (error) {
           console.log(`❌ Error loading employee ID: ${error.message}`);
@@ -932,43 +920,38 @@
             // Save if at least 2 characters
             try {
               localStorage.setItem("qr_last_employee_id", currentId);
-              console.log(`💾 Saved employee ID: ${currentId}`);
             } catch (error) {
               console.log(`❌ Error saving employee ID: ${error.message}`);
             }
           }
         });
-
-        console.log("✅ Employee ID auto-fill initialized successfully");
       }
 
       // Initialize location services (renamed to avoid conflicts)
       function initializeLocationCapture() {
-        console.log("📍 Initializing enhanced location capture");
         requestUserLocationData();
       }
 
       // Request location data from device (renamed to avoid conflicts)
       function requestUserLocationData() {
-        if (typeof AndroidLocationHandler !== 'undefined' && AndroidLocationHandler.isAndroidDevice()) {
-          console.log("📱 Using Android-enhanced location request");
+        if (
+          typeof AndroidLocationHandler !== "undefined" &&
+          AndroidLocationHandler.isAndroidDevice()
+        ) {
           AndroidLocationHandler.initializeAndroidLocation();
           return;
         }
-        
+
         if (locationCaptureActive) {
-          console.log("📍 Location request already active, skipping");
           return;
         }
 
         if (!navigator.geolocation) {
-          console.log("❌ Geolocation not supported");
           currentUserLocation.source = "manual";
           return;
         }
 
         locationCaptureActive = true;
-        console.log("📍 Requesting enhanced location data...");
 
         const options = {
           enableHighAccuracy: true,
@@ -979,8 +962,6 @@
         navigator.geolocation.getCurrentPosition(
           handleEnhancedLocationSuccess,
           (error) => {
-            console.log("❌ High accuracy failed, trying low accuracy...");
-
             // Simple fallback with low accuracy
             const lowAccuracyOptions = {
               enableHighAccuracy: false,
@@ -1000,8 +981,6 @@
 
       // Handle successful location capture (renamed to avoid conflicts)
       function handleEnhancedLocationSuccess(position) {
-        console.log("✅ Enhanced location obtained successfully");
-
         currentUserLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -1011,8 +990,6 @@
           source: "gps",
           address: null,
         };
-
-        console.log("📍 Enhanced location data:", currentUserLocation);
 
         // Reverse geocode to get address
         reverseGeocodeEnhanced(
@@ -1025,17 +1002,12 @@
 
       // Handle location capture errors (renamed to avoid conflicts)
       function handleEnhancedLocationError(error) {
-        console.log("❌ Enhanced location error:", error.message);
         currentUserLocation.source = "manual";
         locationCaptureActive = false;
       }
 
       // Reverse geocode coordinates to address (renamed to avoid conflicts)
       function reverseGeocodeEnhanced(lat, lng) {
-        console.log(
-          `🌍 Starting enhanced reverse geocoding for: ${lat}, ${lng}`
-        );
-
         // Using Nominatim (OpenStreetMap) reverse geocoding service
         const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
 
@@ -1049,11 +1021,7 @@
           .then((data) => {
             if (data && data.display_name) {
               currentUserLocation.address = data.display_name;
-              console.log(
-                `✅ Enhanced reverse geocoded address: ${currentUserLocation.address}`
-              );
             } else {
-              console.log(`⚠️ No address found, using coordinates as fallback`);
               currentUserLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(
                 10
               )}`;
@@ -1073,10 +1041,6 @@
         const form = document.getElementById("checkinForm");
         const submitButton = document.getElementById("submitButton");
 
-        console.log("🔧 Initializing enhanced form handling...");
-        console.log("Form element:", form);
-        console.log("Submit button:", submitButton);
-
         if (form && submitButton) {
           // Remove any existing event listeners
           form.removeEventListener("submit", handleEnhancedFormSubmission);
@@ -1087,36 +1051,24 @@
 
           // Add form submit event listener
           form.addEventListener("submit", function (e) {
-            console.log("📝 Enhanced form submit event triggered");
             e.preventDefault();
             handleEnhancedFormSubmission();
           });
 
           // Also add click event listener to button as backup
           submitButton.addEventListener("click", function (e) {
-            console.log("🖱️ Enhanced button click event triggered");
             e.preventDefault();
             handleEnhancedFormSubmission();
           });
-
-          console.log("✅ Enhanced form handling initialized successfully");
-        } else {
-          console.error("❌ Form or submit button not found!");
         }
       }
 
       // Handle form submission with location data (renamed to avoid conflicts)
       function handleEnhancedFormSubmission() {
-        console.log("🚀 handleEnhancedFormSubmission called");
-
         const employeeId = document.getElementById("employee_id").value.trim();
         const submitButton = document.getElementById("submitButton");
 
-        console.log("Employee ID:", employeeId);
-        console.log("Submit button:", submitButton);
-
         if (!employeeId) {
-          console.log("❌ No employee ID provided");
           showStatusMessage(
             "Please enter your Employee ID / Por favor ingrese su ID de empleado",
             "error"
@@ -1124,14 +1076,9 @@
           return;
         }
 
-        console.log(
-          "✅ Employee ID valid, proceeding with enhanced submission"
-        );
-
         // Save Employee ID to localStorage for next time
         try {
           localStorage.setItem("qr_last_employee_id", employeeId);
-          console.log(`💾 Saved employee ID for next time: ${employeeId}`);
         } catch (error) {
           console.log(`❌ Error saving employee ID: ${error.message}`);
         }
@@ -1155,9 +1102,6 @@
         // Get current URL to determine QR URL
         const pathParts = window.location.pathname.split("/");
         const qrUrl = pathParts[pathParts.length - 1];
-
-        console.log("QR URL:", qrUrl);
-        console.log("Current enhanced location data:", currentUserLocation);
 
         // Prepare form data with location information
         const formData = new FormData();
@@ -1184,27 +1128,15 @@
         }
         formData.append("location_source", currentUserLocation.source);
 
-        console.log("📤 Submitting enhanced form with location data:", {
-          employee_id: employeeId,
-          latitude: currentUserLocation.latitude,
-          longitude: currentUserLocation.longitude,
-          accuracy: currentUserLocation.accuracy,
-          altitude: currentUserLocation.altitude,
-          address: currentUserLocation.address,
-          location_source: currentUserLocation.source,
-        });
-
         // Submit to backend
         fetch(`/qr/${qrUrl}/checkin`, {
           method: "POST",
           body: formData,
         })
           .then((response) => {
-            console.log("📨 Received enhanced response:", response);
             return response.json();
           })
           .then((data) => {
-            console.log("📨 Enhanced response data:", data);
             if (data.success) {
               showStatusMessage(
                 "Submission successful! / Envío exitoso",
@@ -1348,13 +1280,6 @@
 
         // Show success card
         successCard.classList.add("show");
-
-        console.log("✅ Enhanced success card displayed with:", {
-          employeeId: employeeId,
-          locationEvent: locationEvent,
-          qrLocation: qrLocationName,
-          timestamp: data.timestamp || new Date().toLocaleString(),
-        });
       }
     </script>
   </body>

@@ -18,6 +18,8 @@ from payroll_excel_exporter import PayrollExcelExporter
 # Load environment variables in .env
 load_dotenv()
 from turnstile_utils import turnstile_utils
+from db_performance_optimization import initialize_performance_optimizations
+from app_performance_middleware import PerformanceMonitor
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -28,6 +30,13 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 
 # Initialize database
 db = SQLAlchemy(app)
+
+@app.context_processor
+def inject_company_name():
+    """Make COMPANY_NAME available to all templates"""
+    return {
+        'COMPANY_NAME': os.environ.get('COMPANY_NAME', 'QR Code Management System')
+    }
 
 def create_performance_indexes():
     """Create performance optimization indexes"""
@@ -1621,6 +1630,102 @@ def dashboard():
         flash('Error loading dashboard. Please try again.', 'error')
         return redirect(url_for('login'))
 
+@app.route('/api/dashboard/stats')
+@login_required
+def dashboard_stats_api():
+    """API endpoint for dashboard statistics"""
+    try:
+        # Get current stats
+        total_qr_codes = QRCode.query.filter_by(active_status=True).count()
+        
+        # Today's check-ins
+        today = datetime.utcnow().date()
+        today_checkins = AttendanceData.query.filter(
+            AttendanceData.check_in_date == today
+        ).count()
+        
+        # Active projects
+        active_projects = Project.query.filter_by(active_status=True).count()
+        
+        # Unique locations
+        unique_locations = db.session.query(
+            AttendanceData.location_name
+        ).distinct().count()
+        
+        # Calculate trends (compared to last month)
+        last_month = datetime.utcnow() - timedelta(days=30)
+        
+        # QR codes trend
+        old_qr_count = QRCode.query.filter(
+            QRCode.created_date <= last_month,
+            QRCode.active_status == True
+        ).count()
+        qr_change = ((total_qr_codes - old_qr_count) / max(old_qr_count, 1)) * 100
+        
+        # Check-ins trend (yesterday)
+        yesterday = today - timedelta(days=1)
+        yesterday_checkins = AttendanceData.query.filter(
+            AttendanceData.check_in_date == yesterday
+        ).count()
+        checkin_change = ((today_checkins - yesterday_checkins) / max(yesterday_checkins, 1)) * 100
+        
+        return jsonify({
+            'success': True,
+            'total_qr_codes': total_qr_codes,
+            'today_checkins': today_checkins,
+            'active_projects': active_projects,
+            'unique_locations': unique_locations,
+            'qr_change': round(qr_change, 1),
+            'checkin_change': round(checkin_change, 1),
+            'project_change': 0,  # You can calculate this based on your needs
+            'location_change': 0   # You can calculate this based on your needs
+        })
+        
+    except Exception as e:
+        logger_handler.log_database_error('dashboard_stats_api', e)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch dashboard statistics'
+        }), 500
+
+@app.route('/api/dashboard/realtime')
+@login_required
+def dashboard_realtime_api():
+    """API endpoint for real-time dashboard data"""
+    try:
+        # Get recent activity (last 10 check-ins)
+        recent_activity = db.session.query(
+            AttendanceData.employee_id,
+            AttendanceData.location_name,
+            AttendanceData.check_in_time,
+            AttendanceData.check_in_date
+        ).order_by(
+            AttendanceData.check_in_date.desc(),
+            AttendanceData.check_in_time.desc()
+        ).limit(10).all()
+        
+        activity_data = [
+            {
+                'employee_id': activity.employee_id,
+                'location': activity.location_name,
+                'time': activity.check_in_time.strftime('%H:%M'),
+                'date': activity.check_in_date.strftime('%Y-%m-%d')
+            }
+            for activity in recent_activity
+        ]
+        
+        return jsonify({
+            'success': True,
+            'recent_activity': activity_data
+        })
+        
+    except Exception as e:
+        logger_handler.log_database_error('dashboard_realtime_api', e)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch real-time data'
+        }), 500
+    
 # USER MANAGEMENT ROUTES
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -3378,7 +3483,7 @@ def delete_qr_code(qr_id):
         print(f"❌ Traceback: {traceback.format_exc()}")
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard'))
-
+    
 @app.route('/qr/<string:qr_url>')
 def qr_destination(qr_url):
     """QR code destination page where staff check in - PRESERVING EXACT ROUTE"""
@@ -3685,6 +3790,52 @@ def toggle_qr_status(qr_id):
         return jsonify({
             'success': False,
             'message': 'Error updating QR code status. Please try again.'
+        }), 500
+
+@app.route('/qr-codes/<int:qr_id>/copy-url', methods=['POST'])
+@login_required
+def copy_qr_url(qr_id):
+    """Log QR code URL copy action"""
+    try:
+        qr_code = QRCode.query.get_or_404(qr_id)
+        
+        # Log URL copy action
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} copied URL for QR code {qr_code.name} (ID: {qr_id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'QR code URL copied to clipboard!',
+            'url': f"{request.url_root}qr/{qr_code.qr_url}"
+        })
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error copying QR URL for ID {qr_id}: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error copying QR code URL.'
+        }), 500
+
+@app.route('/qr-codes/<int:qr_id>/open-link', methods=['POST'])
+@login_required
+def open_qr_link(qr_id):
+    """Log QR code link open action"""
+    try:
+        qr_code = QRCode.query.get_or_404(qr_id)
+        
+        # Log link open action
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} opened link for QR code {qr_code.name} (ID: {qr_id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Opening QR code link...',
+            'url': f"{request.url_root}qr/{qr_code.qr_url}"
+        })
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error opening QR link for ID {qr_id}: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error opening QR code link.'
         }), 500
 
 @app.route('/qr-codes/<int:qr_id>/activate', methods=['POST'])
@@ -5407,12 +5558,29 @@ def get_employee_name(employee_id):
         print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
         return f"Employee {employee_id}"
 
+def get_qr_code_checkin_count(qr_code_id):
+    """Helper function to get total check-ins count for a QR code"""
+    try:
+        count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
+        logger_handler.logger.info(f"QR Code {qr_code_id} total check-ins: {count}")
+        return count
+    except Exception as e:
+        logger_handler.logger.error(f"Error getting check-ins count for QR {qr_code_id}: {e}")
+        return 0
+    
 @app.context_processor
 def inject_payroll_utils():
     """Inject payroll utility functions into templates"""
     return {
         'get_employee_name': get_employee_name,
         'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
+    }
+
+@app.context_processor
+def inject_dashboard_utils():
+    """Inject dashboard utility functions into templates"""
+    return {
+        'get_qr_code_checkin_count': get_qr_code_checkin_count
     }
 
 @app.route('/statistics')
@@ -6048,6 +6216,7 @@ def employee_detail(employee_index):
     
 create_location_logging_routes(app, db, logger_handler)
 
+
 # Jinja2 filters for better template functionality
 @app.template_filter('days_since')
 def days_since_filter(date):
@@ -6440,22 +6609,16 @@ if __name__ == '__main__':
             # Initialize database and logging
             create_tables()
             
-            # Add performance optimizations
-            create_performance_indexes()
-            create_audit_triggers()
+            # Initialize performance optimizations
+            print("🚀 Initializing performance optimizations...")
+            cached_query = initialize_performance_optimizations(app, db, logger_handler)
+            performance_monitor = PerformanceMonitor(app, db, logger_handler)
 
-            # Log optimization completion
-            logger_handler.log_system_event(
-                event_type="database_optimization_complete",
-                description="Database performance optimization completed successfully",
-                severity="INFO",
-                additional_data={
-                    "indexes_created": True,
-                    "triggers_created": True,
-                    "optimization_timestamp": datetime.utcnow().isoformat()
-                }
-            )
-            print("🚀 Database optimization completed successfully")
+            if cached_query:
+                print("✅ Performance optimizations completed successfully")
+            else:
+                print("⚠️ Performance optimizations completed with warnings")
+
             # Log application startup
             logger_handler.logger.info("QR Attendance Management System started successfully")
 

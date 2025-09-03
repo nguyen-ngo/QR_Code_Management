@@ -55,8 +55,6 @@ const translations = {
 
 // DOM Content Loaded Event (PRESERVED FROM ORIGINAL)
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("🎯 QR Destination page loaded");
-
   // CRITICAL: Initialize systems in correct order
   initializeLanguage();
   initializeLocationServicesCheck();
@@ -75,22 +73,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
 // ENHANCED STAFF ID PERSISTENCE FUNCTIONALITY
 function initializeStaffIdPersistence() {
-  console.log("👤 Initializing staff ID persistence functionality");
-
   // Load last staff ID from localStorage
   lastStaffId = loadLastStaffId();
   if (lastStaffId) {
-    console.log(`📱 Found last staff ID: ${lastStaffId}`);
-
     // Automatically fill the last staff ID
     const employeeIdInput = document.getElementById("employee_id");
     if (employeeIdInput) {
       employeeIdInput.value = lastStaffId;
       validateEmployeeId();
-      console.log(`✅ Auto-filled staff ID: ${lastStaffId}`);
     }
-  } else {
-    console.log("📱 No previous staff ID found");
   }
 }
 
@@ -100,10 +91,8 @@ function loadLastStaffId() {
     if (saved && saved.trim().length >= 2) {
       return saved.trim().toUpperCase();
     }
-    console.log("📱 No valid last staff ID found");
     return null;
   } catch (error) {
-    console.error("❌ Error loading last staff ID from localStorage:", error);
     return null;
   }
 }
@@ -111,7 +100,6 @@ function loadLastStaffId() {
 function saveLastStaffId(staffId) {
   try {
     if (!staffId || typeof staffId !== "string" || staffId.trim().length < 2) {
-      console.log("⚠️ Invalid staff ID, not saving");
       return false;
     }
 
@@ -120,11 +108,9 @@ function saveLastStaffId(staffId) {
 
     // Save to localStorage
     localStorage.setItem("qr_last_staff_id", cleanId);
-    console.log(`💾 Last staff ID saved: ${cleanId}`);
 
     return true;
   } catch (error) {
-    console.error("❌ Error saving last staff ID to localStorage:", error);
     return false;
   }
 }
@@ -155,13 +141,8 @@ function handleFormSubmit(event) {
   event.preventDefault();
 
   if (isSubmitting) {
-    console.log(
-      "⏳ Check-in already in progress, ignoring duplicate submission"
-    );
     return;
   }
-
-  console.log("🎯 Form submission triggered");
 
   const employeeId = document.getElementById("employee_id")?.value?.trim();
 
@@ -187,10 +168,7 @@ function handleFormSubmit(event) {
 
 // ENHANCED CHECK-IN SUBMISSION WITH MULTIPLE CHECK-IN SUPPORT
 function submitCheckin() {
-  console.log("🚀 Starting check-in submission process");
-
   if (isSubmitting) {
-    console.log("⏳ Already submitting, aborting");
     return;
   }
 
@@ -205,9 +183,6 @@ function submitCheckin() {
     updateSubmitButton(false);
     return;
   }
-
-  console.log(`👤 Employee ID: ${employeeId}`);
-  console.log(`📍 User location:`, userLocation);
 
   // Prepare form data
   const formData = new FormData();
@@ -228,8 +203,6 @@ function submitCheckin() {
   const currentUrl = window.location.pathname;
   const checkinUrl = `${currentUrl}/checkin`;
 
-  console.log("🎯 Submitting to URL:", checkinUrl);
-
   fetch(checkinUrl, {
     method: "POST",
     body: formData,
@@ -238,15 +211,12 @@ function submitCheckin() {
     },
   })
     .then((response) => {
-      console.log("📡 Server response status:", response.status);
       return response.json();
     })
     .then((data) => {
-      console.log("📊 Server response data:", data);
       handleCheckinResponse(data);
     })
     .catch((error) => {
-      console.error("❌ Check-in error:", error);
       handleCheckinError(error);
     })
     .finally(() => {
@@ -261,7 +231,6 @@ function handleCheckinResponse(data) {
     handleCheckinSuccess(data);
   } else {
     const errorMsg = data.message || "Submission failed";
-    console.log("❌ Submission failed:", errorMsg);
 
     // NEW: Handle different types of check-in failures
     if (errorMsg.toLowerCase().includes("already submitted")) {
@@ -280,8 +249,6 @@ function handleCheckinResponse(data) {
 
 // ENHANCED SUCCESS HANDLING WITH MULTIPLE CHECK-IN INFO
 function handleCheckinSuccess(data) {
-  console.log("✅ Submitted successfully!");
-
   const responseData = data.data || data || {};
   const checkinCount = responseData.checkin_count_today || 1;
   const checkinSequence = responseData.checkin_sequence || "Check-in";
@@ -384,8 +351,6 @@ function addCheckInAgainOption() {
 
 // NEW: Reset form for new check-in
 function resetForNewCheckin() {
-  console.log("🔄 Resetting for new check-in");
-
   // Show form again
   const form = document.getElementById("checkinForm");
   if (form) {
@@ -510,10 +475,11 @@ function validateEmployeeId() {
 
 // All location and language functions remain unchanged from original
 function initializeLocation() {
-  console.log("📍 Initializing location services");
-  
   // Check if Android enhanced location handler is available
-  if (typeof AndroidLocationHandler !== 'undefined' && AndroidLocationHandler.isAndroidDevice()) {
+  if (
+    typeof AndroidLocationHandler !== "undefined" &&
+    AndroidLocationHandler.isAndroidDevice()
+  ) {
     console.log("📱 Using Android-enhanced location initialization");
     AndroidLocationHandler.initializeAndroidLocation();
   } else {
@@ -578,8 +544,6 @@ function handleLocationSuccess(position) {
     address: null,
   };
 
-  console.log("📍 Location data:", userLocation);
-
   // Reverse geocode to get address
   reverseGeocode(userLocation.latitude, userLocation.longitude);
 
@@ -587,14 +551,11 @@ function handleLocationSuccess(position) {
 }
 
 function handleLocationError(error) {
-  console.log("❌ Location error:", error.message);
   userLocation.source = "manual";
   locationRequestActive = false;
 }
 
 function reverseGeocode(lat, lng) {
-  console.log(`🌍 Reverse geocoding for: ${lat}, ${lng}`);
-
   // The server will use Google Maps API first, then fall back to OpenStreetMap
   // This provides better accuracy and address formatting
   const url = "/api/reverse-geocode"; // You may want to create this endpoint
@@ -613,9 +574,7 @@ function reverseGeocode(lat, lng) {
     .then((data) => {
       if (data && data.display_name) {
         userLocation.address = data.display_name;
-        console.log(`✅ Reverse geocoded address: ${userLocation.address}`);
       } else {
-        console.log(`⚠️ No address found, using coordinates as fallback`);
         userLocation.address = `${lat.toFixed(10)}, ${lng.toFixed(10)}`;
       }
     })
@@ -628,13 +587,10 @@ function reverseGeocode(lat, lng) {
 
 // ENHANCED LANGUAGE FUNCTIONALITY WITH PERSISTENCE
 function initializeLanguage() {
-  console.log("🌐 Initializing language functionality with persistence");
-
   // Load saved language preference from localStorage
   const savedLanguage = loadLanguagePreference();
   if (savedLanguage && savedLanguage !== currentLanguage) {
     currentLanguage = savedLanguage;
-    console.log(`📱 Restored saved language preference: ${currentLanguage}`);
   }
 
   // Set up language toggle button event listener
@@ -645,7 +601,6 @@ function initializeLanguage() {
 
   // Apply initial translations based on loaded language
   applyTranslations();
-  console.log(`✅ Language system initialized with: ${currentLanguage}`);
 }
 
 function toggleLanguage() {
@@ -659,10 +614,6 @@ function toggleLanguage() {
   // Apply translations immediately
   applyTranslations();
 
-  console.log(
-    `🌐 Language switched to: ${currentLanguage} (saved to localStorage)`
-  );
-
   // Optional: Show brief confirmation message
   showLanguageChangeConfirmation();
 }
@@ -674,24 +625,14 @@ function loadLanguagePreference() {
 
     // Validate saved language is supported
     if (savedLanguage && translations.hasOwnProperty(savedLanguage)) {
-      console.log(`📱 Found saved language preference: ${savedLanguage}`);
       return savedLanguage;
     } else if (savedLanguage) {
-      console.log(
-        `⚠️ Invalid saved language preference: ${savedLanguage}, using default`
-      );
       // Clean up invalid preference
       localStorage.removeItem("qr_staff_language");
-    } else {
-      console.log("📱 No saved language preference found, using default");
     }
 
     return null;
   } catch (error) {
-    console.error(
-      "❌ Error loading language preference from localStorage:",
-      error
-    );
     return null;
   }
 }
@@ -706,13 +647,8 @@ function saveLanguagePreference(language) {
 
     // Save to localStorage
     localStorage.setItem("qr_staff_language", language);
-    console.log(`💾 Language preference saved: ${language}`);
     return true;
   } catch (error) {
-    console.error(
-      "❌ Error saving language preference to localStorage:",
-      error
-    );
     return false;
   }
 }
@@ -774,18 +710,14 @@ function startClock() {
 }
 
 function checkLocationServicesStatus() {
-  console.log("📱 Checking location services status...");
-
   // Check if geolocation is supported
   if (!navigator.geolocation) {
-    console.log("❌ Geolocation not supported by this browser");
     showLocationServicesWarning("not_supported");
     return;
   }
 
   // Test location access with a quick check
   const timeoutId = setTimeout(() => {
-    console.log("⏰ Location permission check timed out");
     showLocationServicesWarning("timeout");
   }, 3000); // 3 second timeout
 
@@ -793,13 +725,11 @@ function checkLocationServicesStatus() {
     (position) => {
       // Success - location services are working
       clearTimeout(timeoutId);
-      console.log("✅ Location services are available and enabled");
       hideLocationServicesWarning();
     },
     (error) => {
       // Error - location services may be disabled
       clearTimeout(timeoutId);
-      console.log("❌ Location services error:", error.message);
 
       switch (error.code) {
         case error.PERMISSION_DENIED:
@@ -894,9 +824,6 @@ function showLocationServicesWarning(errorType) {
   if (container) {
     container.insertBefore(warningBanner, container.firstChild);
   }
-
-  // Log warning event
-  console.log(`⚠️ Location services warning displayed: ${errorType}`);
 }
 
 /**
@@ -906,7 +833,6 @@ function hideLocationServicesWarning() {
   const existingWarning = document.getElementById("locationServicesWarning");
   if (existingWarning) {
     existingWarning.remove();
-    console.log("✅ Location services warning hidden");
   }
 }
 
