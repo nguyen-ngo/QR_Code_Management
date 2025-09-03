@@ -2024,10 +2024,16 @@ def edit_user(user_id):
             user_to_edit.role = new_role
 
             # Handle password update if provided
-            new_password = request.form.get('password')
+            new_password = request.form.get('new_password')
             if new_password and new_password.strip():
                 user_to_edit.set_password(new_password)
                 changes['password'] = 'Password updated'
+                # Log password change
+                logger_handler.log_security_event(
+                    event_type="admin_password_change",
+                    description=f"Admin {session['username']} changed password for user {user_to_edit.username}",
+                    severity="MEDIUM"
+                )
 
             # Track changes
             for field, old_value in old_values.items():
