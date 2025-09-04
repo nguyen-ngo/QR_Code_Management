@@ -479,9 +479,9 @@ class PayrollExcelExporter:
                         notes = f"{day_data['records_count']} record(s)"
                         hours = day_data['total_hours']
                     
-                    # Calculate regular/overtime for this day
-                    regular_hours = min(hours, 8.0)  # Daily limit
-                    overtime_hours = max(0, hours - 8.0)
+                    # Daily hours only - overtime calculated at weekly level  
+                    regular_hours = hours  # All hours are regular at daily level
+                    overtime_hours = 0     # No overtime at daily level
                     
                     row_data = [
                         employee_id,
@@ -800,8 +800,9 @@ class PayrollExcelExporter:
             current_week_start = week_start
             
             total_hours = day_hours_data.get('total_hours', 0)
-            regular_hours = min(total_hours, 8.0)  # Max 8 regular hours per day
-            ot_hours = max(0, total_hours - 8.0)
+            # Daily hours are all regular - overtime calculated at weekly level
+            regular_hours = total_hours
+            ot_hours = 0
             
             # Add to weekly and grand totals
             weekly_regular_hours += regular_hours
