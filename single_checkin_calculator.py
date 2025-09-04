@@ -197,52 +197,73 @@ class SingleCheckInCalculator:
         """
         Calculate hours for a single day from check-in records
         
-        Logic: 
-        - Must have even number of records (complete pairs)
-        - 1st = check-in, 2nd = check-out, 3rd = check-in, 4th = check-out, etc.
-        - Any odd number of records = miss punch
-        - Any invalid work period = miss punch
+        CORRECTED Logic:
+        - 0 records = No work (0 hours, not miss punch)
+        - 1 record = Miss punch (incomplete pair)
+        - 2, 4, 6, 8... records = Complete pairs, calculate all
+        - 3, 5, 7, 9... records = Calculate complete pairs only, ignore last odd record
         
         Returns: (hours, is_miss_punch)
         """
         if not day_records:
-            return 0.0, False
-        
-        # Must have even number of records for complete pairs
-        if len(day_records) % 2 != 0:
-            print(f"⚠️ Odd number of records ({len(day_records)}) - miss punch (incomplete pairs)")
-            return 0.0, True  # Odd number = miss punch
+            return 0.0, False  # No records = no work
         
         # Sort records by time
         sorted_records = sorted(day_records, key=lambda r: r.timestamp)
-        print(f"📝 Processing {len(sorted_records)} records for the day (must be complete pairs)")
+        print(f"📝 Processing {len(sorted_records)} records for daily calculation")
         
-        # Create work periods from consecutive check-ins (must be pairs)
+        # SINGLE RECORD = MISS PUNCH (CORRECTED)
+        if len(sorted_records) == 1:
+            print(f"⚠️ Single record found - Miss punch (incomplete pair)")
+            return 0.0, True  # Single record is always miss punch
+        
+        # CALCULATE COMPLETE PAIRS ONLY (CORRECTED FOR ODD NUMBERS)
+        # For odd numbers: process pairs and ignore the last unpaired record
+        num_complete_pairs = len(sorted_records) // 2
+        records_to_process = num_complete_pairs * 2  # Only process paired records
+        
+        print(f"📊 Processing {num_complete_pairs} complete pairs from {len(sorted_records)} total records")
+        
         work_periods = []
-        for i in range(0, len(sorted_records), 2):
+        total_hours = 0.0
+        
+        # Process complete pairs only
+        for i in range(0, records_to_process, 2):
             start_record = sorted_records[i]
-            end_record = sorted_records[i + 1]  # We know this exists because we checked even count
+            end_record = sorted_records[i + 1]
             
             period = WorkPeriod(start_record, end_record)
             
             # Validate work period duration
             if self._is_valid_work_period(period):
                 work_periods.append(period)
-                print(f"✅ Valid work period: {start_record.check_in_time} - {end_record.check_in_time} = {period.duration_minutes/60:.2f} hours")
+                pair_hours = period.duration_minutes / 60.0
+                total_hours += pair_hours
+                print(f"✅ Valid work period: {start_record.check_in_time} - {end_record.check_in_time} = {pair_hours:.2f} hours")
             else:
-                print(f"⚠️ Invalid work period: {period.duration_minutes/60:.2f} hours - miss punch (invalid duration)")
+                print(f"⚠️ Invalid work period: {period.duration_minutes/60:.2f} hours - treating as miss punch")
                 return 0.0, True  # Invalid period = miss punch
         
-        # If we got here, all periods are valid
-        total_minutes = sum(period.duration_minutes for period in work_periods)
-        total_hours = total_minutes / 60.0
+        # Check if we had unpaired records (odd number)
+        has_unpaired = len(sorted_records) % 2 != 0
+        if has_unpaired:
+            unpaired_record = sorted_records[-1]
+            print(f"⚠️ Unpaired record found: {unpaired_record.check_in_time} (ignored in calculation)")
         
         # Round to nearest quarter hour
         rounded_hours = round(total_hours * 4) / 4
         
-        print(f"📊 Daily total: {rounded_hours:.2f} hours from {len(work_periods)} complete work periods")
+        # Determine if this is a miss punch scenario
+        is_miss_punch = (num_complete_pairs == 0)  # No valid pairs = miss punch
         
-        return rounded_hours, False
+        if is_miss_punch:
+            print(f"⚠️ No valid work periods found - Miss punch")
+            return 0.0, True
+        else:
+            print(f"✅ Daily total: {rounded_hours:.2f} hours from {num_complete_pairs} complete work periods")
+            # Log the calculation for tracking
+            print(f"📊 CORRECTED: Employee daily hours calculated - {rounded_hours:.2f} hours, Miss punch: {is_miss_punch}")
+            return rounded_hours, False
     
     def _is_valid_work_period(self, period: WorkPeriod) -> bool:
         """Check if a work period is valid (reasonable duration)"""

@@ -771,9 +771,17 @@ class PayrollExcelExporter:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             day_hours_data = emp_data['daily_hours'][date_str]
             
-            # Skip days with no hours or miss punch
-            if day_hours_data.get('is_miss_punch', False) or day_hours_data.get('total_hours', 0) <= 0:
+            # Skip days with miss punch, but INCLUDE days with valid hours even if single period
+            if day_hours_data.get('is_miss_punch', False):
+                print(f"⚠️ Skipping {date_str} - Miss punch detected")
                 continue
+
+            # Include days with valid working hours (single periods should show Daily Total)
+            if day_hours_data.get('total_hours', 0) <= 0:
+                print(f"⚠️ Skipping {date_str} - No working hours")
+                continue
+
+            print(f"✅ Including {date_str} - Working hours: {day_hours_data.get('total_hours', 0):.2f}")
             
             # Calculate week boundaries
             week_start = date_obj - timedelta(days=date_obj.weekday())  # Monday of the week
@@ -817,6 +825,10 @@ class PayrollExcelExporter:
             # Write multiple pairs for the day (like template shows FRIDAY appearing twice)
             pairs_written = 0
             if len(day_records) >= 2:
+                # Calculate total number of pairs for this day
+                total_pairs_for_day = len(day_records) // 2
+                print(f"📊 Day {date_str}: {len(day_records)} records = {total_pairs_for_day} pairs")
+                
                 # Create pairs from consecutive records
                 for i in range(0, len(day_records) - 1, 2):
                     if i + 1 < len(day_records):
@@ -826,7 +838,7 @@ class PayrollExcelExporter:
                         current_row = self._write_record_pair_row(
                             worksheet, current_row, date_obj, start_record, end_record,
                             location, building_address, total_hours, regular_hours, ot_hours,
-                            pairs_written, total_hours  # Pass total_hours for daily total on last pair
+                            pairs_written, total_hours, total_pairs_for_day  # Add total_pairs parameter
                         )
                         pairs_written += 1
                         total_pairs_written += 1  # Track total pairs
@@ -856,9 +868,9 @@ class PayrollExcelExporter:
         return current_row
 
     def _write_record_pair_row(self, worksheet, current_row: int, date_obj: datetime, 
-                          start_record, end_record, location: str, building_address: str,
-                          day_total_hours: float, regular_hours: float, ot_hours: float,
-                          pair_index: int, daily_total_hours: float) -> int:
+                      start_record, end_record, location: str, building_address: str,
+                      day_total_hours: float, regular_hours: float, ot_hours: float,
+                      pair_index: int, daily_total_hours: float, total_pairs_for_day: int = 1) -> int:
         """Write a single record pair row (in/out times)"""
         day_name = date_obj.strftime('%A').upper()
         date_str = date_obj.strftime('%m/%d/%Y')
@@ -918,7 +930,7 @@ class PayrollExcelExporter:
             recorded_location_display = f'=HYPERLINK("{maps_url}","{recorded_location}")'
         
         # Determine if this is the last pair of the day (for daily total)
-        is_last_pair = pair_index > 0  # Show daily total on second+ pairs
+        is_last_pair = (pair_index == total_pairs_for_day - 1)  # Show daily total on second+ pairs
         daily_total_display = daily_total_hours if is_last_pair else ""
         
         row_data = [
