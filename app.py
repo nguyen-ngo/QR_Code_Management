@@ -6118,7 +6118,7 @@ def edit_employee(employee_index):
         return redirect(url_for('employees'))
 
 @app.route('/employees/<int:employee_index>/delete', methods=['POST'])
-@admin_required
+@login_required
 @log_database_operations('employee_deletion')
 def delete_employee(employee_index):
     """Delete employee (Admin only) - Enhanced with better logging"""
