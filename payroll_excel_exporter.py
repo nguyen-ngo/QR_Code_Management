@@ -654,6 +654,31 @@ class PayrollExcelExporter:
             )
         }
 
+        # Missed punch highlighting styles
+        self.missed_punch_style = {
+            'font': Font(name="Arial", size=10),
+            'fill': PatternFill(start_color="FCD5B5", end_color="FCD5B5", fill_type="solid"),  # Orange highlighting
+            'alignment': Alignment(horizontal="center", vertical="center"),
+            'border': Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin")
+            )
+        }
+        
+        self.missed_punch_in_cell_style = {
+            'font': Font(name="Arial", size=10),
+            'fill': PatternFill(start_color="EEECE1", end_color="EEECE1", fill_type="solid"),  # Light gray highlighting
+            'alignment': Alignment(horizontal="center", vertical="center"),
+            'border': Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin")
+            )
+        }
+
     def _adjust_template_columns(self, worksheet):
         """Adjust column widths to match template format"""
         # Column widths based on template analysis
@@ -710,12 +735,12 @@ class PayrollExcelExporter:
         return current_row
 
     def _write_employee_section(self, worksheet, employee_id: str, employee_name: str, 
-                        emp_data: Dict, start_date: datetime, end_date: datetime,
-                        attendance_records: List[Dict], start_row: int) -> int:
-        """Write individual employee section with multiple pairs per day, daily totals, weekly totals, and grand total"""
+                emp_data: Dict, start_date: datetime, end_date: datetime,
+                attendance_records: List[Dict], start_row: int) -> int:
+        """Write individual employee section with missed punch highlighting - NO DUPLICATES"""
         current_row = start_row
         
-        # Employee info header (merged across columns A-O)
+        # Employee info header (merged across columns A-N)
         employee_info = f"Employee ID {employee_id}: {employee_name}"
         cell = worksheet.cell(row=current_row, column=1, value=employee_info)
         self._apply_style(cell, self.template_employee_style)
@@ -735,7 +760,7 @@ class PayrollExcelExporter:
         # Get attendance records for this employee for location info
         employee_records = [record for record in attendance_records if str(record.employee_id) == employee_id]
         
-        # Group attendance records by date for location info
+        # Group attendance records by date for location info and missed punch detection
         daily_location_data = {}
         for record in employee_records:
             date_key = record.check_in_date.strftime('%Y-%m-%d')
@@ -758,27 +783,14 @@ class PayrollExcelExporter:
         
         weekly_total_hours = 0
         grand_total_hours = 0
-        total_pairs_written = 0
         
         # Track week boundaries (assuming payroll period starts on Monday)
         current_week_start = None
         
-        # Write data rows using the calculated daily hours from emp_data
+        # Write data rows - SINGLE LOGIC ONLY (no duplicates)
         for date_str in sorted(emp_data['daily_hours'].keys()):
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             day_hours_data = emp_data['daily_hours'][date_str]
-            
-            # Skip days with miss punch, but INCLUDE days with valid hours even if single period
-            if day_hours_data.get('is_miss_punch', False):
-                print(f"⚠️ Skipping {date_str} - Miss punch detected")
-                continue
-
-            # Include days with valid working hours (single periods should show Daily Total)
-            if day_hours_data.get('total_hours', 0) <= 0:
-                print(f"⚠️ Skipping {date_str} - No working hours")
-                continue
-
-            print(f"✅ Including {date_str} - Working hours: {day_hours_data.get('total_hours', 0):.2f}")
             
             # Calculate week boundaries
             week_start = date_obj - timedelta(days=date_obj.weekday())  # Monday of the week
@@ -797,52 +809,35 @@ class PayrollExcelExporter:
             
             current_week_start = week_start
             
-            total_hours = day_hours_data.get('total_hours', 0)
-            # Daily hours are all regular - overtime calculated at weekly level
-            regular_hours = total_hours
-            ot_hours = 0
-            
-            # Add to weekly and grand totals
-            weekly_total_hours += total_hours
-            grand_total_hours += total_hours
-            
             # Get location info for this date
             location_info = daily_location_data.get(date_str, {})
             location = location_info.get('location', '')
             building_address = location_info.get('building_address', '')
-            
+
             # Get all records for this day, sorted by time
             day_records = []
             if date_str in daily_location_data:
                 day_records = sorted(daily_location_data[date_str]['records'], key=lambda x: x.check_in_time)
+
+            # Skip days with no records at all
+            if not day_records:
+                print(f"⚠️ Skipping {date_str} - No records")
+                continue
+
+            # Process this day exactly once using the mixed periods logic
+            print(f"📊 Processing {date_str} - {len(day_records)} records")
+            current_row = self._write_mixed_periods_for_day(
+                worksheet, current_row, date_obj, day_records, 
+                location, building_address, day_hours_data, emp_data
+            )
             
-            # Write multiple pairs for the day (like template shows FRIDAY appearing twice)
-            pairs_written = 0
-            if len(day_records) >= 2:
-                # Calculate total number of pairs for this day
-                total_pairs_for_day = len(day_records) // 2
-                print(f"📊 Day {date_str}: {len(day_records)} records = {total_pairs_for_day} pairs")
-                
-                # Create pairs from consecutive records
-                for i in range(0, len(day_records) - 1, 2):
-                    if i + 1 < len(day_records):
-                        start_record = day_records[i]
-                        end_record = day_records[i + 1]
-                        
-                        current_row = self._write_record_pair_row(
-                            worksheet, current_row, date_obj, start_record, end_record,
-                            location, building_address, total_hours, regular_hours, ot_hours,
-                            pairs_written, total_hours, total_pairs_for_day  # Add total_pairs parameter
-                        )
-                        pairs_written += 1
-                        total_pairs_written += 1  # Track total pairs
-            else:
-                # Single record or no records - write one row
-                start_record = day_records[0] if day_records else None
-                current_row = self._write_single_record_row(
-                    worksheet, current_row, date_obj, start_record,
-                    location, building_address, total_hours, regular_hours, ot_hours
-                )
+            # Add to totals only if there are working hours (not just missed punches)
+            total_hours = day_hours_data.get('total_hours', 0)
+            if total_hours > 0:
+                # Add to weekly and grand totals
+                weekly_total_hours += total_hours
+                grand_total_hours += total_hours
+                print(f"✅ Added {total_hours:.2f} hours to weekly total")
         
         # Write final weekly total if we have data
         if weekly_total_hours > 0:
@@ -862,8 +857,8 @@ class PayrollExcelExporter:
         # Add space between employees
         current_row += 2
         
-        # Log the export action (use print for now since logger_handler import is complex)
-        print(f"✅ Template format export: Employee {employee_id} ({employee_name}) data written with {total_pairs_written} record pairs, weekly totals, and grand total")
+        # Log the export action
+        print(f"✅ Template format export: Employee {employee_id} ({employee_name}) completed - Weekly total: {weekly_total_hours:.2f}")
         
         return current_row
 
@@ -1068,5 +1063,552 @@ class PayrollExcelExporter:
         
         # Log grand total
         print(f"✅ Template export: Grand total written - Regular: {grand_regular:.2f}, OT: {grand_ot:.2f}")
+        
+        return current_row + 1
+    
+    # Method to write missed punch rows
+    def _write_missed_punch_row(self, worksheet, current_row: int, date_obj: datetime, 
+                           day_hours_data: Dict, location_info: Dict) -> int:
+        """Write a row for a day with missed punches, with proper highlighting"""
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Get records for this day
+        day_records = location_info.get('records', [])
+        location = location_info.get('location', '')
+        building_address = location_info.get('building_address', '')
+        
+        # Determine if we have only check-in or only check-out
+        has_check_in = False
+        has_check_out = False
+        check_in_time = ""
+        check_out_time = ""
+        
+        if day_records:
+            # Sort records by time
+            sorted_records = sorted(day_records, key=lambda x: x.check_in_time)
+            
+            # Simple logic: odd number of records = missed punch
+            for i, record in enumerate(sorted_records):
+                if i % 2 == 0:  # Even index = check-in
+                    if not has_check_in:
+                        has_check_in = True
+                        check_in_time = record.check_in_time.strftime('%I:%M:%S %p')
+                else:  # Odd index = check-out
+                    if not has_check_out:
+                        has_check_out = True
+                        check_out_time = record.check_in_time.strftime('%I:%M:%S %p')
+        
+        # Determine missing punch type
+        if has_check_in and not has_check_out:
+            # Missing check-out
+            missed_punch_type = "check-out"
+            in_cell_value = check_in_time
+            out_cell_value = ""
+        elif has_check_out and not has_check_in:
+            # Missing check-in
+            missed_punch_type = "check-in"
+            in_cell_value = ""
+            out_cell_value = check_out_time
+        else:
+            # General missed punch
+            missed_punch_type = "unknown"
+            in_cell_value = check_in_time if has_check_in else ""
+            out_cell_value = check_out_time if has_check_out else ""
+        
+        # Get location details with hyperlinks if available
+        building_address_display = building_address
+        recorded_location_display = ""
+        distance_value = ""
+        possible_violation = "No"
+        
+        if day_records:
+            first_record = day_records[0]
+            if hasattr(first_record, 'qr_code') and first_record.qr_code:
+                # Fix: Use address_latitude and address_longitude instead of latitude and longitude
+                if hasattr(first_record.qr_code, 'address_latitude') and hasattr(first_record.qr_code, 'address_longitude'):
+                    if first_record.qr_code.address_latitude and first_record.qr_code.address_longitude:
+                        recorded_location = f"{first_record.qr_code.address_latitude}, {first_record.qr_code.address_longitude}"
+                        maps_url = f"https://www.google.com/maps?q={recorded_location.replace(' ', '+')}"
+                        recorded_location_display = f'=HYPERLINK("{maps_url}","{recorded_location}")'
+            
+            # Calculate distance if available
+            if hasattr(first_record, 'location_accuracy') and first_record.location_accuracy is not None:
+                distance_value = f"{first_record.location_accuracy:.3f}"
+                possible_violation = "Yes" if first_record.location_accuracy > 0.3 else "No"
+        
+        row_data = [
+            day_name,                    # A - Day
+            date_str,                    # B - Date  
+            in_cell_value,              # C - In (may be empty for missed check-in)
+            out_cell_value,             # D - Out (may be empty for missed check-out)
+            location,                   # E - Location
+            "",                         # F - Zone (empty)
+            "Missed Punch",             # G - Hours/Building (shows "Missed Punch")
+            "",                         # H - Daily Total (empty for missed punches)
+            "",                         # I - Regular Hours (empty for missed punches)
+            "",                         # J - OT Hours (empty for missed punches)
+            building_address_display,   # K - Building Address
+            recorded_location_display,  # L - Recorded Location  
+            distance_value,             # M - Distance
+            possible_violation          # N - Possible Violation
+        ]
+        
+        # Write the row with highlighting
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            
+            # Apply specific highlighting for missed punches
+            if col == 3 and not has_check_in:  # In column, missing check-in
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 4 and not has_check_out:  # Out column, missing check-out  
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 7:  # Hours/Building column with "Missed Punch" text
+                self._apply_style(cell, self.missed_punch_style)
+            else:
+                self._apply_style(cell, self.template_data_style)
+        
+        # Log the missed punch entry
+        print(f"📊 Missed punch row written for {date_str}: missing {missed_punch_type}")
+        return current_row + 1
+    
+    def _write_mixed_periods_for_day(self, worksheet, current_row: int, date_obj: datetime,
+                                day_records: List, location: str, building_address: str,
+                                day_hours_data: Dict, emp_data: Dict) -> int:
+        """Write periods for a day with improved logic to prevent duplicates"""
+        
+        total_hours = day_hours_data.get('total_hours', 0)
+        regular_hours = total_hours
+        ot_hours = 0
+        
+        # Check if this is a missed punch day first
+        is_miss_punch_day = day_hours_data.get('is_miss_punch', False)
+        
+        if is_miss_punch_day or len(day_records) % 2 == 1:
+            # Handle missed punch scenarios
+            return self._write_missed_punch_scenarios(
+                worksheet, current_row, date_obj, day_records, 
+                location, building_address, total_hours, regular_hours, ot_hours
+            )
+        else:
+            # Handle complete pairs
+            return self._write_complete_pairs_scenarios(
+                worksheet, current_row, date_obj, day_records,
+                location, building_address, total_hours, regular_hours, ot_hours
+            )
+    
+    def _get_recorded_location_display(self, record, building_address: str) -> str:
+        """Get the correct recorded location display based on location accuracy threshold"""
+        
+        # Check location accuracy first to determine which address to show
+        if hasattr(record, 'location_accuracy') and record.location_accuracy is not None:
+            try:
+                accuracy_value = float(record.location_accuracy)
+                
+                if accuracy_value <= 0.3:
+                    # High accuracy (≤ 0.3 miles) - show QR code address
+                    if building_address:
+                        return building_address
+                    else:
+                        # Fallback to coordinates if no QR address available
+                        if hasattr(record, 'latitude') and hasattr(record, 'longitude'):
+                            if record.latitude and record.longitude:
+                                recorded_location = f"{record.latitude}, {record.longitude}"
+                                maps_url = f"https://www.google.com/maps?q={recorded_location.replace(' ', '+')}"
+                                return f'=HYPERLINK("{maps_url}","{recorded_location}")'
+                else:
+                    # Lower accuracy (> 0.3 miles) - show actual recorded address/coordinates
+                    if hasattr(record, 'address') and record.address:
+                        return record.address
+                    elif hasattr(record, 'latitude') and hasattr(record, 'longitude'):
+                        if record.latitude and record.longitude:
+                            recorded_location = f"{record.latitude}, {record.longitude}"
+                            maps_url = f"https://www.google.com/maps?q={recorded_location.replace(' ', '+')}"
+                            return f'=HYPERLINK("{maps_url}","{recorded_location}")'
+                            
+            except (ValueError, TypeError):
+                # If accuracy can't be converted, fall through to default logic
+                pass
+        
+        # Default logic when no location accuracy available
+        # Priority 1: Use attendance record address if available
+        if hasattr(record, 'address') and record.address:
+            return record.address
+        
+        # Priority 2: Use attendance record coordinates if available
+        if hasattr(record, 'latitude') and hasattr(record, 'longitude'):
+            if record.latitude and record.longitude:
+                recorded_location = f"{record.latitude}, {record.longitude}"
+                maps_url = f"https://www.google.com/maps?q={recorded_location.replace(' ', '+')}"
+                return f'=HYPERLINK("{maps_url}","{recorded_location}")'
+        
+        # Priority 3: Fall back to building address
+        if building_address:
+            return building_address
+        
+        # Priority 4: Empty if nothing available
+        return ""
+    
+    def _write_complete_pairs_scenarios(self, worksheet, current_row: int, date_obj: datetime,
+                                   day_records: List, location: str, building_address: str,
+                                   total_hours: float, regular_hours: float, ot_hours: float) -> int:
+        """Write complete pairs for a day"""
+        
+        # Process records in pairs
+        pairs_count = len(day_records) // 2
+        
+        for pair_index in range(pairs_count):
+            start_idx = pair_index * 2
+            end_idx = start_idx + 1
+            
+            if end_idx < len(day_records):
+                start_record = day_records[start_idx]
+                end_record = day_records[end_idx]
+                
+                # Calculate pair duration
+                start_datetime = datetime.combine(start_record.check_in_date, start_record.check_in_time)
+                end_datetime = datetime.combine(end_record.check_in_date, end_record.check_in_time)
+                pair_duration = (end_datetime - start_datetime).total_seconds() / 3600
+                
+                # Determine if this is the last pair (for showing daily totals)
+                is_last_pair = (pair_index == pairs_count - 1)
+                
+                current_row = self._write_single_complete_pair(
+                    worksheet, current_row, date_obj, start_record, end_record,
+                    location, building_address, pair_duration,
+                    regular_hours if is_last_pair else 0,
+                    ot_hours if is_last_pair else 0,
+                    total_hours if is_last_pair else 0
+                )
+        
+        return current_row
+
+    def _write_missed_punch_scenarios(self, worksheet, current_row: int, date_obj: datetime,
+                                    day_records: List, location: str, building_address: str,
+                                    total_hours: float, regular_hours: float, ot_hours: float) -> int:
+        """Handle days with missed punches"""
+        
+        # If no records, skip
+        if not day_records:
+            return current_row
+        
+        # If only one record, it's a missed punch
+        if len(day_records) == 1:
+            return self._write_single_missed_punch_row(
+                worksheet, current_row, date_obj, day_records[0], 
+                'check_out', location, building_address
+            )
+        
+        # Multiple records with missed punch - process pairs and remaining record
+        pairs_count = len(day_records) // 2
+        
+        # Write complete pairs first
+        for pair_index in range(pairs_count):
+            start_idx = pair_index * 2
+            end_idx = start_idx + 1
+            
+            start_record = day_records[start_idx]
+            end_record = day_records[end_idx]
+            
+            # Calculate pair duration
+            start_datetime = datetime.combine(start_record.check_in_date, start_record.check_in_time)
+            end_datetime = datetime.combine(end_record.check_in_date, end_record.check_in_time)
+            pair_duration = (end_datetime - start_datetime).total_seconds() / 3600
+            
+            current_row = self._write_single_complete_pair(
+                worksheet, current_row, date_obj, start_record, end_record,
+                location, building_address, pair_duration, 0, 0, 0  # No totals on individual pairs
+            )
+        
+        # Write missed punch for remaining record
+        if len(day_records) % 2 == 1:
+            remaining_record = day_records[-1]
+            current_row = self._write_single_missed_punch_row(
+                worksheet, current_row, date_obj, remaining_record,
+                'check_out', location, building_address
+            )
+        
+        # Write daily total on a separate summary row if there are working hours
+        if total_hours > 0:
+            current_row = self._write_daily_total_row(
+                worksheet, current_row, date_obj, total_hours, regular_hours, ot_hours
+            )
+        
+        return current_row
+
+    def _write_single_complete_pair(self, worksheet, current_row: int, date_obj: datetime,
+                                start_record, end_record, location: str, building_address: str,
+                                pair_hours: float, regular_hours: float, ot_hours: float,
+                                daily_total: float) -> int:
+        """Write a single complete pair with correct location display"""
+        
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Format times
+        check_in_time = start_record.check_in_time.strftime('%I:%M:%S %p')
+        check_out_time = end_record.check_in_time.strftime('%I:%M:%S %p')
+        
+        # Get recorded location using corrected logic
+        recorded_location_display = self._get_recorded_location_display(start_record, building_address)
+        
+        # Get distance and violation info
+        distance_value = ""
+        possible_violation = "No"
+        if hasattr(start_record, 'location_accuracy') and start_record.location_accuracy is not None:
+            distance_value = f"{start_record.location_accuracy:.3f}"
+            possible_violation = "Yes" if start_record.location_accuracy > 0.5 else "No"
+        
+        # Create building address hyperlink
+        building_address_display = building_address
+        if building_address and "," in building_address:
+            maps_url = f"https://www.google.com/maps/place/{building_address.replace(' ', '+')}"
+            building_address_display = f'=HYPERLINK("{maps_url}","{building_address}")'
+        
+        row_data = [
+            day_name,                       # A - Day
+            date_str,                       # B - Date  
+            check_in_time,                  # C - In
+            check_out_time,                 # D - Out
+            location,                       # E - Location
+            "",                             # F - Zone (empty)
+            round(pair_hours, 2),           # G - Hours/Building
+            round(daily_total, 2) if daily_total > 0 else "",  # H - Daily Total
+            round(regular_hours, 2) if regular_hours > 0 else "",  # I - Regular Hours
+            round(ot_hours, 2) if ot_hours > 0 else "",           # J - OT Hours
+            building_address_display,       # K - Building Address
+            recorded_location_display,      # L - Recorded Location (FIXED)
+            distance_value,                 # M - Distance
+            possible_violation              # N - Possible Violation
+        ]
+        
+        # Write the row
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            self._apply_style(cell, self.template_data_style)
+        
+        return current_row + 1
+
+    def _write_single_missed_punch_row(self, worksheet, current_row: int, date_obj: datetime,
+                                    record, missed_type: str, location: str, building_address: str) -> int:
+        """Write a single missed punch row with correct highlighting and location"""
+        
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Determine display based on missed type
+        if missed_type == 'check_out':
+            check_in_time = record.check_in_time.strftime('%I:%M:%S %p')
+            check_out_time = ""
+            highlight_in = False
+            highlight_out = True
+        else:  # 'check_in'
+            check_in_time = ""
+            check_out_time = record.check_in_time.strftime('%I:%M:%S %p')
+            highlight_in = True
+            highlight_out = False
+        
+        # Get recorded location using corrected logic
+        recorded_location_display = self._get_recorded_location_display(record, building_address)
+        
+        # Get distance and violation info
+        distance_value = ""
+        possible_violation = "No"
+        if hasattr(record, 'location_accuracy') and record.location_accuracy is not None:
+            distance_value = f"{record.location_accuracy:.3f}"
+            possible_violation = "Yes" if record.location_accuracy > 0.5 else "No"
+        
+        building_address_display = building_address
+        
+        row_data = [
+            day_name,                    # A - Day
+            date_str,                    # B - Date  
+            check_in_time,              # C - In
+            check_out_time,             # D - Out
+            location,                   # E - Location
+            "",                         # F - Zone (empty)
+            "Missed Punch",             # G - Hours/Building (shows "Missed Punch")
+            "",                         # H - Daily Total (empty for missed punches)
+            "",                         # I - Regular Hours (empty for missed punches)
+            "",                         # J - OT Hours (empty for missed punches)
+            building_address_display,   # K - Building Address
+            recorded_location_display,  # L - Recorded Location (FIXED)
+            distance_value,             # M - Distance
+            possible_violation          # N - Possible Violation
+        ]
+        
+        # Write the row with highlighting
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            
+            # Apply specific highlighting for missed punches
+            if col == 3 and highlight_in:  # In column, missing check-in
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 4 and highlight_out:  # Out column, missing check-out  
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 7:  # Hours/Building column with "Missed Punch" text
+                self._apply_style(cell, self.missed_punch_style)
+            else:
+                self._apply_style(cell, self.template_data_style)
+        
+        return current_row + 1
+
+    def _write_daily_total_row(self, worksheet, current_row: int, date_obj: datetime,
+                            total_hours: float, regular_hours: float, ot_hours: float) -> int:
+        """Write a daily total row for mixed scenarios"""
+        
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        row_data = [
+            "",                         # A - Day (empty for total row)
+            "",                         # B - Date (empty for total row)
+            "",                         # C - In (empty)
+            "",                         # D - Out (empty)
+            "",                         # E - Location (empty)
+            "",                         # F - Zone (empty)
+            "Daily Total:",             # G - Hours/Building
+            round(total_hours, 2),      # H - Daily Total
+            round(regular_hours, 2),    # I - Regular Hours
+            round(ot_hours, 2),         # J - OT Hours
+            "",                         # K - Building Address (empty)
+            "",                         # L - Recorded Location (empty)
+            "",                         # M - Distance (empty)
+            ""                          # N - Possible Violation (empty)
+        ]
+        
+        # Write the row with bold formatting
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            self._apply_style(cell, self.template_data_style)
+            if col >= 7 and col <= 10:  # Bold the total columns
+                cell.font = Font(name="Arial", size=10, bold=True)
+        
+        return current_row + 1
+
+
+    def _write_complete_pair_row(self, worksheet, current_row: int, date_obj: datetime,
+                            start_record, end_record, location: str, building_address: str,
+                            pair_hours: float, regular_hours: float, ot_hours: float,
+                            daily_total: float) -> int:
+        """Write a complete pair row with proper formatting"""
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Format times
+        check_in_time = start_record.check_in_time.strftime('%I:%M:%S %p')
+        check_out_time = end_record.check_in_time.strftime('%I:%M:%S %p')
+        
+        # Get location accuracy info
+        distance_value = ""
+        possible_violation = "No"
+        recorded_location_display = ""
+        
+        if hasattr(start_record, 'location_accuracy') and start_record.location_accuracy is not None:
+            distance_value = f"{start_record.location_accuracy:.3f}"
+            possible_violation = "Yes" if start_record.location_accuracy > 0.5 else "No"
+        
+        # Create building address hyperlink if available
+        building_address_display = building_address
+        if building_address and "," in building_address:
+            maps_url = f"https://www.google.com/maps/place/{building_address.replace(' ', '+')}"
+            building_address_display = f'=HYPERLINK("{maps_url}","{building_address}")'
+        
+        row_data = [
+            day_name,                       # A - Day
+            date_str,                       # B - Date  
+            check_in_time,                  # C - In
+            check_out_time,                 # D - Out
+            location,                       # E - Location
+            "",                             # F - Zone (empty)
+            round(pair_hours, 2),           # G - Hours/Building (actual hours for this pair)
+            round(daily_total, 2) if daily_total > 0 else "",  # H - Daily Total (only on last period)
+            round(regular_hours, 2) if regular_hours > 0 else "",  # I - Regular Hours (only on last period)
+            round(ot_hours, 2) if ot_hours > 0 else "",           # J - OT Hours (only on last period)
+            building_address_display,       # K - Building Address
+            recorded_location_display,      # L - Recorded Location  
+            distance_value,                 # M - Distance
+            possible_violation              # N - Possible Violation
+        ]
+        
+        # Write the row with normal formatting
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            self._apply_style(cell, self.template_data_style)
+        
+        return current_row + 1
+
+    def _write_missed_punch_period_row(self, worksheet, current_row: int, date_obj: datetime,
+                                    record, missed_type: str, location: str, building_address: str) -> int:
+        """Write a missed punch period row with proper highlighting"""
+        day_name = date_obj.strftime('%A').upper()
+        date_str = date_obj.strftime('%m/%d/%Y')
+        
+        # Determine what to show based on missed type
+        if missed_type == 'check_out':
+            # Has check-in, missing check-out
+            check_in_time = record.check_in_time.strftime('%I:%M:%S %p')
+            check_out_time = ""
+            highlight_in = False
+            highlight_out = True
+        else:  # 'check_in'
+            # Missing check-in, has check-out
+            check_in_time = ""
+            check_out_time = record.check_in_time.strftime('%I:%M:%S %p')
+            highlight_in = True
+            highlight_out = False
+        
+        # Get location details
+        distance_value = ""
+        possible_violation = "No"
+        recorded_location_display = ""
+        
+        if hasattr(record, 'location_accuracy') and record.location_accuracy is not None:
+            distance_value = f"{record.location_accuracy:.3f}"
+            possible_violation = "Yes" if record.location_accuracy > 0.5 else "No"
+        
+        # QR code location if available
+        if hasattr(record, 'qr_code') and record.qr_code:
+            if hasattr(record.qr_code, 'address_latitude') and hasattr(record.qr_code, 'address_longitude'):
+                if record.qr_code.address_latitude and record.qr_code.address_longitude:
+                    recorded_location = f"{record.qr_code.address_latitude}, {record.qr_code.address_longitude}"
+                    maps_url = f"https://www.google.com/maps?q={recorded_location.replace(' ', '+')}"
+                    recorded_location_display = f'=HYPERLINK("{maps_url}","{recorded_location}")'
+        
+        building_address_display = building_address
+        
+        row_data = [
+            day_name,                    # A - Day
+            date_str,                    # B - Date  
+            check_in_time,              # C - In
+            check_out_time,             # D - Out
+            location,                   # E - Location
+            "",                         # F - Zone (empty)
+            "Missed Punch",             # G - Hours/Building (shows "Missed Punch")
+            "",                         # H - Daily Total (empty for missed punches)
+            "",                         # I - Regular Hours (empty for missed punches)
+            "",                         # J - OT Hours (empty for missed punches)
+            building_address_display,   # K - Building Address
+            recorded_location_display,  # L - Recorded Location  
+            distance_value,             # M - Distance
+            possible_violation          # N - Possible Violation
+        ]
+        
+        # Write the row with specific highlighting
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=current_row, column=col, value=value)
+            
+            # Apply specific highlighting for missed punches
+            if col == 3 and highlight_in:  # In column, missing check-in
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 4 and highlight_out:  # Out column, missing check-out  
+                self._apply_style(cell, self.missed_punch_in_cell_style)
+            elif col == 7:  # Hours/Building column with "Missed Punch" text
+                self._apply_style(cell, self.missed_punch_style)
+            else:
+                self._apply_style(cell, self.template_data_style)
+        
+        # Log the missed punch entry
+        print(f"📊 Missed punch period written for {date_str}: missing {missed_type}")
         
         return current_row + 1
