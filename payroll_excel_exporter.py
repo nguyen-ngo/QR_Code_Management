@@ -22,7 +22,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from single_checkin_calculator import SingleCheckInCalculator
 from logger_handler import log_database_operations
-
+from single_checkin_calculator import SingleCheckInCalculator
 
 class PayrollExcelExporter:
     """Excel exporter for payroll reports with working hours"""
@@ -183,7 +183,11 @@ class PayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
-            calculator = SingleCheckInCalculator()
+            calculator = SingleCheckInCalculator(
+                max_work_period_hours=12.0,
+                min_break_minutes=30,
+                include_travel_time=include_travel_time
+            )
             hours_data = calculator.calculate_all_employees_hours(start_date, end_date, attendance_records)
             
             # Create workbook
