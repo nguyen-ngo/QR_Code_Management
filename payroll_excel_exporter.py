@@ -752,16 +752,9 @@ class PayrollExcelExporter:
                     day_info['location'] = sorted_records[0].qr_code.location or ''
                     day_info['building_address'] = sorted_records[0].qr_code.location_address or ''
         
-        # Initialize weekly totals tracking
-        weekly_regular_hours = 0
-        weekly_ot_hours = 0
         weekly_total_hours = 0
-        
-        # Track overall totals for grand total
-        grand_regular_hours = 0
-        grand_ot_hours = 0
         grand_total_hours = 0
-        total_pairs_written = 0  # Track total pairs across all days
+        total_pairs_written = 0
         
         # Track week boundaries (assuming payroll period starts on Monday)
         current_week_start = None
@@ -788,13 +781,14 @@ class PayrollExcelExporter:
             
             # Check if we've moved to a new week and need to write weekly total
             if current_week_start is not None and week_start != current_week_start:
-                # Write weekly total row for previous week
+                # Calculate correct weekly regular/OT split
+                weekly_regular_corrected = min(weekly_total_hours, 40.0)
+                weekly_ot_corrected = max(0, weekly_total_hours - 40.0)
+
                 current_row = self._write_weekly_total_row(worksheet, current_row, 
-                                                        weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
-                
+                                                        weekly_regular_corrected, weekly_ot_corrected, weekly_total_hours)
+
                 # Reset weekly counters
-                weekly_regular_hours = 0
-                weekly_ot_hours = 0
                 weekly_total_hours = 0
             
             current_week_start = week_start
@@ -805,12 +799,7 @@ class PayrollExcelExporter:
             ot_hours = 0
             
             # Add to weekly and grand totals
-            weekly_regular_hours += regular_hours
-            weekly_ot_hours += ot_hours
             weekly_total_hours += total_hours
-            
-            grand_regular_hours += regular_hours
-            grand_ot_hours += ot_hours
             grand_total_hours += total_hours
             
             # Get location info for this date
@@ -853,12 +842,18 @@ class PayrollExcelExporter:
         
         # Write final weekly total if we have data
         if weekly_total_hours > 0:
+            weekly_regular_corrected = min(weekly_total_hours, 40.0)
+            weekly_ot_corrected = max(0, weekly_total_hours - 40.0)
+            
             current_row = self._write_weekly_total_row(worksheet, current_row, 
-                                                    weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
+                                                    weekly_regular_corrected, weekly_ot_corrected, weekly_total_hours)
         
         # Write grand total row
+        grand_regular_corrected = sum(week['regular_hours'] for week in emp_data['weekly_hours'])
+        grand_ot_corrected = sum(week['overtime_hours'] for week in emp_data['weekly_hours'])
+
         current_row = self._write_grand_total_row(worksheet, current_row, 
-                                                grand_regular_hours, grand_ot_hours)
+                                                grand_regular_corrected, grand_ot_corrected)
         
         # Add space between employees
         current_row += 2
