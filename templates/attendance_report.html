@@ -37,7 +37,6 @@
 
     <!-- Enhanced Statistics Cards -->
     
-
     <!-- Enhanced Filters Section with Date Range -->
     <div class="filters-section">
         <div class="filters-card">
@@ -293,11 +292,12 @@
                         </td>
                         <td>
                             <div class="record-actions">
-                                {% if session.role in ['admin', 'payroll'] %}
+                                {% if session.role in ['admin'] %} <!-- Add other roles for Edit permission -->
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
                                     <i class="fas fa-edit"></i>
+                                    disabled
                                 </button>
                                 <button onclick="deleteRecord('{{ record.id }}', '{{ record.employee_id }}')" 
                                         class="action-btn btn-delete"
@@ -393,7 +393,7 @@
 <script>
 // Template variables (processed by Flask)
 const userRole = '{{ session.role }}';
-const hasEditPermission = ['admin', 'payroll'].includes(userRole);
+const hasEditPermission = ['admin'].includes(userRole); // add other roles into the list for Edit permission, separated by comma
 
 // Enhanced JavaScript for new functionality
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
