@@ -5923,7 +5923,7 @@ def export_statistics():
 
 # EMPLOYEE MANAGEMENT ROUTES
 @app.route('/employees')
-@admin_required
+@login_required
 def employees():
     """Display employee management page with search and pagination"""
     try:
@@ -5985,7 +5985,7 @@ def employees():
         return redirect(url_for('dashboard'))
 
 @app.route('/employees/create', methods=['GET', 'POST'])
-@admin_required
+@login_required
 @log_database_operations('employee_creation')
 def create_employee():
     """Create new employee (Admin only)"""
@@ -6047,7 +6047,7 @@ def create_employee():
     return render_template('create_employee.html')
 
 @app.route('/employees/<int:employee_index>/edit', methods=['GET', 'POST'])
-@admin_required  
+@login_required  
 @log_database_operations('employee_update')
 def edit_employee(employee_index):
     """Edit existing employee (Admin only)"""
@@ -6118,7 +6118,7 @@ def edit_employee(employee_index):
         return redirect(url_for('employees'))
 
 @app.route('/employees/<int:employee_index>/delete', methods=['POST'])
-@admin_required
+@login_required
 @log_database_operations('employee_deletion')
 def delete_employee(employee_index):
     """Delete employee (Admin only) - Enhanced with better logging"""
@@ -6205,7 +6205,7 @@ def api_employees_search():
         return jsonify({'error': 'Search failed'}), 500
 
 @app.route('/employees/<int:employee_index>')
-@admin_required
+@login_required
 def employee_detail(employee_index):
     """View employee details with attendance summary"""
     try:

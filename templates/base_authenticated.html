@@ -93,6 +93,10 @@
                 <span class="menu-text">System Logs</span>
               </a>
               {% elif session.role in ['payroll'] %}
+              <a href="{{ url_for('employees') }}" class="menu-item">
+                <i class="fas fa-user"></i>
+                <span class="menu-text">Employees</span>
+              </a>
               <a href="{{ url_for('attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
                 <span class="menu-text">Reports</span>

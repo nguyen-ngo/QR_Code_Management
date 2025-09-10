@@ -24,7 +24,7 @@ extra_head %}
     </div>
 
     <div class="header-actions">
-      {% if session.role == 'admin' %}
+      {% if session.role in ['admin', 'payroll'] %}
       <a href="{{ url_for('create_employee') }}" class="btn btn-primary">
         <i class="fas fa-plus"></i>
         Add Employee
@@ -177,7 +177,7 @@ extra_head %}
                   <i class="fas fa-eye"></i>
                 </a>
 
-                {% if session.role == 'admin' %}
+                {% if session.role in ['admin', 'payroll'] %}
                 <a
                   href="{{ url_for('edit_employee', employee_index=employee.index) }}"
                   class="btn btn-sm btn-warning"
