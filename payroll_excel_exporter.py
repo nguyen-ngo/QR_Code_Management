@@ -160,8 +160,7 @@ class PayrollExcelExporter:
     
     @log_database_operations('payroll_excel_export')
     def create_payroll_report(self, start_date: datetime, end_date: datetime, 
-                             attendance_records: List[Dict], employee_names: Dict[str, str] = None,
-                             include_travel_time: bool = True) -> io.BytesIO:
+                             attendance_records: List[Dict], employee_names: Dict[str, str] = None) -> io.BytesIO:
         """
         Create a comprehensive payroll report with working hours
         
@@ -170,8 +169,7 @@ class PayrollExcelExporter:
             end_date: Report end date  
             attendance_records: List of attendance records
             employee_names: Dictionary mapping employee_id to full name
-            include_travel_time: Whether to include travel time in calculations
-            
+                        
         Returns:
             BytesIO buffer containing the Excel file
         """
@@ -370,7 +368,6 @@ class PayrollExcelExporter:
             ("Total Regular Hours:", round(total_regular_hours, 2)),
             ("Total Overtime Hours:", round(total_overtime_hours, 2)),
             ("Grand Total Hours:", round(total_hours, 2)),
-            ("Travel Time Included:", "Yes" if hours_data['include_travel_time'] else "No"),
             ("Report Generated:", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         ]
         
@@ -399,8 +396,7 @@ class PayrollExcelExporter:
     
     @log_database_operations('detailed_hours_export')
     def create_detailed_hours_report(self, start_date: datetime, end_date: datetime,
-                                    attendance_records: List[Dict], employee_names: Dict[str, str] = None,
-                                    include_travel_time: bool = True) -> io.BytesIO:
+                                    attendance_records: List[Dict], employee_names: Dict[str, str] = None) -> io.BytesIO:
         """
         Create a detailed daily hours report for all employees
         
@@ -409,8 +405,7 @@ class PayrollExcelExporter:
             end_date: Report end date
             attendance_records: List of attendance records
             employee_names: Dictionary mapping employee_id to full name
-            include_travel_time: Whether to include travel time in calculations
-            
+                        
         Returns:
             BytesIO buffer containing the Excel file
         """
@@ -526,7 +521,7 @@ class PayrollExcelExporter:
     @log_database_operations('template_hours_export')
     def create_template_format_report(self, start_date: datetime, end_date: datetime,
                                     attendance_records: List[Dict], employee_names: Dict[str, str] = None,
-                                    include_travel_time: bool = True, project_name: str = None) -> io.BytesIO:
+                                    project_name: str = None) -> io.BytesIO:
         """
         Create a template-format report matching the provided Excel template.
         This creates a single sheet with all employees' detailed reports.
@@ -536,7 +531,6 @@ class PayrollExcelExporter:
             end_date: Report end date
             attendance_records: List of attendance records
             employee_names: Dictionary mapping employee_id to full name
-            include_travel_time: Whether to include travel time in calculations
             project_name: Project name for the report header
             
         Returns:

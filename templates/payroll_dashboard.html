@@ -680,12 +680,6 @@
                     Calculate Hours
                 </button>
             </div>
-
-            <div class="checkbox-group">
-                <input type="checkbox" id="include_travel_time" name="include_travel_time"
-                       value="true" {% if include_travel_time %}checked{% endif %}>
-                <label for="include_travel_time">Include travel time between locations</label>
-            </div>
         </form>
     </div>
 
@@ -786,7 +780,6 @@
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
                 <input type="hidden" name="report_type" value="payroll">
                 <button type="submit" class="btn btn-success">
                     <i class="fas fa-file-excel"></i>
@@ -798,7 +791,6 @@
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
                 <input type="hidden" name="report_type" value="detailed">
                 <button type="submit" class="btn btn-secondary">
                     <i class="fas fa-list-alt"></i>
@@ -810,7 +802,6 @@
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
-                <input type="hidden" name="include_travel_time" value="{{ include_travel_time|lower }}">
                 <input type="hidden" name="report_type" value="template">
                 <button type="submit" class="btn btn-info">
                     <i class="fas fa-file-contract"></i>
@@ -822,7 +813,6 @@
         <div style="margin-top: 1rem; padding: 1rem; background: #f7fafc; border-radius: 8px; color: #4a5568; font-size: 0.9rem;">
             <strong>Report Details:</strong><br>
             Period: {{ working_hours_data.period_start }} to {{ working_hours_data.period_end }}<br>
-            Travel Time: {{ "Included" if working_hours_data.include_travel_time else "Excluded" }}<br>
             Generated: {{ working_hours_data.calculation_date }}
         </div>
     </div>
@@ -870,20 +860,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Payroll dashboard JavaScript starting...');
-
-    // Auto-submit form when travel time checkbox changes
-    const travelTimeCheckbox = document.getElementById('include_travel_time');
-    if (travelTimeCheckbox) {
-        travelTimeCheckbox.addEventListener('change', function() {
-            // Only auto-submit if we have dates
-            const dateFrom = document.getElementById('date_from').value;
-            const dateTo = document.getElementById('date_to').value;
-
-            if (dateFrom && dateTo) {
-                this.form.submit();
-            }
-        });
-    }
 
     // Set max date to today for date inputs
     const today = new Date().toISOString().split('T')[0];
@@ -966,7 +942,6 @@ function showMissPunchDetails(employeeId) {
     const dateFrom = document.querySelector('input[name="date_from"]')?.value || '';
     const dateTo = document.querySelector('input[name="date_to"]')?.value || '';
     const projectFilter = document.querySelector('select[name="project_filter"]')?.value || '';
-    const includeTravelTime = document.querySelector('input[name="include_travel_time"]')?.checked || false;
 
     // Show modal with loading state
     const modal = document.getElementById('missPunchModal');
@@ -987,7 +962,6 @@ function showMissPunchDetails(employeeId) {
         date_from: dateFrom,
         date_to: dateTo,
         project_filter: projectFilter,
-        include_travel_time: includeTravelTime.toString()
     });
 
     const apiUrl = `/api/employee/${employeeId}/miss-punch-details?${params.toString()}`;

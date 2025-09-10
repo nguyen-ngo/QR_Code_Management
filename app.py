@@ -5053,8 +5053,7 @@ def payroll_dashboard():
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
         project_filter = request.args.get('project_filter', '')
-        include_travel_time = request.args.get('include_travel_time', 'true').lower() == 'true'
-
+        
         # Set default date range if not provided (last 2 weeks)
         if not date_from or not date_to:
             end_date = datetime.now().date()
@@ -5163,7 +5162,6 @@ def payroll_dashboard():
                              date_to=date_to,
                              project_filter=project_filter,
                              selected_project_name=selected_project_name,
-                             include_travel_time=include_travel_time,
                              user_role=user_role)
 
     except Exception as e:
@@ -5199,7 +5197,6 @@ def export_payroll_excel():
         date_from = request.form.get('date_from')
         date_to = request.form.get('date_to')
         project_filter = request.form.get('project_filter', '')
-        include_travel_time = request.form.get('include_travel_time', 'false').lower() == 'true'
         report_type = request.form.get('report_type', 'payroll')  # 'payroll' or 'detailed'
 
         if not date_from or not date_to:
@@ -5283,7 +5280,7 @@ def export_payroll_excel():
         # Generate Excel file with employee names
         if report_type == 'detailed':
             excel_file = exporter.create_detailed_hours_report(
-                start_date, end_date, attendance_records, employee_names, include_travel_time
+                start_date, end_date, attendance_records, employee_names
             )
             filename_prefix = 'detailed_hours_report'
         elif report_type == 'template':
@@ -5298,12 +5295,12 @@ def export_payroll_excel():
                     print(f"⚠️ Error getting project name for template: {e}")
 
             excel_file = exporter.create_template_format_report(
-                start_date, end_date, attendance_records, employee_names, include_travel_time, project_name
+                start_date, end_date, attendance_records, employee_names, project_name
             )
             filename_prefix = 'time_attendance_report'
         else:
             excel_file = exporter.create_payroll_report(
-                start_date, end_date, attendance_records, employee_names, include_travel_time
+                start_date, end_date, attendance_records, employee_names
             )
             filename_prefix = 'payroll_report'
 
@@ -5320,8 +5317,7 @@ def export_payroll_excel():
         if excel_file:
             # Generate filename with timestamp and project name
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            travel_suffix = '_with_travel' if include_travel_time else '_no_travel'
-            filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name}{travel_suffix}_{timestamp}.xlsx'
+            filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name}_{timestamp}.xlsx'
 
             print(f"📊 Payroll Excel file generated successfully: {filename}")
 
@@ -5449,8 +5445,7 @@ def get_miss_punch_details(employee_id):
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         project_filter = request.args.get('project_filter', '')
-        include_travel_time = request.args.get('include_travel_time', 'true').lower() == 'true'
-
+        
         if not all([date_from, date_to]):
             return jsonify({
                 'success': False,

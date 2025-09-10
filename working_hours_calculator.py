@@ -24,10 +24,8 @@ import math
 from logger_handler import log_database_operations
 
 # Constants from Java implementation
-TRAVEL_TIME_MAX_MINUTES = 60
 RECORD_GROUPING_MAX_MINUTES = 60 * 6  # 6 hours
 MAX_REGULAR_TIME_MINUTES = 60 * 40    # 40 hours per week
-
 
 @dataclass
 class AttendanceRecord:
@@ -44,7 +42,6 @@ class AttendanceRecord:
         if self.timestamp is None:
             # Combine date and time for timestamp
             self.timestamp = datetime.combine(self.check_in_date, self.check_in_time)
-
 
 @dataclass 
 class RecordPair:
@@ -72,7 +69,6 @@ class RecordPair:
         duration = self.check_out.timestamp - self.check_in.timestamp
         return int(duration.total_seconds() / 60)
 
-
 class TimeCalculator:
     """Base time calculator with rounding functionality"""
     
@@ -85,7 +81,6 @@ class TimeCalculator:
         # Round to nearest 15-minute interval
         return round(minutes / 15) * 15
 
-
 class DailyTimeCalculator(TimeCalculator):
     """Calculate daily working hours with travel time options"""
     
@@ -95,19 +90,6 @@ class DailyTimeCalculator(TimeCalculator):
     def add_record_pair(self, pair: RecordPair):
         """Add a record pair to the daily calculation"""
         self.record_pairs.append(pair)
-    
-    def get_minutes_total_include_travel_time(self) -> int:
-        """Calculate total minutes including travel time between locations"""
-        minute_total = 0
-        grouped_pairs = self._group_record_pairs(self.record_pairs)
-        
-        for group in grouped_pairs:
-            group_minutes = self._get_minutes_per_record_pair_group(group)
-            if group_minutes < 0:
-                return -1  # Miss punch detected
-            minute_total += group_minutes
-        
-        return self.round_time_to_nearest_quarter_hour(minute_total)
     
     def get_minutes_total_exclude_travel_time(self) -> int:
         """Calculate total minutes excluding travel time"""
@@ -120,56 +102,7 @@ class DailyTimeCalculator(TimeCalculator):
                 return -1  # Miss punch detected
         
         return self.round_time_to_nearest_quarter_hour(minute_total)
-    
-    def _group_record_pairs(self, record_pairs: List[RecordPair]) -> List[List[RecordPair]]:
-        """Group record pairs based on time gaps (similar to Java implementation)"""
-        if not record_pairs:
-            return []
         
-        # Sort pairs by time
-        sorted_pairs = sorted(record_pairs, key=lambda p: p.check_in.timestamp if p.check_in else p.check_out.timestamp)
-        
-        all_groups = []
-        current_group = [sorted_pairs[0]]
-        
-        for i in range(1, len(sorted_pairs)):
-            prev_pair = sorted_pairs[i-1]
-            current_pair = sorted_pairs[i]
-            
-            # Calculate time gap
-            if prev_pair.check_out and current_pair.check_in:
-                gap_minutes = (current_pair.check_in.timestamp - prev_pair.check_out.timestamp).total_seconds() / 60
-                
-                if gap_minutes > TRAVEL_TIME_MAX_MINUTES:
-                    # Start new group
-                    all_groups.append(current_group)
-                    current_group = [current_pair]
-                else:
-                    current_group.append(current_pair)
-            else:
-                current_group.append(current_pair)
-        
-        all_groups.append(current_group)
-        return all_groups
-    
-    def _get_minutes_per_record_pair_group(self, group: List[RecordPair]) -> int:
-        """Calculate minutes for a group of record pairs with travel time"""
-        if not group:
-            return 0
-        
-        # Check for miss punches
-        for pair in group:
-            if pair.is_miss_punch:
-                return -1
-        
-        # Find overall start and end times for the group
-        start_time = min(pair.check_in.timestamp for pair in group if pair.check_in)
-        end_time = max(pair.check_out.timestamp for pair in group if pair.check_out)
-        
-        duration = end_time - start_time
-        return int(duration.total_seconds() / 60)
-
-
 class WeeklyTimeCalculator(TimeCalculator):
     """Calculate weekly regular and overtime hours"""
     
@@ -178,28 +111,17 @@ class WeeklyTimeCalculator(TimeCalculator):
         self.total_minutes = 0
         self.regular_minutes = 0
         self.overtime_minutes = 0
-        self.include_travel_time = True  # Default setting
     
     def add_daily_calculator(self, daily_calc: DailyTimeCalculator):
         """Add a daily time calculator to the weekly calculation"""
         self.daily_calculators.append(daily_calc)
-    
-    def set_include_travel_time(self, include: bool):
-        """Set whether to include travel time in calculations"""
-        self.include_travel_time = include
     
     def calculate_time(self):
         """Calculate weekly totals with regular and overtime split"""
         self.total_minutes = 0
         
         for daily_calc in self.daily_calculators:
-            if self.include_travel_time:
-                daily_minutes = daily_calc.get_minutes_total_include_travel_time()
-            else:
-                daily_minutes = daily_calc.get_minutes_total_exclude_travel_time()
-            
-            if daily_minutes > 0:
-                self.total_minutes += daily_minutes
+            daily_minutes = daily_calc.get_minutes_total_exclude_travel_time()
         
         # Calculate regular and overtime
         if self.total_minutes > MAX_REGULAR_TIME_MINUTES:
@@ -223,7 +145,6 @@ class WeeklyTimeCalculator(TimeCalculator):
     def overtime_hours(self) -> float:
         """Get overtime hours as decimal"""
         return self.overtime_minutes / 60.0
-
 
 class RecordPairBuilder:
     """Build record pairs from attendance records"""
@@ -274,12 +195,11 @@ class RecordPairBuilder:
         
         return pairs
 
-
 class WorkingHoursCalculator:
     """Main calculator for employee working hours"""
     
-    def __init__(self, include_travel_time: bool = True):
-        self.include_travel_time = include_travel_time
+    def __init__(self):
+        pass
     
     @log_database_operations('working_hours_calculation')
     def calculate_employee_hours(self, employee_id: str, start_date: datetime, end_date: datetime, 
@@ -353,10 +273,7 @@ class WorkingHoursCalculator:
                         daily_calc.add_record_pair(pair)
                 
                 # Calculate daily totals
-                if self.include_travel_time:
-                    total_minutes = daily_calc.get_minutes_total_include_travel_time()
-                else:
-                    total_minutes = daily_calc.get_minutes_total_exclude_travel_time()
+                total_minutes = daily_calc.get_minutes_total_exclude_travel_time()
                 
                 daily_hours[date_key] = {
                     'total_minutes': total_minutes,
@@ -368,7 +285,6 @@ class WorkingHoursCalculator:
                 # Add to weekly calculator (group by week)
                 if current_date.weekday() == 0:  # Monday - start new week
                     weekly_calc = WeeklyTimeCalculator()
-                    weekly_calc.set_include_travel_time(self.include_travel_time)
                     weekly_calculators.append(weekly_calc)
                 
                 if weekly_calculators:
@@ -398,7 +314,6 @@ class WorkingHoursCalculator:
                 'employee_id': employee_id,
                 'start_date': start_date.strftime('%Y-%m-%d'),
                 'end_date': end_date.strftime('%Y-%m-%d'),
-                'include_travel_time': self.include_travel_time,
                 'daily_hours': daily_hours,
                 'weekly_hours': weekly_hours,
                 'grand_totals': {
@@ -435,7 +350,6 @@ class WorkingHoursCalculator:
                 'calculation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'period_start': start_date.strftime('%Y-%m-%d'),
                 'period_end': end_date.strftime('%Y-%m-%d'),
-                'include_travel_time': self.include_travel_time,
                 'employee_count': len(employee_ids),
                 'employees': results
             }
