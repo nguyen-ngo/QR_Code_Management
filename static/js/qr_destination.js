@@ -144,6 +144,24 @@ function handleFormSubmit(event) {
     return;
   }
 
+  // STEP 1: Check Location Services FIRST
+  console.log("🔍 Step 1: Validating Location Services...");
+  
+  checkLocationServicesStatus()
+    .then(() => {
+      // Location services are working, proceed with check-in
+      console.log("✅ Location Services validated successfully");
+      proceedWithCheckin();
+    })
+    .catch((error) => {
+      // Location services are not working, block check-in
+      console.log("❌ Location Services validation failed:", error);
+      showLocationServicesBlockedMessage();
+      return;
+    });
+}
+
+function proceedWithCheckin() {
   const employeeId = document.getElementById("employee_id")?.value?.trim();
 
   if (!employeeId) {
@@ -164,6 +182,21 @@ function handleFormSubmit(event) {
 
   // Submit the check-in
   submitCheckin();
+}
+
+/**
+ * Show message when check-in is blocked due to location services
+ */
+function showLocationServicesBlockedMessage() {
+  const messages = {
+    en: "Check-in blocked: Location Services must be enabled to continue.",
+    es: "Registro bloqueado: Los Servicios de Ubicación deben estar habilitados para continuar."
+  };
+  
+  const currentLang = currentLanguage || "en";
+  const message = messages[currentLang];
+  
+  showCustomStatusMessage(message, "error");
 }
 
 // ENHANCED CHECK-IN SUBMISSION WITH MULTIPLE CHECK-IN SUPPORT
@@ -713,45 +746,107 @@ function checkLocationServicesStatus() {
   // Check if geolocation is supported
   if (!navigator.geolocation) {
     showLocationServicesWarning("not_supported");
-    return;
+    blockCheckInProcess(true);
+    return Promise.reject("Location services not supported");
   }
 
-  // Test location access with a quick check
-  const timeoutId = setTimeout(() => {
-    showLocationServicesWarning("timeout");
-  }, 3000); // 3 second timeout
+  return new Promise((resolve, reject) => {
+    // Test location access with a quick check
+    const timeoutId = setTimeout(() => {
+      showLocationServicesWarning("timeout");
+      blockCheckInProcess(true);
+      reject("Location services timeout");
+    }, 5000); // 5 second timeout
 
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      // Success - location services are working
-      clearTimeout(timeoutId);
-      hideLocationServicesWarning();
-    },
-    (error) => {
-      // Error - location services may be disabled
-      clearTimeout(timeoutId);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        // Success - location services are working
+        clearTimeout(timeoutId);
+        hideLocationServicesWarning();
+        blockCheckInProcess(false);
+        
+        // Log successful location access
+        console.log("✅ Location Services: ENABLED and working");
+        
+        resolve(position);
+      },
+      (error) => {
+        // Error - location services may be disabled
+        clearTimeout(timeoutId);
+        blockCheckInProcess(true);
 
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          showLocationServicesWarning("permission_denied");
-          break;
-        case error.POSITION_UNAVAILABLE:
-          showLocationServicesWarning("position_unavailable");
-          break;
-        case error.TIMEOUT:
-          showLocationServicesWarning("timeout");
-          break;
-        default:
-          showLocationServicesWarning("unknown_error");
-          break;
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            showLocationServicesWarning("permission_denied");
+            console.log("❌ Location Services: PERMISSION DENIED");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            showLocationServicesWarning("position_unavailable");
+            console.log("❌ Location Services: POSITION UNAVAILABLE");
+            break;
+          case error.TIMEOUT:
+            showLocationServicesWarning("timeout");
+            console.log("❌ Location Services: TIMEOUT");
+            break;
+          default:
+            showLocationServicesWarning("unknown_error");
+            console.log("❌ Location Services: UNKNOWN ERROR");
+            break;
+        }
+        
+        reject(error);
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 30000,
       }
-    },
-    {
-      enableHighAccuracy: false,
-      timeout: 2500,
-      maximumAge: 60000,
+    );
+  });
+}
+
+function blockCheckInProcess(shouldBlock) {
+  const submitButton = document.getElementById("submitCheckin");
+  const employeeIdInput = document.getElementById("employee_id");
+  const form = document.getElementById("checkinForm");
+  
+  if (shouldBlock) {
+    // Block check-in process
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.style.opacity = "0.5";
+      submitButton.style.cursor = "not-allowed";
     }
-  );
+    
+    if (employeeIdInput) {
+      employeeIdInput.disabled = true;
+      employeeIdInput.style.opacity = "0.7";
+    }
+    
+    if (form) {
+      form.classList.add("location-blocked");
+    }
+    
+    console.log("🚫 Check-in process BLOCKED - Location Services required");
+  } else {
+    // Unblock check-in process
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.style.opacity = "1";
+      submitButton.style.cursor = "pointer";
+    }
+    
+    if (employeeIdInput) {
+      employeeIdInput.disabled = false;
+      employeeIdInput.style.opacity = "1";
+    }
+    
+    if (form) {
+      form.classList.remove("location-blocked");
+    }
+    
+    console.log("✅ Check-in process UNBLOCKED - Location Services working");
+  }
 }
 
 /**
@@ -762,31 +857,31 @@ function showLocationServicesWarning(errorType) {
   hideLocationServicesWarning();
 
   const warningMessages = {
-    en: {
-      not_supported:
-        "Location services are not supported by your browser.<br>Los servicios de ubicación no son compatibles con su navegador.",
-      permission_denied:
-        "Location access has been denied. Please enable location services for accurate check-in.<br>Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
-      position_unavailable:
-        "Location services appear to be disabled. Please turn on location services for accurate check-in.<br>Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
-      timeout:
-        "Location services may be disabled. Please check your location settings for accurate check-in.<br>Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
-      unknown_error:
-        "Unable to access location services. Please check your location settings.<br>No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación.",
-    },
-    es: {
-      not_supported:
-        "Los servicios de ubicación no son compatibles con su navegador.",
-      permission_denied:
-        "Se ha denegado el acceso a la ubicación. Habilite los servicios de ubicación para un registro preciso.",
-      position_unavailable:
-        "Los servicios de ubicación parecen estar deshabilitados. Active los servicios de ubicación para un registro preciso.",
-      timeout:
-        "Los servicios de ubicación pueden estar deshabilitados. Verifique su configuración de ubicación para un registro preciso.",
-      unknown_error:
-        "No se puede acceder a los servicios de ubicación. Verifique su configuración de ubicación.",
-    },
-  };
+  en: {
+    not_supported:
+      "⚠️ Location Services Not Supported<br><strong>Check-in is currently blocked.</strong><br>Your browser does not support location services required for check-in.<br><br>Los servicios de ubicación no son compatibles. El registro está bloqueado.",
+    permission_denied:
+      "⚠️ Location Access Denied<br><strong>Check-in is currently blocked.</strong><br>Please enable location access in your browser settings to continue with check-in.<br><br>Acceso a ubicación denegado. Habilite el acceso para continuar.",
+    position_unavailable:
+      "⚠️ Location Services Disabled<br><strong>Check-in is currently blocked.</strong><br>Please turn on Location Services in your device settings and refresh the page.<br><br>Servicios de ubicación deshabilitados. Active los servicios y actualice la página.",
+    timeout:
+      "⚠️ Location Services Not Responding<br><strong>Check-in is currently blocked.</strong><br>Location services may be disabled. Please check your device settings.<br><br>Los servicios de ubicación no responden. Verifique la configuración.",
+    unknown_error:
+      "⚠️ Location Services Error<br><strong>Check-in is currently blocked.</strong><br>Unable to access location services. Please check your settings and try again.<br><br>Error de servicios de ubicación. Verifique la configuración.",
+  },
+  es: {
+    not_supported:
+      "⚠️ Servicios de Ubicación No Compatibles<br><strong>El registro está bloqueado.</strong><br>Su navegador no es compatible con los servicios de ubicación requeridos.",
+    permission_denied:
+      "⚠️ Acceso a Ubicación Denegado<br><strong>El registro está bloqueado.</strong><br>Habilite el acceso a la ubicación en la configuración de su navegador.",
+    position_unavailable:
+      "⚠️ Servicios de Ubicación Deshabilitados<br><strong>El registro está bloqueado.</strong><br>Active los Servicios de Ubicación en la configuración y actualice la página.",
+    timeout:
+      "⚠️ Servicios de Ubicación No Responden<br><strong>El registro está bloqueado.</strong><br>Los servicios pueden estar deshabilitados. Verifique la configuración.",
+    unknown_error:
+      "⚠️ Error de Servicios de Ubicación<br><strong>El registro está bloqueado.</strong><br>No se puede acceder a los servicios. Verifique la configuración.",
+  },
+};
 
   const currentLang = currentLanguage || "en";
   const message =
@@ -841,20 +936,17 @@ function hideLocationServicesWarning() {
  * Add this to your existing initialization
  */
 function initializeLocationServicesCheck() {
-  // Check location services status when page loads
+  // Check location services status when page loads and block if necessary
   setTimeout(() => {
-    checkLocationServicesStatus();
+    console.log("🔍 Initializing Location Services check...");
+    checkLocationServicesStatus()
+      .then(() => {
+        console.log("✅ Initial Location Services check passed");
+      })
+      .catch(() => {
+        console.log("❌ Initial Location Services check failed - Check-in blocked");
+      });
   }, 1000); // Small delay to ensure page is fully loaded
 
-  // Also check before form submission
-  const originalHandleFormSubmit = handleFormSubmit;
-  window.handleFormSubmit = function (event) {
-    // Quick location check before submission
-    checkLocationServicesStatus();
-
-    // Continue with original form submission after brief delay
-    setTimeout(() => {
-      originalHandleFormSubmit.call(this, event);
-    }, 500);
-  };
+  // Remove the override of handleFormSubmit since we've updated it directly
 }
