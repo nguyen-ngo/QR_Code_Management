@@ -459,7 +459,7 @@ function editRecord(recordId) {
   // Check permissions before allowing edit
   if (!hasEditPermission) {
     alert(
-      "Access denied. Only administrators and payroll staff can edit attendance records."
+      "Access denied. Only administrators can edit attendance records."
     );
     return;
   }
@@ -476,7 +476,7 @@ function deleteRecord(recordId, employeeId) {
   // Check permissions before allowing delete
   if (!hasEditPermission) {
     alert(
-      "Access denied. Only administrators and payroll staff can delete attendance records."
+      "Access denied. Only administrators can delete attendance records."
     );
     return;
   }
@@ -864,7 +864,7 @@ function createTableRow(record, displayIndex) {
                 </button>
                 `
                     : `
-                <span class="text-muted" title="Admin or Payroll access required">
+                <span class="text-muted" title="Admin access required">
                     <i class="fas fa-lock"></i>
                 </span>
                 `

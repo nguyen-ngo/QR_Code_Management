@@ -293,7 +293,7 @@
                         </td>
                         <td>
                             <div class="record-actions">
-                                {% if session.role in ['admin', 'payroll'] %}
+                                {% if session.role in ['admin'] %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
@@ -305,7 +305,7 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                                 {% else %}
-                                <span class="text-muted" title="Admin or Payroll access required">
+                                <span class="text-muted" title="Admin access required">
                                     <i class="fas fa-lock"></i>
                                 </span>
                                 {% endif %}
@@ -393,7 +393,7 @@
 <script>
 // Template variables (processed by Flask)
 const userRole = '{{ session.role }}';
-const hasEditPermission = ['admin', 'payroll'].includes(userRole);
+const hasEditPermission = ['admin'].includes(userRole);
 
 // Enhanced JavaScript for new functionality
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
@@ -524,7 +524,7 @@ function editRecord(recordId) {
     
     // Check permissions before allowing edit
     if (!hasEditPermission) {
-        alert('Access denied. Only administrators and payroll staff can edit attendance records.');
+        alert('Access denied. Only administrators can edit attendance records.');
         return;
     }
     
@@ -539,7 +539,7 @@ function deleteRecord(recordId, employeeId) {
     
     // Check permissions before allowing delete
     if (!hasEditPermission) {
-        alert('Access denied. Only administrators and payroll staff can delete attendance records.');
+        alert('Access denied. Only administrators and can delete attendance records.');
         return;
     }
     
@@ -598,7 +598,7 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Force update buttons on page load for admin/payroll users
+// Force update buttons on page load for admin users
 document.addEventListener('DOMContentLoaded', function() {
         
     if (hasEditPermission) {
@@ -628,7 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
             }
         });
-        console.log('✅ Admin/Payroll edit/delete buttons have been activated');
+        console.log('✅ Admin edit/delete buttons have been activated');
     }
 });
 window.userRole = '{{ session.role }}';
