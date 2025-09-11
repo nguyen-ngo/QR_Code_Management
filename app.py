@@ -14,6 +14,7 @@ from logger_handler import AppLogger, log_user_activity, log_database_operations
 
 from single_checkin_calculator import SingleCheckInCalculator
 from payroll_excel_exporter import PayrollExcelExporter
+from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 
 # Load environment variables in .env
 load_dotenv()
@@ -5182,7 +5183,7 @@ def payroll_dashboard():
 @login_required
 @log_database_operations('payroll_excel_export')
 def export_payroll_excel():
-    """Export payroll report to Excel with working hours calculations"""
+    """Export payroll report to Excel with working hours calculations including SP/PW support"""
     try:
         # Check permissions
         user_role = session.get('role')
@@ -5197,7 +5198,7 @@ def export_payroll_excel():
         date_from = request.form.get('date_from')
         date_to = request.form.get('date_to')
         project_filter = request.form.get('project_filter', '')
-        report_type = request.form.get('report_type', 'payroll')  # 'payroll' or 'detailed'
+        report_type = request.form.get('report_type', 'payroll')  # 'payroll', 'detailed', 'template', 'enhanced', 'detailed_sp_pw'
 
         if not date_from or not date_to:
             flash('Please provide both start and end dates for the export.', 'error')
@@ -5243,12 +5244,6 @@ def export_payroll_excel():
 
         print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
 
-        # Create Excel exporter
-        exporter = PayrollExcelExporter(
-            company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-            contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
-        )
-
         # Get employee names using the same method as dashboard
         employee_names = {}
         try:
@@ -5277,47 +5272,118 @@ def export_payroll_excel():
             import traceback
             print(f"⚠️ Traceback: {traceback.format_exc()}")
 
-        # Generate Excel file with employee names
-        if report_type == 'detailed':
-            excel_file = exporter.create_detailed_hours_report(
-                start_date, end_date, attendance_records, employee_names
-            )
-            filename_prefix = 'detailed_hours_report'
-        elif report_type == 'template':
-            # Get project name for the template
-            project_name = None
-            if project_filter:
-                try:
-                    project = Project.query.get(int(project_filter))
-                    if project:
-                        project_name = project.name
-                except Exception as e:
-                    print(f"⚠️ Error getting project name for template: {e}")
-
-            excel_file = exporter.create_template_format_report(
-                start_date, end_date, attendance_records, employee_names, project_name
-            )
-            filename_prefix = 'time_attendance_report'
-        else:
-            excel_file = exporter.create_payroll_report(
-                start_date, end_date, attendance_records, employee_names
-            )
-            filename_prefix = 'payroll_report'
-
-        # Get project name for filename
-        project_name = ''
+        # Get project name for enhanced reports and filename
+        project_name = None
+        project_name_for_filename = ''
         if project_filter:
             try:
                 project = Project.query.get(int(project_filter))
                 if project:
-                    project_name = f"_{project.name.replace(' ', '_')}"
+                    project_name = project.name
+                    project_name_for_filename = f"_{project.name.replace(' ', '_')}"
             except Exception as e:
-                print(f"⚠️ Error getting project name for filename: {e}")
+                print(f"⚠️ Error getting project name: {e}")
+
+        # Generate Excel file based on report type
+        excel_file = None
+        filename_prefix = 'payroll_report'
+
+        if report_type == 'enhanced':
+            # Use enhanced exporter for SP/PW reports
+            print("📊 Creating enhanced payroll report with SP/PW support")
+            try:
+                from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
+                exporter = EnhancedPayrollExcelExporter(company_name=os.environ.get('COMPANY_NAME', 'Your Company'))
+                excel_file = exporter.create_enhanced_payroll_report(
+                    start_date, end_date, attendance_records, employee_names, project_name
+                )
+                filename_prefix = 'enhanced_payroll_report'
+                print("✅ Enhanced payroll report created successfully")
+            except ImportError:
+                print("⚠️ Enhanced exporter not available, falling back to standard exporter")
+                # Fall back to standard exporter
+                exporter = PayrollExcelExporter(
+                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                )
+                excel_file = exporter.create_payroll_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'payroll_report'
+            except Exception as e:
+                print(f"⚠️ Error with enhanced exporter: {e}, falling back to standard exporter")
+                # Fall back to standard exporter
+                exporter = PayrollExcelExporter(
+                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                )
+                excel_file = exporter.create_payroll_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'payroll_report'
+
+        elif report_type == 'detailed_sp_pw':
+            # Detailed daily SP/PW breakdown
+            print("📊 Creating detailed SP/PW daily breakdown report")
+            try:
+                from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
+                exporter = EnhancedPayrollExcelExporter(company_name=os.environ.get('COMPANY_NAME', 'Your Company'))
+                excel_file = exporter.create_detailed_sp_pw_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'detailed_sp_pw_report'
+                print("✅ Detailed SP/PW report created successfully")
+            except ImportError:
+                print("⚠️ Enhanced exporter not available, falling back to detailed hours report")
+                # Fall back to standard detailed report
+                exporter = PayrollExcelExporter(
+                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                )
+                excel_file = exporter.create_detailed_hours_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'detailed_hours_report'
+            except Exception as e:
+                print(f"⚠️ Error with enhanced exporter: {e}, falling back to detailed hours report")
+                # Fall back to standard detailed report
+                exporter = PayrollExcelExporter(
+                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                )
+                excel_file = exporter.create_detailed_hours_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'detailed_hours_report'
+
+        else:
+            # Use standard exporter for existing report types
+            exporter = PayrollExcelExporter(
+                company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
+                contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+            )
+
+            if report_type == 'detailed':
+                excel_file = exporter.create_detailed_hours_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'detailed_hours_report'
+            elif report_type == 'template':
+                excel_file = exporter.create_template_format_report(
+                    start_date, end_date, attendance_records, employee_names, project_name
+                )
+                filename_prefix = 'time_attendance_report'
+            else:
+                # Default payroll report
+                excel_file = exporter.create_payroll_report(
+                    start_date, end_date, attendance_records, employee_names
+                )
+                filename_prefix = 'payroll_report'
 
         if excel_file:
             # Generate filename with timestamp and project name
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name}_{timestamp}.xlsx'
+            filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name_for_filename}_{timestamp}.xlsx'
 
             print(f"📊 Payroll Excel file generated successfully: {filename}")
 
@@ -5325,6 +5391,10 @@ def export_payroll_excel():
             logger_handler.logger.info(f"Payroll Excel export generated by user {session.get('username', 'unknown')}: {filename}")
             if report_type == 'template':
                 logger_handler.logger.info(f"Template format hours export generated by user {session.get('username', 'unknown')}: {filename}")
+            elif report_type == 'enhanced':
+                logger_handler.logger.info(f"Enhanced payroll export with SP/PW generated by user {session.get('username', 'unknown')}: {filename}")
+            elif report_type == 'detailed_sp_pw':
+                logger_handler.logger.info(f"Detailed SP/PW breakdown export generated by user {session.get('username', 'unknown')}: {filename}")
 
             return send_file(
                 excel_file,

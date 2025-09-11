@@ -141,6 +141,18 @@
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     }
 
+    .hours-sp {
+        background: #e6f3ff !important;
+        color: #0066cc !important;
+        border: 1px solid #b3d9ff;
+    }
+
+    .hours-pw {
+        background: #fff2e6 !important;
+        color: #cc6600 !important;
+        border: 1px solid #ffcc99;
+    }
+
     .summary-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -709,6 +721,14 @@
                 <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.overtime_hours') | sum) }}</h3>
                 <p>Overtime Hours</p>
             </div>
+            <div class="summary-card">
+                <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.sp_hours') | sum) }}</h3>
+                <p>SP Hours</p>
+            </div>
+            <div class="summary-card">
+                <h3>{{ "%.1f"|format(working_hours_data.employees.values() | map(attribute='grand_totals.pw_hours') | sum) }}</h3>
+                <p>PW Hours</p>
+            </div>
         </div>
 
         <!-- Employee Details Table -->
@@ -721,6 +741,8 @@
                         <th>Total Hours</th>
                         <th>Regular Hours</th>
                         <th>Overtime Hours</th>
+                        <th>SP Hours</th>
+                        <th>PW Hours</th>
                         <th>Working Days</th>
                         <th>Status</th>
                     </tr>
@@ -744,6 +766,28 @@
                             {% if emp_data.grand_totals.overtime_hours > 0 %}
                             <span class="hours-badge hours-overtime">
                                 {{ "%.2f"|format(emp_data.grand_totals.overtime_hours) }} hrs
+                            </span>
+                            {% else %}
+                            <span class="hours-badge" style="background: #f0f0f0; color: #666;">
+                                0.00 hrs
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if emp_data.grand_totals.sp_hours > 0 %}
+                            <span class="hours-badge hours-sp" style="background: #e6f3ff; color: #0066cc;">
+                                {{ "%.2f"|format(emp_data.grand_totals.sp_hours) }} hrs
+                            </span>
+                            {% else %}
+                            <span class="hours-badge" style="background: #f0f0f0; color: #666;">
+                                0.00 hrs
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if emp_data.grand_totals.pw_hours > 0 %}
+                            <span class="hours-badge hours-pw" style="background: #fff2e6; color: #cc6600;">
+                                {{ "%.2f"|format(emp_data.grand_totals.pw_hours) }} hrs
                             </span>
                             {% else %}
                             <span class="hours-badge" style="background: #f0f0f0; color: #666;">
@@ -808,6 +852,29 @@
                     Export Time Attendance
                 </button>
             </form>
+        <!--
+            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="project_filter" value="{{ project_filter }}">
+                <input type="hidden" name="report_type" value="enhanced">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-file-excel"></i>
+                    Export Enhanced Payroll (SP/PW)
+                </button>
+            </form>
+
+            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+                <input type="hidden" name="date_from" value="{{ date_from }}">
+                <input type="hidden" name="date_to" value="{{ date_to }}">
+                <input type="hidden" name="project_filter" value="{{ project_filter }}">
+                <input type="hidden" name="report_type" value="detailed_sp_pw">
+                <button type="submit" class="btn btn-info">
+                    <i class="fas fa-list-alt"></i>
+                    Export Daily SP/PW Breakdown
+                </button>
+            </form>
+        -->
         </div>
 
         <div style="margin-top: 1rem; padding: 1rem; background: #f7fafc; border-radius: 8px; color: #4a5568; font-size: 0.9rem;">
