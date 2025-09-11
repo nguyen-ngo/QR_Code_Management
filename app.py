@@ -5516,7 +5516,7 @@ def get_miss_punch_details(employee_id):
             converted_records.append(converted_record)
 
         # Calculate working hours using the same calculator as the dashboard
-        from single_checkin_calculator import SingleCheckInCalculator
+        # from single_checkin_calculator import SingleCheckInCalculator
         calculator = SingleCheckInCalculator()
 
         # Calculate hours for this employee

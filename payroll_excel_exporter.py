@@ -700,9 +700,9 @@ class PayrollExcelExporter:
         return current_row
 
     def _write_employee_section(self, worksheet, employee_id: str, employee_name: str, 
-                        emp_data: Dict, start_date: datetime, end_date: datetime,
-                        attendance_records: List[Dict], start_row: int) -> int:
-        """Write individual employee section with multiple pairs per day, daily totals, weekly totals, and grand total"""
+                    emp_data: Dict, start_date: datetime, end_date: datetime,
+                    attendance_records: List[Dict], start_row: int) -> int:
+        """Write individual employee section with FIXED WEEKLY OVERTIME CALCULATION"""
         current_row = start_row
         
         # Employee info header (merged across columns A-O)
@@ -746,12 +746,10 @@ class PayrollExcelExporter:
                     day_info['location'] = sorted_records[0].qr_code.location or ''
                     day_info['building_address'] = sorted_records[0].qr_code.location_address or ''
         
-        # Initialize weekly totals tracking
-        weekly_regular_hours = 0
-        weekly_ot_hours = 0
+        # FIXED: Initialize ALL weekly totals tracking variables
         weekly_total_hours = 0
         
-        # Track overall totals for grand total
+        # Track overall totals for grand total  
         grand_regular_hours = 0
         grand_ot_hours = 0
         grand_total_hours = 0
@@ -759,6 +757,9 @@ class PayrollExcelExporter:
         
         # Track week boundaries (assuming payroll period starts on Monday)
         current_week_start = None
+        
+        # Log the overtime calculation change
+        print(f"🔧 FIXED: Using weekly overtime calculation (40 hrs/week) for employee {employee_id}")
         
         # Write data rows using the calculated daily hours from emp_data
         for date_str in sorted(emp_data['daily_hours'].keys()):
@@ -780,30 +781,33 @@ class PayrollExcelExporter:
             # Calculate week boundaries
             week_start = date_obj - timedelta(days=date_obj.weekday())  # Monday of the week
             
-            # Check if we've moved to a new week and need to write weekly total
+            # FIXED: Check if we've moved to a new week and need to write weekly total
             if current_week_start is not None and week_start != current_week_start:
+                # Calculate weekly overtime using 40-hour threshold
+                week_regular = min(weekly_total_hours, 40.0)
+                week_overtime = max(0, weekly_total_hours - 40.0)
+                
                 # Write weekly total row for previous week
                 current_row = self._write_weekly_total_row(worksheet, current_row, 
-                                                        weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
+                                                        week_regular, week_overtime, weekly_total_hours)
+                
+                # Add to grand totals
+                grand_regular_hours += week_regular
+                grand_ot_hours += week_overtime
                 
                 # Reset weekly counters
-                weekly_regular_hours = 0
-                weekly_ot_hours = 0
                 weekly_total_hours = 0
             
             current_week_start = week_start
             
             total_hours = day_hours_data.get('total_hours', 0)
-            regular_hours = min(total_hours, 8.0)  # Max 8 regular hours per day
-            ot_hours = max(0, total_hours - 8.0)
             
-            # Add to weekly and grand totals
-            weekly_regular_hours += regular_hours
-            weekly_ot_hours += ot_hours
+            # FIXED: Remove daily overtime calculation - now calculated weekly only
+            # OLD CODE: regular_hours = min(total_hours, 8.0)  # Max 8 regular hours per day
+            # OLD CODE: ot_hours = max(0, total_hours - 8.0)
+            
+            # Add to weekly totals (no daily overtime calculation)
             weekly_total_hours += total_hours
-            
-            grand_regular_hours += regular_hours
-            grand_ot_hours += ot_hours
             grand_total_hours += total_hours
             
             # Get location info for this date
@@ -829,10 +833,11 @@ class PayrollExcelExporter:
                         start_record = day_records[i]
                         end_record = day_records[i + 1]
                         
+                        # FIXED: Pass total_hours without daily overtime split
                         current_row = self._write_record_pair_row(
                             worksheet, current_row, date_obj, start_record, end_record,
-                            location, building_address, total_hours, regular_hours, ot_hours,
-                            pairs_written, total_hours, total_pairs_for_day  # Add total_pairs parameter
+                            location, building_address, total_hours, 0, 0,  # No daily regular/ot split
+                            pairs_written, total_hours, total_pairs_for_day
                         )
                         pairs_written += 1
                         total_pairs_written += 1  # Track total pairs
@@ -841,13 +846,19 @@ class PayrollExcelExporter:
                 start_record = day_records[0] if day_records else None
                 current_row = self._write_single_record_row(
                     worksheet, current_row, date_obj, start_record,
-                    location, building_address, total_hours, regular_hours, ot_hours
+                    location, building_address, total_hours, 0, 0  # No daily regular/ot split
                 )
         
-        # Write final weekly total if we have data
+        # FIXED: Write final weekly total with proper weekly overtime calculation
         if weekly_total_hours > 0:
+            week_regular = min(weekly_total_hours, 40.0)
+            week_overtime = max(0, weekly_total_hours - 40.0)
             current_row = self._write_weekly_total_row(worksheet, current_row, 
-                                                    weekly_regular_hours, weekly_ot_hours, weekly_total_hours)
+                                                    week_regular, week_overtime, weekly_total_hours)
+            
+            # Add final week to grand totals
+            grand_regular_hours += week_regular
+            grand_ot_hours += week_overtime
         
         # Write grand total row
         current_row = self._write_grand_total_row(worksheet, current_row, 
@@ -856,8 +867,9 @@ class PayrollExcelExporter:
         # Add space between employees
         current_row += 2
         
-        # Log the export action (use print for now since logger_handler import is complex)
-        print(f"✅ Template format export: Employee {employee_id} ({employee_name}) data written with {total_pairs_written} record pairs, weekly totals, and grand total")
+        # Log the export action with fixed overtime calculation
+        print(f"✅ FIXED Template format export: Employee {employee_id} ({employee_name}) data written with weekly overtime calculation (40 hrs/week)")
+        print(f"📊 Total: {grand_total_hours:.2f} hrs, Regular: {grand_regular_hours:.2f} hrs, Overtime: {grand_ot_hours:.2f} hrs")
         
         return current_row
 
@@ -936,8 +948,8 @@ class PayrollExcelExporter:
             "",                         # F - Zone (empty)
             pair_hours,                 # G - Hours/Building
             daily_total_display,        # H - Daily Total (only on last pair)
-            regular_hours if is_last_pair else "",  # I - Regular Hours (only on last pair)
-            ot_hours if is_last_pair else "",       # J - OT Hours (only on last pair)
+            "",  # I - Regular Hours (only on last pair)
+            "",  # J - OT Hours (only on last pair)
             building_address_display,   # K - Building Address
             recorded_location_display,  # L - Recorded Location  
             distance_value,             # M - Distance
@@ -1002,8 +1014,8 @@ class PayrollExcelExporter:
             "",                 # F - Zone
             total_hours,        # G - Hours/Building
             total_hours,        # H - Daily Total
-            regular_hours,      # I - Regular Hours
-            ot_hours,          # J - OT Hours
+            "",      # I - Regular Hours
+            "",      # J - OT Hours
             building_address,   # K - Building Address
             recorded_location,  # L - Recorded Location
             distance_value,     # M - Distance
