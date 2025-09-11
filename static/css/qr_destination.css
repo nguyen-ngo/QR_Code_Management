@@ -845,6 +845,7 @@ body {
     --gray-900: #0f172a !important;
 }
 
+/* Location Services Warning Banner */
 .location-warning-banner {
   background: linear-gradient(135deg, #ff6b6b, #ee5a24);
   color: white;
@@ -908,8 +909,9 @@ body {
 /* Blocked Form Styling */
 .location-blocked {
   opacity: 0.6;
-  pointer-events: none;
+  pointer-events: none !important;
   position: relative;
+  user-select: none;
 }
 
 .location-blocked::before {
@@ -922,6 +924,28 @@ body {
   background: rgba(255, 107, 107, 0.1);
   border-radius: 8px;
   z-index: 1;
+  pointer-events: none;
+}
+
+/* Specifically block submit buttons when location is blocked */
+button[data-location-blocked="true"],
+input[data-location-blocked="true"] {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+  background-color: #ccc !important;
+  border-color: #999 !important;
+}
+
+/* Override any hover effects on blocked elements */
+button[data-location-blocked="true"]:hover,
+button[data-location-blocked="true"]:focus,
+button[data-location-blocked="true"]:active {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+  transform: none !important;
+  background-color: #ccc !important;
 }
 
 /* Animation for warning banner */

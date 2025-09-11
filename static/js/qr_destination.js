@@ -139,9 +139,17 @@ function initializeForm() {
 
 function handleFormSubmit(event) {
   event.preventDefault();
+  event.stopPropagation();
+
+  // CRITICAL: Check if location services are blocked
+  if (window.locationServicesBlocked === true) {
+    console.log("🚫 Form submission blocked - Location Services not enabled");
+    showLocationServicesBlockedMessage();
+    return false;
+  }
 
   if (isSubmitting) {
-    return;
+    return false;
   }
 
   // STEP 1: Check Location Services FIRST
@@ -157,11 +165,23 @@ function handleFormSubmit(event) {
       // Location services are not working, block check-in
       console.log("❌ Location Services validation failed:", error);
       showLocationServicesBlockedMessage();
-      return;
+      return false;
     });
+  
+  return false;
 }
 
+/**
+ * Proceed with the actual check-in process after location validation
+ */
 function proceedWithCheckin() {
+  // Double-check location services are not blocked
+  if (window.locationServicesBlocked === true) {
+    console.log("🚫 Check-in blocked - Location Services not enabled");
+    showLocationServicesBlockedMessage();
+    return;
+  }
+
   const employeeId = document.getElementById("employee_id")?.value?.trim();
 
   if (!employeeId) {
@@ -806,43 +826,117 @@ function checkLocationServicesStatus() {
 }
 
 function blockCheckInProcess(shouldBlock) {
-  const submitButton = document.getElementById("submitCheckin");
+  // Try multiple possible submit button IDs from your codebase
+  const submitButton = document.getElementById("submitCheckin") || 
+                      document.getElementById("submitButton") ||
+                      document.querySelector('button[type="submit"]') ||
+                      document.querySelector('.btn-primary');
+                      
   const employeeIdInput = document.getElementById("employee_id");
   const form = document.getElementById("checkinForm");
   
   if (shouldBlock) {
+    // Set global blocking flag FIRST
+    window.locationServicesBlocked = true;
+    
     // Block check-in process
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.style.opacity = "0.5";
       submitButton.style.cursor = "not-allowed";
+      submitButton.style.pointerEvents = "none";
+      
+      // Add data attribute to track blocking state
+      submitButton.setAttribute('data-location-blocked', 'true');
+      
+      // Store original button content
+      if (!submitButton.getAttribute('data-original-content')) {
+        submitButton.setAttribute('data-original-content', submitButton.innerHTML);
+      }
+      
+      // Update button text to show it's blocked
+      submitButton.innerHTML = `
+        <i class="fas fa-lock"></i>
+        <span>Location Required / Ubicación Requerida</span>
+      `;
+      
+      // Remove all event listeners by cloning
+      const newButton = submitButton.cloneNode(true);
+      submitButton.parentNode.replaceChild(newButton, submitButton);
+      
+      // Add blocking event listener
+      newButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showLocationServicesBlockedMessage();
+        return false;
+      });
     }
     
     if (employeeIdInput) {
       employeeIdInput.disabled = true;
       employeeIdInput.style.opacity = "0.7";
+      employeeIdInput.setAttribute('data-location-blocked', 'true');
     }
     
     if (form) {
       form.classList.add("location-blocked");
+      form.style.pointerEvents = "none";
+      
+      // Override form submission completely
+      form.onsubmit = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showLocationServicesBlockedMessage();
+        return false;
+      };
     }
     
     console.log("🚫 Check-in process BLOCKED - Location Services required");
   } else {
+    // Clear global blocking flag FIRST
+    window.locationServicesBlocked = false;
+    
     // Unblock check-in process
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.style.opacity = "1";
       submitButton.style.cursor = "pointer";
+      submitButton.style.pointerEvents = "auto";
+      
+      // Remove blocking data attribute
+      submitButton.removeAttribute('data-location-blocked');
+      
+      // Restore original button content
+      const originalContent = submitButton.getAttribute('data-original-content');
+      if (originalContent) {
+        submitButton.innerHTML = originalContent;
+      }
+      
+      // Re-attach proper event listeners
+      submitButton.onclick = function(e) {
+        e.preventDefault();
+        handleFormSubmit(e);
+        return false;
+      };
     }
     
     if (employeeIdInput) {
       employeeIdInput.disabled = false;
       employeeIdInput.style.opacity = "1";
+      employeeIdInput.removeAttribute('data-location-blocked');
     }
     
     if (form) {
       form.classList.remove("location-blocked");
+      form.style.pointerEvents = "auto";
+      
+      // Restore proper form submission handler
+      form.onsubmit = function(e) {
+        e.preventDefault();
+        handleFormSubmit(e);
+        return false;
+      };
     }
     
     console.log("✅ Check-in process UNBLOCKED - Location Services working");
@@ -897,7 +991,7 @@ function showLocationServicesWarning(errorType) {
       <div class="warning-text">
         <span class="warning-message">${message}</span>
         <div class="warning-actions">
-          <button type="button" class="warning-retry-btn" onclick="checkLocationServicesStatus()">
+          <button type="button" class="warning-retry-btn" onclick="location.reload()">
             <i class="fas fa-redo"></i>
             <span class="english-text">Retry</span>
             <span class="language-separator">/</span>
@@ -931,11 +1025,10 @@ function hideLocationServicesWarning() {
   }
 }
 
-/**
- * Modified DOMContentLoaded event handler
- * Add this to your existing initialization
- */
 function initializeLocationServicesCheck() {
+  // Initialize global blocking flag
+  window.locationServicesBlocked = false;
+  
   // Check location services status when page loads and block if necessary
   setTimeout(() => {
     console.log("🔍 Initializing Location Services check...");
@@ -946,7 +1039,36 @@ function initializeLocationServicesCheck() {
       .catch(() => {
         console.log("❌ Initial Location Services check failed - Check-in blocked");
       });
-  }, 1000); // Small delay to ensure page is fully loaded
+  }, 1000);
 
-  // Remove the override of handleFormSubmit since we've updated it directly
+  // Override form initialization to ensure our handlers are used
+  setTimeout(() => {
+    const form = document.getElementById("checkinForm");
+    const submitButton = document.getElementById("submitCheckin") || 
+                        document.querySelector('button[type="submit"]');
+    
+    if (form) {
+      // Remove existing event listeners by cloning
+      const newForm = form.cloneNode(true);
+      form.parentNode.replaceChild(newForm, form);
+      
+      // Add our controlled event listener
+      newForm.addEventListener('submit', handleFormSubmit);
+    }
+    
+    if (submitButton) {
+      // Find the new submit button after form cloning
+      const newSubmitButton = document.getElementById("submitCheckin") || 
+                             document.querySelector('button[type="submit"]');
+      
+      if (newSubmitButton) {
+        newSubmitButton.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleFormSubmit(e);
+          return false;
+        });
+      }
+    }
+  }, 1500);
 }
