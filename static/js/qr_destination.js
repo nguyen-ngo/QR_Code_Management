@@ -55,6 +55,9 @@ const translations = {
 
 // DOM Content Loaded Event (PRESERVED FROM ORIGINAL)
 document.addEventListener("DOMContentLoaded", function () {
+  // CRITICAL: Disable form FIRST before anything else
+  window.locationServicesBlocked = true;
+  disableFormImmediately();
   // CRITICAL: Initialize systems in correct order
   initializeLanguage();
   initializeLocationServicesCheck();
@@ -135,6 +138,50 @@ function initializeForm() {
       });
     }
   }
+}
+
+function disableFormImmediately() {
+  // Find and disable submit button immediately
+  const submitButton = document.getElementById("submitCheckin") || 
+                      document.getElementById("submitButton") ||
+                      document.querySelector('button[type="submit"]') ||
+                      document.querySelector('.btn-primary');
+  
+  const employeeIdInput = document.getElementById("employee_id");
+  const form = document.getElementById("checkinForm");
+  
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.style.opacity = "0.5";
+    submitButton.style.cursor = "not-allowed";
+    submitButton.style.pointerEvents = "none";
+    submitButton.setAttribute('data-location-blocked', 'true');
+    
+    // Store original content
+    if (!submitButton.getAttribute('data-original-content')) {
+      submitButton.setAttribute('data-original-content', submitButton.innerHTML);
+    }
+    
+    // Show loading/checking state
+    submitButton.innerHTML = `
+      <i class="fas fa-spinner fa-spin"></i>
+      <span>Checking Location Services...</span>
+    `;
+  }
+  
+  if (employeeIdInput) {
+    employeeIdInput.disabled = true;
+    employeeIdInput.style.opacity = "0.7";
+    employeeIdInput.setAttribute('data-location-blocked', 'true');
+    employeeIdInput.placeholder = "Checking location services...";
+  }
+  
+  if (form) {
+    form.classList.add("location-blocked");
+    form.style.pointerEvents = "none";
+  }
+  
+  console.log("🚫 Form DISABLED by default - Checking Location Services...");
 }
 
 function handleFormSubmit(event) {
