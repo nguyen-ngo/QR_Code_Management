@@ -4471,13 +4471,11 @@ def attendance_stats_api():
 @app.route('/export-configuration')
 @login_required
 def export_configuration():
-    """Route to display export configuration page"""
+    """Display export configuration page for customizing Excel exports"""
     try:
-        print("📊 Export configuration route accessed")
-        # Check if user has export permissions
         user_role = session.get('role')
         if user_role not in ['admin', 'payroll']:
-            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access export configuration without permissions")
+            logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized access to export configuration")
             flash('Access denied. Only administrators and payroll staff can access export configuration.', 'error')
             return redirect(url_for('attendance_report'))
 
@@ -4509,6 +4507,7 @@ def export_configuration():
         # Define all available columns with their default settings
         available_columns = [
             {'key': 'employee_id', 'label': 'Employee ID', 'default_name': 'Employee ID', 'enabled': True},
+            {'key': 'employee_name', 'label': 'Employee Name', 'default_name': 'Employee Name', 'enabled': False},  # NEW COLUMN ADDED
             {'key': 'location_name', 'label': 'Location', 'default_name': 'Location', 'enabled': True},
             {'key': 'status', 'label': 'Event', 'default_name': 'Event', 'enabled': True},
             {'key': 'check_in_date', 'label': 'Date', 'default_name': 'Date', 'enabled': True},
@@ -4674,7 +4673,7 @@ def generate_excel_export():
         return redirect(url_for('export_configuration'))
 
 def create_excel_export(selected_columns, column_names, filters):
-    """Create Excel file with selected attendance data - Fixed to use QR address (not location)"""
+    """Create Excel file with selected attendance data - Updated to include employee names"""
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns")
 
@@ -4688,7 +4687,12 @@ def create_excel_export(selected_columns, column_names, filters):
             return None
 
         # Build query based on filters - JOIN with QRCode to get location_event and location_address
-        query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
+        # Now also JOIN with Employee table to get employee names
+        query = db.session.query(AttendanceData, QRCode, Employee).join(
+            QRCode, AttendanceData.qr_code_id == QRCode.id
+        ).outerjoin(
+            Employee, text("CAST(attendance_data.employee_id AS UNSIGNED) = employee.id")
+        )
 
         # Apply date filters
         if filters.get('date_from'):
@@ -4719,12 +4723,19 @@ def create_excel_export(selected_columns, column_names, filters):
 
         # Apply project filter
         if filters.get('project_filter'):
-            query = query.filter(QRCode.project_id == int(filters['project_filter']))
-            print(f"📊 Applied project filter to export: {filters['project_filter']}")
+            try:
+                project_id = int(filters['project_filter'])
+                query = query.filter(QRCode.project_id == project_id)
+                print(f"📊 Applied project filter: {project_id}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Invalid project filter: {e}")
 
-        # Execute query and get results
-        results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
-        print(f"📊 Found {len(results)} records for export")
+        # Order by date and time
+        query = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc())
+
+        # Execute query
+        results = query.all()
+        print(f"📊 Query returned {len(results)} records")
 
         if not results:
             print("⚠️ No records found for export")
@@ -4735,225 +4746,71 @@ def create_excel_export(selected_columns, column_names, filters):
         ws = wb.active
         ws.title = "Attendance Report"
 
-        # Define header style
+        # Header styling
         header_font = Font(bold=True, color="FFFFFF")
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center")
 
-        # Add headers
-        for idx, column_key in enumerate(selected_columns, 1):
-            cell = ws.cell(row=1, column=idx)
-            cell.value = column_names.get(column_key, column_key)
+        # Set headers based on selected columns
+        headers = []
+        for column_key in selected_columns:
+            header_name = column_names.get(column_key, column_key)
+            headers.append(header_name)
+
+        # Write headers
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
 
-        # Add data
-        for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
+        # Write data rows
+        for row_idx, (attendance_record, qr_record, employee_record) in enumerate(results, 2):
             for col_idx, column_key in enumerate(selected_columns, 1):
                 cell = ws.cell(row=row_idx, column=col_idx)
-
-                # Get value based on column key
+                
                 try:
+                    # Handle each column type
                     if column_key == 'employee_id':
-                        cell.value = attendance_record.employee_id
+                        cell.value = attendance_record.employee_id or ''
+                    elif column_key == 'employee_name':
+                        # NEW: Handle employee name from joined Employee table
+                        if employee_record:
+                            cell.value = f"{employee_record.firstName} {employee_record.lastName}"
+                        else:
+                            cell.value = f"Unknown (ID: {attendance_record.employee_id})"
                     elif column_key == 'location_name':
-                        cell.value = attendance_record.location_name
+                        cell.value = attendance_record.location_name or ''
                     elif column_key == 'status':
-                        # Use location_event from QR code instead of status
-                        cell.value = qr_code.location_event if qr_code.location_event else 'Check In'
+                        cell.value = qr_record.location_event if qr_record.location_event else 'Check In'
                     elif column_key == 'check_in_date':
                         cell.value = attendance_record.check_in_date.strftime('%Y-%m-%d') if attendance_record.check_in_date else ''
                     elif column_key == 'check_in_time':
                         cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
                     elif column_key == 'qr_address':
-                        # FIXED: Use QR Code address (location_address), not location
-                        cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
+                        cell.value = qr_record.location_address if qr_record else ''
                     elif column_key == 'address':
-                        # IMPLEMENTED: Check-in address logic based on location accuracy
+                        # Check-in address logic based on location accuracy WITH HYPERLINKS
                         # If location accuracy < 0.3 miles, use QR address; otherwise use actual check-in address
                         if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
                             try:
                                 accuracy_value = float(attendance_record.location_accuracy)
                                 if accuracy_value < 0.3:
-                                    # High accuracy - use QR code ADDRESS (not location)
-                                    cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
-                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
-                                else:
-                                    # Lower accuracy - use actual check-in address
-                                    cell.value = attendance_record.address or ''
-                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
-                            except (ValueError, TypeError):
-                                # If accuracy can't be converted to float, use check-in address
-                                cell.value = attendance_record.address or ''
-                        else:
-                            # No location accuracy data - use actual check-in address
-                            cell.value = attendance_record.address or ''
-                    elif column_key == 'device_info':
-                        cell.value = attendance_record.device_info or ''
-                    elif column_key == 'ip_address':
-                        cell.value = attendance_record.ip_address or ''
-                    elif column_key == 'user_agent':
-                        cell.value = attendance_record.user_agent or ''
-                    elif column_key == 'latitude':
-                        cell.value = attendance_record.latitude or ''
-                    elif column_key == 'longitude':
-                        cell.value = attendance_record.longitude or ''
-                    elif column_key == 'accuracy':
-                        cell.value = attendance_record.accuracy or ''
-                    elif column_key == 'location_accuracy':
-                        cell.value = attendance_record.location_accuracy or ''
-                    else:
-                        cell.value = ''
-                except Exception as cell_error:
-                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
-                    cell.value = ''
-
-        # Auto-adjust column widths
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
-
-        # Save to BytesIO
-        excel_buffer = io.BytesIO()
-        wb.save(excel_buffer)
-        excel_buffer.seek(0)
-
-        print("📊 Excel file created successfully with QR address (not QR location)")
-        return excel_buffer
-
-    except Exception as e:
-        print(f"❌ Error creating Excel export: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        return None
-
-def create_excel_export_ordered(selected_columns, column_names, filters):
-    """Create Excel file with selected attendance data in specified column order"""
-    try:
-        print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
-
-        # Import openpyxl modules
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, Alignment, PatternFill
-        except ImportError as e:
-            print(f"❌ openpyxl import error: {e}")
-            print("💡 Install openpyxl: pip install openpyxl")
-            return None
-
-        # Build query based on filters - JOIN with QRCode to get location_event and location_address
-        query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
-
-        # Apply date filters
-        if filters.get('date_from'):
-            try:
-                date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
-                query = query.filter(AttendanceData.check_in_date >= date_from)
-                print(f"📊 Applied date_from filter: {date_from}")
-            except ValueError as e:
-                print(f"⚠️ Invalid date_from format: {e}")
-
-        if filters.get('date_to'):
-            try:
-                date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
-                query = query.filter(AttendanceData.check_in_date <= date_to)
-                print(f"📊 Applied date_to filter: {date_to}")
-            except ValueError as e:
-                print(f"⚠️ Invalid date_to format: {e}")
-
-        # Apply location filter
-        if filters.get('location_filter'):
-            query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
-            print(f"📊 Applied location filter: {filters['location_filter']}")
-
-        # Apply employee filter
-        if filters.get('employee_filter'):
-            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
-            print(f"📊 Applied employee filter: {filters['employee_filter']}")
-
-        # Apply project filter
-        if filters.get('project_filter'):
-            query = query.filter(QRCode.project_id == int(filters['project_filter']))
-            print(f"📊 Applied project filter to export: {filters['project_filter']}")
-
-        # Execute query and get results
-        results = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc()).all()
-        print(f"📊 Found {len(results)} records for export")
-
-        if not results:
-            print("⚠️ No records found for export")
-            return None
-
-        # Create workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Attendance Report"
-
-        # Define header style
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        header_alignment = Alignment(horizontal="center", vertical="center")
-
-        # Add headers in the specified order
-        for idx, column_key in enumerate(selected_columns, 1):
-            cell = ws.cell(row=1, column=idx)
-            cell.value = column_names.get(column_key, column_key)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = header_alignment
-            print(f"📊 Column {idx}: {column_key} -> '{cell.value}'")
-
-        # Add data in the same column order
-        for row_idx, (attendance_record, qr_code) in enumerate(results, 2):
-            for col_idx, column_key in enumerate(selected_columns, 1):
-                cell = ws.cell(row=row_idx, column=col_idx)
-
-                # Get value based on column key (same logic as before)
-                try:
-                    if column_key == 'employee_id':
-                        cell.value = attendance_record.employee_id
-                    elif column_key == 'location_name':
-                        cell.value = attendance_record.location_name
-                    elif column_key == 'status':
-                        # Use location_event from QR code instead of status
-                        cell.value = qr_code.location_event if qr_code.location_event else 'Check In'
-                    elif column_key == 'check_in_date':
-                        cell.value = attendance_record.check_in_date.strftime('%Y-%m-%d') if attendance_record.check_in_date else ''
-                    elif column_key == 'check_in_time':
-                        cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
-                    elif column_key == 'qr_address':
-                        # Use QR Code address (location_address), not location
-                        cell.value = qr_code.location_address if qr_code and qr_code.location_address else ''
-                    elif column_key == 'address':
-                        # Check-in address logic based on location accuracy with hyperlink support
-                        if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
-                            try:
-                                accuracy_value = float(attendance_record.location_accuracy)
-                                if accuracy_value < 0.3:
-                                    # High accuracy - use QR code ADDRESS (not location)
-                                    address_text = qr_code.location_address if qr_code and qr_code.location_address else ''
-                                    # For QR address, use QR coordinates if available
-                                    if address_text and hasattr(qr_code, 'address_latitude') and hasattr(qr_code, 'address_longitude') and qr_code.address_latitude and qr_code.address_longitude:
+                                    # High accuracy - use QR code ADDRESS (not location) with hyperlink
+                                    address_text = qr_record.location_address if qr_record and qr_record.location_address else ''
+                                    if address_text and hasattr(qr_record, 'address_latitude') and hasattr(qr_record, 'address_longitude') and qr_record.address_latitude and qr_record.address_longitude:
                                         # Format coordinates with 10 decimal places
-                                        lat_formatted = f"{float(qr_code.address_latitude):.10f}"
-                                        lng_formatted = f"{float(qr_code.address_longitude):.10f}"
+                                        lat_formatted = f"{float(qr_record.address_latitude):.10f}"
+                                        lng_formatted = f"{float(qr_record.address_longitude):.10f}"
                                         hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
                                         cell.value = hyperlink_formula
                                         print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
+                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                                 else:
-                                    # Lower accuracy - use actual check-in address
+                                    # Lower accuracy - use actual check-in address with hyperlink
                                     address_text = attendance_record.address or ''
-                                    # Create hyperlink using check-in coordinates
                                     if address_text and attendance_record.latitude and attendance_record.longitude:
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(attendance_record.latitude):.10f}"
@@ -4963,8 +4820,9 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                         print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
+                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                             except (ValueError, TypeError):
-                                # If accuracy can't be converted to float, use check-in address
+                                # If accuracy can't be converted to float, use check-in address with hyperlink
                                 address_text = attendance_record.address or ''
                                 if address_text and attendance_record.latitude and attendance_record.longitude:
                                     # Format coordinates with 10 decimal places
@@ -4976,7 +4834,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                 else:
                                     cell.value = address_text
                         else:
-                            # No location accuracy data - use actual check-in address
+                            # No location accuracy data - use actual check-in address with hyperlink
                             address_text = attendance_record.address or ''
                             if address_text and attendance_record.latitude and attendance_record.longitude:
                                 # Format coordinates with 10 decimal places
@@ -4994,7 +4852,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     elif column_key == 'user_agent':
                         cell.value = attendance_record.user_agent or ''
                     elif column_key == 'latitude':
-                        cell.value = attendance_record.latitude or ''
+                       cell.value = attendance_record.latitude or ''
                     elif column_key == 'longitude':
                         cell.value = attendance_record.longitude or ''
                     elif column_key == 'accuracy':
@@ -5025,12 +4883,267 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         wb.save(excel_buffer)
         excel_buffer.seek(0)
 
-        print("📊 Excel file created successfully with custom column order")
+        print("📊 Excel file created successfully with employee names")
+        
+        # Log export action with employee name column
+        try:
+            logger_handler.logger.info(f"Excel export with employee names generated by user {session.get('username', 'unknown')}")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+            
         return excel_buffer
 
     except Exception as e:
         print(f"❌ Error creating Excel export: {e}")
         print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Log error
+        try:
+            logger_handler.log_flask_error(
+                error_type="excel_export_error",
+                error_message=str(e),
+                stack_trace=traceback.format_exc()
+            )
+        except Exception as log_error:
+            print(f"⚠️ Could not log error: {log_error}")
+            
+        return None
+
+def create_excel_export_ordered(selected_columns, column_names, filters):
+    """Create Excel file with selected attendance data in specified column order"""
+    try:
+        print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
+
+        # Import openpyxl modules
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
+        except ImportError as e:
+            print(f"❌ openpyxl import error: {e}")
+            print("💡 Install openpyxl: pip install openpyxl")
+            return None
+
+        # Build query based on filters - JOIN with QRCode to get location_event and location_address
+        # Now also JOIN with Employee table to get employee names
+        query = db.session.query(AttendanceData, QRCode, Employee).join(
+            QRCode, AttendanceData.qr_code_id == QRCode.id
+        ).outerjoin(
+            Employee, text("CAST(attendance_data.employee_id AS UNSIGNED) = employee.id")
+        )
+
+        # Apply date filters
+        if filters.get('date_from'):
+            try:
+                date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date >= date_from)
+                print(f"📊 Applied date_from filter: {date_from}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_from format: {e}")
+
+        if filters.get('date_to'):
+            try:
+                date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
+                query = query.filter(AttendanceData.check_in_date <= date_to)
+                print(f"📊 Applied date_to filter: {date_to}")
+            except ValueError as e:
+                print(f"⚠️ Invalid date_to format: {e}")
+
+        # Apply location filter
+        if filters.get('location_filter'):
+            query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
+            print(f"📊 Applied location filter: {filters['location_filter']}")
+
+        # Apply employee filter
+        if filters.get('employee_filter'):
+            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
+            print(f"📊 Applied employee filter: {filters['employee_filter']}")
+
+        # Apply project filter
+        if filters.get('project_filter'):
+            try:
+                project_id = int(filters['project_filter'])
+                query = query.filter(QRCode.project_id == project_id)
+                print(f"📊 Applied project filter: {project_id}")
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Invalid project filter: {e}")
+
+        # Order by date and time
+        query = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc())
+
+        # Execute query
+        results = query.all()
+        print(f"📊 Query returned {len(results)} records")
+
+        if not results:
+            print("⚠️ No records found for export")
+            return None
+
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Attendance Report"
+
+        # Header styling
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Set headers based on selected columns in the specified order
+        headers = []
+        for column_key in selected_columns:
+            header_name = column_names.get(column_key, column_key)
+            headers.append(header_name)
+
+        # Write headers
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # Write data rows
+        for row_idx, (attendance_record, qr_record, employee_record) in enumerate(results, 2):
+            for col_idx, column_key in enumerate(selected_columns, 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                
+                try:
+                    # Handle each column type
+                    if column_key == 'employee_id':
+                        cell.value = attendance_record.employee_id or ''
+                    elif column_key == 'employee_name':
+                        # NEW: Handle employee name from joined Employee table
+                        if employee_record:
+                            cell.value = f"{employee_record.firstName} {employee_record.lastName}"
+                        else:
+                            cell.value = f"Unknown (ID: {attendance_record.employee_id})"
+                    elif column_key == 'location_name':
+                        cell.value = attendance_record.location_name or ''
+                    elif column_key == 'status':
+                        cell.value = qr_record.location_event if qr_record.location_event else 'Check In'
+                    elif column_key == 'check_in_date':
+                        cell.value = attendance_record.check_in_date.strftime('%Y-%m-%d') if attendance_record.check_in_date else ''
+                    elif column_key == 'check_in_time':
+                        cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
+                    elif column_key == 'qr_address':
+                        cell.value = qr_record.location_address if qr_record else ''
+                    elif column_key == 'address':
+                        # Check-in address logic based on location accuracy WITH HYPERLINKS
+                        # If location accuracy < 0.3 miles, use QR address; otherwise use actual check-in address
+                        if hasattr(attendance_record, 'location_accuracy') and attendance_record.location_accuracy is not None:
+                            try:
+                                accuracy_value = float(attendance_record.location_accuracy)
+                                if accuracy_value < 0.3:
+                                    # High accuracy - use QR code ADDRESS (not location) with hyperlink
+                                    address_text = qr_record.location_address if qr_record and qr_record.location_address else ''
+                                    if address_text and hasattr(qr_record, 'address_latitude') and hasattr(qr_record, 'address_longitude') and qr_record.address_latitude and qr_record.address_longitude:
+                                        # Format coordinates with 10 decimal places
+                                        lat_formatted = f"{float(qr_record.address_latitude):.10f}"
+                                        lng_formatted = f"{float(qr_record.address_longitude):.10f}"
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        cell.value = hyperlink_formula
+                                        print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
+                                    else:
+                                        cell.value = address_text
+                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                else:
+                                    # Lower accuracy - use actual check-in address with hyperlink
+                                    address_text = attendance_record.address or ''
+                                    if address_text and attendance_record.latitude and attendance_record.longitude:
+                                        # Format coordinates with 10 decimal places
+                                        lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                        lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        cell.value = hyperlink_formula
+                                        print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
+                                    else:
+                                        cell.value = address_text
+                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                            except (ValueError, TypeError):
+                                # If accuracy can't be converted to float, use check-in address with hyperlink
+                                address_text = attendance_record.address or ''
+                                if address_text and attendance_record.latitude and attendance_record.longitude:
+                                    # Format coordinates with 10 decimal places
+                                    lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                    lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                    cell.value = hyperlink_formula
+                                    print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
+                                else:
+                                    cell.value = address_text
+                        else:
+                            # No location accuracy data - use actual check-in address with hyperlink
+                            address_text = attendance_record.address or ''
+                            if address_text and attendance_record.latitude and attendance_record.longitude:
+                                # Format coordinates with 10 decimal places
+                                lat_formatted = f"{float(attendance_record.latitude):.10f}"
+                                lng_formatted = f"{float(attendance_record.longitude):.10f}"
+                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                cell.value = hyperlink_formula
+                                print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
+                            else:
+                                cell.value = address_text
+                    elif column_key == 'device_info':
+                        cell.value = attendance_record.device_info or ''
+                    elif column_key == 'ip_address':
+                        cell.value = attendance_record.ip_address or ''
+                    elif column_key == 'user_agent':
+                        cell.value = attendance_record.user_agent or ''
+                    elif column_key == 'latitude':
+                       cell.value = attendance_record.latitude or ''
+                    elif column_key == 'longitude':
+                        cell.value = attendance_record.longitude or ''
+                    elif column_key == 'accuracy':
+                        cell.value = attendance_record.accuracy or ''
+                    elif column_key == 'location_accuracy':
+                        cell.value = attendance_record.location_accuracy or ''
+                    else:
+                        cell.value = ''
+                except Exception as cell_error:
+                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
+                    cell.value = ''
+
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # Save to BytesIO
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+
+        print("📊 Excel file created successfully with employee names")
+        
+        # Log export action with employee name column
+        try:
+            logger_handler.logger.info(f"Excel export with employee names generated by user {session.get('username', 'unknown')}")
+        except Exception as log_error:
+            print(f"⚠️ Logging error (non-critical): {log_error}")
+            
+        return excel_buffer
+
+    except Exception as e:
+        print(f"❌ Error creating Excel export: {e}")
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        # Log error
+        try:
+            logger_handler.log_flask_error(
+                error_type="excel_export_ordered_error",
+                error_message=str(e),
+                stack_trace=traceback.format_exc()
+            )
+        except Exception as log_error:
+            print(f"⚠️ Could not log error: {log_error}")
+            
         return None
 
 @app.route('/payroll')
