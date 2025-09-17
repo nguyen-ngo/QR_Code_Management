@@ -3734,7 +3734,7 @@ def qr_checkin(qr_url):
             'message': f'Check-in successful! {checkin_sequence_text} for today.',
             'data': {
                 'employee_id': attendance.employee_id,
-                'location': attendance.location_name,
+                'location': qr_code.location_address,
                 'location_event': qr_code.location_event,
                 'event': qr_code.location_event,  # Add both for compatibility
                 'check_in_time': attendance.check_in_time.strftime('%I:%M %p'),  # 12-hour format
