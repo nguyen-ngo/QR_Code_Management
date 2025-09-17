@@ -208,7 +208,7 @@ STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
 
 # Import and initialize models
 from models import set_db
-User, QRCode, QRCodeStyle, Project, AttendanceData, Employee = set_db(db)
+User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance = set_db(db)
 
 # Initialize the logging system
 logger_handler = AppLogger(app, db)
@@ -6448,6 +6448,330 @@ def employee_detail(employee_index):
         logger_handler.log_database_error('employee_detail', e)
         flash('Error loading employee details. Please try again.', 'error')
         return redirect(url_for('employees'))
+
+"""
+Time Attendance Routes for QR Attendance Management System
+==========================================================
+
+Routes for managing time attendance data import and display functionality.
+Add these routes to your main app.py file.
+"""
+
+from flask import render_template, request, redirect, url_for, flash, jsonify
+from werkzeug.utils import secure_filename
+import os
+from datetime import datetime, date
+from models.time_attendance import TimeAttendance
+from time_attendance_import_service import TimeAttendanceImportService
+
+# Add this to your existing app.py imports and route definitions
+
+@app.route('/time-attendance')
+@login_required
+@log_user_activity('time_attendance_view')
+def time_attendance_dashboard():
+    """Display time attendance dashboard"""
+    try:
+        # Get summary statistics
+        total_records = TimeAttendance.query.count()
+        unique_employees = db.session.query(TimeAttendance.employee_id).distinct().count()
+        unique_locations = db.session.query(TimeAttendance.location_name).distinct().count()
+        
+        # Get recent imports (last 10 import batches)
+        recent_imports = db.session.query(
+            TimeAttendance.import_batch_id,
+            TimeAttendance.import_date,
+            TimeAttendance.import_source,
+            db.func.count(TimeAttendance.id).label('record_count')
+        ).filter(
+            TimeAttendance.import_batch_id.isnot(None)
+        ).group_by(
+            TimeAttendance.import_batch_id,
+            TimeAttendance.import_date,
+            TimeAttendance.import_source
+        ).order_by(
+            TimeAttendance.import_date.desc()
+        ).limit(10).all()
+        
+        # Get filter options
+        employees = TimeAttendance.get_unique_employees()
+        locations = TimeAttendance.get_unique_locations()
+        
+        return render_template('time_attendance_dashboard.html',
+                             total_records=total_records,
+                             unique_employees=unique_employees,
+                             unique_locations=unique_locations,
+                             recent_imports=recent_imports,
+                             employees=employees,
+                             locations=locations)
+                             
+    except Exception as e:
+        logger_handler.logger.error(f"Error in time attendance dashboard: {e}")
+        flash('Error loading time attendance dashboard.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/time-attendance/import', methods=['GET', 'POST'])
+@admin_required
+@log_database_operations('time_attendance_import')
+def import_time_attendance():
+    """Import time attendance data from Excel file"""
+    if request.method == 'POST':
+        try:
+            # Check if file is uploaded
+            if 'file' not in request.files:
+                flash('No file selected.', 'error')
+                return redirect(request.url)
+            
+            file = request.files['file']
+            if file.filename == '':
+                flash('No file selected.', 'error')
+                return redirect(request.url)
+            
+            # Validate file extension
+            if not file.filename.lower().endswith(('.xlsx', '.xls')):
+                flash('Please upload an Excel file (.xlsx or .xls).', 'error')
+                return redirect(request.url)
+            
+            # Save uploaded file temporarily
+            filename = secure_filename(file.filename)
+            temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                                   f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+            file.save(temp_path)
+            
+            try:
+                # Initialize import service
+                import_service = TimeAttendanceImportService(db, logger_handler)
+                
+                # Validate file first
+                validation_result = import_service.validate_excel_file(temp_path)
+                
+                if not validation_result['valid']:
+                    flash(f"File validation failed: {'; '.join(validation_result['errors'])}", 'error')
+                    return render_template('time_attendance_import.html', 
+                                         validation_result=validation_result)
+                
+                # Proceed with import
+                import_source = request.form.get('import_source', f"Manual Import - {filename}")
+                import_result = import_service.import_from_excel(
+                    temp_path,
+                    created_by=session['user_id'],
+                    import_source=import_source
+                )
+                
+                if import_result['success']:
+                    # Log successful import
+                    logger_handler.logger.info(
+                        f"User {session['username']} successfully imported time attendance data - "
+                        f"Batch: {import_result['batch_id']}, "
+                        f"Records: {import_result['imported_records']}/{import_result['total_records']}"
+                    )
+                    
+                    flash(f"Import successful! Imported {import_result['imported_records']} records "
+                          f"out of {import_result['total_records']} total records.", 'success')
+                    
+                    if import_result['failed_records'] > 0:
+                        flash(f"Note: {import_result['failed_records']} records failed to import. "
+                              f"Check the error details below.", 'warning')
+                    
+                    return render_template('time_attendance_import_result.html', 
+                                         import_result=import_result)
+                else:
+                    flash(f"Import failed: {'; '.join(import_result['errors'])}", 'error')
+                    return render_template('time_attendance_import.html', 
+                                         import_result=import_result)
+                
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+            
+        except Exception as e:
+            logger_handler.log_database_error('time_attendance_import', e)
+            flash('Import failed due to an unexpected error.', 'error')
+            return render_template('time_attendance_import.html')
+    
+    return render_template('time_attendance_import.html')
+
+@app.route('/time-attendance/records')
+@login_required
+@log_user_activity('time_attendance_records_view')
+def time_attendance_records():
+    """Display time attendance records with filtering options"""
+    try:
+        # Get filter parameters
+        employee_filter = request.args.get('employee_id')
+        location_filter = request.args.get('location_name')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        page = request.args.get('page', 1, type=int)
+        per_page = 50  # Records per page
+        
+        # Build query
+        query = TimeAttendance.query
+        
+        # Apply filters
+        if employee_filter:
+            query = query.filter(TimeAttendance.employee_id == employee_filter)
+        
+        if location_filter:
+            query = query.filter(TimeAttendance.location_name == location_filter)
+        
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
+            except ValueError:
+                flash('Invalid start date format.', 'error')
+        
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date <= end_date_obj)
+            except ValueError:
+                flash('Invalid end date format.', 'error')
+        
+        # Order by date and time (most recent first)
+        query = query.order_by(
+            TimeAttendance.attendance_date.desc(),
+            TimeAttendance.attendance_time.desc()
+        )
+        
+        # Paginate results
+        records = query.paginate(
+            page=page, 
+            per_page=per_page, 
+            error_out=False
+        )
+        
+        # Get filter options for dropdown menus
+        employees = TimeAttendance.get_unique_employees()
+        locations = TimeAttendance.get_unique_locations()
+        
+        return render_template('time_attendance_records.html',
+                             records=records,
+                             employees=employees,
+                             locations=locations,
+                             current_filters={
+                                 'employee_id': employee_filter,
+                                 'location_name': location_filter,
+                                 'start_date': start_date,
+                                 'end_date': end_date
+                             })
+                             
+    except Exception as e:
+        logger_handler.logger.error(f"Error in time attendance records view: {e}")
+        flash('Error loading time attendance records.', 'error')
+        return redirect(url_for('time_attendance_dashboard'))
+
+@app.route('/time-attendance/record/<int:record_id>')
+@login_required
+@log_user_activity('time_attendance_record_detail')
+def time_attendance_record_detail(record_id):
+    """Display detailed view of a time attendance record"""
+    try:
+        record = TimeAttendance.query.get_or_404(record_id)
+        return render_template('time_attendance_record_detail.html', record=record)
+        
+    except Exception as e:
+        logger_handler.logger.error(f"Error viewing time attendance record {record_id}: {e}")
+        flash('Error loading record details.', 'error')
+        return redirect(url_for('time_attendance_records'))
+
+@app.route('/time-attendance/delete/<int:record_id>', methods=['POST'])
+@admin_required
+@log_database_operations('time_attendance_delete')
+def delete_time_attendance_record(record_id):
+    """Delete a time attendance record"""
+    try:
+        record = TimeAttendance.query.get_or_404(record_id)
+        
+        # Store record info for logging
+        employee_info = f"{record.employee_name} (ID: {record.employee_id})"
+        location_info = record.location_name
+        date_info = record.attendance_date
+        
+        # Delete the record
+        db.session.delete(record)
+        db.session.commit()
+        
+        # Log deletion
+        logger_handler.logger.info(
+            f"User {session['username']} deleted time attendance record {record_id} - "
+            f"Employee: {employee_info}, Location: {location_info}, Date: {date_info}"
+        )
+        
+        flash(f'Time attendance record for {employee_info} deleted successfully.', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.log_database_error('time_attendance_delete', e)
+        flash('Failed to delete time attendance record.', 'error')
+    
+    return redirect(url_for('time_attendance_records'))
+
+@app.route('/api/time-attendance/employee/<employee_id>')
+@login_required
+def api_time_attendance_by_employee(employee_id):
+    """API endpoint to get time attendance records for a specific employee"""
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        start_date_obj = None
+        end_date_obj = None
+        
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        records = TimeAttendance.get_by_employee_id(employee_id, start_date_obj, end_date_obj)
+        
+        return jsonify({
+            'success': True,
+            'employee_id': employee_id,
+            'total_records': len(records),
+            'records': [record.to_dict() for record in records]
+        })
+        
+    except Exception as e:
+        logger_handler.logger.error(f"API error getting time attendance for employee {employee_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve time attendance records'
+        }), 500
+
+@app.route('/api/time-attendance/location/<location_name>')
+@login_required
+def api_time_attendance_by_location(location_name):
+    """API endpoint to get time attendance records for a specific location"""
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        start_date_obj = None
+        end_date_obj = None
+        
+        if start_date:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if end_date:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        records = TimeAttendance.get_by_location(location_name, start_date_obj, end_date_obj)
+        
+        return jsonify({
+            'success': True,
+            'location_name': location_name,
+            'total_records': len(records),
+            'records': [record.to_dict() for record in records]
+        })
+        
+    except Exception as e:
+        logger_handler.logger.error(f"API error getting time attendance for location {location_name}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve time attendance records'
+        }), 500
     
 create_location_logging_routes(app, db, logger_handler)
 
