@@ -1,0 +1,692 @@
+{% extends "base_authenticated.html" %}
+{% block title %}Import Time Attendance Data - {{ COMPANY_NAME }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
+{% endblock %}
+
+{% block page_title %}Import Time Attendance{% endblock %}
+
+{% block content %}
+<div class="time-attendance-page">
+  <!-- Page Header -->
+  <div class="time-attendance-header">
+    <div class="header-navigation">
+      <a href="{{ url_for('time_attendance_dashboard') }}" class="back-button">
+        <i class="fas fa-arrow-left"></i>
+        Back to Time Attendance
+      </a>
+    </div>
+    
+    <div class="header-content">
+      <h1>
+        <i class="fas fa-file-import"></i>
+        Import Time Attendance Data
+      </h1>
+      <p class="header-description">
+        Upload Excel files containing employee time attendance records
+      </p>
+    </div>
+  </div>
+
+  <!-- Import Instructions -->
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-info-circle"></i>
+        Import Instructions
+      </h2>
+    </div>
+    <div class="import-body">
+      <div class="instructions-grid">
+        <div class="instruction-item">
+          <div class="instruction-icon">
+            <i class="fas fa-file-excel"></i>
+          </div>
+          <h3>Supported Formats</h3>
+          <p>Excel files (.xlsx, .xls) with time attendance data</p>
+        </div>
+        
+        <div class="instruction-item">
+          <div class="instruction-icon">
+            <i class="fas fa-columns"></i>
+          </div>
+          <h3>Required Columns</h3>
+          <p>ID, Name, Date, Time, Location Name, Action Description</p>
+        </div>
+        
+        <div class="instruction-item">
+          <div class="instruction-icon">
+            <i class="fas fa-shield-alt"></i>
+          </div>
+          <h3>Data Validation</h3>
+          <p>Automatic validation and error reporting for invalid data</p>
+        </div>
+      </div>
+      
+      <div class="sample-format">
+        <h4>
+          <i class="fas fa-table"></i>
+          Expected Excel Format
+        </h4>
+        <div class="format-table">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Platform</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Location Name</th>
+                <th>Action Description</th>
+                <th>Event Description</th>
+                <th>Recorded Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>12345</td>
+                <td>John Doe</td>
+                <td>iPhone - iOS</td>
+                <td>2025-09-12</td>
+                <td>09:00:00</td>
+                <td>HQ Suite 210</td>
+                <td>Check In</td>
+                <td>Main Office</td>
+                <td>123 Main St</td>
+              </tr>
+              <tr>
+                <td>67890</td>
+                <td>Jane Smith</td>
+                <td>Android</td>
+                <td>2025-09-12</td>
+                <td>17:30:00</td>
+                <td>HQ Suite 210</td>
+                <td>Check Out</td>
+                <td>Main Office</td>
+                <td>123 Main St</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Upload Form -->
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-upload"></i>
+        Upload Excel File
+      </h2>
+    </div>
+    <div class="import-body">
+      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('import_time_attendance') }}">
+        <!-- File Upload Area -->
+        <div class="file-upload-area" id="fileUploadArea">
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <div class="upload-text">
+            <h3>Drag & Drop Excel File</h3>
+            <p>Or click to browse and select an Excel file (.xlsx, .xls)</p>
+            <div class="file-info" id="fileInfo" style="display: none;">
+              <i class="fas fa-file-excel"></i>
+              <span class="file-name"></span>
+              <span class="file-size"></span>
+            </div>
+          </div>
+          <input type="file" 
+                 id="fileInput" 
+                 name="file" 
+                 accept=".xlsx,.xls" 
+                 class="file-input" 
+                 required>
+        </div>
+
+        <!-- Import Options -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="import_source" class="form-label">
+              <i class="fas fa-tag"></i>
+              Import Source Description
+            </label>
+            <input type="text" 
+                   id="import_source" 
+                   name="import_source" 
+                   class="form-input"
+                   placeholder="e.g., Monthly Attendance Report - September 2025"
+                   value="Excel Import - {{ current_date }}">
+            <small class="form-help">Optional description for this import batch</small>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="resetForm()">
+            <i class="fas fa-undo"></i>
+            Reset Form
+          </button>
+          <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+            <i class="fas fa-upload"></i>
+            <span class="btn-text">Import Data</span>
+            <span class="btn-loading" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i>
+              Processing...
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Validation Results (if any) -->
+  {% if validation_result %}
+  <div class="import-results {% if validation_result.valid %}success{% else %}error{% endif %}">
+    <div class="results-header">
+      <h2>
+        {% if validation_result.valid %}
+        <i class="fas fa-check-circle text-success"></i>
+        File Validation Successful
+        {% else %}
+        <i class="fas fa-exclamation-circle text-danger"></i>
+        File Validation Failed
+        {% endif %}
+      </h2>
+    </div>
+    <div class="results-body">
+      <div class="results-summary">
+        <div class="summary-item">
+          <div class="number">{{ validation_result.total_rows }}</div>
+          <div class="label">Total Rows</div>
+        </div>
+        <div class="summary-item">
+          <div class="number">{{ validation_result.columns|length }}</div>
+          <div class="label">Columns Found</div>
+        </div>
+        {% if validation_result.errors %}
+        <div class="summary-item error">
+          <div class="number">{{ validation_result.errors|length }}</div>
+          <div class="label">Errors</div>
+        </div>
+        {% endif %}
+        {% if validation_result.warnings %}
+        <div class="summary-item">
+          <div class="number">{{ validation_result.warnings|length }}</div>
+          <div class="label">Warnings</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if validation_result.errors %}
+      <div class="error-list">
+        <h4>
+          <i class="fas fa-exclamation-triangle"></i>
+          Validation Errors
+        </h4>
+        <ul>
+          {% for error in validation_result.errors %}
+          <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if validation_result.warnings %}
+      <div class="warning-list">
+        <h4>
+          <i class="fas fa-exclamation-triangle"></i>
+          Warnings
+        </h4>
+        <ul>
+          {% for warning in validation_result.warnings %}
+          <li>{{ warning }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if validation_result.sample_data %}
+      <div class="sample-data">
+        <h4>
+          <i class="fas fa-eye"></i>
+          Sample Data Preview
+        </h4>
+        <div class="table-container">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                {% for column in validation_result.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in validation_result.sample_data[:3] %}
+              <tr>
+                {% for column in validation_result.columns %}
+                <td>{{ row.get(column, '') }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Import Results (if any) -->
+  {% if import_result %}
+  <div class="import-results {% if import_result.success %}success{% else %}error{% endif %}">
+    <div class="results-header">
+      <h2>
+        {% if import_result.success %}
+        <i class="fas fa-check-circle text-success"></i>
+        Import Completed
+        {% else %}
+        <i class="fas fa-exclamation-circle text-danger"></i>
+        Import Failed
+        {% endif %}
+      </h2>
+    </div>
+    <div class="results-body">
+      <div class="results-summary">
+        <div class="summary-item">
+          <div class="number">{{ import_result.total_records }}</div>
+          <div class="label">Total Records</div>
+        </div>
+        <div class="summary-item success">
+          <div class="number">{{ import_result.imported_records }}</div>
+          <div class="label">Successfully Imported</div>
+        </div>
+        {% if import_result.failed_records > 0 %}
+        <div class="summary-item error">
+          <div class="number">{{ import_result.failed_records }}</div>
+          <div class="label">Failed Records</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if import_result.success %}
+      <div class="success-actions">
+        <p>
+          <strong>Batch ID:</strong> <code>{{ import_result.batch_id }}</code>
+        </p>
+        <div class="action-buttons">
+          <a href="{{ url_for('time_attendance_records', import_batch=import_result.batch_id) }}" 
+             class="btn btn-primary">
+            <i class="fas fa-eye"></i>
+            View Imported Records
+          </a>
+          <a href="{{ url_for('time_attendance_dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-tachometer-alt"></i>
+            Back to Dashboard
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if import_result.errors %}
+      <div class="error-list">
+        <h4>
+          <i class="fas fa-exclamation-triangle"></i>
+          Import Errors
+        </h4>
+        <ul>
+          {% for error in import_result.errors %}
+          <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.instructions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.instruction-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.instruction-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1rem;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 1.5rem;
+}
+
+.instruction-item h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.instruction-item p {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.sample-format {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.sample-format h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 1rem;
+}
+
+.format-table {
+  overflow-x: auto;
+}
+
+.format-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.format-table th,
+.format-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.format-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  color: #374151;
+}
+
+.format-table tr:last-child td {
+  border-bottom: none;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+  color: #166534;
+}
+
+.file-info i {
+  color: #22c55e;
+}
+
+.file-name {
+  font-weight: 600;
+}
+
+.file-size {
+  font-size: 0.875rem;
+  color: #15803d;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 2rem;
+}
+
+.btn-loading {
+  display: none;
+}
+
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.preview-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #374151;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.text-success {
+  color: #10b981;
+}
+
+.text-danger {
+  color: #ef4444;
+}
+
+.warning-list {
+  background: #fffbeb;
+  border: 1px solid #fed7aa;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.warning-list h4 {
+  color: #92400e;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.warning-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.warning-list li {
+  color: #d97706;
+  font-size: 0.875rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #fed7aa;
+}
+
+.warning-list li:last-child {
+  border-bottom: none;
+}
+
+.sample-data {
+  margin-top: 1.5rem;
+}
+
+.sample-data h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 1rem;
+}
+
+.success-actions {
+  text-align: center;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.success-actions p {
+  color: #166534;
+  margin-bottom: 1rem;
+}
+
+.success-actions code {
+  background: #dcfce7;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  color: #15803d;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .instructions-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .format-table,
+  .table-container {
+    font-size: 0.75rem;
+  }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo = document.getElementById('fileInfo');
+  const submitBtn = document.getElementById('submitBtn');
+  const importForm = document.getElementById('importForm');
+
+  // File upload handling
+  fileUploadArea.addEventListener('click', () => fileInput.click());
+  
+  fileUploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    fileUploadArea.classList.add('dragover');
+  });
+  
+  fileUploadArea.addEventListener('dragleave', () => {
+    fileUploadArea.classList.remove('dragover');
+  });
+  
+  fileUploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fileUploadArea.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      fileInput.files = files;
+      handleFileSelect();
+    }
+  });
+
+  fileInput.addEventListener('change', handleFileSelect);
+
+  function handleFileSelect() {
+    const file = fileInput.files[0];
+    if (file) {
+      const fileName = file.name;
+      const fileSize = formatFileSize(file.size);
+      
+      fileInfo.querySelector('.file-name').textContent = fileName;
+      fileInfo.querySelector('.file-size').textContent = fileSize;
+      fileInfo.style.display = 'flex';
+      
+      submitBtn.disabled = false;
+      
+      // Validate file type
+      const validExtensions = ['.xlsx', '.xls'];
+      const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+      
+      if (!validExtensions.includes(fileExtension)) {
+        alert('Please select a valid Excel file (.xlsx or .xls)');
+        resetForm();
+      }
+    }
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Form submission handling
+  importForm.addEventListener('submit', function(e) {
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    
+    btnText.style.display = 'none';
+    btnLoading.style.display = 'inline-flex';
+    submitBtn.disabled = true;
+  });
+
+  // Reset form function
+  window.resetForm = function() {
+    fileInput.value = '';
+    fileInfo.style.display = 'none';
+    submitBtn.disabled = true;
+    fileUploadArea.classList.remove('dragover');
+  };
+});
+</script>
+{% endblock %}
