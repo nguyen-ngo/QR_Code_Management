@@ -492,6 +492,11 @@
         color: white;
       }
 
+      .status-message.warning {
+        background: var(--error-color);
+        color: white;
+      }
+
       .status-message.error {
         background: var(--error-color);
         color: white;
@@ -818,18 +823,17 @@
             <i class="fas fa-sign-in-alt"></i>
             <span class="english-text">Check In</span>
             <span class="language-separator">/</span>
-            <span class="spanish-text">Registrar Entrada</span>
+            <span class="spanish-text">Entrada</span>
             {% else %}
             <i class="fas fa-sign-out-alt"></i>
             <span class="english-text">Check Out</span>
             <span class="language-separator">/</span>
-            <span class="spanish-text">Registrar Salida</span>
+            <span class="spanish-text">Salida</span>
             {% endif %}
           </button>
         </form>
       </div>
 
-      <!-- Success Card -->
       <div class="success-card" id="successCard">
         <div class="success-icon">
           <i class="fas fa-check"></i>
@@ -841,20 +845,79 @@
         </h2>
         <div class="bilingual-container">
           <p>
-            <span class="english-text"
-              >Your submission has been recorded successfully.</span
-            >
+            <span class="english-text">Your submission has been recorded successfully.</span>
             <span class="language-separator">/</span>
-            <span class="spanish-text"
-              >Su registro ha sido guardado exitosamente.</span
-            >
+            <span class="spanish-text">Su registro ha sido guardado exitosamente.</span>
           </p>
         </div>
+        
+        <!-- Enhanced Success Details with Employee Information -->
         <div class="success-details" id="successDetails">
-          <!-- Success details will be populated here -->
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Employee ID</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">ID del Empleado</span>
+            </span>
+            <span class="detail-value" id="successEmployeeId">-</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Date</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Fecha</span>
+            </span>
+            <span class="detail-value" id="successCheckInDate">-</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Time</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Hora</span>
+            </span>
+            <span class="detail-value" id="successCheckInTime">-</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Action</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Acción</span>
+            </span>
+            <span class="detail-value" id="successEvent">-</span>
+          </div>
+          
+          <div class="detail-row">
+            <span class="detail-label">
+              <span class="english-text">Location</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Ubicación</span>
+            </span>
+            <span class="detail-value" id="successLocation">-</span>
+          </div>
+          
+          <!-- Optional Additional Details (hidden by default) -->
+          <div class="detail-row" style="display: none;" id="successAddressRow">
+            <span class="detail-label">
+              <span class="english-text">Address</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Dirección</span>
+            </span>
+            <span class="detail-value" id="successAddress">-</span>
+          </div>
+          
+          <div class="detail-row" style="display: none;" id="successAccuracyRow">
+            <span class="detail-label">
+              <span class="english-text">Accuracy</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Precisión</span>
+            </span>
+            <span class="detail-value" id="successLocationAccuracy">-</span>
+          </div>
         </div>
       </div>
-    </div>
 
     <!-- Enhanced JavaScript with preserved functionality -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>

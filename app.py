@@ -3734,10 +3734,11 @@ def qr_checkin(qr_url):
             'message': f'Check-in successful! {checkin_sequence_text} for today.',
             'data': {
                 'employee_id': attendance.employee_id,
-                'location': attendance.location_name,
+                'location': qr_code.location_address,
                 'location_event': qr_code.location_event,
-                'check_in_time': attendance.check_in_time.strftime('%H:%M:%S'),
-                'check_in_date': attendance.check_in_date.strftime('%m/%d/%Y'),
+                'event': qr_code.location_event,  # Add both for compatibility
+                'check_in_time': attendance.check_in_time.strftime('%I:%M %p'),  # 12-hour format
+                'check_in_date': attendance.check_in_date.strftime('%B %d, %Y'),  # Full date format
                 'device_info': attendance.device_info,
                 'ip_address': attendance.ip_address,
                 'location_accuracy': location_accuracy,
@@ -3752,12 +3753,18 @@ def qr_checkin(qr_url):
         if location_data['latitude'] and location_data['longitude']:
             response_data['data']['coordinates'] = f"{location_data['latitude']:.10f}, {location_data['longitude']:.10f}"
 
+        # Enhanced logging for successful check-in with all details
         print(f"✅ Check-in completed successfully")
-        print(f"   Employee: {attendance.employee_id}")
-        print(f"   Time: {attendance.check_in_time}")
+        print(f"   Employee ID: {attendance.employee_id}")
+        print(f"   Time: {attendance.check_in_time.strftime('%I:%M %p')}")
+        print(f"   Date: {attendance.check_in_date.strftime('%B %d, %Y')}")
         print(f"   Location: {attendance.location_name}")
+        print(f"   Action: {qr_code.location_event}")
         print(f"   Address: {attendance.address}")
         print(f"   Today's count: {today_checkin_count}")
+        
+        # Log to database for audit trail
+        logger_handler.logger.info(f"Check-in success - Employee: {attendance.employee_id}, Location: {attendance.location_name}, Time: {attendance.check_in_time}, Action: {qr_code.location_event}")
 
         return jsonify(response_data), 200
 

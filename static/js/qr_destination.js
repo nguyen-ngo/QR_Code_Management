@@ -142,45 +142,49 @@ function initializeForm() {
 
 function disableFormImmediately() {
   // Find and disable submit button immediately
-  const submitButton = document.getElementById("submitCheckin") || 
-                      document.getElementById("submitButton") ||
-                      document.querySelector('button[type="submit"]') ||
-                      document.querySelector('.btn-primary');
-  
+  const submitButton =
+    document.getElementById("submitCheckin") ||
+    document.getElementById("submitButton") ||
+    document.querySelector('button[type="submit"]') ||
+    document.querySelector(".btn-primary");
+
   const employeeIdInput = document.getElementById("employee_id");
   const form = document.getElementById("checkinForm");
-  
+
   if (submitButton) {
     submitButton.disabled = true;
     submitButton.style.opacity = "0.5";
     submitButton.style.cursor = "not-allowed";
     submitButton.style.pointerEvents = "none";
-    submitButton.setAttribute('data-location-blocked', 'true');
-    
+    submitButton.setAttribute("data-location-blocked", "true");
+
     // Store original content
-    if (!submitButton.getAttribute('data-original-content')) {
-      submitButton.setAttribute('data-original-content', submitButton.innerHTML);
+    if (!submitButton.getAttribute("data-original-content")) {
+      submitButton.setAttribute(
+        "data-original-content",
+        submitButton.innerHTML
+      );
     }
-    
+
     // Show loading/checking state
     submitButton.innerHTML = `
       <i class="fas fa-spinner fa-spin"></i>
       <span>Checking Location Services...</span>
     `;
   }
-  
+
   if (employeeIdInput) {
     employeeIdInput.disabled = true;
     employeeIdInput.style.opacity = "0.7";
-    employeeIdInput.setAttribute('data-location-blocked', 'true');
+    employeeIdInput.setAttribute("data-location-blocked", "true");
     employeeIdInput.placeholder = "Checking location services...";
   }
-  
+
   if (form) {
     form.classList.add("location-blocked");
     form.style.pointerEvents = "none";
   }
-  
+
   console.log("🚫 Form DISABLED by default - Checking Location Services...");
 }
 
@@ -201,7 +205,7 @@ function handleFormSubmit(event) {
 
   // STEP 1: Check Location Services FIRST
   console.log("🔍 Step 1: Validating Location Services...");
-  
+
   checkLocationServicesStatus()
     .then(() => {
       // Location services are working, proceed with check-in
@@ -214,7 +218,7 @@ function handleFormSubmit(event) {
       showLocationServicesBlockedMessage();
       return false;
     });
-  
+
   return false;
 }
 
@@ -257,12 +261,12 @@ function proceedWithCheckin() {
 function showLocationServicesBlockedMessage() {
   const messages = {
     en: "Check-in blocked: Location Services must be enabled to continue.",
-    es: "Registro bloqueado: Los Servicios de Ubicación deben estar habilitados para continuar."
+    es: "Registro bloqueado: Los Servicios de Ubicación deben estar habilitados para continuar.",
   };
-  
+
   const currentLang = currentLanguage || "en";
   const message = messages[currentLang];
-  
+
   showCustomStatusMessage(message, "error");
 }
 
@@ -349,6 +353,8 @@ function handleCheckinResponse(data) {
 
 // ENHANCED SUCCESS HANDLING WITH MULTIPLE CHECK-IN INFO
 function handleCheckinSuccess(data) {
+  console.log("✅ Success data received:", data);
+
   const responseData = data.data || data || {};
   const checkinCount = responseData.checkin_count_today || 1;
   const checkinSequence = responseData.checkin_sequence || "Check-in";
@@ -379,15 +385,36 @@ function handleCheckinSuccess(data) {
       }
     };
 
-    const employeeId = responseData.employee_id || "Unknown";
+    // Get employee ID from form input if not in response data
+    const employeeIdInput = document.getElementById("employee_id");
+    const employeeId =
+      responseData.employee_id ||
+      (employeeIdInput
+        ? employeeIdInput.value.trim().toUpperCase()
+        : "Unknown");
+
     const location = responseData.location || "Unknown Location";
     const event =
       responseData.event || responseData.location_event || "Check-in";
-    const checkInTime =
-      responseData.check_in_time || new Date().toLocaleTimeString();
-    const checkInDate =
-      responseData.check_in_date || new Date().toLocaleDateString();
 
+    // Format current date and time if not provided in response
+    const now = new Date();
+    const checkInTime =
+      responseData.check_in_time ||
+      now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    const checkInDate =
+      responseData.check_in_date ||
+      now.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+
+    // Update success card elements
     updateElement("successEmployeeId", employeeId);
     updateElement("successLocation", location);
     updateElement("successEvent", event);
@@ -416,36 +443,11 @@ function handleCheckinSuccess(data) {
         `${responseData.location_accuracy} miles`
       );
     }
-  }
 
-  // NEW: Add option to check in again after success
-  //setTimeout(() => {
-  //  addCheckInAgainOption();
-  //}, 3000);
-}
-
-// NEW: Add option to check in again
-function addCheckInAgainOption() {
-  const successCard = document.getElementById("successCard");
-  if (successCard && !document.getElementById("checkInAgainButton")) {
-    const checkInAgainHtml = `
-      <div class="check-in-again-section" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e0e4e7;">
-        <p class="check-in-again-text" style="margin-bottom: 1rem; color: #64748b; font-size: 0.9rem;">
-          <span data-en="Need to check in again? You can do so after 30 minutes." 
-                data-es="¿Necesita registrarse nuevamente? Puede hacerlo después de 30 minutos.">
-            Need to check in again? You can do so after 30 minutes.
-          </span>
-        </p>
-        <button id="checkInAgainButton" class="btn btn-outline" style="width: 100%;" onclick="resetForNewCheckin()">
-          <i class="fas fa-redo"></i>
-          <span data-en="Check In Again" data-es="Registrarse Nuevamente">Check In Again</span>
-        </button>
-      </div>
-    `;
-    successCard.insertAdjacentHTML("beforeend", checkInAgainHtml);
-
-    // Apply current language translations
-    applyTranslations();
+    // Log successful check-in with details
+    console.log(
+      `✅ Check-in successful for Employee ID: ${employeeId}, Location: ${location}, Time: ${checkInTime}, Date: ${checkInDate}, Action: ${event}`
+    );
   }
 }
 
@@ -831,10 +833,10 @@ function checkLocationServicesStatus() {
         clearTimeout(timeoutId);
         hideLocationServicesWarning();
         blockCheckInProcess(false);
-        
+
         // Log successful location access
         console.log("✅ Location Services: ENABLED and working");
-        
+
         resolve(position);
       },
       (error) => {
@@ -860,7 +862,7 @@ function checkLocationServicesStatus() {
             console.log("❌ Location Services: UNKNOWN ERROR");
             break;
         }
-        
+
         reject(error);
       },
       {
@@ -874,118 +876,124 @@ function checkLocationServicesStatus() {
 
 function blockCheckInProcess(shouldBlock) {
   // Try multiple possible submit button IDs from your codebase
-  const submitButton = document.getElementById("submitCheckin") || 
-                      document.getElementById("submitButton") ||
-                      document.querySelector('button[type="submit"]') ||
-                      document.querySelector('.btn-primary');
-                      
+  const submitButton =
+    document.getElementById("submitCheckin") ||
+    document.getElementById("submitButton") ||
+    document.querySelector('button[type="submit"]') ||
+    document.querySelector(".btn-primary");
+
   const employeeIdInput = document.getElementById("employee_id");
   const form = document.getElementById("checkinForm");
-  
+
   if (shouldBlock) {
     // Set global blocking flag FIRST
     window.locationServicesBlocked = true;
-    
+
     // Block check-in process
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.style.opacity = "0.5";
       submitButton.style.cursor = "not-allowed";
       submitButton.style.pointerEvents = "none";
-      
+
       // Add data attribute to track blocking state
-      submitButton.setAttribute('data-location-blocked', 'true');
-      
+      submitButton.setAttribute("data-location-blocked", "true");
+
       // Store original button content
-      if (!submitButton.getAttribute('data-original-content')) {
-        submitButton.setAttribute('data-original-content', submitButton.innerHTML);
+      if (!submitButton.getAttribute("data-original-content")) {
+        submitButton.setAttribute(
+          "data-original-content",
+          submitButton.innerHTML
+        );
       }
-      
+
       // Update button text to show it's blocked
       submitButton.innerHTML = `
         <i class="fas fa-lock"></i>
         <span>Location Required / Ubicación Requerida</span>
       `;
-      
+
       // Remove all event listeners by cloning
       const newButton = submitButton.cloneNode(true);
       submitButton.parentNode.replaceChild(newButton, submitButton);
-      
+
       // Add blocking event listener
-      newButton.addEventListener('click', function(e) {
+      newButton.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
         showLocationServicesBlockedMessage();
         return false;
       });
     }
-    
+
     if (employeeIdInput) {
       employeeIdInput.disabled = true;
       employeeIdInput.style.opacity = "0.7";
-      employeeIdInput.setAttribute('data-location-blocked', 'true');
+      employeeIdInput.setAttribute("data-location-blocked", "true");
     }
-    
+
     if (form) {
       form.classList.add("location-blocked");
       form.style.pointerEvents = "none";
-      
+
       // Override form submission completely
-      form.onsubmit = function(e) {
+      form.onsubmit = function (e) {
         e.preventDefault();
         e.stopPropagation();
         showLocationServicesBlockedMessage();
         return false;
       };
     }
-    
+
     console.log("🚫 Check-in process BLOCKED - Location Services required");
   } else {
     // Clear global blocking flag FIRST
     window.locationServicesBlocked = false;
-    
+
     // Unblock check-in process
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.style.opacity = "1";
       submitButton.style.cursor = "pointer";
       submitButton.style.pointerEvents = "auto";
-      
+
       // Remove blocking data attribute
-      submitButton.removeAttribute('data-location-blocked');
-      
+      submitButton.removeAttribute("data-location-blocked");
+
       // Restore original button content
-      const originalContent = submitButton.getAttribute('data-original-content');
+      const originalContent = submitButton.getAttribute(
+        "data-original-content"
+      );
       if (originalContent) {
         submitButton.innerHTML = originalContent;
       }
-      
+
       // Re-attach proper event listeners
-      submitButton.onclick = function(e) {
+      submitButton.onclick = function (e) {
         e.preventDefault();
         handleFormSubmit(e);
         return false;
       };
     }
-    
+
     if (employeeIdInput) {
       employeeIdInput.disabled = false;
       employeeIdInput.style.opacity = "1";
-      employeeIdInput.removeAttribute('data-location-blocked');
+      employeeIdInput.removeAttribute("data-location-blocked");
     }
-    
+
     if (form) {
       form.classList.remove("location-blocked");
       form.style.pointerEvents = "auto";
-      
+
       // Restore proper form submission handler
-      form.onsubmit = function(e) {
+      form.onsubmit = function (e) {
         e.preventDefault();
         handleFormSubmit(e);
         return false;
       };
     }
-    
+
     console.log("✅ Check-in process UNBLOCKED - Location Services working");
   }
 }
@@ -998,31 +1006,31 @@ function showLocationServicesWarning(errorType) {
   hideLocationServicesWarning();
 
   const warningMessages = {
-  en: {
-    not_supported:
-      "⚠️ Location Services Not Supported<br><strong>Check-in is currently blocked.</strong><br>Your browser does not support location services required for check-in.<br><br>Los servicios de ubicación no son compatibles. El registro está bloqueado.",
-    permission_denied:
-      "⚠️ Location Access Denied<br><strong>Check-in is currently blocked.</strong><br>Please enable location access in your browser settings to continue with check-in.<br><br>Acceso a ubicación denegado. Habilite el acceso para continuar.",
-    position_unavailable:
-      "⚠️ Location Services Disabled<br><strong>Check-in is currently blocked.</strong><br>Please turn on Location Services in your device settings and refresh the page.<br><br>Servicios de ubicación deshabilitados. Active los servicios y actualice la página.",
-    timeout:
-      "⚠️ Location Services Not Responding<br><strong>Check-in is currently blocked.</strong><br>Location services may be disabled. Please check your device settings.<br><br>Los servicios de ubicación no responden. Verifique la configuración.",
-    unknown_error:
-      "⚠️ Location Services Error<br><strong>Check-in is currently blocked.</strong><br>Unable to access location services. Please check your settings and try again.<br><br>Error de servicios de ubicación. Verifique la configuración.",
-  },
-  es: {
-    not_supported:
-      "⚠️ Servicios de Ubicación No Compatibles<br><strong>El registro está bloqueado.</strong><br>Su navegador no es compatible con los servicios de ubicación requeridos.",
-    permission_denied:
-      "⚠️ Acceso a Ubicación Denegado<br><strong>El registro está bloqueado.</strong><br>Habilite el acceso a la ubicación en la configuración de su navegador.",
-    position_unavailable:
-      "⚠️ Servicios de Ubicación Deshabilitados<br><strong>El registro está bloqueado.</strong><br>Active los Servicios de Ubicación en la configuración y actualice la página.",
-    timeout:
-      "⚠️ Servicios de Ubicación No Responden<br><strong>El registro está bloqueado.</strong><br>Los servicios pueden estar deshabilitados. Verifique la configuración.",
-    unknown_error:
-      "⚠️ Error de Servicios de Ubicación<br><strong>El registro está bloqueado.</strong><br>No se puede acceder a los servicios. Verifique la configuración.",
-  },
-};
+    en: {
+      not_supported:
+        "⚠️ Location Services Not Supported<br><strong>Check-in is currently blocked.</strong><br>Your browser does not support location services required for check-in.<br><br>Los servicios de ubicación no son compatibles. El registro está bloqueado.",
+      permission_denied:
+        "⚠️ Location Access Denied<br><strong>Check-in is currently blocked.</strong><br>Please enable location access in your browser settings to continue with check-in.<br><br>Acceso a ubicación denegado. Habilite el acceso para continuar.",
+      position_unavailable:
+        "⚠️ Location Services Disabled<br><strong>Check-in is currently blocked.</strong><br>Please turn on Location Services in your device settings and refresh the page.<br><br>Servicios de ubicación deshabilitados. Active los servicios y actualice la página.",
+      timeout:
+        "⚠️ Location Services Not Responding<br><strong>Check-in is currently blocked.</strong><br>Location services may be disabled. Please check your device settings.<br><br>Los servicios de ubicación no responden. Verifique la configuración.",
+      unknown_error:
+        "⚠️ Location Services Error<br><strong>Check-in is currently blocked.</strong><br>Unable to access location services. Please check your settings and try again.<br><br>Error de servicios de ubicación. Verifique la configuración.",
+    },
+    es: {
+      not_supported:
+        "⚠️ Servicios de Ubicación No Compatibles<br><strong>El registro está bloqueado.</strong><br>Su navegador no es compatible con los servicios de ubicación requeridos.",
+      permission_denied:
+        "⚠️ Acceso a Ubicación Denegado<br><strong>El registro está bloqueado.</strong><br>Habilite el acceso a la ubicación en la configuración de su navegador.",
+      position_unavailable:
+        "⚠️ Servicios de Ubicación Deshabilitados<br><strong>El registro está bloqueado.</strong><br>Active los Servicios de Ubicación en la configuración y actualice la página.",
+      timeout:
+        "⚠️ Servicios de Ubicación No Responden<br><strong>El registro está bloqueado.</strong><br>Los servicios pueden estar deshabilitados. Verifique la configuración.",
+      unknown_error:
+        "⚠️ Error de Servicios de Ubicación<br><strong>El registro está bloqueado.</strong><br>No se puede acceder a los servicios. Verifique la configuración.",
+    },
+  };
 
   const currentLang = currentLanguage || "en";
   const message =
@@ -1075,7 +1083,7 @@ function hideLocationServicesWarning() {
 function initializeLocationServicesCheck() {
   // Initialize global blocking flag
   window.locationServicesBlocked = false;
-  
+
   // Check location services status when page loads and block if necessary
   setTimeout(() => {
     console.log("🔍 Initializing Location Services check...");
@@ -1084,32 +1092,36 @@ function initializeLocationServicesCheck() {
         console.log("✅ Initial Location Services check passed");
       })
       .catch(() => {
-        console.log("❌ Initial Location Services check failed - Check-in blocked");
+        console.log(
+          "❌ Initial Location Services check failed - Check-in blocked"
+        );
       });
   }, 1000);
 
   // Override form initialization to ensure our handlers are used
   setTimeout(() => {
     const form = document.getElementById("checkinForm");
-    const submitButton = document.getElementById("submitCheckin") || 
-                        document.querySelector('button[type="submit"]');
-    
+    const submitButton =
+      document.getElementById("submitCheckin") ||
+      document.querySelector('button[type="submit"]');
+
     if (form) {
       // Remove existing event listeners by cloning
       const newForm = form.cloneNode(true);
       form.parentNode.replaceChild(newForm, form);
-      
+
       // Add our controlled event listener
-      newForm.addEventListener('submit', handleFormSubmit);
+      newForm.addEventListener("submit", handleFormSubmit);
     }
-    
+
     if (submitButton) {
       // Find the new submit button after form cloning
-      const newSubmitButton = document.getElementById("submitCheckin") || 
-                             document.querySelector('button[type="submit"]');
-      
+      const newSubmitButton =
+        document.getElementById("submitCheckin") ||
+        document.querySelector('button[type="submit"]');
+
       if (newSubmitButton) {
-        newSubmitButton.addEventListener('click', function(e) {
+        newSubmitButton.addEventListener("click", function (e) {
           e.preventDefault();
           e.stopPropagation();
           handleFormSubmit(e);
