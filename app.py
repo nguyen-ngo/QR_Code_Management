@@ -6449,59 +6449,72 @@ def employee_detail(employee_index):
         flash('Error loading employee details. Please try again.', 'error')
         return redirect(url_for('employees'))
 
-"""
-Time Attendance Routes for QR Attendance Management System
-==========================================================
-
-Routes for managing time attendance data import and display functionality.
-Add these routes to your main app.py file.
-"""
-
-from flask import render_template, request, redirect, url_for, flash, jsonify
-from werkzeug.utils import secure_filename
-import os
-from datetime import datetime, date
-from models.time_attendance import TimeAttendance
-from time_attendance_import_service import TimeAttendanceImportService
-
-# Add this to your existing app.py imports and route definitions
-
 @app.route('/time-attendance')
 @login_required
 @log_user_activity('time_attendance_view')
 def time_attendance_dashboard():
-    """Display time attendance dashboard"""
+    """Display time attendance dashboard with table layout"""
     try:
-        # Get summary statistics
-        total_records = TimeAttendance.query.count()
-        unique_employees = db.session.query(TimeAttendance.employee_id).distinct().count()
-        unique_locations = db.session.query(TimeAttendance.location_name).distinct().count()
+        # Initialize default values
+        total_records = 0
+        unique_employees = 0
+        unique_locations = 0
+        recent_imports = []
+        recent_records = []
+        employees = []
+        locations = []
         
-        # Get recent imports (last 10 import batches)
-        recent_imports = db.session.query(
-            TimeAttendance.import_batch_id,
-            TimeAttendance.import_date,
-            TimeAttendance.import_source,
-            db.func.count(TimeAttendance.id).label('record_count')
-        ).filter(
-            TimeAttendance.import_batch_id.isnot(None)
-        ).group_by(
-            TimeAttendance.import_batch_id,
-            TimeAttendance.import_date,
-            TimeAttendance.import_source
-        ).order_by(
-            TimeAttendance.import_date.desc()
-        ).limit(10).all()
-        
-        # Get filter options
-        employees = TimeAttendance.get_unique_employees()
-        locations = TimeAttendance.get_unique_locations()
+        # Try to get data from TimeAttendance model if it exists
+        try:
+            from models.time_attendance import TimeAttendance
+            
+            # Get summary statistics
+            total_records = TimeAttendance.query.count()
+            
+            if total_records > 0:
+                unique_employees = db.session.query(TimeAttendance.employee_id).distinct().count()
+                unique_locations = db.session.query(TimeAttendance.location_name).distinct().count()
+                
+                # Get recent records (last 20 records for table display)
+                recent_records = TimeAttendance.query.order_by(
+                    TimeAttendance.attendance_date.desc(),
+                    TimeAttendance.attendance_time.desc()
+                ).limit(20).all()
+                
+                # Get recent imports (last 10 import batches)
+                recent_imports = db.session.query(
+                    TimeAttendance.import_batch_id,
+                    TimeAttendance.import_date,
+                    TimeAttendance.import_source,
+                    db.func.count(TimeAttendance.id).label('record_count')
+                ).filter(
+                    TimeAttendance.import_batch_id.isnot(None)
+                ).group_by(
+                    TimeAttendance.import_batch_id,
+                    TimeAttendance.import_date,
+                    TimeAttendance.import_source
+                ).order_by(
+                    TimeAttendance.import_date.desc()
+                ).limit(10).all()
+                
+                # Get filter options
+                employees = TimeAttendance.get_unique_employees()
+                locations = TimeAttendance.get_unique_locations()
+                
+        except ImportError:
+            # TimeAttendance model doesn't exist yet - use defaults
+            pass
+        except Exception as e:
+            # Database table doesn't exist yet or other error - use defaults
+            print(f"TimeAttendance query error: {e}")
+            pass
         
         return render_template('time_attendance_dashboard.html',
                              total_records=total_records,
                              unique_employees=unique_employees,
                              unique_locations=unique_locations,
                              recent_imports=recent_imports,
+                             recent_records=recent_records,
                              employees=employees,
                              locations=locations)
                              
