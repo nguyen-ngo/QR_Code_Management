@@ -359,7 +359,7 @@
             </div>
             <div class="meta-item">
               <i class="fas fa-file-contract"></i>
-              Contract ID: {{ employee.contractId }}
+              Contract: {{ employee.contract_name }}
             </div>
             {% if attendance_stats.latest_attendance %}
             <div class="meta-item">
@@ -370,16 +370,6 @@
           </div>
         </div>
       </div>
-      
-      {% if session.role == 'admin' %}
-      <div class="employee-actions">
-        <a href="{{ url_for('edit_employee', employee_index=employee.index) }}" 
-           class="btn btn-warning btn-sm">
-          <i class="fas fa-edit"></i>
-          Edit
-        </a>
-      </div>
-      {% endif %}
     </div>
 
     <div class="profile-body">
@@ -404,7 +394,7 @@
           <div class="info-value">
             <p><strong>Employee ID:</strong> {{ employee.id }}</p>
             <p><strong>Job Title:</strong> {{ employee.display_title }}</p>
-            <p><strong>Contract ID:</strong> {{ employee.contractId }}</p>
+            <p><strong>Contract ID:</strong> {{ employee.contract_name }}</p>
           </div>
         </div>
 

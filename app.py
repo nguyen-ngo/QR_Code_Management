@@ -6395,7 +6395,7 @@ def employee_detail(employee_index):
     """View employee details with attendance summary"""
     try:
         # Get employee by index (primary key)
-        employee = Employee.query.get_or_404(employee_index)
+        employee = Employee.query.outerjoin(Project, Employee.contractId == Project.id).filter(Employee.index == employee_index).first_or_404()
         
         # Get attendance statistics for this employee
         from models.attendance import AttendanceData
