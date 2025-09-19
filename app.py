@@ -6184,23 +6184,26 @@ def create_employee():
             contract_id = request.form.get('contract_id', '1').strip()
             
             # Validate required fields
-            if not all([employee_id, first_name, last_name]):
-                flash('Employee ID, First Name, and Last Name are required.', 'error')
-                return render_template('create_employee.html')
+            if not all([employee_id, first_name, last_name, contract_id]):
+                flash('Employee ID, First Name, Last Name, and Project are required.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('create_employee.html', projects=projects)
             
             # Validate employee ID is numeric
             try:
                 employee_id_int = int(employee_id)
                 contract_id_int = int(contract_id)
             except ValueError:
-                flash('Employee ID and Contract ID must be numeric.', 'error')
-                return render_template('create_employee.html')
+                flash('Employee ID must be numeric and Project must be selected.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('create_employee.html', projects=projects)
             
             # Check if employee ID already exists
             existing_employee = Employee.query.filter_by(id=employee_id_int).first()
             if existing_employee:
                 flash(f'Employee with ID {employee_id} already exists.', 'error')
-                return render_template('create_employee.html')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('create_employee.html', projects=projects)
             
             # Create new employee
             new_employee = Employee(
@@ -6214,9 +6217,11 @@ def create_employee():
             db.session.add(new_employee)
             db.session.commit()
             
-            # Log employee creation
+            # Log employee creation with project info
             try:
-                logger_handler.logger.info(f"Admin user {session['username']} created new employee: {employee_id_int} - {first_name} {last_name}")
+                project = Project.query.get(contract_id_int)
+                project_name = project.name if project else f"Project {contract_id_int}"
+                logger_handler.logger.info(f"Admin user {session['username']} created new employee: {employee_id_int} - {first_name} {last_name} assigned to {project_name}")
             except Exception as log_error:
                 print(f"⚠️ Logging error (non-critical): {log_error}")
             
@@ -6227,9 +6232,12 @@ def create_employee():
             db.session.rollback()
             logger_handler.log_database_error('employee_creation', e)
             flash('Failed to create employee. Please try again.', 'error')
-            return render_template('create_employee.html')
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            return render_template('create_employee.html', projects=projects)
     
-    return render_template('create_employee.html')
+    # GET request - load the form with projects
+    projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+    return render_template('create_employee.html', projects=projects)
 
 @app.route('/employees/<int:employee_index>/edit', methods=['GET', 'POST'])
 @login_required  
@@ -6249,23 +6257,26 @@ def edit_employee(employee_index):
             contract_id = request.form.get('contract_id', '1').strip()
 
             # Validate required fields
-            if not all([employee_id, first_name, last_name]):
-                flash('Employee ID, First Name, and Last Name are required.', 'error')
-                return render_template('edit_employee.html', employee=employee)
+            if not all([employee_id, first_name, last_name, contract_id]):
+                flash('Employee ID, First Name, Last Name, and Project are required.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('edit_employee.html', employee=employee, projects=projects)
             
             # Validate numeric fields
             try:
                 employee_id_int = int(employee_id)
                 contract_id_int = int(contract_id)
             except ValueError:
-                flash('Employee ID and Contract ID must be numeric.', 'error')
-                return render_template('edit_employee.html', employee=employee)
+                flash('Employee ID must be numeric and Project must be selected.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('edit_employee.html', employee=employee, projects=projects)
             
             # Check if employee ID already exists (but not for this employee)
             existing_employee = Employee.query.filter_by(id=employee_id_int).first()
             if existing_employee and existing_employee.index != employee.index:
                 flash(f'Employee with ID {employee_id} already exists.', 'error')
-                return render_template('edit_employee.html', employee=employee)
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('edit_employee.html', employee=employee, projects=projects)
             
             # Store original values for logging
             original_data = {
@@ -6285,16 +6296,20 @@ def edit_employee(employee_index):
             
             db.session.commit()
             
-            # Log employee update
+            # Log employee update with project info
             try:
-                logger_handler.logger.info(f"Admin user {session['username']} updated employee: {employee_index} - {first_name} {last_name}")
+                project = Project.query.get(contract_id_int)
+                project_name = project.name if project else f"Project {contract_id_int}"
+                logger_handler.logger.info(f"Admin user {session['username']} updated employee: {employee_index} - {first_name} {last_name} assigned to {project_name}")
             except Exception as log_error:
-                print(f"Warning: Logging error (non-critical): {log_error}")
+                print(f"⚠️ Logging error (non-critical): {log_error}")
             
             flash(f'Employee "{first_name} {last_name}" updated successfully.', 'success')
             return redirect(url_for('employees'))
         
-        return render_template('edit_employee.html', employee=employee)
+        # GET request - load the form with projects
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        return render_template('edit_employee.html', employee=employee, projects=projects)
         
     except Exception as e:
         db.session.rollback()

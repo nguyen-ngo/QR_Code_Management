@@ -6,7 +6,7 @@
 />
 <style>
   .form-container {
-    max-width: 600px;
+    max-width: 800px;
     margin: 0 auto;
     background: #ffffff;
     border-radius: 0.75rem;
@@ -95,7 +95,7 @@
   }
 
   .form-input {
-    width: 100%;
+    width: 50%;
     padding: 0.75rem 1rem;
     border: 2px solid #e2e8f0;
     border-radius: 0.5rem;
@@ -202,17 +202,26 @@
           </div>
 
           <div class="form-group">
-            <label for="contract_id" class="form-label">Contract ID</label>
-            <input
-              type="number"
-              id="contract_id"
-              name="contract_id"
+            <label for="contract_id" class="form-label">Project</label>
+            <select 
+              id="contract_id" 
+              name="contract_id" 
               class="form-input"
-              min="1"
-              value="{{ request.form.get('contract_id', employee.contractId) }}"
-              placeholder="Enter contract ID"
-            />
-            <div class="form-help">Default is 1 if not specified</div>
+              required
+            >
+              <option value="">-- Select Project --</option>
+              {% for project in projects %}
+              <option 
+                value="{{ project.id }}" 
+                {% if request.form.get('contract_id') == project.id|string or (not request.form.get('contract_id') and employee.contractId == project.id) %}selected{% endif %}
+              >
+                {{ project.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-help">
+              Select the project this employee will be assigned to
+            </div>
           </div>
         </div>
 
@@ -392,22 +401,19 @@
       }
     });
 
-    // Contract ID validation
-    const contractIdInput = document.getElementById("contract_id");
-    contractIdInput.addEventListener("input", function () {
-      // Remove any non-numeric characters
-      this.value = this.value.replace(/[^0-9]/g, "");
-
-      // Set default value if empty
-      if (!this.value) {
-        this.value = "1";
-      }
-
-      // Remove leading zeros
-      if (this.value.length > 1) {
-        this.value = this.value.replace(/^0+/, "");
+    const contractIdSelect = document.getElementById("contract_id");
+    contractIdSelect.addEventListener("change", function () {
+      if (this.value) {
+        this.classList.remove("error");
+        // Remove the yellow highlight for changes
+        this.style.borderLeft = "";
       }
     });
+
+    if (!contractIdSelect.value) {
+      contractIdSelect.classList.add("error");
+      isValid = false;
+    }
 
     // Highlight changed fields
     function highlightChanges() {

@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
 <style>
 .form-container {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   background: #ffffff;
   border-radius: 0.75rem;
@@ -72,7 +72,7 @@
 }
 
 .form-input {
-  width: 100%;
+  width: 50%;
   padding: 0.75rem 1rem;
   border: 2px solid #e2e8f0;
   border-radius: 0.5rem;
@@ -89,6 +89,14 @@
 
 .form-input.error {
   border-color: #dc2626;
+}
+
+.form-input select {
+  cursor: pointer;
+}
+
+.form-input option {
+  padding: 0.5rem;
 }
 
 .form-help {
@@ -173,21 +181,27 @@
           </div>
 
           <div class="form-group">
-            <label for="contract_id" class="form-label">Contract ID</label>
-            <input 
-              type="number" 
+            <label for="contract_id" class="form-label">Project</label>
+            <select 
               id="contract_id" 
               name="contract_id" 
-              class="form-input" 
-              min="1"
-              value="{{ request.form.get('contract_id', '1') }}"
-              placeholder="Enter contract ID"
+              class="form-input"
+              required
             >
+              <option value="">-- Select Project --</option>
+              {% for project in projects %}
+              <option 
+                value="{{ project.id }}" 
+                {% if request.form.get('contract_id') == project.id|string or (not request.form.get('contract_id') and project.id == 1) %}selected{% endif %}
+              >
+                {{ project.name }}
+              </option>
+              {% endfor %}
+            </select>
             <div class="form-help">
-              Default is 1 if not specified
+              Select the project this employee will be assigned to
             </div>
           </div>
-        </div>
 
         <!-- First Name and Last Name Row -->
         <div class="form-row">
@@ -317,6 +331,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove leading zeros
         if (this.value.length > 1) {
             this.value = this.value.replace(/^0+/, '');
+        }
+    });
+
+    const contractIdSelect = document.getElementById('contract_id');
+    contractIdSelect.addEventListener('change', function() {
+        if (this.value) {
+            this.classList.remove('error');
         }
     });
 });
