@@ -70,3 +70,12 @@ class Employee(base.db.Model):
             'display_title': self.display_title,
             'contractId': self.contractId
         }
+    
+    project = base.db.relationship('Project', foreign_keys=[contractId], 
+                              primaryjoin="Employee.contractId == Project.id",
+                              backref='employees')
+
+    @property
+    def contract_name(self):
+        """Get project name from contractId"""
+        return self.project.name if self.project else f"Contract {self.contractId}"

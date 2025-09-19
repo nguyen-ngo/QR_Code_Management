@@ -6124,8 +6124,8 @@ def employees():
         per_page = 20  # Number of employees per page
         
         # Build query based on search
-        query = Employee.query
-        
+        query = Employee.query.outerjoin(Project, Employee.contractId == Project.id)
+
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
@@ -6136,7 +6136,7 @@ def employees():
                     Employee.id.like(search_pattern)
                 )
             )
-        
+
         # Order by first name, then last name
         query = query.order_by(Employee.firstName, Employee.lastName)
         

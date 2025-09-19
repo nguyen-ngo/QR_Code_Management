@@ -375,7 +375,7 @@ body.has-sidebar .employees-page {
   font-size: 0.875rem;
 }
 
-.contract-id .contract-badge {
+.contract .contract-badge {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.75rem;

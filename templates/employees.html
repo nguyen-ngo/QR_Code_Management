@@ -128,7 +128,7 @@ extra_head %}
             <th>Employee ID</th>
             <th>Name</th>
             <th>Job Title</th>
-            <th>Contract ID</th>
+            <th>Contract</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -163,8 +163,8 @@ extra_head %}
               {% endif %}
             </td>
 
-            <td class="contract-id">
-              <span class="contract-badge">{{ employee.contractId }}</span>
+            <td class="contract">
+              <span class="contract-badge">{{ employee.contract_name }}</span>
             </td>
 
             <td class="actions">
