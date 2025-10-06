@@ -554,6 +554,34 @@ body.has-sidebar .time-attendance-page {
   background: #fecaca;
 }
 
+/* Enhanced action buttons */
+.action-btn.btn-info {
+  background: #4299e1;
+  color: white;
+}
+
+.action-btn.btn-info:hover {
+  background: #3182ce;
+}
+
+.action-btn.btn-delete {
+  background: #f56565;
+  color: white;
+}
+
+.action-btn.btn-delete:hover {
+  background: #e53e3e;
+}
+
+/* Progress indicator animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
 /* Pagination */
 .pagination-section {
   padding: 1.5rem;

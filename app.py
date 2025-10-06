@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename 
 from functools import wraps
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
@@ -15,6 +16,7 @@ from logger_handler import AppLogger, log_user_activity, log_database_operations
 from single_checkin_calculator import SingleCheckInCalculator
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
+from time_attendance_import_service import TimeAttendanceImportService
 
 # Load environment variables in .env
 load_dotenv()
@@ -6542,7 +6544,7 @@ def time_attendance_dashboard():
 @admin_required
 @log_database_operations('time_attendance_import')
 def import_time_attendance():
-    """Import time attendance data from Excel file"""
+    """Enhanced import time attendance data from Excel file"""
     if request.method == 'POST':
         try:
             # Check if file is uploaded
@@ -6564,11 +6566,18 @@ def import_time_attendance():
             filename = secure_filename(file.filename)
             temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
                                    f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+            
+            # Ensure upload directory exists
+            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
             file.save(temp_path)
             
             try:
-                # Initialize import service
+                # Initialize enhanced import service
                 import_service = TimeAttendanceImportService(db, logger_handler)
+                
+                # Get import options
+                skip_duplicates = request.form.get('skip_duplicates', 'true').lower() == 'true'
+                validate_only = request.form.get('validate_only', 'false').lower() == 'true'
                 
                 # Validate file first
                 validation_result = import_service.validate_excel_file(temp_path)
@@ -6578,12 +6587,24 @@ def import_time_attendance():
                     return render_template('time_attendance_import.html', 
                                          validation_result=validation_result)
                 
+                # Show warnings if any
+                if validation_result['warnings']:
+                    for warning in validation_result['warnings']:
+                        flash(warning, 'warning')
+                
+                # If validate only, return validation results
+                if validate_only:
+                    flash(f"File validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
+                    return render_template('time_attendance_import.html', 
+                                         validation_result=validation_result)
+                
                 # Proceed with import
                 import_source = request.form.get('import_source', f"Manual Import - {filename}")
                 import_result = import_service.import_from_excel(
                     temp_path,
                     created_by=session['user_id'],
-                    import_source=import_source
+                    import_source=import_source,
+                    skip_duplicates=skip_duplicates
                 )
                 
                 if import_result['success']:
@@ -6591,11 +6612,16 @@ def import_time_attendance():
                     logger_handler.logger.info(
                         f"User {session['username']} successfully imported time attendance data - "
                         f"Batch: {import_result['batch_id']}, "
-                        f"Records: {import_result['imported_records']}/{import_result['total_records']}"
+                        f"Records: {import_result['imported_records']}/{import_result['total_records']}, "
+                        f"Duplicates: {import_result['duplicate_records']}, "
+                        f"Failed: {import_result['failed_records']}"
                     )
                     
                     flash(f"Import successful! Imported {import_result['imported_records']} records "
                           f"out of {import_result['total_records']} total records.", 'success')
+                    
+                    if import_result['duplicate_records'] > 0:
+                        flash(f"Skipped {import_result['duplicate_records']} duplicate records.", 'info')
                     
                     if import_result['failed_records'] > 0:
                         flash(f"Note: {import_result['failed_records']} records failed to import. "
@@ -6604,14 +6630,19 @@ def import_time_attendance():
                     return render_template('time_attendance_import_result.html', 
                                          import_result=import_result)
                 else:
-                    flash(f"Import failed: {'; '.join(import_result['errors'])}", 'error')
+                    flash(f"Import failed: {'; '.join(import_result['errors'][:3])}", 'error')
+                    if len(import_result['errors']) > 3:
+                        flash(f"...and {len(import_result['errors']) - 3} more errors", 'warning')
                     return render_template('time_attendance_import.html', 
                                          import_result=import_result)
                 
             finally:
                 # Clean up temporary file
                 if os.path.exists(temp_path):
-                    os.remove(temp_path)
+                    try:
+                        os.remove(temp_path)
+                    except Exception as cleanup_error:
+                        logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
             
         except Exception as e:
             logger_handler.log_database_error('time_attendance_import', e)
@@ -6619,6 +6650,209 @@ def import_time_attendance():
             return render_template('time_attendance_import.html')
     
     return render_template('time_attendance_import.html')
+
+@app.route('/time-attendance/import/validate', methods=['POST'])
+@admin_required
+def validate_import_file():
+    """AJAX endpoint to validate Excel file before import"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'}), 400
+        
+        # Validate file extension
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'message': 'Invalid file format'}), 400
+        
+        # Save temporarily
+        filename = secure_filename(file.filename)
+        temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                               f"validate_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+        
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        file.save(temp_path)
+        
+        try:
+            # Validate file
+            import_service = TimeAttendanceImportService(db, logger_handler)
+            validation_result = import_service.validate_excel_file(temp_path)
+            
+            return jsonify({
+                'success': True,
+                'validation': validation_result
+            })
+        
+        finally:
+            # Cleanup
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Validation error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Validation failed: {str(e)}'
+        }), 500
+    
+@app.route('/time-attendance/import/batch/<batch_id>')
+@login_required
+@log_user_activity('view_import_batch')
+def view_import_batch(batch_id):
+    """View details of a specific import batch"""
+    try:
+        import_service = TimeAttendanceImportService(db, logger_handler)
+        batch_summary = import_service.get_import_summary(batch_id)
+        
+        if not batch_summary:
+            flash('Import batch not found.', 'error')
+            return redirect(url_for('time_attendance_dashboard'))
+        
+        return render_template('time_attendance_batch_detail.html',
+                             batch_summary=batch_summary)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error viewing batch {batch_id}: {e}")
+        flash('Error loading batch details.', 'error')
+        return redirect(url_for('time_attendance_dashboard'))
+
+
+@app.route('/time-attendance/import/batch/<batch_id>/delete', methods=['POST'])
+@admin_required
+@log_database_operations('delete_import_batch')
+def delete_import_batch(batch_id):
+    """Delete an entire import batch"""
+    try:
+        import_service = TimeAttendanceImportService(db, logger_handler)
+        result = import_service.delete_import_batch(batch_id, deleted_by=session['user_id'])
+        
+        if result['success']:
+            flash(result['message'], 'success')
+            logger_handler.logger.info(
+                f"User {session['username']} deleted import batch {batch_id} - "
+                f"{result['deleted_count']} records removed"
+            )
+        else:
+            flash(result['message'], 'error')
+        
+        return redirect(url_for('time_attendance_dashboard'))
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error deleting batch {batch_id}: {e}")
+        flash('Error deleting import batch.', 'error')
+        return redirect(url_for('time_attendance_dashboard'))
+
+
+@app.route('/time-attendance/import/download-template')
+@login_required
+def download_import_template():
+    """Download Excel template for time attendance import"""
+    try:
+        import io
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from flask import send_file
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Time Attendance Template"
+        
+        # Define headers
+        headers = ['ID', 'Name', 'Platform', 'Date', 'Time', 'Location Name', 
+                   'Action Description', 'Event Description', 'Recorded Address']
+        
+        # Style headers
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+        
+        # Add sample data rows
+        sample_data = [
+            ['12345', 'John Doe', 'iPhone - iOS', '2025-10-06', '09:00:00', 
+             'HQ Suite 210', 'Check In', 'Morning Entry', '123 Main Street'],
+            ['12345', 'John Doe', 'iPhone - iOS', '2025-10-06', '17:30:00', 
+             'HQ Suite 210', 'Check Out', 'Evening Exit', '123 Main Street'],
+            ['67890', 'Jane Smith', 'Android', '2025-10-06', '08:45:00', 
+             'Branch Office', 'Check In', 'Morning Entry', '456 Oak Avenue'],
+        ]
+        
+        for row_num, row_data in enumerate(sample_data, 2):
+            for col_num, value in enumerate(row_data, 1):
+                ws.cell(row=row_num, column=col_num, value=value)
+        
+        # Adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[col_letter].width = adjusted_width
+        
+        # Add instructions sheet
+        ws_instructions = wb.create_sheet("Instructions")
+        instructions = [
+            ["Time Attendance Import Template - Instructions"],
+            [""],
+            ["Required Columns:"],
+            ["- ID: Employee ID (required)"],
+            ["- Name: Employee full name (required)"],
+            ["- Date: Attendance date in YYYY-MM-DD format (required)"],
+            ["- Time: Attendance time in HH:MM:SS format (required)"],
+            ["- Location Name: Location where attendance was recorded (required)"],
+            ["- Action Description: Type of action (e.g., Check In, Check Out) (required)"],
+            [""],
+            ["Optional Columns:"],
+            ["- Platform: Device platform (e.g., iPhone - iOS, Android)"],
+            ["- Event Description: Additional event details"],
+            ["- Recorded Address: Physical address where attendance was recorded"],
+            [""],
+            ["Important Notes:"],
+            ["- Do not modify the header row"],
+            ["- Ensure all required fields have values"],
+            ["- Date format must be YYYY-MM-DD (e.g., 2025-10-06)"],
+            ["- Time format must be HH:MM:SS (e.g., 09:00:00)"],
+            ["- Remove the sample data rows before importing your actual data"],
+            ["- Duplicate records will be automatically detected and skipped"],
+        ]
+        
+        for row_num, instruction in enumerate(instructions, 1):
+            ws_instructions.cell(row=row_num, column=1, value=instruction[0])
+        
+        ws_instructions.column_dimensions['A'].width = 80
+        
+        # Save to bytes
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Log download
+        logger_handler.logger.info(f"User {session['username']} downloaded import template")
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'time_attendance_template_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        )
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error generating template: {e}")
+        flash('Error generating template file.', 'error')
+        return redirect(url_for('import_time_attendance'))
 
 @app.route('/time-attendance/records')
 @login_required

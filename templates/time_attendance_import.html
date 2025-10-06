@@ -3,6 +3,115 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
+<style>
+.validation-preview {
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.validation-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.validation-stat {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.validation-stat .number {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.validation-stat .label {
+  font-size: 0.875rem;
+  color: #718096;
+  margin-top: 0.25rem;
+}
+
+.validation-stat.success .number { color: #48bb78; }
+.validation-stat.warning .number { color: #ed8936; }
+.validation-stat.error .number { color: #f56565; }
+
+.import-options {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.checkbox-item input[type="checkbox"] {
+  margin-top: 0.25rem;
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-label {
+  flex: 1;
+}
+
+.checkbox-label strong {
+  display: block;
+  color: #2d3748;
+  margin-bottom: 0.25rem;
+}
+
+.checkbox-label span {
+  color: #718096;
+  font-size: 0.875rem;
+}
+
+.progress-indicator {
+  display: none;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #ebf8ff;
+  border: 1px solid #90cdf4;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.progress-indicator.active {
+  display: block;
+}
+
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #4299e1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}
 
 {% block page_title %}Import Time Attendance{% endblock %}
@@ -24,8 +133,15 @@
         Import Time Attendance Data
       </h1>
       <p class="header-description">
-        Upload Excel files containing employee time attendance records
+        Upload Excel files containing employee time attendance records with enhanced validation
       </p>
+    </div>
+    
+    <div class="header-actions">
+      <a href="{{ url_for('download_import_template') }}" class="btn btn-secondary">
+        <i class="fas fa-download"></i>
+        Download Template
+      </a>
     </div>
   </div>
 
@@ -59,8 +175,16 @@
           <div class="instruction-icon">
             <i class="fas fa-shield-alt"></i>
           </div>
-          <h3>Data Validation</h3>
-          <p>Automatic validation and error reporting for invalid data</p>
+          <h3>Smart Validation</h3>
+          <p>Automatic duplicate detection and data validation</p>
+        </div>
+        
+        <div class="instruction-item">
+          <div class="instruction-icon">
+            <i class="fas fa-copy"></i>
+          </div>
+          <h3>Duplicate Handling</h3>
+          <p>Automatically skip duplicate records during import</p>
         </div>
       </div>
       
@@ -89,7 +213,7 @@
                 <td>12345</td>
                 <td>John Doe</td>
                 <td>iPhone - iOS</td>
-                <td>2025-09-12</td>
+                <td>2025-10-06</td>
                 <td>09:00:00</td>
                 <td>HQ Suite 210</td>
                 <td>Check In</td>
@@ -100,7 +224,7 @@
                 <td>67890</td>
                 <td>Jane Smith</td>
                 <td>Android</td>
-                <td>2025-09-12</td>
+                <td>2025-10-06</td>
                 <td>17:30:00</td>
                 <td>HQ Suite 210</td>
                 <td>Check Out</td>
@@ -147,6 +271,31 @@
         </div>
 
         <!-- Import Options -->
+        <div class="import-options">
+          <h3>
+            <i class="fas fa-cog"></i>
+            Import Options
+          </h3>
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true" checked>
+              <label for="skip_duplicates" class="checkbox-label">
+                <strong>Skip Duplicate Records</strong>
+                <span>Automatically detect and skip records that already exist in the system</span>
+              </label>
+            </div>
+            
+            <div class="checkbox-item">
+              <input type="checkbox" id="validate_only" name="validate_only" value="true">
+              <label for="validate_only" class="checkbox-label">
+                <strong>Validate Only (Don't Import)</strong>
+                <span>Check file for errors without actually importing the data</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import Source -->
         <div class="form-grid">
           <div class="form-group">
             <label for="import_source" class="form-label">
@@ -157,10 +306,16 @@
                    id="import_source" 
                    name="import_source" 
                    class="form-input"
-                   placeholder="e.g., Monthly Attendance Report - September 2025"
+                   placeholder="e.g., Monthly Attendance Report - October 2025"
                    value="Excel Import - {{ current_date }}">
             <small class="form-help">Optional description for this import batch</small>
           </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div id="progressIndicator" class="progress-indicator">
+          <div class="spinner"></div>
+          <p style="margin-top: 0.5rem;">Processing your file, please wait...</p>
         </div>
 
         <!-- Form Actions -->
@@ -172,17 +327,13 @@
           <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
             <i class="fas fa-upload"></i>
             <span class="btn-text">Import Data</span>
-            <span class="btn-loading" style="display: none;">
-              <i class="fas fa-spinner fa-spin"></i>
-              Processing...
-            </span>
           </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Validation Results (if any) -->
+  <!-- Validation Results -->
   {% if validation_result %}
   <div class="import-results {% if validation_result.valid %}success{% else %}error{% endif %}">
     <div class="results-header">
@@ -197,28 +348,30 @@
       </h2>
     </div>
     <div class="results-body">
-      <div class="results-summary">
-        <div class="summary-item">
+      <div class="validation-stats">
+        <div class="validation-stat">
           <div class="number">{{ validation_result.total_rows }}</div>
           <div class="label">Total Rows</div>
         </div>
-        <div class="summary-item">
+        <div class="validation-stat success">
+          <div class="number">{{ validation_result.valid_rows }}</div>
+          <div class="label">Valid Rows</div>
+        </div>
+        {% if validation_result.invalid_rows > 0 %}
+        <div class="validation-stat warning">
+          <div class="number">{{ validation_result.invalid_rows }}</div>
+          <div class="label">Invalid Rows</div>
+        </div>
+        {% endif %}
+        <div class="validation-stat">
           <div class="number">{{ validation_result.columns|length }}</div>
           <div class="label">Columns Found</div>
         </div>
-        {% if validation_result.errors %}
-        <div class="summary-item error">
-          <div class="number">{{ validation_result.errors|length }}</div>
-          <div class="label">Errors</div>
-        </div>
-        {% endif %}
-        {% if validation_result.warnings %}
-        <div class="summary-item">
-          <div class="number">{{ validation_result.warnings|length }}</div>
-          <div class="label">Warnings</div>
-        </div>
-        {% endif %}
       </div>
+
+      {% if validation_result.file_info %}
+      <p><strong>File Size:</strong> {{ validation_result.file_info.size_mb }} MB</p>
+      {% endif %}
 
       {% if validation_result.errors %}
       <div class="error-list">
@@ -252,7 +405,7 @@
       <div class="sample-data">
         <h4>
           <i class="fas fa-eye"></i>
-          Sample Data Preview
+          Sample Data Preview (First 3 Rows)
         </h4>
         <div class="table-container">
           <table class="preview-table">
@@ -280,7 +433,7 @@
   </div>
   {% endif %}
 
-  <!-- Import Results (if any) -->
+  <!-- Import Results -->
   {% if import_result %}
   <div class="import-results {% if import_result.success %}success{% else %}error{% endif %}">
     <div class="results-header">
@@ -295,17 +448,23 @@
       </h2>
     </div>
     <div class="results-body">
-      <div class="results-summary">
-        <div class="summary-item">
+      <div class="validation-stats">
+        <div class="validation-stat">
           <div class="number">{{ import_result.total_records }}</div>
           <div class="label">Total Records</div>
         </div>
-        <div class="summary-item success">
+        <div class="validation-stat success">
           <div class="number">{{ import_result.imported_records }}</div>
           <div class="label">Successfully Imported</div>
         </div>
+        {% if import_result.duplicate_records > 0 %}
+        <div class="validation-stat warning">
+          <div class="number">{{ import_result.duplicate_records }}</div>
+          <div class="label">Duplicates Skipped</div>
+        </div>
+        {% endif %}
         {% if import_result.failed_records > 0 %}
-        <div class="summary-item error">
+        <div class="validation-stat error">
           <div class="number">{{ import_result.failed_records }}</div>
           <div class="label">Failed Records</div>
         </div>
@@ -335,12 +494,32 @@
       <div class="error-list">
         <h4>
           <i class="fas fa-exclamation-triangle"></i>
-          Import Errors
+          Import Errors (Showing first 10)
         </h4>
         <ul>
-          {% for error in import_result.errors %}
+          {% for error in import_result.errors[:10] %}
           <li>{{ error }}</li>
           {% endfor %}
+          {% if import_result.errors|length > 10 %}
+          <li><em>...and {{ import_result.errors|length - 10 }} more errors</em></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if import_result.warnings %}
+      <div class="warning-list">
+        <h4>
+          <i class="fas fa-info-circle"></i>
+          Import Warnings (Showing first 10)
+        </h4>
+        <ul>
+          {% for warning in import_result.warnings[:10] %}
+          <li>{{ warning }}</li>
+          {% endfor %}
+          {% if import_result.warnings|length > 10 %}
+          <li><em>...and {{ import_result.warnings|length - 10 }} more warnings</em></li>
+          {% endif %}
         </ul>
       </div>
       {% endif %}
@@ -349,344 +528,87 @@
   {% endif %}
 </div>
 
-<style>
-.instructions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.instruction-item {
-  text-align: center;
-  padding: 1.5rem;
-  background: #f8fafc;
-  border-radius: 0.75rem;
-  border: 1px solid #e2e8f0;
-}
-
-.instruction-icon {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 1rem;
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 1.5rem;
-}
-
-.instruction-item h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin-bottom: 0.5rem;
-}
-
-.instruction-item p {
-  color: #64748b;
-  font-size: 0.875rem;
-}
-
-.sample-format {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  margin-top: 2rem;
-}
-
-.sample-format h4 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin-bottom: 1rem;
-}
-
-.format-table {
-  overflow-x: auto;
-}
-
-.format-table table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #ffffff;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-}
-
-.format-table th,
-.format-table td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 0.875rem;
-}
-
-.format-table th {
-  background: #f1f5f9;
-  font-weight: 600;
-  color: #374151;
-}
-
-.format-table tr:last-child td {
-  border-bottom: none;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 0.5rem;
-  margin-top: 1rem;
-  color: #166534;
-}
-
-.file-info i {
-  color: #22c55e;
-}
-
-.file-name {
-  font-weight: 600;
-}
-
-.file-size {
-  font-size: 0.875rem;
-  color: #15803d;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e2e8f0;
-  margin-top: 2rem;
-}
-
-.btn-loading {
-  display: none;
-}
-
-.preview-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #ffffff;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-}
-
-.preview-table th,
-.preview-table td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 0.875rem;
-}
-
-.preview-table th {
-  background: #f8fafc;
-  font-weight: 600;
-  color: #374151;
-}
-
-.table-container {
-  overflow-x: auto;
-  margin-top: 1rem;
-}
-
-.text-success {
-  color: #10b981;
-}
-
-.text-danger {
-  color: #ef4444;
-}
-
-.warning-list {
-  background: #fffbeb;
-  border: 1px solid #fed7aa;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  margin-top: 1rem;
-}
-
-.warning-list h4 {
-  color: #92400e;
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-}
-
-.warning-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.warning-list li {
-  color: #d97706;
-  font-size: 0.875rem;
-  padding: 0.25rem 0;
-  border-bottom: 1px solid #fed7aa;
-}
-
-.warning-list li:last-child {
-  border-bottom: none;
-}
-
-.sample-data {
-  margin-top: 1.5rem;
-}
-
-.sample-data h4 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin-bottom: 1rem;
-}
-
-.success-actions {
-  text-align: center;
-  padding: 1rem;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.success-actions p {
-  color: #166534;
-  margin-bottom: 1rem;
-}
-
-.success-actions code {
-  background: #dcfce7;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-family: monospace;
-  color: #15803d;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .instructions-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-  }
-  
-  .action-buttons {
-    flex-direction: column;
-  }
-  
-  .format-table,
-  .table-container {
-    font-size: 0.75rem;
-  }
-}
-</style>
-
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const fileUploadArea = document.getElementById('fileUploadArea');
-  const fileInput = document.getElementById('fileInput');
-  const fileInfo = document.getElementById('fileInfo');
-  const submitBtn = document.getElementById('submitBtn');
-  const importForm = document.getElementById('importForm');
+// File upload handling
+const fileInput = document.getElementById('fileInput');
+const fileUploadArea = document.getElementById('fileUploadArea');
+const fileInfo = document.getElementById('fileInfo');
+const submitBtn = document.getElementById('submitBtn');
+const importForm = document.getElementById('importForm');
+const progressIndicator = document.getElementById('progressIndicator');
 
-  // File upload handling
-  fileUploadArea.addEventListener('click', () => fileInput.click());
-  
-  fileUploadArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    fileUploadArea.classList.add('dragover');
-  });
-  
-  fileUploadArea.addEventListener('dragleave', () => {
-    fileUploadArea.classList.remove('dragover');
-  });
-  
-  fileUploadArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    fileUploadArea.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      fileInput.files = files;
-      handleFileSelect();
-    }
-  });
-
-  fileInput.addEventListener('change', handleFileSelect);
-
-  function handleFileSelect() {
-    const file = fileInput.files[0];
-    if (file) {
-      const fileName = file.name;
-      const fileSize = formatFileSize(file.size);
-      
-      fileInfo.querySelector('.file-name').textContent = fileName;
-      fileInfo.querySelector('.file-size').textContent = fileSize;
-      fileInfo.style.display = 'flex';
-      
-      submitBtn.disabled = false;
-      
-      // Validate file type
-      const validExtensions = ['.xlsx', '.xls'];
-      const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
-      
-      if (!validExtensions.includes(fileExtension)) {
-        alert('Please select a valid Excel file (.xlsx or .xls)');
-        resetForm();
-      }
-    }
-  }
-
-  function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  // Form submission handling
-  importForm.addEventListener('submit', function(e) {
-    const btnText = submitBtn.querySelector('.btn-text');
-    const btnLoading = submitBtn.querySelector('.btn-loading');
-    
-    btnText.style.display = 'none';
-    btnLoading.style.display = 'inline-flex';
-    submitBtn.disabled = true;
-  });
-
-  // Reset form function
-  window.resetForm = function() {
-    fileInput.value = '';
-    fileInfo.style.display = 'none';
-    submitBtn.disabled = true;
-    fileUploadArea.classList.remove('dragover');
-  };
+// Drag and drop handlers
+fileUploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  fileUploadArea.classList.add('dragover');
 });
+
+fileUploadArea.addEventListener('dragleave', () => {
+  fileUploadArea.classList.remove('dragover');
+});
+
+fileUploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  fileUploadArea.classList.remove('dragover');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFileSelect();
+  }
+});
+
+fileUploadArea.addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', handleFileSelect);
+
+function handleFileSelect() {
+  const file = fileInput.files[0];
+  if (file) {
+    const fileName = file.name;
+    const fileSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+    
+    fileInfo.querySelector('.file-name').textContent = fileName;
+    fileInfo.querySelector('.file-size').textContent = fileSize;
+    fileInfo.style.display = 'flex';
+    
+    submitBtn.disabled = false;
+    
+    // Validate file extension
+    if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
+      alert('Please select an Excel file (.xlsx or .xls)');
+      resetForm();
+    }
+  }
+}
+
+// Form submission
+importForm.addEventListener('submit', (e) => {
+  if (!fileInput.files[0]) {
+    e.preventDefault();
+    alert('Please select a file to import');
+    return;
+  }
+  
+  // Show progress indicator
+  progressIndicator.classList.add('active');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+});
+
+function resetForm() {
+  importForm.reset();
+  fileInfo.style.display = 'none';
+  submitBtn.disabled = true;
+  progressIndicator.classList.remove('active');
+  submitBtn.innerHTML = '<i class="fas fa-upload"></i> <span class="btn-text">Import Data</span>';
+}
+
+// Prevent form resubmission
+if (window.history.replaceState) {
+  window.history.replaceState(null, null, window.location.href);
+}
 </script>
 {% endblock %}
