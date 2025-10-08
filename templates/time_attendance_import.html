@@ -111,6 +111,105 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Fixed styles for instructions section */
+.instructions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.instruction-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.instruction-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1rem;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 1.5rem;
+}
+
+.instruction-item h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.instruction-item p {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.sample-format {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.sample-format h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.format-table {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.format-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 0.875rem;
+}
+
+.format-table thead {
+  background: linear-gradient(135deg, #4299e1, #3182ce);
+  color: white;
+}
+
+.format-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #2b6cb0;
+  white-space: nowrap;
+}
+
+.format-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #4a5568;
+}
+
+.format-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.format-table tbody tr:hover {
+  background: #f7fafc;
+}
 </style>
 {% endblock %}
 
@@ -278,18 +377,18 @@
           </h3>
           <div class="checkbox-group">
             <div class="checkbox-item">
-              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true" checked>
-              <label for="skip_duplicates" class="checkbox-label">
-                <strong>Skip Duplicate Records</strong>
-                <span>Automatically detect and skip records that already exist in the system</span>
-              </label>
-            </div>
-
-            <div class="checkbox-item">
               <input type="checkbox" id="analyze_duplicates" name="analyze_duplicates" value="true">
               <label for="analyze_duplicates" class="checkbox-label">
                 <strong>Review Duplicates Before Import</strong>
                 <span>Show potential duplicate records for review and allow selective import</span>
+              </label>
+            </div>
+            
+            <div class="checkbox-item">
+              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true" checked>
+              <label for="skip_duplicates" class="checkbox-label">
+                <strong>Skip Duplicate Records</strong>
+                <span>Automatically detect and skip records that already exist in the system</span>
               </label>
             </div>
             

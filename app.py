@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename 
@@ -6541,7 +6541,7 @@ def time_attendance_dashboard():
         return redirect(url_for('dashboard'))
 
 @app.route('/time-attendance/import', methods=['GET', 'POST'])
-@admin_required
+@login_required
 @log_database_operations('time_attendance_import')
 def import_time_attendance():
     """Enhanced import with duplicate review"""
@@ -6678,7 +6678,7 @@ def import_time_attendance():
 
 
 @app.route('/time-attendance/import/analyze-duplicates', methods=['POST'])
-@admin_required
+@login_required
 def analyze_import_duplicates():
     """AJAX endpoint to analyze file for duplicates"""
     try:
@@ -6744,7 +6744,7 @@ def analyze_import_duplicates():
 
 
 @app.route('/time-attendance/import/cancel-pending')
-@admin_required
+@login_required
 def cancel_pending_import():
     """Cancel pending import and cleanup temp file"""
     try:
@@ -6766,7 +6766,7 @@ def cancel_pending_import():
 
 
 @app.route('/time-attendance/import/validate', methods=['POST'])
-@admin_required
+@login_required
 def validate_import_file():
     """AJAX endpoint to validate Excel file before import"""
     try:
@@ -6967,6 +6967,322 @@ def download_import_template():
         logger_handler.logger.error(f"Error generating template: {e}")
         flash('Error generating template file.', 'error')
         return redirect(url_for('import_time_attendance'))
+    
+@app.route('/time-attendance/export')
+@login_required
+@log_user_activity('time_attendance_export')
+def export_time_attendance():
+    """Export time attendance records to CSV or Excel"""
+    try:
+        # Get export format (default to CSV)
+        export_format = request.args.get('format', 'csv').lower()
+        
+        # Get filter parameters (same as records page)
+        employee_filter = request.args.get('employee_id')
+        location_filter = request.args.get('location_name')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        import_batch = request.args.get('import_batch')
+        
+        # Build query with same filters as the view
+        from models.time_attendance import TimeAttendance
+        query = TimeAttendance.query
+        
+        # Apply filters
+        if employee_filter:
+            query = query.filter(TimeAttendance.employee_id == employee_filter)
+        
+        if location_filter:
+            query = query.filter(TimeAttendance.location_name == location_filter)
+        
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
+            except ValueError:
+                flash('Invalid start date format.', 'error')
+                return redirect(url_for('time_attendance_records'))
+        
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date <= end_date_obj)
+            except ValueError:
+                flash('Invalid end date format.', 'error')
+                return redirect(url_for('time_attendance_records'))
+        
+        if import_batch:
+            query = query.filter(TimeAttendance.import_batch_id == import_batch)
+        
+        # Order by date and time (most recent first)
+        records = query.order_by(
+            TimeAttendance.attendance_date.desc(),
+            TimeAttendance.attendance_time.desc()
+        ).all()
+        
+        if not records:
+            flash('No records found to export.', 'warning')
+            return redirect(url_for('time_attendance_records'))
+        
+        # Log export
+        logger_handler.logger.info(
+            f"User {session['username']} exported {len(records)} time attendance records "
+            f"in {export_format.upper()} format"
+        )
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filter_desc = []
+        if employee_filter:
+            filter_desc.append(f"emp_{employee_filter}")
+        if location_filter:
+            filter_desc.append(f"loc_{location_filter[:10]}")
+        if start_date:
+            filter_desc.append(f"from_{start_date}")
+        if end_date:
+            filter_desc.append(f"to_{end_date}")
+        
+        filter_str = "_".join(filter_desc) if filter_desc else "all"
+        
+        # Export based on format
+        if export_format == 'excel' or export_format == 'xlsx':
+            return export_time_attendance_excel(records, timestamp, filter_str)
+        else:
+            return export_time_attendance_csv(records, timestamp, filter_str)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error exporting time attendance records: {e}")
+        flash('Error generating export file. Please try again.', 'error')
+        return redirect(url_for('time_attendance_records'))
+
+
+def export_time_attendance_csv(records, timestamp, filter_str):
+    """Generate CSV export of time attendance records"""
+    import csv
+    import io
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        'ID',
+        'Employee ID',
+        'Employee Name',
+        'Platform',
+        'Date',
+        'Time',
+        'Location Name',
+        'Action Description',
+        'Event Description',
+        'Recorded Address',
+        'Import Batch ID',
+        'Import Date',
+        'Import Source',
+        'Created Date'
+    ])
+    
+    # Write data rows
+    for record in records:
+        writer.writerow([
+            record.id,
+            record.employee_id,
+            record.employee_name,
+            record.platform or '',
+            record.attendance_date.strftime('%Y-%m-%d') if record.attendance_date else '',
+            record.attendance_time.strftime('%H:%M:%S') if record.attendance_time else '',
+            record.location_name,
+            record.action_description,
+            record.event_description or '',
+            record.recorded_address or '',
+            record.import_batch_id or '',
+            record.import_date.strftime('%Y-%m-%d %H:%M:%S') if record.import_date else '',
+            record.import_source or '',
+            record.created_date.strftime('%Y-%m-%d %H:%M:%S') if record.created_date else ''
+        ])
+    
+    # Prepare response
+    output.seek(0)
+    filename = f'time_attendance_{filter_str}_{timestamp}.csv'
+    
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename={filename}'
+        }
+    )
+
+def export_time_attendance_excel(records, timestamp, filter_str):
+    """Generate Excel export of time attendance records"""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Time Attendance Records"
+    
+    # Define styles
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Headers
+    headers = [
+        'ID', 'Employee ID', 'Employee Name', 'Platform', 'Date', 'Time',
+        'Location Name', 'Action Description', 'Event Description',
+        'Recorded Address', 'Import Batch ID', 'Import Date', 'Import Source'
+    ]
+    
+    # Write headers
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = border
+    
+    # Write data
+    for row_num, record in enumerate(records, 2):
+        data = [
+            record.id,
+            record.employee_id,
+            record.employee_name,
+            record.platform or '',
+            record.attendance_date.strftime('%Y-%m-%d') if record.attendance_date else '',
+            record.attendance_time.strftime('%H:%M:%S') if record.attendance_time else '',
+            record.location_name,
+            record.action_description,
+            record.event_description or '',
+            record.recorded_address or '',
+            record.import_batch_id or '',
+            record.import_date.strftime('%Y-%m-%d %H:%M:%S') if record.import_date else '',
+            record.import_source or ''
+        ]
+        
+        for col_num, value in enumerate(data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.border = border
+            
+            # Special formatting for specific columns
+            if col_num in [5, 6]:  # Date and Time columns
+                cell.alignment = Alignment(horizontal='center')
+            elif col_num in [1, 2]:  # ID columns
+                cell.alignment = Alignment(horizontal='right')
+    
+    # Adjust column widths
+    column_widths = {
+        'A': 8,   # ID
+        'B': 12,  # Employee ID
+        'C': 20,  # Employee Name
+        'D': 15,  # Platform
+        'E': 12,  # Date
+        'F': 10,  # Time
+        'G': 20,  # Location Name
+        'H': 18,  # Action Description
+        'I': 25,  # Event Description
+        'J': 30,  # Recorded Address
+        'K': 15,  # Import Batch ID
+        'L': 18,  # Import Date
+        'M': 25   # Import Source
+    }
+    
+    for col, width in column_widths.items():
+        ws.column_dimensions[col].width = width
+    
+    # Freeze header row
+    ws.freeze_panes = 'A2'
+    
+    # Add summary sheet
+    ws_summary = wb.create_sheet("Summary")
+    
+    # Summary statistics
+    total_records = len(records)
+    unique_employees = len(set(r.employee_id for r in records))
+    unique_locations = len(set(r.location_name for r in records))
+    date_range_start = min(r.attendance_date for r in records if r.attendance_date)
+    date_range_end = max(r.attendance_date for r in records if r.attendance_date)
+    
+    # Action breakdown
+    action_counts = {}
+    for record in records:
+        action = record.action_description
+        action_counts[action] = action_counts.get(action, 0) + 1
+    
+    # Write summary
+    summary_data = [
+        ['Time Attendance Export Summary'],
+        [''],
+        ['Export Date:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+        ['Exported By:', session.get('username', 'Unknown')],
+        [''],
+        ['Statistics'],
+        ['Total Records:', total_records],
+        ['Unique Employees:', unique_employees],
+        ['Unique Locations:', unique_locations],
+        ['Date Range:', f"{date_range_start.strftime('%Y-%m-%d')} to {date_range_end.strftime('%Y-%m-%d')}"],
+        [''],
+        ['Actions Breakdown']
+    ]
+    
+    for action, count in sorted(action_counts.items()):
+        summary_data.append([action, count])
+    
+    for row_num, row_data in enumerate(summary_data, 1):
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws_summary.cell(row=row_num, column=col_num)
+            cell.value = value
+            
+            # Style the title
+            if row_num == 1:
+                cell.font = Font(bold=True, size=14)
+            elif row_num in [6, 12]:  # Section headers
+                cell.font = Font(bold=True, size=11)
+    
+    # Adjust summary column widths
+    ws_summary.column_dimensions['A'].width = 25
+    ws_summary.column_dimensions['B'].width = 15
+    
+    # Save to bytes
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    filename = f'time_attendance_{filter_str}_{timestamp}.xlsx'
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+@app.route('/time-attendance/export/quick-csv')
+@login_required
+@log_user_activity('time_attendance_quick_csv_export')
+def quick_csv_export_time_attendance():
+    """Quick CSV export with current page filters"""
+    # Redirect to main export with CSV format
+    return redirect(url_for('export_time_attendance', format='csv', **request.args))
+
+@app.route('/time-attendance/export/excel')
+@login_required
+@log_user_activity('time_attendance_excel_export')
+def excel_export_time_attendance():
+    """Excel export with current page filters"""
+    # Redirect to main export with Excel format
+    return redirect(url_for('export_time_attendance', format='excel', **request.args))
 
 @app.route('/time-attendance/records')
 @login_required
