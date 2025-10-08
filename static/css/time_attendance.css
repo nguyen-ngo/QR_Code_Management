@@ -371,9 +371,48 @@ body.has-sidebar .time-attendance-page {
 
 .filter-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr); /* 4 equal columns */
   gap: 1rem;
   align-items: end;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allow shrinking */
+}
+
+.form-input,
+.form-select {
+  width: 100%; /* Full width of parent */
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+/* Make buttons span full width */
+.form-actions {
+  grid-column: 1 / -1; /* Span all columns */
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .filter-form {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns on medium screens */
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-form {
+    grid-template-columns: 1fr; /* 1 column on mobile */
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
 }
 
 /* Records Table */
@@ -782,22 +821,28 @@ body.has-sidebar .time-attendance-page {
 
 /* Button Styles */
 .btn {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem; /* Fixed line height */
+  height: 2.75rem; /* Fixed height: 44px */
+  border-radius: 0.5rem;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
   transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box; /* CRITICAL */
 }
 
 .btn-primary {
-  background: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
   color: #ffffff;
+  border: 2px solid transparent;
 }
 
 .btn-primary:hover {
@@ -810,6 +855,7 @@ body.has-sidebar .time-attendance-page {
 .btn-secondary {
   background: #64748b;
   color: #ffffff;
+  border: 2px solid transparent;
 }
 
 .btn-secondary:hover {
@@ -856,7 +902,7 @@ body.has-sidebar .time-attendance-page {
 }
 
 .btn-outline {
-  background: transparent;
+  background: #ffffff;
   border: 2px solid #e2e8f0;
   color: #374151;
 }
@@ -981,4 +1027,14 @@ body.has-sidebar .time-attendance-page {
     height: 60px;
     font-size: 1.5rem;
   }
+}
+
+.btn,
+button.btn,
+a.btn {
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
+  max-height: 2.75rem !important;
+  line-height: 1.25rem !important;
+  box-sizing: border-box !important;
 }
