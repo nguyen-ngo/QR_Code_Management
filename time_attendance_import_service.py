@@ -1,9 +1,8 @@
 """
-Enhanced Time Attendance Import Service
-========================================
+Enhanced Time Attendance Import Service with Duplicate Review
+============================================================
 
-Improved service with duplicate detection, advanced validation, 
-and better error handling for Excel imports.
+Added functionality to detect and present duplicates for user review.
 """
 
 import pandas as pd
@@ -15,23 +14,130 @@ import traceback
 import hashlib
 
 class TimeAttendanceImportService:
-    """Enhanced service to handle time attendance data import from Excel files"""
+    """Enhanced service with duplicate detection and review"""
     
     def __init__(self, db, logger_handler=None):
         """Initialize the import service with database and logger"""
         self.db = db
         self.logger = logger_handler
-        
-    def import_from_excel(self, file_path: str, created_by: int = None, 
-                         import_source: str = None, skip_duplicates: bool = True) -> Dict[str, Any]:
+    
+    def analyze_for_duplicates(self, file_path: str) -> Dict[str, Any]:
         """
-        Import time attendance data from Excel file with enhanced validation
+        Analyze file for potential duplicates WITHOUT importing
+        
+        Args:
+            file_path: Path to the Excel file
+            
+        Returns:
+            Dictionary containing duplicate analysis
+        """
+        analysis_result = {
+            'success': False,
+            'total_records': 0,
+            'new_records': 0,
+            'duplicate_records': 0,
+            'duplicates': [],
+            'errors': []
+        }
+        
+        try:
+            # Read Excel file
+            excel_file = pd.ExcelFile(file_path)
+            sheet_name = excel_file.sheet_names[0]
+            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            
+            # Validate required columns
+            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                analysis_result['errors'].append(f"Missing columns: {', '.join(missing_columns)}")
+                return analysis_result
+            
+            # Remove empty rows
+            df = df.dropna(how='all')
+            analysis_result['total_records'] = len(df)
+            
+            # Get existing record hashes
+            existing_hashes = self._get_existing_record_hashes_with_data()
+            
+            # Process each row
+            duplicates_list = []
+            new_records_count = 0
+            
+            for index, row in df.iterrows():
+                try:
+                    # Skip empty rows
+                    if pd.isna(row['ID']) or pd.isna(row['Name']):
+                        continue
+                    
+                    # Parse date and time
+                    attendance_date = pd.to_datetime(row['Date']).date()
+                    attendance_time = self._parse_time_field(row['Time'])
+                    
+                    # Prepare record data
+                    record_data = {
+                        'employee_id': str(row['ID']).strip(),
+                        'employee_name': str(row['Name']).strip(),
+                        'platform': str(row.get('Platform', '')).strip() if pd.notna(row.get('Platform')) else None,
+                        'attendance_date': attendance_date,
+                        'attendance_time': attendance_time,
+                        'location_name': str(row['Location Name']).strip(),
+                        'action_description': str(row['Action Description']).strip(),
+                        'event_description': str(row.get('Event Description', '')).strip() if pd.notna(row.get('Event Description')) else None,
+                        'recorded_address': str(row.get('Recorded Address', '')).strip() if pd.notna(row.get('Recorded Address')) else None,
+                    }
+                    
+                    # Check for duplicates
+                    record_hash = self._generate_record_hash(record_data)
+                    
+                    if record_hash in existing_hashes:
+                        # Found duplicate - get existing record details
+                        existing_record = existing_hashes[record_hash]
+                        
+                        duplicates_list.append({
+                            'row_number': index + 2,
+                            'new_record': record_data,
+                            'existing_record': existing_record,
+                            'hash': record_hash
+                        })
+                    else:
+                        new_records_count += 1
+                
+                except Exception as e:
+                    analysis_result['errors'].append(f"Row {index + 2}: {str(e)}")
+                    continue
+            
+            analysis_result['success'] = True
+            analysis_result['new_records'] = new_records_count
+            analysis_result['duplicate_records'] = len(duplicates_list)
+            analysis_result['duplicates'] = duplicates_list
+            
+            if self.logger:
+                self.logger.logger.info(
+                    f"Duplicate analysis complete - Total: {analysis_result['total_records']}, "
+                    f"New: {new_records_count}, Duplicates: {len(duplicates_list)}"
+                )
+        
+        except Exception as e:
+            analysis_result['errors'].append(f"Analysis failed: {str(e)}")
+            if self.logger:
+                self.logger.logger.error(f"Duplicate analysis error: {e}")
+        
+        return analysis_result
+    
+    def import_from_excel(self, file_path: str, created_by: int = None, 
+                         import_source: str = None, skip_duplicates: bool = True,
+                         force_import_hashes: List[str] = None) -> Dict[str, Any]:
+        """
+        Import time attendance data from Excel file with enhanced duplicate handling
         
         Args:
             file_path: Path to the Excel file
             created_by: User ID who initiated the import
             import_source: Description of import source
             skip_duplicates: Whether to skip duplicate records
+            force_import_hashes: List of hashes to force import (user confirmed duplicates)
             
         Returns:
             Dictionary containing import results
@@ -44,21 +150,27 @@ class TimeAttendanceImportService:
             'failed_records': 0,
             'duplicate_records': 0,
             'skipped_records': 0,
+            'forced_duplicates': 0,
             'errors': [],
             'warnings': [],
             'success': False,
             'import_date': datetime.utcnow()
         }
         
+        force_import_hashes = force_import_hashes or []
+        
         try:
             # Log import start
             if self.logger:
-                self.logger.logger.info(f"Starting enhanced time attendance import from {file_path} by user {created_by}")
+                self.logger.logger.info(
+                    f"Starting enhanced time attendance import from {file_path} by user {created_by} "
+                    f"(skip_duplicates={skip_duplicates}, force_import={len(force_import_hashes)})"
+                )
             
-            # Read Excel file with multiple sheet support
+            # Read Excel file
             try:
                 excel_file = pd.ExcelFile(file_path)
-                sheet_name = excel_file.sheet_names[0]  # Use first sheet
+                sheet_name = excel_file.sheet_names[0]
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
                 
                 if self.logger:
@@ -112,7 +224,7 @@ class TimeAttendanceImportService:
                         import_results['errors'].append(f"Row {index + 2}: Invalid date format - {str(date_error)}")
                         continue
                     
-                    # Validate and parse time with multiple format support
+                    # Validate and parse time
                     try:
                         attendance_time = self._parse_time_field(row['Time'])
                     except Exception as time_error:
@@ -136,13 +248,20 @@ class TimeAttendanceImportService:
                     # Check for duplicates
                     if skip_duplicates:
                         record_hash = self._generate_record_hash(record_data)
-                        if record_hash in duplicate_hashes:
+                        
+                        # If duplicate and NOT in force import list, skip it
+                        if record_hash in duplicate_hashes and record_hash not in force_import_hashes:
                             import_results['duplicate_records'] += 1
                             import_results['warnings'].append(
                                 f"Row {index + 2}: Duplicate record for {record_data['employee_name']} "
                                 f"on {attendance_date} at {attendance_time} - Skipped"
                             )
                             continue
+                        
+                        # If in force import list, track it
+                        if record_hash in force_import_hashes:
+                            import_results['forced_duplicates'] += 1
+                        
                         duplicate_hashes.add(record_hash)
                     
                     # Create TimeAttendance record
@@ -184,6 +303,7 @@ class TimeAttendanceImportService:
                     f"Imported: {import_results['imported_records']}, "
                     f"Failed: {import_results['failed_records']}, "
                     f"Duplicates: {import_results['duplicate_records']}, "
+                    f"Forced: {import_results['forced_duplicates']}, "
                     f"Skipped: {import_results['skipped_records']}"
                 )
             
@@ -208,26 +328,15 @@ class TimeAttendanceImportService:
         return import_results
     
     def _parse_time_field(self, time_value) -> time:
-        """
-        Parse time field with multiple format support
-        
-        Args:
-            time_value: Time value from Excel (string, datetime, or time object)
-            
-        Returns:
-            time object
-        """
+        """Parse time field with multiple format support"""
         if pd.isna(time_value):
             raise ValueError("Time value is empty")
         
-        # If already a time object
         if isinstance(time_value, time):
             return time_value
         
-        # Convert to string and try parsing
         time_str = str(time_value).strip()
         
-        # Try common time formats
         time_formats = [
             '%H:%M:%S',
             '%H:%M',
@@ -241,7 +350,6 @@ class TimeAttendanceImportService:
             except ValueError:
                 continue
         
-        # Try pandas datetime parsing as fallback
         try:
             return pd.to_datetime(time_value).time()
         except:
@@ -250,15 +358,7 @@ class TimeAttendanceImportService:
         raise ValueError(f"Unable to parse time value: {time_value}")
     
     def _generate_record_hash(self, record_data: Dict) -> str:
-        """
-        Generate unique hash for a record to detect duplicates
-        
-        Args:
-            record_data: Dictionary containing record information
-            
-        Returns:
-            Hash string
-        """
+        """Generate unique hash for a record to detect duplicates"""
         hash_string = (
             f"{record_data['employee_id']}_"
             f"{record_data['attendance_date']}_"
@@ -269,12 +369,7 @@ class TimeAttendanceImportService:
         return hashlib.md5(hash_string.encode()).hexdigest()
     
     def _get_existing_record_hashes(self) -> set:
-        """
-        Get hashes of existing records to detect duplicates
-        
-        Returns:
-            Set of record hashes
-        """
+        """Get hashes of existing records (hash only)"""
         try:
             from models.time_attendance import TimeAttendance
             
@@ -297,16 +392,48 @@ class TimeAttendanceImportService:
                 self.logger.logger.warning(f"Failed to get existing record hashes: {e}")
             return set()
     
-    def validate_excel_file(self, file_path: str) -> Dict[str, Any]:
-        """
-        Enhanced Excel file validation with detailed analysis
-        
-        Args:
-            file_path: Path to the Excel file
+    def _get_existing_record_hashes_with_data(self) -> Dict[str, Dict]:
+        """Get hashes with full existing record data for comparison"""
+        try:
+            from models.time_attendance import TimeAttendance
             
-        Returns:
-            Dictionary containing validation results
-        """
+            existing_records = TimeAttendance.query.all()
+            hash_map = {}
+            
+            for record in existing_records:
+                record_data = {
+                    'employee_id': record.employee_id,
+                    'attendance_date': record.attendance_date,
+                    'attendance_time': record.attendance_time,
+                    'location_name': record.location_name,
+                    'action_description': record.action_description
+                }
+                record_hash = self._generate_record_hash(record_data)
+                
+                hash_map[record_hash] = {
+                    'id': record.id,
+                    'employee_id': record.employee_id,
+                    'employee_name': record.employee_name,
+                    'platform': record.platform,
+                    'attendance_date': record.attendance_date,
+                    'attendance_time': record.attendance_time,
+                    'location_name': record.location_name,
+                    'action_description': record.action_description,
+                    'event_description': record.event_description,
+                    'recorded_address': record.recorded_address,
+                    'import_batch_id': record.import_batch_id,
+                    'import_date': record.import_date,
+                    'import_source': record.import_source
+                }
+            
+            return hash_map
+        except Exception as e:
+            if self.logger:
+                self.logger.logger.warning(f"Failed to get existing records with data: {e}")
+            return {}
+    
+    def validate_excel_file(self, file_path: str) -> Dict[str, Any]:
+        """Enhanced Excel file validation with detailed analysis"""
         validation_results = {
             'valid': False,
             'total_rows': 0,
@@ -320,7 +447,6 @@ class TimeAttendanceImportService:
         }
         
         try:
-            # Get file information
             import os
             file_stats = os.stat(file_path)
             validation_results['file_info'] = {
@@ -328,12 +454,10 @@ class TimeAttendanceImportService:
                 'size_mb': round(file_stats.st_size / (1024 * 1024), 2)
             }
             
-            # Read Excel file
             excel_file = pd.ExcelFile(file_path)
             sheet_name = excel_file.sheet_names[0]
             df = pd.read_excel(file_path, sheet_name=sheet_name)
             
-            # Remove empty rows
             original_row_count = len(df)
             df = df.dropna(how='all')
             
@@ -345,11 +469,9 @@ class TimeAttendanceImportService:
                     f"Removed {original_row_count - len(df)} completely empty rows"
                 )
             
-            # Get sample data (first 5 rows)
             sample_rows = df.head(5).to_dict('records')
             validation_results['sample_data'] = sample_rows
             
-            # Validate required columns
             required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
@@ -358,7 +480,6 @@ class TimeAttendanceImportService:
                     f"Missing required columns: {', '.join(missing_columns)}"
                 )
             
-            # Check for empty required fields
             valid_row_count = 0
             for index, row in df.iterrows():
                 is_valid = True
@@ -378,7 +499,6 @@ class TimeAttendanceImportService:
                     f"{validation_results['invalid_rows']} rows have missing required data"
                 )
             
-            # Validate date format
             if 'Date' in df.columns:
                 invalid_dates = 0
                 for idx, date_val in df['Date'].items():
@@ -393,7 +513,6 @@ class TimeAttendanceImportService:
                         f"{invalid_dates} rows have invalid date format"
                     )
             
-            # Validate time format
             if 'Time' in df.columns:
                 invalid_times = 0
                 for idx, time_val in df['Time'].items():
@@ -408,7 +527,6 @@ class TimeAttendanceImportService:
                         f"{invalid_times} rows have invalid time format"
                     )
             
-            # Check for potential duplicates
             if all(col in df.columns for col in ['ID', 'Date', 'Time', 'Location Name']):
                 duplicate_check = df[['ID', 'Date', 'Time', 'Location Name']].duplicated()
                 duplicate_count = duplicate_check.sum()
@@ -418,7 +536,6 @@ class TimeAttendanceImportService:
                         f"{duplicate_count} potential duplicate records detected"
                     )
             
-            # Set valid flag
             validation_results['valid'] = (
                 len(validation_results['errors']) == 0 and 
                 validation_results['valid_rows'] > 0

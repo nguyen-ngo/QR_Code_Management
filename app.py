@@ -6544,7 +6544,7 @@ def time_attendance_dashboard():
 @admin_required
 @log_database_operations('time_attendance_import')
 def import_time_attendance():
-    """Enhanced import time attendance data from Excel file"""
+    """Enhanced import with duplicate review"""
     if request.method == 'POST':
         try:
             # Check if file is uploaded
@@ -6567,19 +6567,37 @@ def import_time_attendance():
             temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
                                    f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
             
-            # Ensure upload directory exists
             os.makedirs(os.path.dirname(temp_path), exist_ok=True)
             file.save(temp_path)
             
+            # Store file path in session for duplicate review
+            session['pending_import_file'] = temp_path
+            session['pending_import_filename'] = filename
+            
             try:
-                # Initialize enhanced import service
                 import_service = TimeAttendanceImportService(db, logger_handler)
                 
                 # Get import options
                 skip_duplicates = request.form.get('skip_duplicates', 'true').lower() == 'true'
                 validate_only = request.form.get('validate_only', 'false').lower() == 'true'
+                analyze_duplicates = request.form.get('analyze_duplicates', 'false').lower() == 'true'
                 
-                # Validate file first
+                # Check if this is coming from duplicate review
+                force_import_hashes = request.form.getlist('force_import_hashes[]')
+                
+                # If analyzing for duplicates, show review page
+                if analyze_duplicates and not force_import_hashes:
+                    duplicate_analysis = import_service.analyze_for_duplicates(temp_path)
+                    
+                    if duplicate_analysis['duplicate_records'] > 0:
+                        # Show duplicate review page
+                        return render_template('time_attendance_duplicate_review.html',
+                                             analysis=duplicate_analysis,
+                                             filename=filename)
+                    else:
+                        flash('No duplicates found. Proceeding with import.', 'info')
+                
+                # Validate file
                 validation_result = import_service.validate_excel_file(temp_path)
                 
                 if not validation_result['valid']:
@@ -6587,12 +6605,10 @@ def import_time_attendance():
                     return render_template('time_attendance_import.html', 
                                          validation_result=validation_result)
                 
-                # Show warnings if any
                 if validation_result['warnings']:
                     for warning in validation_result['warnings']:
                         flash(warning, 'warning')
                 
-                # If validate only, return validation results
                 if validate_only:
                     flash(f"File validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
                     return render_template('time_attendance_import.html', 
@@ -6604,16 +6620,17 @@ def import_time_attendance():
                     temp_path,
                     created_by=session['user_id'],
                     import_source=import_source,
-                    skip_duplicates=skip_duplicates
+                    skip_duplicates=skip_duplicates,
+                    force_import_hashes=force_import_hashes
                 )
                 
                 if import_result['success']:
-                    # Log successful import
                     logger_handler.logger.info(
                         f"User {session['username']} successfully imported time attendance data - "
                         f"Batch: {import_result['batch_id']}, "
                         f"Records: {import_result['imported_records']}/{import_result['total_records']}, "
                         f"Duplicates: {import_result['duplicate_records']}, "
+                        f"Forced: {import_result['forced_duplicates']}, "
                         f"Failed: {import_result['failed_records']}"
                     )
                     
@@ -6622,6 +6639,9 @@ def import_time_attendance():
                     
                     if import_result['duplicate_records'] > 0:
                         flash(f"Skipped {import_result['duplicate_records']} duplicate records.", 'info')
+                    
+                    if import_result['forced_duplicates'] > 0:
+                        flash(f"Imported {import_result['forced_duplicates']} duplicate records as requested.", 'info')
                     
                     if import_result['failed_records'] > 0:
                         flash(f"Note: {import_result['failed_records']} records failed to import. "
@@ -6637,12 +6657,17 @@ def import_time_attendance():
                                          import_result=import_result)
                 
             finally:
-                # Clean up temporary file
-                if os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except Exception as cleanup_error:
-                        logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+                # Clean up if import completed or failed (not if showing duplicate review)
+                if not analyze_duplicates or force_import_hashes:
+                    if os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                            if 'pending_import_file' in session:
+                                session.pop('pending_import_file')
+                            if 'pending_import_filename' in session:
+                                session.pop('pending_import_filename')
+                        except Exception as cleanup_error:
+                            logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
             
         except Exception as e:
             logger_handler.log_database_error('time_attendance_import', e)
@@ -6650,6 +6675,95 @@ def import_time_attendance():
             return render_template('time_attendance_import.html')
     
     return render_template('time_attendance_import.html')
+
+
+@app.route('/time-attendance/import/analyze-duplicates', methods=['POST'])
+@admin_required
+def analyze_import_duplicates():
+    """AJAX endpoint to analyze file for duplicates"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'message': 'Invalid file format'}), 400
+        
+        # Save temporarily
+        filename = secure_filename(file.filename)
+        temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                               f"analyze_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+        
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        file.save(temp_path)
+        
+        # Store in session
+        session['pending_import_file'] = temp_path
+        session['pending_import_filename'] = filename
+        
+        try:
+            import_service = TimeAttendanceImportService(db, logger_handler)
+            analysis = import_service.analyze_for_duplicates(temp_path)
+            
+            # Convert datetime objects to strings for JSON
+            for duplicate in analysis.get('duplicates', []):
+                if 'new_record' in duplicate:
+                    if duplicate['new_record'].get('attendance_date'):
+                        duplicate['new_record']['attendance_date'] = str(duplicate['new_record']['attendance_date'])
+                    if duplicate['new_record'].get('attendance_time'):
+                        duplicate['new_record']['attendance_time'] = str(duplicate['new_record']['attendance_time'])
+                
+                if 'existing_record' in duplicate:
+                    if duplicate['existing_record'].get('attendance_date'):
+                        duplicate['existing_record']['attendance_date'] = str(duplicate['existing_record']['attendance_date'])
+                    if duplicate['existing_record'].get('attendance_time'):
+                        duplicate['existing_record']['attendance_time'] = str(duplicate['existing_record']['attendance_time'])
+                    if duplicate['existing_record'].get('import_date'):
+                        duplicate['existing_record']['import_date'] = str(duplicate['existing_record']['import_date'])
+            
+            return jsonify({
+                'success': True,
+                'analysis': analysis
+            })
+        
+        except Exception as e:
+            # Cleanup on error
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Duplicate analysis error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Analysis failed: {str(e)}'
+        }), 500
+
+
+@app.route('/time-attendance/import/cancel-pending')
+@admin_required
+def cancel_pending_import():
+    """Cancel pending import and cleanup temp file"""
+    try:
+        if 'pending_import_file' in session:
+            temp_path = session['pending_import_file']
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            session.pop('pending_import_file')
+        
+        if 'pending_import_filename' in session:
+            session.pop('pending_import_filename')
+        
+        flash('Import cancelled.', 'info')
+    except Exception as e:
+        logger_handler.logger.error(f"Error cancelling import: {e}")
+    
+    return redirect(url_for('import_time_attendance'))
+
+
 
 @app.route('/time-attendance/import/validate', methods=['POST'])
 @admin_required
