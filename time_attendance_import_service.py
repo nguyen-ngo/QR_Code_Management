@@ -20,6 +20,80 @@ class TimeAttendanceImportService:
         """Initialize the import service with database and logger"""
         self.db = db
         self.logger = logger_handler
+
+    def _parse_excel_hyperlink(self, cell_value: str) -> str:
+        """
+        Parse Excel HYPERLINK formula to extract the display text (address)
+        
+        Handles formats like:
+        - =HYPERLINK("http://maps.google.com/maps?q=[lat],[long]","123 Maint Street")
+        - Regular text (no formula)
+        
+        Args:
+            cell_value: The cell value which may contain a HYPERLINK formula
+            
+        Returns:
+            Extracted address text or original value if not a hyperlink
+        """
+        if not cell_value or not isinstance(cell_value, str):
+            return cell_value
+        
+        # Check if it's a HYPERLINK formula
+        if cell_value.strip().startswith('=HYPERLINK('):
+            try:
+                # Extract content between HYPERLINK parentheses
+                # Pattern: =HYPERLINK("url","display_text")
+                import re
+                
+                # Match the display text (second quoted string)
+                pattern = r'=HYPERLINK\s*\(\s*"[^"]*"\s*,\s*"([^"]*)"\s*\)'
+                match = re.search(pattern, cell_value)
+                
+                if match:
+                    address_text = match.group(1)
+                    if self.logger:
+                        self.logger.logger.debug(f"Parsed HYPERLINK: {cell_value[:50]}... -> {address_text}")
+                    return address_text.strip()
+                else:
+                    # If pattern doesn't match, try to extract any quoted text after comma
+                    parts = cell_value.split(',', 1)
+                    if len(parts) > 1:
+                        # Get text between last quotes
+                        text_part = parts[1].strip().rstrip(')')
+                        if '"' in text_part:
+                            # Extract text between quotes
+                            address_text = text_part.split('"')[1] if text_part.count('"') >= 2 else text_part
+                            if self.logger:
+                                self.logger.logger.debug(f"Parsed HYPERLINK (fallback): {cell_value[:50]}... -> {address_text}")
+                            return address_text.strip()
+            except Exception as e:
+                if self.logger:
+                    self.logger.logger.warning(f"Failed to parse HYPERLINK formula: {cell_value[:50]}... Error: {e}")
+                # Return original if parsing fails
+                return cell_value
+        
+        # Not a hyperlink formula, return as-is
+        return cell_value.strip() if isinstance(cell_value, str) else cell_value
+    
+    def _process_recorded_address(self, row):
+        """
+        Process recorded address field, handling Excel HYPERLINK formulas
+        
+        Args:
+            row: DataFrame row containing the 'Recorded Address' column
+            
+        Returns:
+            Parsed address string or None
+        """
+        recorded_address_value = row.get('Recorded Address', '')
+        
+        if pd.notna(recorded_address_value):
+            # Convert to string and parse if it's a HYPERLINK formula
+            address_str = str(recorded_address_value).strip()
+            parsed_address = self._parse_excel_hyperlink(address_str)
+            return parsed_address if parsed_address else None
+        
+        return None
     
     def analyze_for_duplicates(self, file_path: str) -> Dict[str, Any]:
         """
@@ -85,7 +159,7 @@ class TimeAttendanceImportService:
                         'location_name': str(row['Location Name']).strip(),
                         'action_description': str(row['Action Description']).strip(),
                         'event_description': str(row.get('Event Description', '')).strip() if pd.notna(row.get('Event Description')) else None,
-                        'recorded_address': str(row.get('Recorded Address', '')).strip() if pd.notna(row.get('Recorded Address')) else None,
+                        'recorded_address': self._process_recorded_address(row),
                     }
                     
                     # Check for duplicates
@@ -242,7 +316,7 @@ class TimeAttendanceImportService:
                         'location_name': str(row['Location Name']).strip(),
                         'action_description': str(row['Action Description']).strip(),
                         'event_description': str(row.get('Event Description', '')).strip() if pd.notna(row.get('Event Description')) else None,
-                        'recorded_address': str(row.get('Recorded Address', '')).strip() if pd.notna(row.get('Recorded Address')) else None,
+                        'recorded_address': self._process_recorded_address(row),
                     }
                     
                     # Check for duplicates

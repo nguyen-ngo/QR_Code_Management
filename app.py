@@ -7329,30 +7329,50 @@ def time_attendance_records():
         )
         
         # Paginate results
-        records = query.paginate(
-            page=page, 
-            per_page=per_page, 
-            error_out=False
+        records = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Enhance records with QR address and location accuracy
+        for record in records.items:
+            # Find matching QR code by location name
+            qr_code = QRCode.query.filter_by(location=record.location_name).first()
+            
+            if qr_code:
+                record.qr_address = qr_code.location_address
+                
+                # Calculate location accuracy if coordinates are available
+                if record.recorded_address and qr_code.location_address:
+                    try:
+                        # Try to calculate location accuracy
+                        location_accuracy = calculate_location_accuracy_enhanced(
+                            qr_address=qr_code.location_address,
+                            checkin_address=record.recorded_address,
+                            checkin_lat=None,  # TimeAttendance doesn't have GPS coords
+                            checkin_lng=None
+                        )
+                        record.location_accuracy = location_accuracy
+                    except Exception as e:
+                        logger_handler.logger.warning(f"Could not calculate location accuracy for record {record.id}: {e}")
+                        record.location_accuracy = None
+                else:
+                    record.location_accuracy = None
+            else:
+                record.qr_address = None
+                record.location_accuracy = None
+        
+        # Get unique employees and locations for filters
+        unique_employees = TimeAttendance.get_unique_employees()
+        unique_locations = TimeAttendance.get_unique_locations()
+        
+        return render_template(
+            'time_attendance_records.html',
+            records=records,
+            unique_employees=unique_employees,
+            unique_locations=unique_locations
         )
         
-        # Get filter options for dropdown menus
-        employees = TimeAttendance.get_unique_employees()
-        locations = TimeAttendance.get_unique_locations()
-        
-        return render_template('time_attendance_records.html',
-                             records=records,
-                             employees=employees,
-                             locations=locations,
-                             current_filters={
-                                 'employee_id': employee_filter,
-                                 'location_name': location_filter,
-                                 'start_date': start_date,
-                                 'end_date': end_date
-                             })
-                             
     except Exception as e:
-        logger_handler.logger.error(f"Error in time attendance records view: {e}")
-        flash('Error loading time attendance records.', 'error')
+        logger_handler.logger.error(f"Error displaying time attendance records: {e}")
+        flash('Error loading attendance records.', 'error')
         return redirect(url_for('time_attendance_dashboard'))
 
 @app.route('/time-attendance/record/<int:record_id>')
