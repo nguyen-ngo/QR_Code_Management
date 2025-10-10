@@ -39,12 +39,73 @@ class TimeAttendanceImportService:
                 'status': status
             })
 
+    def _read_excel_with_formulas(self, file_path: str) -> pd.DataFrame:
+        """
+        Read Excel file preserving HYPERLINK formulas in Recorded Address column
+        Uses openpyxl to extract formulas, then creates DataFrame
+        
+        Args:
+            file_path: Path to the Excel file
+            
+        Returns:
+            DataFrame with formulas preserved
+        """
+        from openpyxl import load_workbook
+        
+        # Load workbook with openpyxl to get formulas (data_only=False preserves formulas)
+        wb = load_workbook(file_path, data_only=False)
+        ws = wb.active
+        
+        # Get header row
+        headers = []
+        for cell in ws[1]:
+            headers.append(cell.value)
+        
+        # Find the index of 'Recorded Address' column
+        recorded_address_idx = None
+        try:
+            recorded_address_idx = headers.index('Recorded Address')
+        except ValueError:
+            pass  # Column doesn't exist
+        
+        # Read all data rows
+        data_rows = []
+        for row in ws.iter_rows(min_row=2, values_only=False):
+            row_data = []
+            for col_idx, cell in enumerate(row):
+                # For Recorded Address column, preserve the formula if it exists
+                if col_idx == recorded_address_idx and cell.value:
+                    # Check if cell contains a formula
+                    if isinstance(cell.value, str) and cell.value.startswith('='):
+                        # This is a formula, keep it as-is
+                        row_data.append(cell.value)
+                        if self.logger:
+                            self.logger.logger.debug(f"Found formula in Recorded Address: {cell.value[:60]}...")
+                    else:
+                        # Regular value
+                        row_data.append(cell.value)
+                else:
+                    # For other columns, just get the value
+                    row_data.append(cell.value)
+            
+            # Skip completely empty rows
+            if any(val is not None for val in row_data):
+                data_rows.append(row_data)
+        
+        # Create DataFrame
+        df = pd.DataFrame(data_rows, columns=headers)
+        
+        if self.logger:
+            self.logger.logger.info(f"Read Excel with formulas preserved: {len(df)} rows, {len(headers)} columns")
+        
+        return df
+
     def _parse_excel_hyperlink(self, cell_value: str) -> str:
         """
         Parse Excel HYPERLINK formula to extract the display text (address)
         
         Handles formats like:
-        - =HYPERLINK("http://maps.google.com/maps?q=[lat],[long]","123 Maint Street")
+        - =HYPERLINK("http://maps.google.com/maps?q=38.8769894000,-77.2220616000","2815 Hartland Road, Falls Church, VA 22043")
         - Regular text (no formula)
         
         Args:
@@ -56,42 +117,45 @@ class TimeAttendanceImportService:
         if not cell_value or not isinstance(cell_value, str):
             return cell_value
         
+        cell_value = cell_value.strip()
+        
         # Check if it's a HYPERLINK formula
-        if cell_value.strip().startswith('=HYPERLINK('):
+        if cell_value.startswith('=HYPERLINK('):
             try:
-                # Extract content between HYPERLINK parentheses
-                # Pattern: =HYPERLINK("url","display_text")
                 import re
                 
                 # Match the display text (second quoted string)
+                # Pattern: =HYPERLINK("url","display_text")
                 pattern = r'=HYPERLINK\s*\(\s*"[^"]*"\s*,\s*"([^"]*)"\s*\)'
                 match = re.search(pattern, cell_value)
                 
                 if match:
-                    address_text = match.group(1)
+                    address_text = match.group(1).strip()
                     if self.logger:
-                        self.logger.logger.debug(f"Parsed HYPERLINK: {cell_value[:50]}... -> {address_text}")
-                    return address_text.strip()
+                        self.logger.logger.debug(f"Parsed HYPERLINK: '{cell_value[:60]}...' -> '{address_text}'")
+                    return address_text
                 else:
-                    # If pattern doesn't match, try to extract any quoted text after comma
-                    parts = cell_value.split(',', 1)
-                    if len(parts) > 1:
-                        # Get text between last quotes
-                        text_part = parts[1].strip().rstrip(')')
-                        if '"' in text_part:
-                            # Extract text between quotes
-                            address_text = text_part.split('"')[1] if text_part.count('"') >= 2 else text_part
-                            if self.logger:
-                                self.logger.logger.debug(f"Parsed HYPERLINK (fallback): {cell_value[:50]}... -> {address_text}")
-                            return address_text.strip()
+                    # Fallback: try to extract text between last pair of quotes
+                    # Find all quoted strings
+                    quoted_strings = re.findall(r'"([^"]*)"', cell_value)
+                    if len(quoted_strings) >= 2:
+                        # The address is typically the last quoted string
+                        address_text = quoted_strings[-1].strip()
+                        if self.logger:
+                            self.logger.logger.debug(f"Parsed HYPERLINK (fallback): '{cell_value[:60]}...' -> '{address_text}'")
+                        return address_text
+                    else:
+                        if self.logger:
+                            self.logger.logger.warning(f"Could not parse HYPERLINK formula: {cell_value[:60]}...")
+                        return None
+                        
             except Exception as e:
                 if self.logger:
-                    self.logger.logger.warning(f"Failed to parse HYPERLINK formula: {cell_value[:50]}... Error: {e}")
-                # Return original if parsing fails
-                return cell_value
+                    self.logger.logger.error(f"Failed to parse HYPERLINK formula: {cell_value[:60]}... Error: {e}")
+                return None
         
         # Not a hyperlink formula, return as-is
-        return cell_value.strip() if isinstance(cell_value, str) else cell_value
+        return cell_value if cell_value else None
     
     def _process_recorded_address(self, row):
         """
@@ -103,13 +167,28 @@ class TimeAttendanceImportService:
         Returns:
             Parsed address string or None
         """
-        recorded_address_value = row.get('Recorded Address', '')
+        recorded_address_value = row.get('Recorded Address')
         
+        # Check if value exists and is not NaN
         if pd.notna(recorded_address_value):
-            # Convert to string and parse if it's a HYPERLINK formula
+            # Convert to string
             address_str = str(recorded_address_value).strip()
+            
+            # Skip if empty or the string "nan"
+            if not address_str or address_str.lower() == 'nan':
+                return None
+            
+            # Parse the value (handles both formulas and plain text)
             parsed_address = self._parse_excel_hyperlink(address_str)
-            return parsed_address if parsed_address else None
+            
+            if parsed_address and parsed_address.strip():
+                if self.logger:
+                    self.logger.logger.debug(f"Processed Recorded Address: '{address_str[:60]}...' -> '{parsed_address}'")
+                return parsed_address.strip()
+            else:
+                if self.logger:
+                    self.logger.logger.warning(f"Empty result after parsing Recorded Address: '{address_str[:60]}...'")
+                return None
         
         return None
     
@@ -134,9 +213,7 @@ class TimeAttendanceImportService:
         
         try:
             # Read Excel file
-            excel_file = pd.ExcelFile(file_path)
-            sheet_name = excel_file.sheet_names[0]
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            df = self._read_excel_with_formulas(file_path)
             
             # Validate required columns
             required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
@@ -248,9 +325,7 @@ class TimeAttendanceImportService:
         
         try:
             # Read Excel file
-            excel_file = pd.ExcelFile(file_path)
-            sheet_name = excel_file.sheet_names[0]
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            df = self._read_excel_with_formulas(file_path)
             
             # Validate required columns
             required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
@@ -406,12 +481,10 @@ class TimeAttendanceImportService:
             
             # Read Excel file
             try:
-                excel_file = pd.ExcelFile(file_path)
-                sheet_name = excel_file.sheet_names[0]
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                df = self._read_excel_with_formulas(file_path)
                 
                 if self.logger:
-                    self.logger.logger.info(f"Reading sheet: {sheet_name} with {len(df)} rows")
+                    self.logger.logger.info(f"Read Excel file with {len(df)} rows and formulas preserved")
             except Exception as e:
                 error_msg = f"Failed to read Excel file: {str(e)}"
                 import_results['errors'].append(error_msg)
@@ -708,33 +781,60 @@ class TimeAttendanceImportService:
             
             sample_rows = df.head(5).to_dict('records')
             validation_results['sample_data'] = sample_rows
-            
-            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description', 'Event Description', 'Recorded Address']
+
+            # Define ONLY truly required columns (ID, Name, Date, Time, Location Name, Action Description)
+            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
-            
+
             if missing_columns:
                 validation_results['errors'].append(
                     f"Missing required columns: {', '.join(missing_columns)}"
                 )
-            
+
+            # Count valid rows by checking if ALL required fields have values
             valid_row_count = 0
+            invalid_row_details = []
+
             for index, row in df.iterrows():
                 is_valid = True
+                missing_fields = []
+                
+                # Check each required column
                 for col in required_columns:
-                    if col in df.columns and pd.isna(row[col]):
+                    if col in df.columns:
+                        if pd.isna(row[col]):
+                            is_valid = False
+                            missing_fields.append(col)
+                    else:
+                        # Column doesn't exist in file
                         is_valid = False
-                        break
+                        missing_fields.append(f"{col} (column not found)")
                 
                 if is_valid:
                     valid_row_count += 1
-            
+                else:
+                    # Track invalid row for detailed reporting
+                    invalid_row_details.append({
+                        'row': index + 2,  # +2 for header and 0-based index
+                        'missing': missing_fields
+                    })
+
             validation_results['valid_rows'] = valid_row_count
             validation_results['invalid_rows'] = len(df) - valid_row_count
-            
+
             if validation_results['invalid_rows'] > 0:
+                # Provide detailed warning about invalid rows
                 validation_results['warnings'].append(
                     f"{validation_results['invalid_rows']} rows have missing required data"
                 )
+                
+                # Add details about first few invalid rows for debugging
+                if invalid_row_details:
+                    sample_invalid = invalid_row_details[:3]  # Show first 3 invalid rows
+                    details_msg = "Examples: "
+                    for detail in sample_invalid:
+                        details_msg += f"Row {detail['row']} (missing: {', '.join(detail['missing'])}); "
+                    validation_results['warnings'].append(details_msg.rstrip('; '))
             
             if 'Date' in df.columns:
                 invalid_dates = 0
