@@ -7201,7 +7201,6 @@ def export_time_attendance_csv(records, timestamp, filter_str):
     
     # Write header
     writer.writerow([
-        'ID',
         'Employee ID',
         'Employee Name',
         'Platform',
@@ -7210,17 +7209,12 @@ def export_time_attendance_csv(records, timestamp, filter_str):
         'Location Name',
         'Action Description',
         'Event Description',
-        'Recorded Address',
-        'Import Batch ID',
-        'Import Date',
-        'Import Source',
-        'Created Date'
+        'Recorded Address'
     ])
     
     # Write data rows
     for record in records:
         writer.writerow([
-            record.id,
             record.employee_id,
             record.employee_name,
             record.platform or '',
@@ -7229,11 +7223,7 @@ def export_time_attendance_csv(records, timestamp, filter_str):
             record.location_name,
             record.action_description,
             record.event_description or '',
-            record.recorded_address or '',
-            record.import_batch_id or '',
-            record.import_date.strftime('%Y-%m-%d %H:%M:%S') if record.import_date else '',
-            record.import_source or '',
-            record.created_date.strftime('%Y-%m-%d %H:%M:%S') if record.created_date else ''
+            record.recorded_address or ''
         ])
     
     # Prepare response
@@ -7272,9 +7262,9 @@ def export_time_attendance_excel(records, timestamp, filter_str):
     
     # Headers
     headers = [
-        'ID', 'Employee ID', 'Employee Name', 'Platform', 'Date', 'Time',
+        'Employee ID', 'Employee Name', 'Platform', 'Date', 'Time',
         'Location Name', 'Action Description', 'Event Description',
-        'Recorded Address', 'Import Batch ID', 'Import Date', 'Import Source'
+        'Recorded Address'
     ]
     
     # Write headers
@@ -7289,7 +7279,6 @@ def export_time_attendance_excel(records, timestamp, filter_str):
     # Write data
     for row_num, record in enumerate(records, 2):
         data = [
-            record.id,
             record.employee_id,
             record.employee_name,
             record.platform or '',
@@ -7298,10 +7287,7 @@ def export_time_attendance_excel(records, timestamp, filter_str):
             record.location_name,
             record.action_description,
             record.event_description or '',
-            record.recorded_address or '',
-            record.import_batch_id or '',
-            record.import_date.strftime('%Y-%m-%d %H:%M:%S') if record.import_date else '',
-            record.import_source or ''
+            record.recorded_address or ''
         ]
         
         for col_num, value in enumerate(data, 1):

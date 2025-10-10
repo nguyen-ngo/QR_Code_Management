@@ -35,10 +35,23 @@
         Import Data
       </a>
       {% endif %}
-      <button class="btn btn-secondary" onclick="exportRecords()">
-        <i class="fas fa-download"></i>
-        Export
-      </button>
+      <div class="export-dropdown-wrapper">
+        <button class="btn btn-secondary" onclick="toggleExportMenu(event)">
+          <i class="fas fa-download"></i>
+          Export
+          <i class="fas fa-chevron-down" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>
+        </button>
+        <div class="export-dropdown-menu" id="exportMenu" style="display: none;">
+          <button type="button" onclick="exportRecords('excel')" class="export-option">
+            <i class="fas fa-file-excel" style="color: #10b981;"></i>
+            <span>Export to Excel</span>
+          </button>
+          <button type="button" onclick="exportRecords('csv')" class="export-option">
+            <i class="fas fa-file-csv" style="color: #3b82f6;"></i>
+            <span>Export to CSV</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -328,9 +341,56 @@ function confirmDelete(recordId, employeeName, date) {
   }
 }
 
-function exportRecords() {
-  alert('Export functionality coming soon!');
+function toggleExportMenu(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('exportMenu');
+  const isVisible = menu.style.display === 'block';
+  
+  // Close menu if open, open if closed
+  menu.style.display = isVisible ? 'none' : 'block';
 }
+
+function exportRecords(format) {
+  // Close the dropdown menu
+  document.getElementById('exportMenu').style.display = 'none';
+  
+  // Get current filter values
+  const employeeId = document.querySelector('input[name="employee_id"]')?.value || '';
+  const locationName = document.querySelector('input[name="location_name"]')?.value || '';
+  const startDate = document.querySelector('input[name="start_date"]')?.value || '';
+  const endDate = document.querySelector('input[name="end_date"]')?.value || '';
+  
+  // Build query parameters
+  const params = new URLSearchParams();
+  if (employeeId) params.append('employee_id', employeeId);
+  if (locationName) params.append('location_name', locationName);
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  params.append('format', format);
+  
+  // Redirect to export endpoint
+  window.location.href = `/time-attendance/export?${params.toString()}`;
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+  const menu = document.getElementById('exportMenu');
+  const exportWrapper = document.querySelector('.export-dropdown-wrapper');
+  
+  if (menu && exportWrapper && !exportWrapper.contains(event.target)) {
+    menu.style.display = 'none';
+  }
+});
+
+// Close dropdown with Escape key
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    const menu = document.getElementById('exportMenu');
+    if (menu) {
+      menu.style.display = 'none';
+    }
+  }
+});
 
 // Initialize filters state
 document.addEventListener('DOMContentLoaded', function() {
@@ -428,6 +488,82 @@ document.addEventListener('DOMContentLoaded', function() {
   .records-table th:nth-child(9),
   .records-table td:nth-child(9) {
     display: none;
+  }
+}
+.export-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.export-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  min-width: 200px;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.export-option {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9375rem;
+  color: #0f172a;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.export-option:last-child {
+  border-bottom: none;
+}
+
+.export-option:hover {
+  background: #f8fafc;
+}
+
+.export-option:active {
+  background: #f1f5f9;
+}
+
+.export-option i {
+  font-size: 1.125rem;
+  width: 20px;
+  text-align: center;
+}
+
+.export-option span {
+  font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .export-dropdown-menu {
+    right: auto;
+    left: 0;
+    min-width: 180px;
   }
 }
 </style>
