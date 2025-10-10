@@ -377,15 +377,23 @@
           </h3>
           <div class="checkbox-group">
             <div class="checkbox-item">
-              <input type="checkbox" id="analyze_duplicates" name="analyze_duplicates" value="true">
+              <input type="checkbox" id="analyze_duplicates" name="analyze_duplicates" value="true" checked>
               <label for="analyze_duplicates" class="checkbox-label">
                 <strong>Review Duplicates Before Import</strong>
                 <span>Show potential duplicate records for review and allow selective import</span>
               </label>
             </div>
+
+            <div class="checkbox-item">
+              <input type="checkbox" id="analyze_invalid" name="analyze_invalid" value="true" checked>
+              <label for="analyze_invalid" class="checkbox-label">
+                <strong>Review Invalid Rows Before Import</strong>
+                <span>Show all invalid rows with error details for review before importing valid records</span>
+              </label>
+            </div>
             
             <div class="checkbox-item">
-              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true" checked>
+              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true">
               <label for="skip_duplicates" class="checkbox-label">
                 <strong>Skip Duplicate Records</strong>
                 <span>Automatically detect and skip records that already exist in the system</span>
@@ -393,7 +401,7 @@
             </div>
             
             <div class="checkbox-item">
-              <input type="checkbox" id="validate_only" name="validate_only" value="true">
+              <input type="checkbox" id="validate_only" name="validate_only" value="true" checked>
               <label for="validate_only" class="checkbox-label">
                 <strong>Validate Only (Don't Import)</strong>
                 <span>Check file for errors without actually importing the data</span>

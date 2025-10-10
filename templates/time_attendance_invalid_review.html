@@ -1,0 +1,485 @@
+{% extends "base_authenticated.html" %}
+{% block title %}Review Invalid Rows - {{ COMPANY_NAME }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
+<style>
+.invalid-review-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.review-summary {
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.stat-box {
+  background: rgba(255,255,255,0.2);
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.stat-box .number {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.stat-box .label {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+.invalid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.invalid-item {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  border: 2px solid #fca5a5;
+  transition: all 0.3s ease;
+}
+
+.invalid-item:hover {
+  box-shadow: 0 4px 16px rgba(252, 165, 165, 0.3);
+  transform: translateY(-2px);
+}
+
+.invalid-header {
+  background: #fee2e2;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #fca5a5;
+}
+
+.invalid-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.invalid-title h3 {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 1.125rem;
+}
+
+.row-badge {
+  background: #dc2626;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.error-badge {
+  background: #dc2626;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.invalid-body {
+  padding: 1.5rem;
+}
+
+.error-list {
+  background: #fef2f2;
+  border: 2px solid #fca5a5;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.error-list h4 {
+  margin: 0 0 0.75rem 0;
+  color: #991b1b;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-list ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.error-list li {
+  color: #991b1b;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.error-list li:last-child {
+  margin-bottom: 0;
+}
+
+.error-list li:before {
+  content: "✖";
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.record-card {
+  background: #f8fafc;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+}
+
+.record-card h4 {
+  margin: 0 0 1rem 0;
+  color: #991b1b;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.record-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.detail-label {
+  color: #718096;
+  font-weight: 600;
+}
+
+.detail-value {
+  color: #2d3748;
+  word-break: break-word;
+}
+
+.detail-value.missing {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  position: sticky;
+  bottom: 1rem;
+  z-index: 100;
+}
+
+.action-buttons .left-actions,
+.action-buttons .right-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.info-message {
+  background: #dbeafe;
+  border: 2px solid #60a5fa;
+  padding: 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.info-message i {
+  color: #1e40af;
+  font-size: 1.5rem;
+  margin-top: 0.125rem;
+}
+
+.info-message-content h4 {
+  margin: 0 0 0.5rem 0;
+  color: #1e3a8a;
+  font-size: 1.125rem;
+}
+
+.info-message-content p {
+  margin: 0;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .action-buttons .left-actions,
+  .action-buttons .right-actions {
+    width: 100%;
+  }
+}
+</style>
+{% endblock %}
+
+{% block page_title %}Review Invalid Rows{% endblock %}
+
+{% block content %}
+<div class="invalid-review-page">
+  <!-- Page Header -->
+  <div class="time-attendance-header">
+    <div class="header-navigation">
+      <a href="{{ url_for('import_time_attendance') }}" class="back-button">
+        <i class="fas fa-arrow-left"></i>
+        Back to Import
+      </a>
+    </div>
+    
+    <div class="header-content">
+      <h1>
+        <i class="fas fa-exclamation-circle"></i>
+        Review Invalid Rows
+      </h1>
+      <p class="header-description">
+        The following rows contain errors and cannot be imported. Please review the issues below.
+      </p>
+    </div>
+  </div>
+
+  <!-- Summary Section -->
+  <div class="review-summary">
+    <h2 style="margin: 0 0 0.5rem 0;">
+      <i class="fas fa-file-excel"></i>
+      File: {{ filename }}
+    </h2>
+    <p style="margin: 0; opacity: 0.9;">Review invalid rows before importing valid records</p>
+    
+    <div class="summary-stats">
+      <div class="stat-box">
+        <div class="number">{{ analysis.total_rows }}</div>
+        <div class="label">Total Rows in File</div>
+      </div>
+      
+      <div class="stat-box">
+        <div class="number">{{ analysis.valid_rows }}</div>
+        <div class="label">Valid Rows</div>
+      </div>
+      
+      <div class="stat-box">
+        <div class="number">{{ analysis.invalid_rows }}</div>
+        <div class="label">Invalid Rows</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Message -->
+  <div class="info-message">
+    <i class="fas fa-info-circle"></i>
+    <div class="info-message-content">
+      <h4>What happens next?</h4>
+      <p>
+        The invalid rows shown below will be skipped during import. Only the <strong>{{ analysis.valid_rows }} valid rows</strong> 
+        will be imported into the system. You can proceed with importing the valid records, or cancel and fix the issues in your Excel file.
+      </p>
+    </div>
+  </div>
+
+  <!-- Invalid Rows List -->
+  {% if analysis.invalid_rows > 0 %}
+  <form id="invalidReviewForm" method="POST" action="{{ url_for('import_time_attendance') }}">
+    <input type="hidden" name="analyze_invalid" value="false">
+    <input type="hidden" name="skip_duplicates" value="true">
+    <input type="hidden" name="import_source" value="Import (Skipped Invalid Rows) - {{ filename }}">
+    
+    <div class="invalid-container">
+      {% for invalid in analysis.invalid_details %}
+      <div class="invalid-item">
+        <div class="invalid-header">
+          <div class="invalid-title">
+            <span class="row-badge">Row {{ invalid.row_number }}</span>
+            <h3>
+              {% if invalid.row_data.employee_name %}
+                {{ invalid.row_data.employee_name }}
+                {% if invalid.row_data.employee_id %}(ID: {{ invalid.row_data.employee_id }}){% endif %}
+              {% else %}
+                Invalid Record
+              {% endif %}
+            </h3>
+          </div>
+          <span class="error-badge">
+            {{ invalid.errors|length }} Error{% if invalid.errors|length != 1 %}s{% endif %}
+          </span>
+        </div>
+        
+        <div class="invalid-body">
+          <!-- Error List -->
+          <div class="error-list">
+            <h4>
+              <i class="fas fa-exclamation-triangle"></i>
+              Validation Errors
+            </h4>
+            <ul>
+              {% for error in invalid.errors %}
+              <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          
+          <!-- Row Data -->
+          <div class="record-card">
+            <h4>
+              <i class="fas fa-table"></i>
+              Row Data
+            </h4>
+            <div class="record-details">
+              <div class="detail-row">
+                <span class="detail-label">Employee ID:</span>
+                <span class="detail-value {% if not invalid.row_data.employee_id %}missing{% endif %}">
+                  {{ invalid.row_data.employee_id or 'Missing' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value {% if not invalid.row_data.employee_name %}missing{% endif %}">
+                  {{ invalid.row_data.employee_name or 'Missing' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Date:</span>
+                <span class="detail-value {% if not invalid.row_data.attendance_date %}missing{% endif %}">
+                  {{ invalid.row_data.attendance_date or 'Missing' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Time:</span>
+                <span class="detail-value {% if not invalid.row_data.attendance_time %}missing{% endif %}">
+                  {{ invalid.row_data.attendance_time or 'Missing' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Location:</span>
+                <span class="detail-value {% if not invalid.row_data.location_name %}missing{% endif %}">
+                  {{ invalid.row_data.location_name or 'Missing' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Action:</span>
+                <span class="detail-value {% if not invalid.row_data.action_description %}missing{% endif %}">
+                  {{ invalid.row_data.action_description or 'Missing' }}
+                </span>
+              </div>
+              {% if invalid.row_data.platform %}
+              <div class="detail-row">
+                <span class="detail-label">Platform:</span>
+                <span class="detail-value">{{ invalid.row_data.platform }}</span>
+              </div>
+              {% endif %}
+              {% if invalid.row_data.event_description %}
+              <div class="detail-row">
+                <span class="detail-label">Event:</span>
+                <span class="detail-value">{{ invalid.row_data.event_description }}</span>
+              </div>
+              {% endif %}
+              {% if invalid.row_data.recorded_address %}
+              <div class="detail-row">
+                <span class="detail-label">Address:</span>
+                <span class="detail-value">{{ invalid.row_data.recorded_address }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <div class="left-actions">
+        <a href="{{ url_for('cancel_pending_import') }}" class="btn btn-secondary">
+          <i class="fas fa-times"></i>
+          Cancel Import
+        </a>
+      </div>
+      <div class="right-actions">
+        <button type="submit" class="btn btn-primary" id="proceedBtn">
+          <i class="fas fa-check-circle"></i>
+          Import {{ analysis.valid_rows }} Valid Records
+        </button>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-check-circle"></i>
+    <h3>All rows are valid!</h3>
+    <p>No invalid rows found. You can proceed with the import.</p>
+    <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary" style="margin-top: 1rem;">
+      <i class="fas fa-arrow-left"></i>
+      Back to Import
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('invalidReviewForm');
+    const proceedBtn = document.getElementById('proceedBtn');
+    
+    if (form && proceedBtn) {
+        proceedBtn.addEventListener('click', function(e) {
+            const validCount = {{ analysis.valid_rows }};
+            const invalidCount = {{ analysis.invalid_rows }};
+            
+            const message = `You are about to import ${validCount} valid record(s).\n\n` +
+                          `${invalidCount} invalid row(s) will be skipped.\n\n` +
+                          `Continue with import?`;
+            
+            if (!confirm(message)) {
+                e.preventDefault();
+                return;
+            }
+            
+            // Show loading state
+            proceedBtn.disabled = true;
+            proceedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Import...';
+        });
+    }
+});
+</script>
+{% endblock %}

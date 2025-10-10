@@ -1,0 +1,301 @@
+{% extends "base_authenticated.html" %}
+{% block title %}Importing Data - {{ COMPANY_NAME }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
+<style>
+.import-progress-page {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+.progress-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  padding: 3rem;
+  text-align: center;
+}
+
+.progress-header {
+  margin-bottom: 2rem;
+}
+
+.progress-header h1 {
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.progress-header p {
+  color: #718096;
+  font-size: 1.125rem;
+}
+
+.progress-circle {
+  width: 200px;
+  height: 200px;
+  margin: 2rem auto;
+  position: relative;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform-origin: 50% 50%;
+}
+
+.progress-percentage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.progress-status {
+  font-size: 1.125rem;
+  color: #4a5568;
+  margin: 2rem 0;
+  min-height: 1.5rem;
+}
+
+.progress-details {
+  background: #f7fafc;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: #718096;
+  font-weight: 600;
+}
+
+.detail-value {
+  color: #2d3748;
+  font-weight: 700;
+}
+
+.completion-message {
+  display: none;
+  margin-top: 2rem;
+}
+
+.completion-message.show {
+  display: block;
+}
+
+.completion-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block page_title %}Importing Time Attendance Data{% endblock %}
+
+{% block content %}
+<div class="import-progress-page">
+  <div class="progress-container">
+    <div class="progress-header">
+      <h1>
+        <i class="fas fa-cloud-upload-alt"></i>
+        Importing Data
+      </h1>
+      <p>File: <strong>{{ filename }}</strong></p>
+    </div>
+
+    <!-- Progress Circle -->
+    <div class="progress-circle">
+      <svg class="progress-ring" width="200" height="200">
+        <circle
+          class="progress-ring-circle-bg"
+          stroke="#e2e8f0"
+          stroke-width="12"
+          fill="transparent"
+          r="90"
+          cx="100"
+          cy="100"
+        />
+        <circle
+          class="progress-ring-circle"
+          stroke="#667eea"
+          stroke-width="12"
+          fill="transparent"
+          r="90"
+          cx="100"
+          cy="100"
+          stroke-dasharray="565.48"
+          stroke-dashoffset="565.48"
+          stroke-linecap="round"
+        />
+      </svg>
+      <div class="progress-percentage" id="progressPercentage">0%</div>
+    </div>
+
+    <!-- Status Message -->
+    <div class="progress-status" id="progressStatus">
+      <span class="spinner"></span>
+      Initializing import...
+    </div>
+
+    <!-- Progress Details -->
+    <div class="progress-details">
+      <div class="detail-row">
+        <span class="detail-label">Total Records:</span>
+        <span class="detail-value">{{ total_rows }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Processed:</span>
+        <span class="detail-value" id="processedCount">0</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Remaining:</span>
+        <span class="detail-value" id="remainingCount">{{ total_rows }}</span>
+      </div>
+    </div>
+
+    <!-- Completion Message -->
+    <div class="completion-message" id="completionMessage">
+      <h2 style="color: #48bb78; margin-bottom: 1rem;">
+        <i class="fas fa-check-circle"></i>
+        Import Completed Successfully!
+      </h2>
+      <div class="completion-actions">
+        <a href="{{ url_for('time_attendance_dashboard') }}" class="btn btn-primary">
+          <i class="fas fa-chart-line"></i>
+          View Dashboard
+        </a>
+        <a href="{{ url_for('time_attendance_records') }}" class="btn btn-secondary">
+          <i class="fas fa-list"></i>
+          View Records
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const batchId = "{{ batch_id }}";
+const totalRows = {{ total_rows }};
+const eventSource = new EventSource(`/time-attendance/import/progress/${batchId}`);
+const progressCircle = document.querySelector('.progress-ring-circle');
+const progressPercentage = document.getElementById('progressPercentage');
+const progressStatus = document.getElementById('progressStatus');
+const processedCount = document.getElementById('processedCount');
+const remainingCount = document.getElementById('remainingCount');
+const completionMessage = document.getElementById('completionMessage');
+const circumference = 2 * Math.PI * 90;
+
+// Initialize circle
+progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+progressCircle.style.strokeDashoffset = circumference;
+
+function setProgress(percent) {
+  const offset = circumference - (percent / 100) * circumference;
+  progressCircle.style.strokeDashoffset = offset;
+}
+
+// Start the import
+fetch('/time-attendance/import/execute', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    batch_id: batchId,
+    skip_duplicates: {{ 'true' if skip_duplicates else 'false' }},
+    force_import_hashes: {{ force_import_hashes | tojson }},
+    import_source: "{{ import_source }}"
+  })
+})
+.then(response => response.json())
+.then(data => {
+  console.log('Import execution started:', data);
+})
+.catch(error => {
+  console.error('Error starting import:', error);
+  progressStatus.innerHTML = '<span style="color: #f56565;">Error starting import. Please try again.</span>';
+});
+
+// Listen for progress updates
+eventSource.onmessage = function(event) {
+  const data = JSON.parse(event.data);
+  
+  if (data.completed) {
+    eventSource.close();
+    
+    // Show 100% completion
+    setProgress(100);
+    progressPercentage.textContent = '100%';
+    processedCount.textContent = totalRows;
+    remainingCount.textContent = '0';
+    progressStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #48bb78;"></i> Import completed successfully!';
+    
+    // Show completion message
+    setTimeout(() => {
+      completionMessage.classList.add('show');
+    }, 500);
+  } else {
+    // Update progress
+    const percentage = data.percentage || 0;
+    const current = data.current || 0;
+    const remaining = totalRows - current;
+    
+    setProgress(percentage);
+    progressPercentage.textContent = percentage + '%';
+    processedCount.textContent = current;
+    remainingCount.textContent = remaining;
+    progressStatus.innerHTML = `<span class="spinner"></span> ${data.status || 'Processing...'}`;
+  }
+};
+
+eventSource.onerror = function(error) {
+  console.error('EventSource error:', error);
+  eventSource.close();
+  progressStatus.innerHTML = '<span style="color: #f56565;">Connection lost. Checking final status...</span>';
+  
+  // Try to check if import completed
+  setTimeout(() => {
+    window.location.href = "{{ url_for('time_attendance_dashboard') }}";
+  }, 2000);
+};
+</script>
+{% endblock %}

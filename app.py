@@ -6597,6 +6597,20 @@ def import_time_attendance():
                     else:
                         flash('No duplicates found. Proceeding with import.', 'info')
                 
+                # Check for invalid rows and show review if any
+                analyze_invalid = request.form.get('analyze_invalid', 'false').lower() == 'true'
+
+                if analyze_invalid:
+                    invalid_analysis = import_service.analyze_for_invalid_rows(temp_path)
+                    
+                    if invalid_analysis['invalid_rows'] > 0:
+                        # Show invalid row review page
+                        return render_template('time_attendance_invalid_review.html',
+                                            analysis=invalid_analysis,
+                                            filename=filename)
+                    else:
+                        flash('All rows are valid. Proceeding with import.', 'info')
+                
                 # Validate file
                 validation_result = import_service.validate_excel_file(temp_path)
                 
@@ -6741,7 +6755,64 @@ def analyze_import_duplicates():
             'success': False,
             'message': f'Analysis failed: {str(e)}'
         }), 500
-
+    
+@app.route('/time-attendance/import/analyze-invalid', methods=['POST'])
+@login_required
+def analyze_import_invalid():
+    """AJAX endpoint to analyze file for invalid rows"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'message': 'Invalid file format'}), 400
+        
+        # Save temporarily
+        filename = secure_filename(file.filename)
+        temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                               f"analyze_invalid_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+        
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        file.save(temp_path)
+        
+        # Store in session
+        session['pending_import_file'] = temp_path
+        session['pending_import_filename'] = filename
+        
+        try:
+            import_service = TimeAttendanceImportService(db, logger_handler)
+            analysis = import_service.analyze_for_invalid_rows(temp_path)
+            
+            # Convert datetime objects to strings for JSON
+            for invalid in analysis.get('invalid_details', []):
+                if 'row_data' in invalid:
+                    if invalid['row_data'].get('attendance_date'):
+                        invalid['row_data']['attendance_date'] = str(invalid['row_data']['attendance_date'])
+                    if invalid['row_data'].get('attendance_time'):
+                        invalid['row_data']['attendance_time'] = str(invalid['row_data']['attendance_time'])
+            
+            return jsonify({
+                'success': True,
+                'analysis': analysis
+            })
+        
+        except Exception as e:
+            logger_handler.logger.error(f"Invalid row analysis error: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Analysis failed: {str(e)}'
+            }), 500
+        
+    except Exception as e:
+        logger_handler.logger.error(f"Invalid row analysis error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Analysis failed: {str(e)}'
+        }), 500
 
 @app.route('/time-attendance/import/cancel-pending')
 @login_required

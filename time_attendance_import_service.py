@@ -21,6 +21,24 @@ class TimeAttendanceImportService:
         self.db = db
         self.logger = logger_handler
 
+    def _update_progress(self, current: int, total: int, status: str = "Processing"):
+        """
+        Update progress information for real-time tracking
+        
+        Args:
+            current: Current record number being processed
+            total: Total number of records
+            status: Status message
+        """
+        if hasattr(self, 'progress_callback') and self.progress_callback:
+            percentage = int((current / total) * 100) if total > 0 else 0
+            self.progress_callback({
+                'current': current,
+                'total': total,
+                'percentage': percentage,
+                'status': status
+            })
+
     def _parse_excel_hyperlink(self, cell_value: str) -> str:
         """
         Parse Excel HYPERLINK formula to extract the display text (address)
@@ -139,7 +157,16 @@ class TimeAttendanceImportService:
             duplicates_list = []
             new_records_count = 0
             
+            # Process each row with enhanced validation
             for index, row in df.iterrows():
+                # Update progress every 10 records or on last record
+                if (index + 1) % 10 == 0 or (index + 1) == len(df):
+                    self._update_progress(
+                        index + 1, 
+                        len(df), 
+                        f"Processing row {index + 2} of {len(df) + 1}"
+                    )
+                
                 try:
                     # Skip empty rows
                     if pd.isna(row['ID']) or pd.isna(row['Name']):
@@ -197,6 +224,142 @@ class TimeAttendanceImportService:
             analysis_result['errors'].append(f"Analysis failed: {str(e)}")
             if self.logger:
                 self.logger.logger.error(f"Duplicate analysis error: {e}")
+        
+        return analysis_result
+    
+    def analyze_for_invalid_rows(self, file_path: str) -> Dict[str, Any]:
+        """
+        Analyze file for invalid rows with detailed error information
+        
+        Args:
+            file_path: Path to the Excel file
+            
+        Returns:
+            Dictionary containing invalid row analysis
+        """
+        analysis_result = {
+            'success': False,
+            'total_rows': 0,
+            'valid_rows': 0,
+            'invalid_rows': 0,
+            'invalid_details': [],
+            'errors': []
+        }
+        
+        try:
+            # Read Excel file
+            excel_file = pd.ExcelFile(file_path)
+            sheet_name = excel_file.sheet_names[0]
+            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            
+            # Validate required columns
+            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                analysis_result['errors'].append(f"Missing columns: {', '.join(missing_columns)}")
+                return analysis_result
+            
+            # Remove empty rows
+            df = df.dropna(how='all')
+            analysis_result['total_rows'] = len(df)
+            
+            # Process each row and collect invalid ones
+            invalid_list = []
+            valid_count = 0
+            
+            for index, row in df.iterrows():
+                row_errors = []
+                row_data = {
+                    'employee_id': None,
+                    'employee_name': None,
+                    'platform': None,
+                    'attendance_date': None,
+                    'attendance_time': None,
+                    'location_name': None,
+                    'action_description': None,
+                    'event_description': None,
+                    'recorded_address': None
+                }
+                
+                # Check ID
+                if pd.isna(row['ID']):
+                    row_errors.append("Missing Employee ID")
+                else:
+                    row_data['employee_id'] = str(row['ID']).strip()
+                
+                # Check Name
+                if pd.isna(row['Name']):
+                    row_errors.append("Missing Employee Name")
+                else:
+                    row_data['employee_name'] = str(row['Name']).strip()
+                
+                # Check and parse Date
+                if pd.isna(row['Date']):
+                    row_errors.append("Missing Date")
+                else:
+                    try:
+                        attendance_date = pd.to_datetime(row['Date']).date()
+                        row_data['attendance_date'] = attendance_date
+                    except Exception:
+                        row_errors.append(f"Invalid date format: {row['Date']}")
+                
+                # Check and parse Time
+                if pd.isna(row['Time']):
+                    row_errors.append("Missing Time")
+                else:
+                    try:
+                        attendance_time = self._parse_time_field(row['Time'])
+                        row_data['attendance_time'] = attendance_time
+                    except Exception as e:
+                        row_errors.append(f"Invalid time format: {row['Time']}")
+                
+                # Check Location Name
+                if pd.isna(row['Location Name']):
+                    row_errors.append("Missing Location Name")
+                else:
+                    row_data['location_name'] = str(row['Location Name']).strip()
+                
+                # Check Action Description
+                if pd.isna(row['Action Description']):
+                    row_errors.append("Missing Action Description")
+                else:
+                    row_data['action_description'] = str(row['Action Description']).strip()
+                
+                # Optional fields
+                if pd.notna(row.get('Platform')):
+                    row_data['platform'] = str(row['Platform']).strip()
+                
+                if pd.notna(row.get('Event Description')):
+                    row_data['event_description'] = str(row['Event Description']).strip()
+                
+                row_data['recorded_address'] = self._process_recorded_address(row)
+                
+                # If row has errors, add to invalid list
+                if row_errors:
+                    invalid_list.append({
+                        'row_number': index + 2,  # +2 for header and 0-based index
+                        'row_data': row_data,
+                        'errors': row_errors
+                    })
+                else:
+                    valid_count += 1
+            
+            analysis_result['success'] = True
+            analysis_result['valid_rows'] = valid_count
+            analysis_result['invalid_rows'] = len(invalid_list)
+            analysis_result['invalid_details'] = invalid_list
+            
+            if self.logger:
+                self.logger.logger.info(
+                    f"Invalid row analysis complete - Total: {analysis_result['total_rows']}, "
+                    f"Valid: {valid_count}, Invalid: {len(invalid_list)}"
+                )
+        
+        except Exception as e:
+            analysis_result['errors'].append(f"Analysis failed: {str(e)}")
+            if self.logger:
+                self.logger.logger.error(f"Invalid row analysis error: {e}")
         
         return analysis_result
     
@@ -546,7 +709,7 @@ class TimeAttendanceImportService:
             sample_rows = df.head(5).to_dict('records')
             validation_results['sample_data'] = sample_rows
             
-            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description', 'Event Description', 'Recorded Address']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
