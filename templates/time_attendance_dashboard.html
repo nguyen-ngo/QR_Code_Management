@@ -20,7 +20,7 @@
     </div>
     
     <div class="header-actions">
-      {% if session.role == 'admin' %}
+      {% if session.role in ['admin', 'payroll'] %}
       <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
         <i class="fas fa-upload"></i>
         Import Excel Data
@@ -78,7 +78,6 @@
     </div>
   </div>
 
-  <!-- Recent Records Table -->
   {% if recent_records %}
   <div class="attendance-table-section">
     <div class="table-header">
@@ -98,84 +97,92 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Employee ID</th>
-            <th>Employee Name</th>
-            <th>Location</th>
-            <th>Action</th>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Platform</th>
             <th>Date</th>
             <th>Time</th>
-            <th>Platform</th>
-            <th>Address</th>
+            <th>Location Name</th>
+            <th>Action Description</th>
+            <th>Event Description</th>
+            <th>Recorded Address</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for record in recent_records %}
           <tr>
+            <!-- # -->
             <td>{{ loop.index }}</td>
+            
+            <!-- 1. ID (Employee ID) -->
             <td>
               <div class="employee-info">
                 <span class="employee-id">{{ record.employee_id }}</span>
               </div>
             </td>
+            
+            <!-- 2. Name -->
             <td>
-              <div class="employee-name">
-                <i class="fas fa-user"></i>
-                <span>{{ record.employee_name or 'Unknown' }}</span>
+              <div class="employee-name-simple">
+                {{ record.employee_name or 'Unknown' }}
               </div>
             </td>
+            
+            <!-- 3. Platform -->
+            <td class="platform-cell">
+              {{ record.platform or 'Unknown' }}
+            </td>
+            
+            <!-- 4. Date -->
+            <td class="date-cell">
+              {{ record.attendance_date.strftime('%Y-%m-%d') }}
+            </td>
+            
+            <!-- 5. Time -->
+            <td class="time-cell">
+              {{ record.attendance_time.strftime('%H:%M:%S') }}
+            </td>
+            
+            <!-- 6. Location Name -->
             <td>
               <div class="location-info">
                 <i class="fas fa-map-marker-alt"></i>
                 {{ record.location_name }}
               </div>
             </td>
+            
+            <!-- 7. Action Description -->
             <td>
-              <div class="action-info">
+              <span class="action-badge {{ record.action_description.lower().replace(' ', '-') }}">
                 {% if record.action_description.lower() == 'check in' %}
-                <i class="fas fa-sign-in-alt" style="color: #059669;"></i>
+                <i class="fas fa-sign-in-alt"></i>
                 {% elif record.action_description.lower() == 'check out' %}
-                <i class="fas fa-sign-out-alt" style="color: #d97706;"></i>
+                <i class="fas fa-sign-out-alt"></i>
                 {% else %}
-                <i class="fas fa-clock" style="color: #6b7280;"></i>
+                <i class="fas fa-clock"></i>
                 {% endif %}
                 {{ record.action_description }}
-              </div>
+              </span>
             </td>
-            <td>
-              <div class="date-info">
-                <i class="fas fa-calendar"></i>
-                {{ record.attendance_date.strftime('%Y-%m-%d') }}
-              </div>
+            
+            <!-- 8. Event Description -->
+            <td class="event-cell">
+              {{ record.event_description if record.event_description else '-' }}
             </td>
-            <td>
-              <div class="time-info">
-                <i class="fas fa-clock"></i>
-                {{ record.attendance_time.strftime('%H:%M:%S') }}
-              </div>
+            
+            <!-- 9. Recorded Address -->
+            <td class="address-cell">
+              {% if record.recorded_address %}
+              <span title="{{ record.recorded_address }}">
+                {{ record.recorded_address[:35] }}{% if record.recorded_address|length > 35 %}...{% endif %}
+              </span>
+              {% else %}
+              <span class="text-muted">No address</span>
+              {% endif %}
             </td>
-            <td>
-              <div class="platform-info">
-                {% if record.platform %}
-                <i class="fas fa-mobile-alt"></i>
-                {{ record.platform[:25] }}{% if record.platform|length > 25 %}...{% endif %}
-                {% else %}
-                <span class="text-muted">-</span>
-                {% endif %}
-              </div>
-            </td>
-            <td>
-              <div class="address-info">
-                {% if record.recorded_address %}
-                <i class="fas fa-map-pin"></i>
-                <span title="{{ record.recorded_address }}">
-                  {{ record.recorded_address[:35] }}{% if record.recorded_address|length > 35 %}...{% endif %}
-                </span>
-                {% else %}
-                <span class="text-muted">-</span>
-                {% endif %}
-              </div>
-            </td>
+            
+            <!-- Actions -->
             <td>
               <div class="record-actions">
                 <button class="action-btn btn-view" onclick="viewRecord({{ record.id }})" title="View Details">
@@ -419,6 +426,88 @@
   .attendance-table td:nth-child(8),
   .attendance-table th:nth-child(9),
   .attendance-table td:nth-child(9) {
+    display: none;
+  }
+}
+
+.employee-name-simple {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.date-cell,
+.time-cell {
+  font-family: 'Courier New', monospace;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.event-cell {
+  color: #64748b;
+  font-size: 0.875rem;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+.platform-cell {
+  color: #64748b;
+  font-size: 0.875rem;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Responsive adjustments for dashboard table */
+@media (max-width: 1400px) {
+  .attendance-table th:nth-child(4),
+  .attendance-table td:nth-child(4),
+  .attendance-table th:nth-child(9),
+  .attendance-table td:nth-child(9) {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .attendance-table th:nth-child(4),
+  .attendance-table td:nth-child(4),
+  .attendance-table th:nth-child(7),
+  .attendance-table td:nth-child(7),
+  .attendance-table th:nth-child(9),
+  .attendance-table td:nth-child(9),
+  .attendance-table th:nth-child(10),
+  .attendance-table td:nth-child(10) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .attendance-table th:nth-child(4),
+  .attendance-table td:nth-child(4),
+  .attendance-table th:nth-child(7),
+  .attendance-table td:nth-child(7),
+  .attendance-table th:nth-child(8),
+  .attendance-table td:nth-child(8),
+  .attendance-table th:nth-child(9),
+  .attendance-table td:nth-child(9),
+  .attendance-table th:nth-child(10),
+  .attendance-table td:nth-child(10) {
     display: none;
   }
 }

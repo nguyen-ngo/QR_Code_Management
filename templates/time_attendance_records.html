@@ -128,37 +128,59 @@
       <table class="records-table">
         <thead>
           <tr>
-            <th>Employee ID</th>
+            <th>ID</th>
             <th>Name</th>
-            <th>Date & Time</th>
-            <th>Action</th>
-            <th>Location</th>
             <th>Platform</th>
-            <th>QR Address</th>
-            <th>Check-in Address</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Location Name</th>
+            <th>Action Description</th>
+            <th>Event Description</th>
+            <th>Recorded Address</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for record in records.items %}
           <tr>
+            <!-- 1. ID (Employee ID) -->
             <td>
               <div class="employee-id-cell">
                 <span class="employee-id">{{ record.employee_id }}</span>
               </div>
             </td>
+            
+            <!-- 2. Name -->
             <td>
               <div class="employee-name-cell">
-                <i class="fas fa-user"></i>
                 <span>{{ record.employee_name }}</span>
               </div>
             </td>
-            <td class="datetime-cell">
-              <div class="datetime-info">
-                <div class="date">{{ record.attendance_date.strftime('%Y-%m-%d') }}</div>
-                <div class="time">{{ record.attendance_time.strftime('%H:%M:%S') }}</div>
+            
+            <!-- 3. Platform -->
+            <td class="platform-cell">
+              {{ record.platform or 'Unknown' }}
+            </td>
+            
+            <!-- 4. Date -->
+            <td class="date-cell">
+              {{ record.attendance_date.strftime('%Y-%m-%d') }}
+            </td>
+            
+            <!-- 5. Time -->
+            <td class="time-cell">
+              {{ record.attendance_time.strftime('%H:%M:%S') }}
+            </td>
+            
+            <!-- 6. Location Name -->
+            <td class="location-cell">
+              <div class="location-info">
+                <i class="fas fa-map-marker-alt"></i>
+                {{ record.location_name }}
               </div>
             </td>
+            
+            <!-- 7. Action Description -->
             <td>
               <span class="action-badge {{ record.action_description.lower().replace(' ', '-') }}">
                 {% if record.action_description.lower() == 'check in' %}
@@ -171,48 +193,24 @@
                 {{ record.action_description }}
               </span>
             </td>
-            <td class="location-cell">
-              <div class="location-info">
-                <i class="fas fa-map-marker-alt"></i>
-                {{ record.location_name }}
-              </div>
+            
+            <!-- 8. Event Description -->
+            <td class="event-cell">
+              {{ record.event_description if record.event_description else '-' }}
             </td>
-            <td class="platform-cell">
-              {{ record.platform or 'Unknown' }}
-            </td>
-            <td class="address-cell qr-address-cell">
-              {% if record.qr_address %}
-              <span title="{{ record.qr_address }}">
-                <i class="fas fa-qrcode" style="color: #6366f1;"></i>
-                {{ record.qr_address[:40] }}{% if record.qr_address|length > 40 %}...{% endif %}
+            
+            <!-- 9. Recorded Address -->
+            <td class="address-cell">
+              {% if record.recorded_address %}
+              <span title="{{ record.recorded_address }}">
+                {{ record.recorded_address[:40] }}{% if record.recorded_address|length > 40 %}...{% endif %}
               </span>
               {% else %}
-              <span class="text-muted">No QR address</span>
+              <span class="text-muted">No address</span>
               {% endif %}
             </td>
-            <td class="address-cell checkin-address-cell">
-              {% if record.location_accuracy is not none and record.location_accuracy <= 0.3 %}
-                {# Within 0.3 mile threshold - show QR address #}
-                {% if record.qr_address %}
-                <span title="QR Address (High Accuracy ≤ 0.3 mi): {{ record.qr_address }}">
-                  <i class="fas fa-check-circle" style="color: #059669;"></i>
-                  {{ record.qr_address[:40] }}{% if record.qr_address|length > 40 %}...{% endif %}
-                </span>
-                {% else %}
-                <span class="text-muted">No address</span>
-                {% endif %}
-              {% else %}
-                {# Beyond 0.3 mile threshold or no accuracy - show actual check-in address #}
-                {% if record.recorded_address %}
-                <span title="Check-in Address: {{ record.recorded_address }}">
-                  <i class="fas fa-location-arrow" style="color: #f59e0b;"></i>
-                  {{ record.recorded_address[:40] }}{% if record.recorded_address|length > 40 %}...{% endif %}
-                </span>
-                {% else %}
-                <span class="text-muted">No address</span>
-                {% endif %}
-              {% endif %}
-            </td>
+            
+            <!-- Actions -->
             <td class="actions-cell">
               <div class="action-buttons">
                 <a href="{{ url_for('time_attendance_record_detail', record_id=record.id) }}" 
@@ -348,4 +346,89 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
+<style>
+/* Additional styles for Excel-matched column layout */
+.employee-id-cell {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.employee-name-cell {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.date-cell,
+.time-cell {
+  font-family: 'Courier New', monospace;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.event-cell {
+  color: #64748b;
+  font-size: 0.875rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.875rem;
+}
+
+.address-cell {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 1400px) {
+  .records-table th,
+  .records-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8125rem;
+  }
+  
+  .address-cell {
+    max-width: 150px;
+  }
+  
+  .event-cell {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Hide less critical columns on smaller screens */
+  .records-table th:nth-child(3),
+  .records-table td:nth-child(3),
+  .records-table th:nth-child(8),
+  .records-table td:nth-child(8) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Show only most important columns on mobile */
+  .records-table th:nth-child(3),
+  .records-table td:nth-child(3),
+  .records-table th:nth-child(6),
+  .records-table td:nth-child(6),
+  .records-table th:nth-child(8),
+  .records-table td:nth-child(8),
+  .records-table th:nth-child(9),
+  .records-table td:nth-child(9) {
+    display: none;
+  }
+}
+</style>
 {% endblock %}
