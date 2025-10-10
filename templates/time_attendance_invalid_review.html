@@ -321,7 +321,10 @@
   <!-- Invalid Rows List -->
   {% if analysis.invalid_rows > 0 %}
   <form id="invalidReviewForm" method="POST" action="{{ url_for('import_time_attendance') }}">
+    <input type="hidden" name="from_invalid_review" value="true">
     <input type="hidden" name="analyze_invalid" value="false">
+    <input type="hidden" name="analyze_duplicates" value="false">
+    <input type="hidden" name="validate_only" value="false">
     <input type="hidden" name="skip_duplicates" value="true">
     <input type="hidden" name="import_source" value="Import (Skipped Invalid Rows) - {{ filename }}">
     
@@ -457,29 +460,57 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('invalidReviewForm');
-    const proceedBtn = document.getElementById('proceedBtn');
-    
-    if (form && proceedBtn) {
-        proceedBtn.addEventListener('click', function(e) {
-            const validCount = {{ analysis.valid_rows }};
-            const invalidCount = {{ analysis.invalid_rows }};
-            
-            const message = `You are about to import ${validCount} valid record(s).\n\n` +
-                          `${invalidCount} invalid row(s) will be skipped.\n\n` +
-                          `Continue with import?`;
-            
-            if (!confirm(message)) {
-                e.preventDefault();
-                return;
-            }
-            
-            // Show loading state
-            proceedBtn.disabled = true;
-            proceedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Import...';
-        });
-    }
-});
+  document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('invalidReviewForm');
+      const proceedBtn = document.getElementById('proceedBtn');
+      
+      console.log('🔍 Invalid Review Page - Debug Info:');
+      console.log('   Form element:', form);
+      console.log('   Button element:', proceedBtn);
+      console.log('   Form action:', form ? form.action : 'N/A');
+      console.log('   Form method:', form ? form.method : 'N/A');
+      
+      if (form && proceedBtn) {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              
+              const validCount = {{ analysis.valid_rows }};
+              const invalidCount = {{ analysis.invalid_rows }};
+              
+              console.log(`📊 Attempting to import ${validCount} valid records`);
+              console.log(`📊 Skipping ${invalidCount} invalid records`);
+              
+              const message = `You are about to import ${validCount} valid record(s).\n\n` +
+                            `${invalidCount} invalid row(s) will be skipped.\n\n` +
+                            `Continue with import?`;
+              
+              if (confirm(message)) {
+                  console.log('✅ User confirmed import');
+                  
+                  // Log all form data for debugging
+                  const formData = new FormData(form);
+                  console.log('📋 Form Data Being Submitted:');
+                  for (let [key, value] of formData.entries()) {
+                      console.log(`   ${key}: ${value}`);
+                  }
+                  
+                  // Show loading state
+                  proceedBtn.disabled = true;
+                  proceedBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Import...';
+                  
+                  // Use HTMLFormElement.submit() which bypasses event listeners
+                  console.log('🚀 Submitting form to:', form.action);
+                  HTMLFormElement.prototype.submit.call(form);
+              } else {
+                  console.log('❌ User cancelled import');
+              }
+          });
+      } 
+      else {
+          console.error('❌ Form or button not found!');
+          if (!form) console.error('   Missing form element with id="invalidReviewForm"');
+          if (!proceedBtn) console.error('   Missing button element with id="proceedBtn"');
+      }
+  });
 </script>
 {% endblock %}

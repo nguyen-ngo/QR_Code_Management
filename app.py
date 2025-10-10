@@ -6547,32 +6547,61 @@ def import_time_attendance():
     """Enhanced import with duplicate review"""
     if request.method == 'POST':
         try:
-            # Check if file is uploaded
-            if 'file' not in request.files:
-                flash('No file selected.', 'error')
-                return redirect(request.url)
+            # Check if this is coming from invalid review (file is already in session)
+            coming_from_invalid_review = request.form.get('from_invalid_review', 'false').lower() == 'true'
             
-            file = request.files['file']
-            if file.filename == '':
-                flash('No file selected.', 'error')
-                return redirect(request.url)
+            print(f"\n🔍 IMPORT FLOW DEBUG:")
+            print(f"   Coming from invalid review: {coming_from_invalid_review}")
             
-            # Validate file extension
-            if not file.filename.lower().endswith(('.xlsx', '.xls')):
-                flash('Please upload an Excel file (.xlsx or .xls).', 'error')
-                return redirect(request.url)
-            
-            # Save uploaded file temporarily
-            filename = secure_filename(file.filename)
-            temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
-                                   f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
-            
-            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-            file.save(temp_path)
-            
-            # Store file path in session for duplicate review
-            session['pending_import_file'] = temp_path
-            session['pending_import_filename'] = filename
+            if coming_from_invalid_review:
+                # Retrieve file from session
+                if 'pending_import_file' not in session or 'pending_import_filename' not in session:
+                    flash('Session expired. Please upload the file again.', 'error')
+                    return redirect(url_for('import_time_attendance'))
+                
+                temp_path = session['pending_import_file']
+                filename = session['pending_import_filename']
+                
+                # Verify file still exists
+                if not os.path.exists(temp_path):
+                    flash('Temporary file not found. Please upload the file again.', 'error')
+                    session.pop('pending_import_file', None)
+                    session.pop('pending_import_filename', None)
+                    return redirect(url_for('import_time_attendance'))
+                
+                print(f"✅ Retrieved file from session: {filename}")
+                print(f"✅ Temp path exists: {os.path.exists(temp_path)}")
+                
+            else:
+                # Normal file upload flow
+                if 'file' not in request.files:
+                    flash('No file uploaded.', 'error')
+                    return redirect(request.url)
+                
+                file = request.files['file']
+                if file.filename == '':
+                    flash('No file selected.', 'error')
+                    return redirect(request.url)
+                
+                # Validate file extension
+                if not file.filename.lower().endswith(('.xlsx', '.xls')):
+                    flash('Please upload an Excel file (.xlsx or .xls).', 'error')
+                    return redirect(request.url)
+                
+                # Save uploaded file temporarily
+                filename = secure_filename(file.filename)
+                temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                                       f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+                
+                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+                file.save(temp_path)
+                
+                # Store file path in session for duplicate/invalid review
+                session['pending_import_file'] = temp_path
+                session['pending_import_filename'] = filename
+                
+                print(f"✅ Uploaded new file: {filename}")
+                print(f"✅ Saved to: {temp_path}")
             
             try:
                 import_service = TimeAttendanceImportService(db, logger_handler)
@@ -6581,54 +6610,74 @@ def import_time_attendance():
                 skip_duplicates = request.form.get('skip_duplicates', 'true').lower() == 'true'
                 validate_only = request.form.get('validate_only', 'false').lower() == 'true'
                 analyze_duplicates = request.form.get('analyze_duplicates', 'false').lower() == 'true'
+                analyze_invalid = request.form.get('analyze_invalid', 'false').lower() == 'true'
+                
+                print(f"📋 Import Options:")
+                print(f"   Skip duplicates: {skip_duplicates}")
+                print(f"   Validate only: {validate_only}")
+                print(f"   Analyze duplicates: {analyze_duplicates}")
+                print(f"   Analyze invalid: {analyze_invalid}")
+                print(f"   Coming from invalid review: {coming_from_invalid_review}")
                 
                 # Check if this is coming from duplicate review
                 force_import_hashes = request.form.getlist('force_import_hashes[]')
                 
-                # If analyzing for duplicates, show review page
-                if analyze_duplicates and not force_import_hashes:
+                # If analyzing for duplicates, show review page (but not if coming from invalid review)
+                if analyze_duplicates and not force_import_hashes and not coming_from_invalid_review:
+                    print("🔍 Analyzing for duplicates...")
                     duplicate_analysis = import_service.analyze_for_duplicates(temp_path)
                     
                     if duplicate_analysis['duplicate_records'] > 0:
+                        print(f"⚠️ Found {duplicate_analysis['duplicate_records']} duplicates")
                         # Show duplicate review page
                         return render_template('time_attendance_duplicate_review.html',
                                              analysis=duplicate_analysis,
                                              filename=filename)
                     else:
+                        print("✅ No duplicates found")
                         flash('No duplicates found. Proceeding with import.', 'info')
                 
-                # Check for invalid rows and show review if any
-                analyze_invalid = request.form.get('analyze_invalid', 'false').lower() == 'true'
-
-                if analyze_invalid:
+                # Check for invalid rows and show review if any (but not if coming from invalid review)
+                if analyze_invalid and not coming_from_invalid_review:
+                    print("🔍 Analyzing for invalid rows...")
                     invalid_analysis = import_service.analyze_for_invalid_rows(temp_path)
                     
                     if invalid_analysis['invalid_rows'] > 0:
+                        print(f"⚠️ Found {invalid_analysis['invalid_rows']} invalid rows")
                         # Show invalid row review page
                         return render_template('time_attendance_invalid_review.html',
                                             analysis=invalid_analysis,
                                             filename=filename)
                     else:
+                        print("✅ All rows are valid")
                         flash('All rows are valid. Proceeding with import.', 'info')
                 
-                # Validate file
-                validation_result = import_service.validate_excel_file(temp_path)
-                
-                if not validation_result['valid']:
-                    flash(f"File validation failed: {'; '.join(validation_result['errors'])}", 'error')
-                    return render_template('time_attendance_import.html', 
-                                         validation_result=validation_result)
-                
-                if validation_result['warnings']:
-                    for warning in validation_result['warnings']:
-                        flash(warning, 'warning')
-                
-                if validate_only:
-                    flash(f"File validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
-                    return render_template('time_attendance_import.html', 
-                                         validation_result=validation_result)
+                # If coming from invalid review, skip validation (already done)
+                if not coming_from_invalid_review:
+                    print("🔍 Validating file...")
+                    # Validate file
+                    validation_result = import_service.validate_excel_file(temp_path)
+                    
+                    if not validation_result['valid']:
+                        print(f"❌ Validation failed: {validation_result['errors']}")
+                        flash(f"File validation failed: {'; '.join(validation_result['errors'])}", 'error')
+                        return render_template('time_attendance_import.html', 
+                                             validation_result=validation_result)
+                    
+                    if validation_result['warnings']:
+                        for warning in validation_result['warnings']:
+                            flash(warning, 'warning')
+                    
+                    if validate_only:
+                        print(f"✅ Validation successful: {validation_result['valid_rows']} valid records")
+                        flash(f"File validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
+                        return render_template('time_attendance_import.html', 
+                                             validation_result=validation_result)
+                else:
+                    print("⏭️ Skipping validation (already validated)")
                 
                 # Proceed with import
+                print("🚀 Starting import process...")
                 import_source = request.form.get('import_source', f"Manual Import - {filename}")
                 import_result = import_service.import_from_excel(
                     temp_path,
@@ -6639,6 +6688,12 @@ def import_time_attendance():
                 )
                 
                 if import_result['success']:
+                    print(f"✅ Import successful!")
+                    print(f"   Batch ID: {import_result['batch_id']}")
+                    print(f"   Imported: {import_result['imported_records']}/{import_result['total_records']}")
+                    print(f"   Duplicates: {import_result['duplicate_records']}")
+                    print(f"   Failed: {import_result['failed_records']}")
+                    
                     logger_handler.logger.info(
                         f"User {session['username']} successfully imported time attendance data - "
                         f"Batch: {import_result['batch_id']}, "
@@ -6661,33 +6716,41 @@ def import_time_attendance():
                         flash(f"Note: {import_result['failed_records']} records failed to import. "
                               f"Check the error details below.", 'warning')
                     
+                    # Clean up temp file after successful import
+                    if os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                            session.pop('pending_import_file', None)
+                            session.pop('pending_import_filename', None)
+                            print("🗑️ Cleaned up temp file")
+                        except Exception as cleanup_error:
+                            print(f"⚠️ Failed to cleanup temp file: {cleanup_error}")
+                    
                     return render_template('time_attendance_import_result.html', 
                                          import_result=import_result)
                 else:
+                    print(f"❌ Import failed: {import_result['errors']}")
                     flash(f"Import failed: {'; '.join(import_result['errors'][:3])}", 'error')
                     if len(import_result['errors']) > 3:
                         flash(f"...and {len(import_result['errors']) - 3} more errors", 'warning')
                     return render_template('time_attendance_import.html', 
                                          import_result=import_result)
                 
-            finally:
-                # Clean up if import completed or failed (not if showing duplicate review)
-                if not analyze_duplicates or force_import_hashes:
-                    if os.path.exists(temp_path):
-                        try:
-                            os.remove(temp_path)
-                            if 'pending_import_file' in session:
-                                session.pop('pending_import_file')
-                            if 'pending_import_filename' in session:
-                                session.pop('pending_import_filename')
-                        except Exception as cleanup_error:
-                            logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
-            
+            except Exception as import_error:
+                print(f"❌ Import exception: {import_error}")
+                import traceback
+                print(f"❌ Traceback: {traceback.format_exc()}")
+                raise
+                
         except Exception as e:
             logger_handler.log_database_error('time_attendance_import', e)
+            print(f"❌ Top-level exception: {e}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
             flash('Import failed due to an unexpected error.', 'error')
             return render_template('time_attendance_import.html')
     
+    # GET request
     return render_template('time_attendance_import.html')
 
 
