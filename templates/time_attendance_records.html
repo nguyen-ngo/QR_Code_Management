@@ -493,6 +493,12 @@ document.addEventListener('DOMContentLoaded', function() {
 .export-dropdown-wrapper {
   position: relative;
   display: inline-block;
+  z-index: 100;
+}
+
+.header-actions {
+  position: relative;
+  z-index: 100;
 }
 
 .export-dropdown-menu {
@@ -502,10 +508,10 @@ document.addEventListener('DOMContentLoaded', function() {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 9999;
   min-width: 200px;
-  overflow: hidden;
+  overflow: visible;
   animation: slideDown 0.2s ease-out;
 }
 
@@ -524,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
   width: 100%;
   padding: 0.875rem 1rem;
   border: none;
-  background: none;
+  background: #ffffff;
   text-align: left;
   cursor: pointer;
   display: flex;
@@ -552,10 +558,29 @@ document.addEventListener('DOMContentLoaded', function() {
   font-size: 1.125rem;
   width: 20px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .export-option span {
   font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Ensure parent containers don't hide dropdown */
+.time-attendance-header {
+  overflow: visible !important;
+  position: relative;
+  z-index: 50;
+}
+
+.records-section {
+  position: relative;
+  z-index: 1;
+}
+
+.filter-section {
+  position: relative;
+  z-index: 10;
 }
 
 /* Responsive adjustments */
@@ -564,6 +589,16 @@ document.addEventListener('DOMContentLoaded', function() {
     right: auto;
     left: 0;
     min-width: 180px;
+  }
+  
+  .export-dropdown-wrapper {
+    width: 100%;
+  }
+  
+  .export-dropdown-menu {
+    left: 0;
+    right: auto;
+    min-width: 100%;
   }
 }
 </style>
