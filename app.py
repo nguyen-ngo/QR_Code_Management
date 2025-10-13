@@ -4675,11 +4675,11 @@ def generate_excel_export():
             # Format: [project_name_]attendance_report_[fromdate_todate].xlsx
             date_range_str = ''
             if date_from_formatted and date_to_formatted:
-                date_range_str = f"{date_from_formatted}_{date_to_formatted}_"
+                date_range_str = f"{date_from_formatted}_{date_to_formatted}"
             elif date_from_formatted:
-                date_range_str = f"{date_from_formatted}_"
+                date_range_str = f"{date_from_formatted}"
             elif date_to_formatted:
-                date_range_str = f"{date_to_formatted}_"
+                date_range_str = f"{date_to_formatted}"
             
             filename = f'{project_name_for_filename}attendance_report_{date_range_str}.xlsx'
 
@@ -7209,14 +7209,24 @@ def export_time_attendance():
             flash('No records found to export.', 'warning')
             return redirect(url_for('time_attendance_records'))
         
+        # Get project name if project filter exists
+        project_name_for_filename = ''
+        if project_filter:
+            try:
+                from models.project import Project
+                project = Project.query.get(int(project_filter))
+                if project:
+                    # Replace spaces and special characters with underscores
+                    project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+                    project_name_for_filename = f"{project_name_safe}_"
+            except Exception as e:
+                print(f"⚠️ Error getting project name for filename: {e}")
+        
         # Log export
         logger_handler.logger.info(
             f"User {session['username']} exported {len(records)} time attendance records "
             f"in {export_format.upper()} format"
         )
-        
-        # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Format dates for filename (MMDDYYYY format)
         date_from_formatted = ''
@@ -7236,14 +7246,14 @@ def export_time_attendance():
                 pass
         
         # Build filename with date range
-        # Format: time_attendance_[fromdate_todate].xlsx/csv
+        # Format: [project_name_]time_attendance_[fromdate_todate].xlsx/csv
         date_range_str = ''
         if date_from_formatted and date_to_formatted:
             date_range_str = f"{date_from_formatted}_{date_to_formatted}"
         elif date_from_formatted:
-            date_range_str = f"{date_from_formatted}"
+            date_range_str = f"from_{date_from_formatted}"
         elif date_to_formatted:
-            date_range_str = f"{date_to_formatted}"
+            date_range_str = f"to_{date_to_formatted}"
         
         # Keep the filter_str for backward compatibility (but not in filename anymore)
         filter_desc = []
@@ -7256,9 +7266,9 @@ def export_time_attendance():
         
         # Export based on format
         if export_format == 'excel' or export_format == 'xlsx':
-            return export_time_attendance_excel(records, timestamp, date_range_str, filter_str)
+            return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str)
         else:
-            return export_time_attendance_csv(records, timestamp, date_range_str, filter_str)
+            return export_time_attendance_csv(records, project_name_for_filename, date_range_str, filter_str)
     
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records: {e}")
@@ -7266,7 +7276,7 @@ def export_time_attendance():
         return redirect(url_for('time_attendance_records'))
 
 
-def export_time_attendance_csv(records, timestamp, date_range_str, filter_str):
+def export_time_attendance_csv(records, project_name_for_filename, date_range_str, filter_str):
     """Generate CSV export of time attendance records"""
     import csv
     import io
@@ -7304,7 +7314,10 @@ def export_time_attendance_csv(records, timestamp, date_range_str, filter_str):
     
     # Prepare response with new filename format
     output.seek(0)
-    filename = f'time_attendance_{date_range_str}.csv'
+    if date_range_str:
+        filename = f'{project_name_for_filename}time_attendance_{date_range_str}.csv'
+    else:
+        filename = f'{project_name_for_filename}time_attendance.csv'
     
     return Response(
         output.getvalue(),
@@ -7314,7 +7327,7 @@ def export_time_attendance_csv(records, timestamp, date_range_str, filter_str):
         }
     )
 
-def export_time_attendance_excel(records, timestamp, date_range_str, filter_str):
+def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str):
     """Generate Excel export of time attendance records"""
     import io
     from openpyxl import Workbook
@@ -7378,7 +7391,10 @@ def export_time_attendance_excel(records, timestamp, date_range_str, filter_str)
     output.seek(0)
     
     # New filename format
-    filename = f'time_attendance_{date_range_str}.xlsx'
+    if date_range_str:
+        filename = f'{project_name_for_filename}time_attendance_{date_range_str}.xlsx'
+    else:
+        filename = f'{project_name_for_filename}time_attendance.xlsx'
     
     return send_file(
         output,
