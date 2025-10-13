@@ -4641,16 +4641,54 @@ def generate_excel_export():
         excel_file = create_excel_export_ordered(selected_columns, column_names, filters)
 
         if excel_file:
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'attendance_report_{timestamp}.xlsx'
+            # Get project name if project filter exists
+            project_name_for_filename = ''
+            if filters.get('project_filter'):
+                try:
+                    from models.project import Project
+                    project = Project.query.get(int(filters['project_filter']))
+                    if project:
+                        # Replace spaces and special characters with underscores
+                        project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+                        project_name_for_filename = f"{project_name_safe}_"
+                except Exception as e:
+                    print(f"⚠️ Error getting project name for filename: {e}")
+            
+            # Format dates for filename (MMDDYYYY format)
+            date_from_formatted = ''
+            date_to_formatted = ''
+            if filters.get('date_from'):
+                try:
+                    date_obj = datetime.strptime(filters['date_from'], '%Y-%m-%d')
+                    date_from_formatted = date_obj.strftime('%m%d%Y')
+                except ValueError:
+                    pass
+            
+            if filters.get('date_to'):
+                try:
+                    date_obj = datetime.strptime(filters['date_to'], '%Y-%m-%d')
+                    date_to_formatted = date_obj.strftime('%m%d%Y')
+                except ValueError:
+                    pass
+            
+            # Build filename components
+            # Format: [project_name_]attendance_report_[fromdate_todate].xlsx
+            date_range_str = ''
+            if date_from_formatted and date_to_formatted:
+                date_range_str = f"{date_from_formatted}_{date_to_formatted}_"
+            elif date_from_formatted:
+                date_range_str = f"{date_from_formatted}_"
+            elif date_to_formatted:
+                date_range_str = f"{date_to_formatted}_"
+            
+            filename = f'{project_name_for_filename}attendance_report_{date_range_str}.xlsx'
 
             print(f"📊 Excel file generated successfully: {filename}")
             print(f"📊 Column order in export: {selected_columns}")
 
             # Log successful export using your existing logger
             try:
-                logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns in custom order by user {session.get('username', 'unknown')}")
+                logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns in custom order by user {session.get('username', 'unknown')}: {filename}")
             except Exception as log_error:
                 print(f"⚠️ Logging error (non-critical): {log_error}")
 
