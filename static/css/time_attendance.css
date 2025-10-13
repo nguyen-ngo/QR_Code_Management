@@ -371,7 +371,7 @@ body.has-sidebar .time-attendance-page {
 
 .filter-form {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 equal columns */
+  grid-template-columns: repeat(5, 1fr); /* 5 equal columns */
   gap: 1rem;
   align-items: end;
 }
@@ -401,7 +401,7 @@ body.has-sidebar .time-attendance-page {
 /* Responsive */
 @media (max-width: 1200px) {
   .filter-form {
-    grid-template-columns: repeat(2, 1fr); /* 2 columns on medium screens */
+    grid-template-columns: repeat(3, 1fr); /* 2 columns on medium screens */
   }
 }
 

@@ -7164,6 +7164,7 @@ def export_time_attendance():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         import_batch = request.args.get('import_batch')
+        project_filter = request.args.get('project_id')
         
         # Build query with same filters as the view
         from models.time_attendance import TimeAttendance
@@ -7194,6 +7195,9 @@ def export_time_attendance():
         
         if import_batch:
             query = query.filter(TimeAttendance.import_batch_id == import_batch)
+        
+        if project_filter:
+            query = query.filter(TimeAttendance.project_id == project_filter)
         
         # Order by date and time (most recent first)
         records = query.order_by(
@@ -7410,6 +7414,7 @@ def time_attendance_records():
         location_filter = request.args.get('location_name')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        project_filter = request.args.get('project_id')
         page = request.args.get('page', 1, type=int)
         per_page = 50  # Records per page
         
@@ -7422,6 +7427,9 @@ def time_attendance_records():
         
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
+
+        if project_filter:
+            query = query.filter(TimeAttendance.project_id == project_filter)
         
         if start_date:
             try:
@@ -7477,12 +7485,14 @@ def time_attendance_records():
         # Get unique employees and locations for filters
         unique_employees = TimeAttendance.get_unique_employees()
         unique_locations = TimeAttendance.get_unique_locations()
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
         
         return render_template(
             'time_attendance_records.html',
             records=records,
             unique_employees=unique_employees,
-            unique_locations=unique_locations
+            unique_locations=unique_locations,
+            projects=projects
         )
         
     except Exception as e:

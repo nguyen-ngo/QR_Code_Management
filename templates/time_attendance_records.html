@@ -79,6 +79,18 @@
             {% endfor %}
           </select>
         </div>
+
+        <div class="form-group">
+          <label for="project_id" class="form-label">Project</label>
+          <select id="project_id" name="project_id" class="form-select">
+            <option value="">All Projects</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}" {% if request.args.get('project_id') == project.id|string %}selected{% endif %}>
+              {{ project.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
         
         <div class="form-group">
           <label for="location_name" class="form-label">Location</label>
@@ -355,8 +367,9 @@ function exportRecords(format) {
   document.getElementById('exportMenu').style.display = 'none';
   
   // Get current filter values
-  const employeeId = document.querySelector('input[name="employee_id"]')?.value || '';
-  const locationName = document.querySelector('input[name="location_name"]')?.value || '';
+  const employeeId = document.querySelector('select[name="employee_id"]')?.value || '';
+  const locationName = document.querySelector('select[name="location_name"]')?.value || '';
+  const projectId = document.querySelector('select[name="project_id"]')?.value || '';  // ADD THIS LINE
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
   const endDate = document.querySelector('input[name="end_date"]')?.value || '';
   
@@ -364,6 +377,7 @@ function exportRecords(format) {
   const params = new URLSearchParams();
   if (employeeId) params.append('employee_id', employeeId);
   if (locationName) params.append('location_name', locationName);
+  if (projectId) params.append('project_id', projectId);  // ADD THIS LINE
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
   params.append('format', format);
