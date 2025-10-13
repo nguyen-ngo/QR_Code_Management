@@ -41,11 +41,15 @@ class TimeAttendance(base.db.Model):
     import_batch_id = base.db.Column(base.db.String(36), nullable=True, index=True)
     import_date = base.db.Column(base.db.DateTime, default=datetime.utcnow)
     import_source = base.db.Column(base.db.String(100), nullable=True)
-    
+    project_id = base.db.Column(base.db.Integer, base.db.ForeignKey('projects.id'), nullable=True, index=True)
+
     # Audit fields
     created_by = base.db.Column(base.db.Integer, base.db.ForeignKey('users.id'), nullable=True)
     created_date = base.db.Column(base.db.DateTime, default=datetime.utcnow)
     updated_date = base.db.Column(base.db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    project = base.db.relationship('Project', backref='time_attendance_records')
     
     def __repr__(self):
         return f'<TimeAttendance {self.employee_id} - {self.employee_name} at {self.location_name} on {self.attendance_date}>'

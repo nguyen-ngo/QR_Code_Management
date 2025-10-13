@@ -4,6 +4,16 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
 <style>
+.form-select:hover {
+  border-color: #8b5cf6;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
 .validation-preview {
   background: #f8fafc;
   border: 2px solid #e2e8f0;
@@ -410,6 +420,36 @@
           </div>
         </div>
 
+        <!-- Project Selection - REQUIRED -->
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <h3 style="margin-bottom: 0.75rem;">
+            <i class="fas fa-project-diagram"></i>
+            Select Project <span style="color: #ef4444;">*</span>
+          </h3>
+          <select name="project_id" id="project_id" class="form-select" required style="
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 0.9375rem;
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+          ">
+            <option value="">-- Select Project (Required) --</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+            {% endfor %}
+          </select>
+          <p style="
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+          ">
+            <i class="fas fa-info-circle"></i>
+            <strong>Required:</strong> Select which project this import data belongs to for filtering and reporting
+          </p>
+        </div>
+
         <!-- Import Source -->
         <div class="form-grid">
           <div class="form-group">
@@ -706,11 +746,28 @@ importForm.addEventListener('submit', (e) => {
     alert('Please select a file to import');
     return;
   }
+
+  // Validate project selection
+  const projectSelect = document.getElementById('project_id');
+  if (!projectSelect.value || projectSelect.value === '') {
+    e.preventDefault();
+    alert('Please select a project. Project selection is required for attendance imports.');
+    projectSelect.focus();
+    projectSelect.style.borderColor = '#ef4444';
+    return;
+  }
   
   // Show progress indicator
   progressIndicator.classList.add('active');
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+});
+
+// Reset border color when project is selected
+document.getElementById('project_id').addEventListener('change', function() {
+  if (this.value) {
+    this.style.borderColor = '#e2e8f0';
+  }
 });
 
 function resetForm() {

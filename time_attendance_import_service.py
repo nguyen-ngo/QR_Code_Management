@@ -440,7 +440,7 @@ class TimeAttendanceImportService:
     
     def import_from_excel(self, file_path: str, created_by: int = None, 
                          import_source: str = None, skip_duplicates: bool = True,
-                         force_import_hashes: List[str] = None) -> Dict[str, Any]:
+                         force_import_hashes: List[str] = None, project_id: int = None) -> Dict[str, Any]:
         """
         Import time attendance data from Excel file with enhanced duplicate handling
         
@@ -581,7 +581,8 @@ class TimeAttendanceImportService:
                         **record_data,
                         import_batch_id=batch_id,
                         import_source=import_source or f"Excel Import - {file_path}",
-                        created_by=created_by
+                        created_by=created_by,
+                        project_id=project_id
                     )
                     
                     self.db.session.add(time_attendance_record)

@@ -6583,6 +6583,11 @@ def time_attendance_dashboard():
 @log_database_operations('time_attendance_import')
 def import_time_attendance():
     """Enhanced import with duplicate review"""
+    if request.method == 'GET':
+        # Load active projects for dropdown
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        return render_template('time_attendance_import.html', projects=projects)
+
     if request.method == 'POST':
         try:
             # Check if this is coming from invalid review (file is already in session)
@@ -6717,12 +6722,16 @@ def import_time_attendance():
                 # Proceed with import
                 print("🚀 Starting import process...")
                 import_source = request.form.get('import_source', f"Manual Import - {filename}")
+                project_id = request.form.get('project_id')
+                project_id = int(project_id) if project_id and project_id != '' else None
+
                 import_result = import_service.import_from_excel(
                     temp_path,
                     created_by=session['user_id'],
                     import_source=import_source,
                     skip_duplicates=skip_duplicates,
-                    force_import_hashes=force_import_hashes
+                    force_import_hashes=force_import_hashes,
+                    project_id=project_id
                 )
                 
                 if import_result['success']:
