@@ -33,14 +33,14 @@ Management{% endblock %} {% block extra_head %}
   <!-- Log Statistics -->
   <div class="log-stats">
     <div class="stat-card total">
-      <div class="stat-icon">
-        <i class="fas fa-list"></i>
+      <div class="stat-icon total">
+        <i class="fas fa-list-alt"></i>
       </div>
       <div class="stat-info">
         <h3 id="totalEventsCount">
           {{ log_stats.total_events if log_stats else 0 }}
         </h3>
-        <p>Total Events (7 days)</p>
+        <p>Total Events</p>
       </div>
     </div>
 
@@ -56,9 +56,33 @@ Management{% endblock %} {% block extra_head %}
       </div>
     </div>
 
-    <div class="stat-card errors">
-      <div class="stat-icon errors">
-        <i class="fas fa-exclamation-triangle"></i>
+    <div class="stat-card auth">
+      <div class="stat-icon auth">
+        <i class="fas fa-user-shield"></i>
+      </div>
+      <div class="stat-info">
+        <h3 id="authEventsCount">
+          {{ log_stats.authentication_events if log_stats else 0 }}
+        </h3>
+        <p>Authentication</p>
+      </div>
+    </div>
+
+    <div class="stat-card qr">
+      <div class="stat-icon qr">
+        <i class="fas fa-qrcode"></i>
+      </div>
+      <div class="stat-info">
+        <h3 id="qrEventsCount">
+          {{ log_stats.qr_management_events if log_stats else 0 }}
+        </h3>
+        <p>QR Management</p>
+      </div>
+    </div>
+
+    <div class="stat-card database">
+      <div class="stat-icon database">
+        <i class="fas fa-database"></i>
       </div>
       <div class="stat-info">
         <h3 id="databaseErrorsCount">
@@ -68,15 +92,15 @@ Management{% endblock %} {% block extra_head %}
       </div>
     </div>
 
-    <div class="stat-card users">
-      <div class="stat-icon users">
-        <i class="fas fa-users"></i>
+    <div class="stat-card application">
+      <div class="stat-icon application">
+        <i class="fas fa-cogs"></i>
       </div>
       <div class="stat-info">
-        <h3 id="userActivitiesCount">
-          {{ log_stats.user_activities if log_stats else 0 }}
+        <h3 id="applicationEventsCount">
+          {{ log_stats.application_events if log_stats else 0 }}
         </h3>
-        <p>User Activities</p>
+        <p>Application Events</p>
       </div>
     </div>
   </div>
@@ -121,16 +145,18 @@ Management{% endblock %} {% block extra_head %}
         <select id="categoryFilter" class="filter-select">
           <option value="">All Categories</option>
           <option value="security">Security Events</option>
+          <option value="authentication">Authentication</option>
+          <option value="qr_management">QR Management</option>
           <option value="database">Database Events</option>
-          <option value="user_activity">User Activities</option>
+          <option value="application">Application Events</option>
           <option value="system">System Events</option>
         </select>
 
         <select id="severityFilter" class="filter-select">
           <option value="">All Severity</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="ERROR">Error</option>
+          <option value="WARNING">Warning</option>
           <option value="INFO">Info</option>
         </select>
 
@@ -559,18 +585,44 @@ Management{% endblock %} {% block extra_head %}
   // Load log statistics
   async function loadStats() {
     try {
-      const response = await fetch(
-        `/api/logs/stats?days=${currentFilters.days}`
-      );
-      const data = await response.json();
+      console.log("📊 Loading statistics...");
+      const days = currentFilters.days;
 
-      if (data.success && data.stats) {
-        updateStatsDisplay(data.stats);
+      const response = await fetch(`/api/logs/stats?days=${days}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      console.log("📈 Stats received:", data);
+
+      if (data.success) {
+        const stats = data.stats;
+
+        // Update stat cards with new categories
+        document.getElementById("totalEventsCount").textContent =
+          stats.total_events || 0;
+        document.getElementById("securityEventsCount").textContent =
+          stats.security_events || 0;
+        document.getElementById("authEventsCount").textContent =
+          stats.authentication_events || 0;
+        document.getElementById("qrEventsCount").textContent =
+          stats.qr_management_events || 0;
+        document.getElementById("databaseErrorsCount").textContent =
+          stats.database_errors || 0;
+        document.getElementById("applicationEventsCount").textContent =
+          stats.application_events || 0;
+
+        console.log("✅ Statistics updated successfully");
       } else {
         console.error("Failed to load stats:", data.error);
+        showError("Failed to load statistics: " + (data.error || "Unknown error"));
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+      showError("Failed to load statistics: " + error.message);
     }
   }
 
@@ -1325,6 +1377,21 @@ ${
     box-shadow: var(--shadow-lg);
   }
 
+  /* Auth stat card styling */
+  .stat-card.auth .stat-icon {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+  }
+
+  /* QR Management stat card styling */
+  .stat-card.qr .stat-icon {
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+  }
+
+  /* Application stat card styling */
+  .stat-card.application .stat-icon {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+  }
+
   .stat-icon {
     width: 60px;
     height: 60px;
@@ -1352,6 +1419,7 @@ ${
   .stat-icon.users {
     background: linear-gradient(135deg, var(--success-color), #059669);
   }
+
 
   .stat-info h3 {
     font-size: var(--font-size-2xl);

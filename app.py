@@ -2623,12 +2623,14 @@ def api_log_stats():
         stats = logger_handler.get_log_statistics(days=days)
         print(f"📈 Retrieved stats: {stats}")
 
-        # Ensure all expected keys exist
+        # Ensure all expected keys exist with updated categories
         expected_stats = {
             'total_events': stats.get('total_events', 0),
             'security_events': stats.get('security_events', 0),
+            'authentication_events': stats.get('authentication_events', 0),
+            'qr_management_events': stats.get('qr_management_events', 0),
             'database_errors': stats.get('database_errors', 0),
-            'user_activities': stats.get('user_activities', 0),
+            'application_events': stats.get('application_events', 0),
             'system_events': stats.get('system_events', 0)
         }
 
@@ -2648,8 +2650,10 @@ def api_log_stats():
             'stats': {
                 'total_events': 0,
                 'security_events': 0,
+                'authentication_events': 0,
+                'qr_management_events': 0,
                 'database_errors': 0,
-                'user_activities': 0,
+                'application_events': 0,
                 'system_events': 0
             }
         }), 500

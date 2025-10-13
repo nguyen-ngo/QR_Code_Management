@@ -608,15 +608,17 @@ class AppLogger:
     def get_log_statistics(self, days=7):
         """Get logging statistics for the specified number of days"""
         try:
-            from datetime import datetime, timedelta  # Import here as backup
+            from datetime import datetime, timedelta
             cutoff_date = datetime.now() - timedelta(days=days)
             
-            # Initialize default stats
+            # Initialize default stats with all categories
             stats = {
                 'total_events': 0,
                 'security_events': 0,
+                'authentication_events': 0,
+                'qr_management_events': 0,
                 'database_errors': 0,
-                'user_activities': 0,
+                'application_events': 0,
                 'system_events': 0
             }
             
@@ -663,12 +665,17 @@ class AppLogger:
                     count = row.event_count
                     print(f"✅ Found {count} events in category: {category}")
                     
+                    # Map categories to stats keys
                     if category == 'security':
                         stats['security_events'] = count
+                    elif category == 'authentication':
+                        stats['authentication_events'] = count
+                    elif category == 'qr_management':
+                        stats['qr_management_events'] = count
                     elif category == 'database':
                         stats['database_errors'] = count
-                    elif category == 'user_activity':
-                        stats['user_activities'] = count
+                    elif category == 'application':
+                        stats['application_events'] = count
                     elif category == 'system':
                         stats['system_events'] = count
                         
@@ -684,8 +691,10 @@ class AppLogger:
             return {
                 'total_events': 0,
                 'security_events': 0,
+                'authentication_events': 0,
+                'qr_management_events': 0,
                 'database_errors': 0,
-                'user_activities': 0,
+                'application_events': 0,
                 'system_events': 0
             }
     
