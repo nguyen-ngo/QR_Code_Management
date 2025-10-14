@@ -6676,10 +6676,13 @@ def import_time_attendance():
                     
                     if duplicate_analysis['duplicate_records'] > 0:
                         print(f"⚠️ Found {duplicate_analysis['duplicate_records']} duplicates")
+                        # Get project_id from form
+                        project_id = request.form.get('project_id')
                         # Show duplicate review page
                         return render_template('time_attendance_duplicate_review.html',
-                                             analysis=duplicate_analysis,
-                                             filename=filename)
+                                            analysis=duplicate_analysis,
+                                            filename=filename,
+                                            project_id=project_id)
                     else:
                         print("✅ No duplicates found")
                         flash('No duplicates found. Proceeding with import.', 'info')
@@ -6691,10 +6694,13 @@ def import_time_attendance():
                     
                     if invalid_analysis['invalid_rows'] > 0:
                         print(f"⚠️ Found {invalid_analysis['invalid_rows']} invalid rows")
+                        # Get project_id from form
+                        project_id = request.form.get('project_id')
                         # Show invalid row review page
                         return render_template('time_attendance_invalid_review.html',
                                             analysis=invalid_analysis,
-                                            filename=filename)
+                                            filename=filename,
+                                            project_id=project_id)
                     else:
                         print("✅ All rows are valid")
                         flash('All rows are valid. Proceeding with import.', 'info')

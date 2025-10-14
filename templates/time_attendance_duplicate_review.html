@@ -370,6 +370,7 @@
     <input type="hidden" name="analyze_duplicates" value="false">
     <input type="hidden" name="skip_duplicates" value="true">
     <input type="hidden" name="import_source" value="Import with Duplicates - {{ filename }}">
+    <input type="hidden" name="project_id" value="{{ project_id }}">
     
     <div class="duplicates-container">
       {% for duplicate in analysis.duplicates %}
