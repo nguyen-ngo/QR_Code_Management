@@ -216,7 +216,7 @@
 
 .filter-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--spacing-4);
   align-items: end;
 }
@@ -225,6 +225,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+  min-width: 0;
 }
 
 .filter-group label {
@@ -243,13 +244,14 @@
 
 .filter-group input,
 .filter-group select {
-  padding: var(--spacing-3) var(--spacing-4);
+  padding: 0.625rem 0.875rem; /* Reduced padding for compact layout */
   border: 2px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
+  font-size: 0.875rem; /* Fixed font size */
   background-color: var(--white);
   transition: var(--transition);
   width: 100%;
+  box-sizing: border-box; /* Ensure padding is included in width */
 }
 
 .filter-group input:focus,
@@ -260,10 +262,12 @@
 }
 
 .filter-actions {
+  grid-column: 1 / -1; /* Span all columns */
   display: flex;
   gap: var(--spacing-3);
   justify-content: flex-start;
   align-items: end;
+  margin-top: 0.5rem;
 }
 
 /* Table Section */
@@ -917,14 +921,6 @@ tr.modified-record {
   word-break: break-word;
 }
 
-/* Enhanced date range filters */
-.filter-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--spacing-4);
-  align-items: end;
-}
-
 .filter-group input[type="date"] {
   appearance: none;
   -webkit-appearance: none;
@@ -965,6 +961,14 @@ tr.modified-record {
 
   .filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .filter-actions .btn {
+    width: 100%;
   }
 
   .record-details-grid {
