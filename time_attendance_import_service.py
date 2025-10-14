@@ -216,7 +216,7 @@ class TimeAttendanceImportService:
             df = self._read_excel_with_formulas(file_path)
             
             # Validate required columns
-            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
@@ -245,9 +245,20 @@ class TimeAttendanceImportService:
                     )
                 
                 try:
-                    # Skip empty rows
-                    if pd.isna(row['ID']) or pd.isna(row['Name']):
+                    # Skip empty rows - only ID is required
+                    if pd.isna(row['ID']):
                         continue
+                    
+                    # Clean the employee ID first (handles float issues like '1234.0')
+                    clean_id = self._clean_employee_id(row['ID'])
+                    
+                    # Get employee name - either from Excel or lookup from employee table
+                    employee_name = None
+                    if 'Name' in df.columns and pd.notna(row.get('Name')):
+                        employee_name = str(row['Name']).strip()
+                    else:
+                        # Lookup employee name from employee table using cleaned ID
+                        employee_name = self._get_employee_name(clean_id)
                     
                     # Parse date and time
                     attendance_date = pd.to_datetime(row['Date']).date()
@@ -255,8 +266,8 @@ class TimeAttendanceImportService:
                     
                     # Prepare record data
                     record_data = {
-                        'employee_id': str(row['ID']).strip(),
-                        'employee_name': str(row['Name']).strip(),
+                        'employee_id': clean_id,
+                        'employee_name': employee_name,
                         'platform': str(row.get('Platform', '')).strip() if pd.notna(row.get('Platform')) else None,
                         'attendance_date': attendance_date,
                         'attendance_time': attendance_time,
@@ -328,7 +339,7 @@ class TimeAttendanceImportService:
             df = self._read_excel_with_formulas(file_path)
             
             # Validate required columns
-            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
@@ -348,26 +359,25 @@ class TimeAttendanceImportService:
                 row_data = {
                     'employee_id': None,
                     'employee_name': None,
-                    'platform': None,
                     'attendance_date': None,
                     'attendance_time': None,
                     'location_name': None,
-                    'action_description': None,
-                    'event_description': None,
-                    'recorded_address': None
+                    'action_description': None
                 }
                 
-                # Check ID
+                # Validate ID (required)
                 if pd.isna(row['ID']):
-                    row_errors.append("Missing Employee ID")
+                    row_errors.append('Missing ID')
                 else:
-                    row_data['employee_id'] = str(row['ID']).strip()
+                    # Clean the employee ID (handles float issues)
+                    row_data['employee_id'] = self._clean_employee_id(row['ID'])
                 
-                # Check Name
-                if pd.isna(row['Name']):
-                    row_errors.append("Missing Employee Name")
-                else:
+                # Get Name (optional - lookup if not provided)
+                if 'Name' in df.columns and pd.notna(row.get('Name')):
                     row_data['employee_name'] = str(row['Name']).strip()
+                elif row_data['employee_id']:
+                    # Lookup employee name from employee table using cleaned ID
+                    row_data['employee_name'] = self._get_employee_name(row_data['employee_id'])
                 
                 # Check and parse Date
                 if pd.isna(row['Date']):
@@ -493,7 +503,7 @@ class TimeAttendanceImportService:
                 return import_results
             
             # Validate required columns
-            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
             if missing_columns:
@@ -520,11 +530,22 @@ class TimeAttendanceImportService:
             # Process each row with enhanced validation
             for index, row in df.iterrows():
                 try:
-                    # Skip empty rows
-                    if pd.isna(row['ID']) or pd.isna(row['Name']):
+                    # Skip empty rows - only ID is required
+                    if pd.isna(row['ID']):
                         import_results['skipped_records'] += 1
-                        import_results['warnings'].append(f"Row {index + 2}: Skipped due to missing ID or Name")
+                        import_results['warnings'].append(f"Row {index + 2}: Skipped due to missing ID")
                         continue
+                    
+                    # Clean the employee ID first (handles float issues like '1234.0')
+                    clean_id = self._clean_employee_id(row['ID'])
+                    
+                    # Get employee name - either from Excel or lookup from employee table
+                    employee_name = None
+                    if 'Name' in df.columns and pd.notna(row.get('Name')):
+                        employee_name = str(row['Name']).strip()
+                    else:
+                        # Lookup employee name from employee table using cleaned ID
+                        employee_name = self._get_employee_name(clean_id)
                     
                     # Validate and parse date
                     try:
@@ -544,8 +565,8 @@ class TimeAttendanceImportService:
                     
                     # Prepare record data
                     record_data = {
-                        'employee_id': str(row['ID']).strip(),
-                        'employee_name': str(row['Name']).strip(),
+                        'employee_id': clean_id,
+                        'employee_name': employee_name,
                         'platform': str(row.get('Platform', '')).strip() if pd.notna(row.get('Platform')) else None,
                         'attendance_date': attendance_date,
                         'attendance_time': attendance_time,
@@ -668,6 +689,58 @@ class TimeAttendanceImportService:
         
         raise ValueError(f"Unable to parse time value: {time_value}")
     
+    def _get_employee_name(self, employee_id: str) -> str:
+        try:
+            from models.employee import Employee
+            
+            # CRITICAL: Clean the employee_id to handle float values like '1234.0'
+            # Remove '.0' suffix if present and convert to integer
+            cleaned_id = str(employee_id).strip()
+            
+            # If it's a float string like '1234.0', remove the decimal part
+            if '.' in cleaned_id:
+                try:
+                    # Convert to float first, then to int to handle '1234.0' -> 1234
+                    cleaned_id = str(int(float(cleaned_id)))
+                except (ValueError, TypeError):
+                    pass  # Keep original if conversion fails
+            
+            # Now lookup the employee
+            employee = Employee.get_by_employee_id(int(cleaned_id))
+            if employee:
+                return employee.full_name
+            else:
+                if self.logger:
+                    self.logger.logger.warning(f"Employee ID {cleaned_id} not found in employee table")
+                return f"Employee {cleaned_id}"
+        except Exception as e:
+            if self.logger:
+                self.logger.logger.warning(f"Could not lookup employee name for ID {employee_id}: {e}")
+            # Return cleaned ID in error message too
+            try:
+                cleaned_id = str(int(float(str(employee_id).strip())))
+                return f"Employee {cleaned_id}"
+            except:
+                return f"Employee {employee_id}"
+            
+    def _clean_employee_id(self, employee_id) -> str:
+        try:
+            # Convert to string first
+            id_str = str(employee_id).strip()
+            
+            # Handle float values like 1234.0 or '1234.0'
+            if '.' in id_str:
+                # Convert to float, then to int, then back to string
+                # This removes the decimal part: 1234.0 -> 1234
+                id_str = str(int(float(id_str)))
+            
+            return id_str
+        except (ValueError, TypeError) as e:
+            # If conversion fails, return original string
+            if self.logger:
+                self.logger.logger.warning(f"Could not clean employee ID '{employee_id}': {e}")
+            return str(employee_id).strip()
+    
     def _generate_record_hash(self, record_data: Dict) -> str:
         """Generate unique hash for a record to detect duplicates"""
         hash_string = (
@@ -784,7 +857,7 @@ class TimeAttendanceImportService:
             validation_results['sample_data'] = sample_rows
 
             # Define ONLY truly required columns (ID, Name, Date, Time, Location Name, Action Description)
-            required_columns = ['ID', 'Name', 'Date', 'Time', 'Location Name', 'Action Description']
+            required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
 
             if missing_columns:
