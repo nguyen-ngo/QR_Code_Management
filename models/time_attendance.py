@@ -36,6 +36,8 @@ class TimeAttendance(base.db.Model):
     action_description = base.db.Column(base.db.String(100), nullable=False)
     event_description = base.db.Column(base.db.Text, nullable=True)
     recorded_address = base.db.Column(base.db.Text, nullable=True)
+    # Distance/Location accuracy field (in miles)
+    distance = base.db.Column(base.db.Float, nullable=True)
     
     # Import tracking
     import_batch_id = base.db.Column(base.db.String(36), nullable=True, index=True)

@@ -157,6 +157,63 @@ class TimeAttendanceImportService:
         # Not a hyperlink formula, return as-is
         return cell_value if cell_value else None
     
+    def _parse_distance_field(self, row) -> Optional[float]:
+        """
+        Parse Distance field from Excel (optional column)
+        
+        Args:
+            row: DataFrame row containing the 'Distance' column
+            
+        Returns:
+            Distance value as float in miles, or None if not present/invalid
+        """
+        # Check if Distance column exists
+        if 'Distance' not in row.index:
+            return None
+        
+        distance_value = row.get('Distance')
+        
+        # Check if value exists and is not NaN
+        if pd.isna(distance_value):
+            return None
+        
+        # Try to parse as float
+        try:
+            # Handle string values
+            if isinstance(distance_value, str):
+                distance_str = distance_value.strip()
+                
+                # Skip empty strings
+                if not distance_str or distance_str.lower() in ['', 'n/a', 'na', 'none']:
+                    return None
+                
+                # Remove any text like "miles", "mi", "m" 
+                distance_str = distance_str.lower()
+                distance_str = distance_str.replace('miles', '').replace('mile', '').replace('mi', '').replace('m', '').strip()
+                
+                # Parse the number
+                distance_float = float(distance_str)
+            else:
+                # Already a number
+                distance_float = float(distance_value)
+            
+            # Validate reasonable range (0 to 100 miles)
+            if distance_float < 0:
+                if self.logger:
+                    self.logger.logger.warning(f"Negative distance value {distance_float} converted to positive")
+                distance_float = abs(distance_float)
+            
+            if distance_float > 100:
+                if self.logger:
+                    self.logger.logger.warning(f"Distance value {distance_float} exceeds 100 miles, may be invalid")
+            
+            return round(distance_float, 4)  # Round to 4 decimal places
+            
+        except (ValueError, TypeError) as e:
+            if self.logger:
+                self.logger.logger.debug(f"Could not parse distance value '{distance_value}': {e}")
+            return None
+    
     def _process_recorded_address(self, row):
         """
         Process recorded address field, handling Excel HYPERLINK formulas
@@ -574,6 +631,7 @@ class TimeAttendanceImportService:
                         'action_description': str(row['Action Description']).strip(),
                         'event_description': str(row.get('Event Description', '')).strip() if pd.notna(row.get('Event Description')) else None,
                         'recorded_address': self._process_recorded_address(row),
+                        'distance': self._parse_distance_field(row),
                     }
                     
                     # Check for duplicates
@@ -805,6 +863,7 @@ class TimeAttendanceImportService:
                     'action_description': record.action_description,
                     'event_description': record.event_description,
                     'recorded_address': record.recorded_address,
+                    'distance': getattr(record, 'distance', None),
                     'import_batch_id': record.import_batch_id,
                     'import_date': record.import_date,
                     'import_source': record.import_source

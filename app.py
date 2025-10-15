@@ -5737,16 +5737,24 @@ def get_miss_punch_details(employee_id):
 
         # Convert to the format expected by the calculator
         converted_records = []
-        for record in attendance_records:
+        for record in records:
+            # Get distance from the TimeAttendance record
+            distance_value = getattr(record, 'distance', None)
+            
             converted_record = type('Record', (), {
                 'id': record.id,
                 'employee_id': str(record.employee_id),
-                'check_in_date': record.check_in_date,
-                'check_in_time': record.check_in_time,
-                'location_name': record.location_name or 'Unknown Location',
-                'latitude': record.latitude,
-                'longitude': record.longitude,
-                'qr_code': record.qr_code
+                'check_in_date': record.attendance_date,
+                'check_in_time': record.attendance_time,
+                'location_name': record.location_name,
+                'latitude': None,
+                'longitude': None,
+                'distance': distance_value,  # ADD THIS LINE
+                'qr_code': type('QRCode', (), {
+                    'location': record.location_name,
+                    'location_address': record.recorded_address or '',
+                    'project': None
+                })()
             })()
             converted_records.append(converted_record)
 
@@ -7067,7 +7075,7 @@ def download_import_template():
         
         # Define headers
         headers = ['ID', 'Name', 'Platform', 'Date', 'Time', 'Location Name', 
-                   'Action Description', 'Event Description', 'Recorded Address']
+                   'Action Description', 'Event Description', 'Recorded Address', 'Distance']
         
         # Style headers
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -7083,11 +7091,9 @@ def download_import_template():
         # Add sample data rows
         sample_data = [
             ['12345', 'John Doe', 'iPhone - iOS', '2025-10-06', '09:00:00', 
-             'HQ Suite 210', 'Check In', 'Morning Entry', '123 Main Street'],
-            ['12345', 'John Doe', 'iPhone - iOS', '2025-10-06', '17:30:00', 
-             'HQ Suite 210', 'Check Out', 'Evening Exit', '123 Main Street'],
+             'HQ Suite 210', 'Check In', 'Main Office', '123 Main St', '0.125'],
             ['67890', 'Jane Smith', 'Android', '2025-10-06', '08:45:00', 
-             'Branch Office', 'Check In', 'Morning Entry', '456 Oak Avenue'],
+             'Branch Office', 'Check In', 'Morning Entry', '456 Oak Avenue', '0.250'],
         ]
         
         for row_num, row_data in enumerate(sample_data, 2):
@@ -7124,6 +7130,7 @@ def download_import_template():
             ["- Platform: Device platform (e.g., iPhone - iOS, Android)"],
             ["- Event Description: Additional event details"],
             ["- Recorded Address: Physical address where attendance was recorded"],
+            ["- Distance: Distance in miles between Building and Recorded Address (optional)"],
             [""],
             ["Important Notes:"],
             ["- Do not modify the header row"],
@@ -7575,8 +7582,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         '',
                         '',
                         getattr(record.qr_code, 'location_address', '') or '',
-                        record.location_name,
-                        '',
+                        getattr(record.qr_code, 'location_address', '') or '',
+                        getattr(record, 'distance', None) or '',
                         'No'
                     ]
                     
@@ -7605,8 +7612,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         '',
                         '',
                         getattr(first_record.qr_code, 'location_address', '') or '',
-                        first_record.location_name,
-                        '',
+                        getattr(first_record.qr_code, 'location_address', '') or '',
+                        getattr(first_record, 'distance', None) or '',
                         'No'
                     ]
                     
@@ -7633,8 +7640,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         '',
                         '',
                         getattr(last_record.qr_code, 'location_address', '') or '',
-                        last_record.location_name,
-                        '',
+                        getattr(last_record.qr_code, 'location_address', '') or '',
+                        getattr(last_record, 'distance', None) or '',
                         'No'
                     ]
                     
@@ -7674,8 +7681,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             '',
                             '',
                             getattr(check_in_record.qr_code, 'location_address', '') or '',
-                            check_in_record.location_name,
-                            '',
+                            getattr(check_in_record.qr_code, 'location_address', '') or '',
+                            getattr(check_in_record, 'distance', None) or '',
                             'No'
                         ]
                         
@@ -7722,13 +7729,13 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             out_time,
                             last_record.location_name,
                             '',
-                            'Missed Punch',  # Only THIS unpaired record shows Missed Punch
+                            'Missed Punch',
                             daily_total_display,  # Show Daily Total on last row
                             '',
                             '',
                             getattr(last_record.qr_code, 'location_address', '') or '',
-                            last_record.location_name,
-                            '',
+                            getattr(last_record.qr_code, 'location_address', '') or '',
+                            getattr(last_record, 'distance', None) or '',
                             'No'
                         ]
                         
@@ -7759,8 +7766,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             '',
                             '',
                             getattr(start_record.qr_code, 'location_address', '') or '',
-                            start_record.location_name,
-                            '',
+                            getattr(start_record.qr_code, 'location_address', '') or '',
+                            getattr(start_record, 'distance', None) or '',
                             'No'
                         ]
                         
@@ -7784,8 +7791,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         '',
                         '',
                         getattr(start_record.qr_code, 'location_address', '') if start_record else '',
-                        start_record.location_name if start_record else '',
-                        '',
+                        getattr(start_record.qr_code, 'location_address', '') if start_record else '',
+                        getattr(start_record, 'distance', None) if start_record else '',
                         'No'
                     ]
                     
