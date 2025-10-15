@@ -7344,6 +7344,25 @@ def export_time_attendance_csv(records, project_name_for_filename, date_range_st
         }
     )
 
+def calculate_possible_violation(distance_value):
+    """
+    Calculate possible violation status based on distance
+    
+    Args:
+        distance_value: Distance in miles (float or None)
+    
+    Returns:
+        'Yes' if distance > 0.3, 'No' otherwise
+    """
+    if distance_value is None:
+        return 'No'
+    
+    try:
+        distance_float = float(distance_value)
+        return 'Yes' if distance_float > 0.3 else 'No'
+    except (ValueError, TypeError):
+        return 'No'
+
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
@@ -7366,6 +7385,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     # Convert TimeAttendance records to format expected by calculator
     converted_records = []
     for record in records:
+        # Get distance value from the record
+        distance_value = getattr(record, 'distance', None)
+        
         converted_record = type('Record', (), {
             'id': record.id,
             'employee_id': str(record.employee_id),
@@ -7374,6 +7396,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             'location_name': record.location_name,
             'latitude': None,
             'longitude': None,
+            'distance': distance_value,
             'qr_code': type('QRCode', (), {
                 'location': record.location_name,
                 'location_address': record.recorded_address or '',
@@ -7584,7 +7607,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         getattr(record.qr_code, 'location_address', '') or '',
                         getattr(record.qr_code, 'location_address', '') or '',
                         getattr(record, 'distance', None) or '',
-                        'No'
+                        calculate_possible_violation(getattr(record, 'distance', None))
                     ]
                     
                     for col, value in enumerate(row_data, 1):
@@ -7614,7 +7637,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         getattr(first_record.qr_code, 'location_address', '') or '',
                         getattr(first_record.qr_code, 'location_address', '') or '',
                         getattr(first_record, 'distance', None) or '',
-                        'No'
+                        calculate_possible_violation(getattr(first_record, 'distance', None))
                     ]
                     
                     for col, value in enumerate(row_data, 1):
@@ -7642,7 +7665,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         getattr(last_record.qr_code, 'location_address', '') or '',
                         getattr(last_record.qr_code, 'location_address', '') or '',
                         getattr(last_record, 'distance', None) or '',
-                        'No'
+                        calculate_possible_violation(getattr(last_record, 'distance', None))
                     ]
                     
                     for col, value in enumerate(row_data, 1):
@@ -7683,7 +7706,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             getattr(check_in_record.qr_code, 'location_address', '') or '',
                             getattr(check_in_record.qr_code, 'location_address', '') or '',
                             getattr(check_in_record, 'distance', None) or '',
-                            'No'
+                            calculate_possible_violation(getattr(check_in_record, 'distance', None))
                         ]
                         
                         for col, value in enumerate(row_data, 1):
@@ -7736,7 +7759,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             getattr(last_record.qr_code, 'location_address', '') or '',
                             getattr(last_record.qr_code, 'location_address', '') or '',
                             getattr(last_record, 'distance', None) or '',
-                            'No'
+                            calculate_possible_violation(getattr(last_record, 'distance', None))
                         ]
                         
                         for col, value in enumerate(row_data, 1):
@@ -7768,7 +7791,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             getattr(start_record.qr_code, 'location_address', '') or '',
                             getattr(start_record.qr_code, 'location_address', '') or '',
                             getattr(start_record, 'distance', None) or '',
-                            'No'
+                            calculate_possible_violation(getattr(start_record, 'distance', None))
                         ]
                         
                         for col, value in enumerate(row_data, 1):
@@ -7793,7 +7816,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         getattr(start_record.qr_code, 'location_address', '') if start_record else '',
                         getattr(start_record.qr_code, 'location_address', '') if start_record else '',
                         getattr(start_record, 'distance', None) if start_record else '',
-                        'No'
+                        calculate_possible_violation(getattr(start_record, 'distance', None))
                     ]
                     
                     for col, value in enumerate(row_data, 1):
