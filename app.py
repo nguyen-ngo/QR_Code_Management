@@ -7,6 +7,7 @@ from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
 import io, os, base64, re, uuid, requests, json, qrcode, math, traceback, googlemaps
+import openpyxl.cell.cell
 from PIL import Image, ImageDraw
 from math import radians, sin, cos, asin, sqrt
 from dotenv import load_dotenv
@@ -5750,8 +5751,7 @@ def get_miss_punch_details(employee_id):
             converted_records.append(converted_record)
 
         # Calculate working hours using the same calculator as the dashboard
-        # from single_checkin_calculator import SingleCheckInCalculator
-        calculator = SingleCheckInCalculator()
+        #calculator = SingleCheckInCalculator()
 
         # Calculate hours for this employee
         hours_data = calculator.calculate_employee_hours(
@@ -7338,69 +7338,506 @@ def export_time_attendance_csv(records, project_name_for_filename, date_range_st
     )
 
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str):
-    """Generate Excel export of time attendance records"""
-    import io
+    """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
+    import io
     
     # Create workbook
     wb = Workbook()
     ws = wb.active
-    ws.title = "Time Attendance Records"
+    ws.title = "Sheet0"
     
-    # Define styles
-    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF", size=11)
+    # Get date range for calculations
+    if records:
+        start_date = min(r.attendance_date for r in records)
+        end_date = max(r.attendance_date for r in records)
+    else:
+        return None
+    
+    # Convert TimeAttendance records to format expected by calculator
+    converted_records = []
+    for record in records:
+        converted_record = type('Record', (), {
+            'id': record.id,
+            'employee_id': str(record.employee_id),
+            'check_in_date': record.attendance_date,
+            'check_in_time': record.attendance_time,
+            'location_name': record.location_name,
+            'latitude': None,
+            'longitude': None,
+            'qr_code': type('QRCode', (), {
+                'location': record.location_name,
+                'location_address': record.recorded_address or '',
+                'project': None
+            })()
+        })()
+        converted_records.append(converted_record)
+    
+    # Calculate working hours using SingleCheckInCalculator
+    calculator = SingleCheckInCalculator()
+    hours_data = calculator.calculate_all_employees_hours(
+        datetime.combine(start_date, datetime.min.time()),
+        datetime.combine(end_date, datetime.max.time()),
+        converted_records
+    )
+    
+    # Get employee names
+    employee_names = {}
+    for record in records:
+        if record.employee_id not in employee_names:
+            employee_names[record.employee_id] = record.employee_name
+    
+    # Setup styles
+    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    data_font = Font(name='Arial', size=10)
+    bold_font = Font(name='Arial', size=10, bold=True)
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
+    # Orange background for Missed Punch
+    missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
     
-    # Header row
-    headers = ['Employee ID', 'Employee Name', 'Platform', 'Date', 'Time', 
-               'Location Name', 'Action Description', 'Event Description', 'Recorded Address']
+    # Write main headers
+    current_row = 1
     
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal='center', vertical='center')
-        cell.border = border
+    # Row 1: Company name
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    title_cell = ws.cell(row=current_row, column=1, value='LT Services Inc.')
+    title_cell.font = Font(name='Arial', size=14, bold=True)
+    title_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
     
-    # Data rows
-    for row_num, record in enumerate(records, 2):
-        ws.cell(row=row_num, column=1, value=record.employee_id).border = border
-        ws.cell(row=row_num, column=2, value=record.employee_name).border = border
-        ws.cell(row=row_num, column=3, value=record.platform or '').border = border
-        ws.cell(row=row_num, column=4, value=record.attendance_date.strftime('%Y-%m-%d') if record.attendance_date else '').border = border
-        ws.cell(row=row_num, column=5, value=record.attendance_time.strftime('%H:%M:%S') if record.attendance_time else '').border = border
-        ws.cell(row=row_num, column=6, value=record.location_name).border = border
-        ws.cell(row=row_num, column=7, value=record.action_description).border = border
-        ws.cell(row=row_num, column=8, value=record.event_description or '').border = border
-        ws.cell(row=row_num, column=9, value=record.recorded_address or '').border = border
+    # Row 2: Summary title
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    summary_cell = ws.cell(row=current_row, column=1, value='Summary report of Hours worked')
+    summary_cell.font = Font(name='Arial', size=12, bold=True)
+    summary_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
     
-    # Auto-size columns
-    for col in ws.columns:
+    # Row 3: Project name
+    project_display = project_name_for_filename.replace('_', ' ').strip() if project_name_for_filename else "[Project Name]"
+    project_cell = ws.cell(row=current_row, column=1, value=project_display)
+    project_cell.font = Font(name='Arial', size=11, bold=True)
+    project_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Row 4: Date range
+    date_range_text = f"Date range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    date_cell = ws.cell(row=current_row, column=1, value=date_range_text)
+    date_cell.font = Font(name='Arial', size=11)
+    date_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Row 5: Empty row
+    current_row += 1
+    
+    # Empty row before first employee
+    current_row += 1
+    
+    # Write data for each employee
+    for employee_id, emp_data in hours_data['employees'].items():
+        employee_name = employee_names.get(employee_id, f'Employee {employee_id}')
+        
+        # Employee header row (merged A to O)
+        ws.merge_cells(f'A{current_row}:O{current_row}')
+        emp_header = ws.cell(row=current_row, column=1, 
+                            value=f'Employee ID {employee_id}: {employee_name}')
+        emp_header.font = Font(name='Arial', size=11, bold=True)
+        emp_header.alignment = Alignment(horizontal='left')
+        current_row += 1
+        
+        # Column headers
+        headers = ['Day', 'Date', 'In', 'Out', 'Location', 'Zone', 'Hours/Building',
+                  'Daily Total', 'Regular Hours', 'OT Hours', 'Building Address',
+                  'Recorded Location', 'Distance (Mile)', 'Possible Violation']
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+        current_row += 1
+        
+        # Group records by date
+        daily_location_data = {}
+        employee_records = [r for r in converted_records if str(r.employee_id) == employee_id]
+        
+        for record in employee_records:
+            date_key = record.check_in_date.strftime('%Y-%m-%d')
+            if date_key not in daily_location_data:
+                daily_location_data[date_key] = {
+                    'records': [],
+                    'locations': set()
+                }
+            daily_location_data[date_key]['records'].append(record)
+            daily_location_data[date_key]['locations'].add(record.location_name)
+        
+        # Track weekly hours for overtime calculation
+        weekly_total_hours = 0
+        current_week_start = None
+        grand_regular_hours = 0
+        grand_ot_hours = 0
+        
+        # Get all dates that have records (not all weekdays)
+        dates_with_records = sorted([
+            date_str for date_str, day_data in emp_data['daily_hours'].items()
+            if day_data.get('records_count', 0) > 0
+        ])
+        
+        # Write daily data (ONLY DAYS WITH RECORDS)
+        for date_str in dates_with_records:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            day_data = emp_data['daily_hours'][date_str]
+            
+            # Check for week boundary (week starts on Monday)
+            week_start = date_obj - timedelta(days=date_obj.weekday())
+            if current_week_start is not None and week_start != current_week_start:
+                # Write weekly total row
+                week_regular = min(weekly_total_hours, 40.0)
+                week_overtime = max(0, weekly_total_hours - 40.0)
+                
+                ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
+                ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
+                ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
+                ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                
+                grand_regular_hours += week_regular
+                grand_ot_hours += week_overtime
+                current_row += 1
+                
+                weekly_total_hours = 0
+            
+            current_week_start = week_start
+            
+            # Get day records
+            day_records = daily_location_data.get(date_str, {}).get('records', [])
+            sorted_records = sorted(day_records, key=lambda x: x.check_in_time)
+            
+            total_hours = day_data['total_hours']
+            is_miss_punch = day_data.get('is_miss_punch', False)
+            
+            # Check if different locations (login and logout at different places)
+            locations = daily_location_data.get(date_str, {}).get('locations', set())
+            has_different_locations = len(locations) > 1
+            
+            # Calculate total hours for the day (even if miss punch)
+            if not is_miss_punch and total_hours > 0:
+                weekly_total_hours += total_hours
+            elif is_miss_punch and len(sorted_records) >= 2:
+                # Calculate hours even for miss punch (different locations)
+                first_time = sorted_records[0].check_in_time
+                last_time = sorted_records[-1].check_in_time
+                first_datetime = datetime.combine(date_obj, first_time)
+                last_datetime = datetime.combine(date_obj, last_time)
+                calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
+                calculated_hours = round(calculated_hours * 4) / 4  # Round to quarter hour
+                weekly_total_hours += calculated_hours
+                total_hours = calculated_hours
+            
+            # Calculate precise hours for Hours/Building column
+            if len(sorted_records) >= 2 and not is_miss_punch:
+                first_time = sorted_records[0].check_in_time
+                last_time = sorted_records[-1].check_in_time
+                first_datetime = datetime.combine(date_obj, first_time)
+                last_datetime = datetime.combine(date_obj, last_time)
+                duration = (last_datetime - first_datetime).total_seconds() / 3600.0
+                precise_hours = round(duration, 2)
+            else:
+                precise_hours = round(total_hours, 2) if total_hours > 0 else 0
+            
+            # Round daily total for display
+            daily_total_display = round(total_hours * 2) / 2
+            if daily_total_display == int(daily_total_display):
+                daily_total_display = int(daily_total_display)
+            
+            # HANDLE MISSED PUNCH CASES
+            if is_miss_punch:
+                if len(sorted_records) == 1:
+                    # Single record - show as Missed Punch in both columns with ORANGE background
+                    record = sorted_records[0]
+                    row_data = [
+                        date_obj.strftime('%A').upper(),
+                        date_obj.strftime('%m/%d/%Y'),
+                        record.check_in_time.strftime('%I:%M:%S %p'),
+                        '',  # No check out
+                        record.location_name,
+                        '',
+                        'Missed Punch',
+                        'Missed Punch',
+                        '',
+                        '',
+                        getattr(record.qr_code, 'location_address', '') or '',
+                        record.location_name,
+                        '',
+                        'No'
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = border
+                        # Apply orange background to Missed Punch cells (columns G and H)
+                        if col in [7, 8]:  # Hours/Building and Daily Total columns
+                            cell.fill = missed_punch_fill
+                    current_row += 1
+                    
+                elif has_different_locations:
+                    # Different locations - show TWO rows with ORANGE background
+                    # First row: Check-in with Missed Punch
+                    first_record = sorted_records[0]
+                    row_data = [
+                        date_obj.strftime('%A').upper(),
+                        date_obj.strftime('%m/%d/%Y'),
+                        first_record.check_in_time.strftime('%I:%M:%S %p'),
+                        '',  # Empty Out
+                        first_record.location_name,
+                        '',
+                        'Missed Punch',
+                        '',  # Empty Daily Total on first row
+                        '',
+                        '',
+                        getattr(first_record.qr_code, 'location_address', '') or '',
+                        first_record.location_name,
+                        '',
+                        'No'
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = border
+                        # Apply orange background to Missed Punch cell (column G)
+                        if col == 7:
+                            cell.fill = missed_punch_fill
+                    current_row += 1
+                    
+                    # Second row: Check-out with Missed Punch and Daily Total
+                    last_record = sorted_records[-1]
+                    row_data = [
+                        date_obj.strftime('%A').upper(),
+                        date_obj.strftime('%m/%d/%Y'),
+                        '',  # Empty In
+                        last_record.check_in_time.strftime('%I:%M:%S %p'),
+                        last_record.location_name,
+                        '',
+                        'Missed Punch',
+                        daily_total_display,  # Show calculated Daily Total
+                        '',
+                        '',
+                        getattr(last_record.qr_code, 'location_address', '') or '',
+                        last_record.location_name,
+                        '',
+                        'No'
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = border
+                        # Apply orange background to Missed Punch cell (column G)
+                        if col == 7:
+                            cell.fill = missed_punch_fill
+                    current_row += 1
+                else:
+                    # Multiple records same location - show pairs with Missed Punch and ORANGE background
+                    # Show pairs in same row (In and Out), last unpaired record gets its own row
+                    num_complete_pairs = len(sorted_records) // 2
+                    
+                    # Write complete pairs (2 records per row)
+                    for i in range(0, num_complete_pairs * 2, 2):
+                        check_in_record = sorted_records[i]
+                        check_out_record = sorted_records[i + 1]
+                        
+                        row_data = [
+                            date_obj.strftime('%A').upper(),
+                            date_obj.strftime('%m/%d/%Y'),
+                            check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
+                            check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
+                            check_in_record.location_name,
+                            '',
+                            'Missed Punch',
+                            '',  # Daily Total shown only on last row
+                            '',
+                            '',
+                            getattr(check_in_record.qr_code, 'location_address', '') or '',
+                            check_in_record.location_name,
+                            '',
+                            'No'
+                        ]
+                        
+                        for col, value in enumerate(row_data, 1):
+                            cell = ws.cell(row=current_row, column=col, value=value)
+                            cell.font = data_font
+                            cell.border = border
+                            # Apply orange background to Missed Punch cell (column G)
+                            if col == 7:
+                                cell.fill = missed_punch_fill
+                        current_row += 1
+                    
+                    # Write the last unpaired record if odd number of records
+                    if len(sorted_records) % 2 == 1:
+                        last_record = sorted_records[-1]
+                        
+                        # Get the original TimeAttendance record to check action_description
+                        original_record = None
+                        for rec in records:
+                            if (rec.employee_id == last_record.employee_id and 
+                                rec.attendance_date == last_record.check_in_date and 
+                                rec.attendance_time == last_record.check_in_time):
+                                original_record = rec
+                                break
+                        
+                        # Determine if this is a check-in or check-out based on action_description
+                        is_check_out = False
+                        if original_record and original_record.action_description:
+                            action_lower = original_record.action_description.lower()
+                            is_check_out = 'out' in action_lower or 'checkout' in action_lower
+                        
+                        # Place time in correct column based on action
+                        if is_check_out:
+                            # Check-out: empty In, time in Out
+                            in_time = ''
+                            out_time = last_record.check_in_time.strftime('%I:%M:%S %p')
+                        else:
+                            # Check-in: time in In, empty Out
+                            in_time = last_record.check_in_time.strftime('%I:%M:%S %p')
+                            out_time = ''
+                        
+                        row_data = [
+                            date_obj.strftime('%A').upper(),
+                            date_obj.strftime('%m/%d/%Y'),
+                            in_time,
+                            out_time,
+                            last_record.location_name,
+                            '',
+                            'Missed Punch',
+                            daily_total_display,  # Show Daily Total on last row
+                            '',
+                            '',
+                            getattr(last_record.qr_code, 'location_address', '') or '',
+                            last_record.location_name,
+                            '',
+                            'No'
+                        ]
+                        
+                        for col, value in enumerate(row_data, 1):
+                            cell = ws.cell(row=current_row, column=col, value=value)
+                            cell.font = data_font
+                            cell.border = border
+                            # Apply orange background to Missed Punch cells (columns G and H)
+                            if col in [7, 8]:
+                                cell.fill = missed_punch_fill
+                        current_row += 1
+            else:
+                # NORMAL RECORDS (no miss punch)
+                if len(sorted_records) >= 2:
+                    for i in range(0, len(sorted_records) - 1, 2):
+                        start_record = sorted_records[i]
+                        end_record = sorted_records[i + 1]
+                        
+                        row_data = [
+                            date_obj.strftime('%A').upper(),
+                            date_obj.strftime('%m/%d/%Y'),
+                            start_record.check_in_time.strftime('%I:%M:%S %p'),
+                            end_record.check_in_time.strftime('%I:%M:%S %p'),
+                            start_record.location_name,
+                            '',
+                            precise_hours if i == 0 else '',
+                            daily_total_display if i == 0 else '',
+                            '',
+                            '',
+                            getattr(start_record.qr_code, 'location_address', '') or '',
+                            start_record.location_name,
+                            '',
+                            'No'
+                        ]
+                        
+                        for col, value in enumerate(row_data, 1):
+                            cell = ws.cell(row=current_row, column=col, value=value)
+                            cell.font = data_font
+                            cell.border = border
+                        current_row += 1
+                else:
+                    # Single record (rare case)
+                    start_record = sorted_records[0] if sorted_records else None
+                    row_data = [
+                        date_obj.strftime('%A').upper(),
+                        date_obj.strftime('%m/%d/%Y'),
+                        start_record.check_in_time.strftime('%I:%M:%S %p') if start_record else '',
+                        '',
+                        start_record.location_name if start_record else '',
+                        '',
+                        precise_hours,
+                        daily_total_display,
+                        '',
+                        '',
+                        getattr(start_record.qr_code, 'location_address', '') if start_record else '',
+                        start_record.location_name if start_record else '',
+                        '',
+                        'No'
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = border
+                    current_row += 1
+        
+        # Write final weekly total for this employee
+        if weekly_total_hours > 0:
+            week_regular = min(weekly_total_hours, 40.0)
+            week_overtime = max(0, weekly_total_hours - 40.0)
+            
+            ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
+            ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
+            ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
+            ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+            
+            grand_regular_hours += week_regular
+            grand_ot_hours += week_overtime
+            current_row += 1
+        
+        # Write GRAND TOTAL row
+        ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Arial', size=10, bold=True)
+        ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+        ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+        current_row += 1
+        
+        # Empty row after each employee
+        current_row += 1
+    
+    # Auto-size columns - handle merged cells properly
+    for col_idx in range(1, 15):
         max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
+        column_letter = get_column_letter(col_idx)
+        
+        for row in ws.iter_rows(min_col=col_idx, max_col=col_idx):
+            for cell in row:
+                if isinstance(cell, openpyxl.cell.cell.MergedCell):
+                    continue
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+        
         adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column].width = adjusted_width
+        ws.column_dimensions[column_letter].width = adjusted_width
     
     # Save to BytesIO
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
     
-    # New filename format
+    # Filename
     if date_range_str:
         filename = f'{project_name_for_filename}time_attendance_{date_range_str}.xlsx'
     else:
