@@ -7647,14 +7647,20 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             cell.fill = missed_punch_fill
                     current_row += 1
                 else:
-                    # Multiple records same location - show pairs with Missed Punch and ORANGE background
+                    # Multiple records same location - show pairs, only mark unpaired records as Missed Punch
                     # Show pairs in same row (In and Out), last unpaired record gets its own row
                     num_complete_pairs = len(sorted_records) // 2
                     
-                    # Write complete pairs (2 records per row)
+                    # Write complete pairs (2 records per row) - these are NOT missed punches
                     for i in range(0, num_complete_pairs * 2, 2):
                         check_in_record = sorted_records[i]
                         check_out_record = sorted_records[i + 1]
+                        
+                        # Calculate hours for this complete pair
+                        pair_datetime_in = datetime.combine(date_obj, check_in_record.check_in_time)
+                        pair_datetime_out = datetime.combine(date_obj, check_out_record.check_in_time)
+                        pair_hours = (pair_datetime_out - pair_datetime_in).total_seconds() / 3600.0
+                        pair_hours = round(pair_hours, 2)
                         
                         row_data = [
                             date_obj.strftime('%A').upper(),
@@ -7663,7 +7669,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
                             check_in_record.location_name,
                             '',
-                            'Missed Punch',
+                            pair_hours,  # Show calculated hours instead of Missed Punch
                             '',  # Daily Total shown only on last row
                             '',
                             '',
@@ -7677,9 +7683,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             cell = ws.cell(row=current_row, column=col, value=value)
                             cell.font = data_font
                             cell.border = border
-                            # Apply orange background to Missed Punch cell (column G)
-                            if col == 7:
-                                cell.fill = missed_punch_fill
+                            # No orange background for complete pairs
                         current_row += 1
                     
                     # Write the last unpaired record if odd number of records
@@ -7718,7 +7722,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             out_time,
                             last_record.location_name,
                             '',
-                            'Missed Punch',
+                            'Missed Punch',  # Only THIS unpaired record shows Missed Punch
                             daily_total_display,  # Show Daily Total on last row
                             '',
                             '',
