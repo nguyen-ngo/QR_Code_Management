@@ -348,7 +348,7 @@ function confirmDelete(recordId, employeeName, date) {
   if (confirm(`Are you sure you want to delete the attendance record for ${employeeName} on ${date}?`)) {
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = `/time-attendance/record/${recordId}/delete`;
+    form.action = `/time-attendance/delete/${recordId}`;
     document.body.appendChild(form);
     form.submit();
   }

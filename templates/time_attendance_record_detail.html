@@ -307,12 +307,10 @@
         <i class="fas fa-times"></i>
         Cancel
       </button>
-      <form method="POST" action="{{ url_for('delete_time_attendance_record', record_id=record.id) }}" style="display: inline;">
-        <button type="submit" class="btn btn-danger">
-          <i class="fas fa-trash"></i>
-          Delete Record
-        </button>
-      </form>
+      <button class="btn btn-danger" onclick="submitDelete()">
+        <i class="fas fa-trash"></i>
+        Delete Record
+      </button>
     </div>
   </div>
 </div>
@@ -522,27 +520,38 @@
   margin: 0;
 }
 
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
+/* Modal Styles - SUPER AGGRESSIVE */
+#deleteModal {
+  display: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  z-index: 999999 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+#deleteModal.active {
+  display: flex !important;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 12px;
-  max-width: 500px;
-  width: 90%;
-  margin: 2rem;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  background: white !important;
+  border-radius: 12px !important;
+  max-width: 500px !important;
+  width: 90% !important;
+  margin: 2rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3) !important;
+  position: relative !important;
+  z-index: 1000000 !important;
 }
 
 .modal-header {
@@ -783,11 +792,82 @@
 <script>
 // Delete confirmation
 function confirmDelete() {
-  document.getElementById('deleteModal').style.display = 'flex';
+  console.log('[DEBUG] ========== CONFIRM DELETE CALLED ==========');
+  const modal = document.getElementById('deleteModal');
+  
+  if (!modal) {
+    console.error('[ERROR] Delete modal not found in DOM!');
+    if (confirm('Are you sure you want to delete this attendance record?\n\nThis action cannot be undone!')) {
+      submitDelete();
+    }
+    return;
+  }
+  
+  console.log('[DEBUG] Modal element:', modal);
+  console.log('[DEBUG] Modal current display:', window.getComputedStyle(modal).display);
+  console.log('[DEBUG] Modal current position:', window.getComputedStyle(modal).position);
+  console.log('[DEBUG] Modal current z-index:', window.getComputedStyle(modal).zIndex);
+  console.log('[DEBUG] Modal current opacity:', window.getComputedStyle(modal).opacity);
+  console.log('[DEBUG] Modal current visibility:', window.getComputedStyle(modal).visibility);
+  
+  console.log('[DEBUG] Adding active class...');
+  modal.classList.add('active');
+  
+  // Force reflow
+  modal.offsetHeight;
+  
+  console.log('[DEBUG] After adding active class:');
+  console.log('[DEBUG] Modal classes:', modal.className);
+  console.log('[DEBUG] Modal computed display:', window.getComputedStyle(modal).display);
+  console.log('[DEBUG] Modal bounding rect:', modal.getBoundingClientRect());
+  
+  // Check if modal content is visible
+  const modalContent = modal.querySelector('.modal-content');
+  if (modalContent) {
+    console.log('[DEBUG] Modal content found');
+    console.log('[DEBUG] Modal content bounding rect:', modalContent.getBoundingClientRect());
+  }
+  
+  console.log('[DEBUG] ========== END CONFIRM DELETE ==========');
 }
 
 function closeDeleteModal() {
-  document.getElementById('deleteModal').style.display = 'none';
+  console.log('[DEBUG] Closing delete modal');
+  const modal = document.getElementById('deleteModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function submitDelete() {
+  console.log('[DEBUG] Submit delete function called');
+  
+  // Close the modal if it exists
+  const modal = document.getElementById('deleteModal');
+  if (modal) {
+    closeDeleteModal();
+  }
+  
+  // Create form dynamically
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = "{{ url_for('delete_time_attendance_record', record_id=record.id) }}";
+  
+  // Add session-based CSRF token if available
+  const sessionCsrfToken = '{{ session.get("csrf_token", "") }}';
+  if (sessionCsrfToken) {
+    console.log('[DEBUG] Adding CSRF token');
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = sessionCsrfToken;
+    form.appendChild(csrfInput);
+  }
+  
+  // Append form to body and submit
+  document.body.appendChild(form);
+  console.log('[DEBUG] Submitting form...');
+  form.submit();
 }
 
 // Close modal when clicking outside
@@ -798,13 +878,14 @@ if (modal) {
       closeDeleteModal();
     }
   });
+  
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeDeleteModal();
+    }
+  });
 }
 
-// Escape key to close modal
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    closeDeleteModal();
-  }
-});
+console.log('[DEBUG] Page loaded - Modal element:', document.getElementById('deleteModal'));
 </script>
 {% endblock %}
