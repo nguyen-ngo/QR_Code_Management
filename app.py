@@ -7923,9 +7923,14 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     
     # Auto-size columns - handle merged cells properly
     for col_idx in range(1, 15):
-        max_length = 0
         column_letter = get_column_letter(col_idx)
         
+        # Set fixed width for Day column (column A)
+        if col_idx == 1:
+            ws.column_dimensions[column_letter].width = 18
+            continue
+        
+        max_length = 0
         for row in ws.iter_rows(min_col=col_idx, max_col=col_idx):
             for cell in row:
                 if isinstance(cell, openpyxl.cell.cell.MergedCell):
