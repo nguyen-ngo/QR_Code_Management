@@ -7397,6 +7397,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             'latitude': None,
             'longitude': None,
             'distance': distance_value,
+            'event_description': record.event_description or '',  # ADD: Building Address
+            'recorded_address': record.recorded_address or '',    # ADD: Recorded Location
             'qr_code': type('QRCode', (), {
                 'location': record.location_name,
                 'location_address': record.recorded_address or '',
@@ -7656,8 +7658,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         'Missed Punch',
                         '',
                         '',
-                        getattr(record.qr_code, 'location_address', '') or '',
-                        getattr(record.qr_code, 'location_address', '') or '',
+                        record.event_description or '',  # Building Address from event_description
+                        record.recorded_address or '',
                         getattr(record, 'distance', None) or '',
                         calculate_possible_violation(getattr(record, 'distance', None))
                     ]
@@ -7688,8 +7690,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         '',  # Empty Daily Total on first row
                         '',
                         '',
-                        getattr(first_record.qr_code, 'location_address', '') or '',
-                        getattr(first_record.qr_code, 'location_address', '') or '',
+                        first_record.event_description or '',
+                        first_record.recorded_address or '',
                         getattr(first_record, 'distance', None) or '',
                         calculate_possible_violation(getattr(first_record, 'distance', None))
                     ]
@@ -7717,8 +7719,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         daily_total_display,  # Show calculated Daily Total
                         '',
                         '',
-                        getattr(last_record.qr_code, 'location_address', '') or '',
-                        getattr(last_record.qr_code, 'location_address', '') or '',
+                        last_record.event_description or '',
+                        last_record.recorded_address or '',
                         getattr(last_record, 'distance', None) or '',
                         calculate_possible_violation(getattr(last_record, 'distance', None))
                     ]
@@ -7759,8 +7761,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             '',  # Daily Total shown only on last row
                             '',
                             '',
-                            getattr(check_in_record.qr_code, 'location_address', '') or '',
-                            getattr(check_in_record.qr_code, 'location_address', '') or '',
+                            check_in_record.event_description or '',
+                            check_in_record.recorded_address or '',
                             getattr(check_in_record, 'distance', None) or '',
                             calculate_possible_violation(getattr(check_in_record, 'distance', None))
                         ]
@@ -7817,8 +7819,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             daily_total_display,  # Show Daily Total on last row
                             '',
                             '',
-                            getattr(last_record.qr_code, 'location_address', '') or '',
-                            getattr(last_record.qr_code, 'location_address', '') or '',
+                            last_record.event_description or '',
+                            last_record.recorded_address or '',
                             getattr(last_record, 'distance', None) or '',
                             calculate_possible_violation(getattr(last_record, 'distance', None))
                         ]
@@ -7854,8 +7856,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             daily_total_display if i == 0 else '',
                             '',
                             '',
-                            getattr(start_record.qr_code, 'location_address', '') or '',
-                            getattr(start_record.qr_code, 'location_address', '') or '',
+                            start_record.event_description or '',
+                            start_record.recorded_address or '',
                             getattr(start_record, 'distance', None) or '',
                             calculate_possible_violation(getattr(start_record, 'distance', None))
                         ]
@@ -7884,8 +7886,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         daily_total_display,
                         '',
                         '',
-                        getattr(start_record.qr_code, 'location_address', '') if start_record else '',
-                        getattr(start_record.qr_code, 'location_address', '') if start_record else '',
+                        start_record.event_description or '' if start_record else '',
+                        start_record.recorded_address or '' if start_record else '',
                         getattr(start_record, 'distance', None) if start_record else '',
                         calculate_possible_violation(getattr(start_record, 'distance', None))
                     ]
