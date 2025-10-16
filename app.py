@@ -7362,7 +7362,7 @@ def calculate_possible_violation(distance_value):
         return 'Yes' if distance_float > 0.3 else 'No'
     except (ValueError, TypeError):
         return 'No'
-
+    
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
@@ -7430,6 +7430,58 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
+    # Border for first row of a day (top, left, right - no bottom)
+    border_day_first = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='none')
+    )
+    
+    # Border for middle rows of a day (left, right only - no top or bottom)
+    border_day_middle = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='none'),
+        bottom=Side(style='none')
+    )
+    
+    # Border for last row of a day (bottom, left, right - no top)
+    border_day_last = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='none'),
+        bottom=Side(style='thin')
+    )
+    
+    # Border for single row day (all sides)
+    border_day_single = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    def get_day_border(row_position, total_rows):
+        """
+        Get appropriate border style based on row position within a day
+        
+        Args:
+            row_position: Current row number (0-indexed) within the day
+            total_rows: Total number of rows for this day
+        
+        Returns:
+            Border object
+        """
+        if total_rows == 1:
+            return border_day_single
+        elif row_position == 0:
+            return border_day_first
+        elif row_position == total_rows - 1:
+            return border_day_last
+        else:
+            return border_day_middle
+
     # Orange background for Missed Punch
     missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
     
@@ -7610,10 +7662,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         calculate_possible_violation(getattr(record, 'distance', None))
                     ]
                     
+                    # Single row for this day
+                    day_border = border_day_single
                     for col, value in enumerate(row_data, 1):
                         cell = ws.cell(row=current_row, column=col, value=value)
                         cell.font = data_font
-                        cell.border = border
+                        cell.border = day_border
                         # Apply orange background to Missed Punch cells (columns G and H)
                         if col in [7, 8]:  # Hours/Building and Daily Total columns
                             cell.fill = missed_punch_fill
@@ -7640,10 +7694,11 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         calculate_possible_violation(getattr(first_record, 'distance', None))
                     ]
                     
+                    day_border_first = border_day_first
                     for col, value in enumerate(row_data, 1):
                         cell = ws.cell(row=current_row, column=col, value=value)
                         cell.font = data_font
-                        cell.border = border
+                        cell.border = day_border_first
                         # Apply orange background to Missed Punch cell (column G)
                         if col == 7:
                             cell.fill = missed_punch_fill
@@ -7668,10 +7723,11 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         calculate_possible_violation(getattr(last_record, 'distance', None))
                     ]
                     
+                    day_border_last = border_day_last
                     for col, value in enumerate(row_data, 1):
                         cell = ws.cell(row=current_row, column=col, value=value)
                         cell.font = data_font
-                        cell.border = border
+                        cell.border = day_border_last
                         # Apply orange background to Missed Punch cell (column G)
                         if col == 7:
                             cell.fill = missed_punch_fill
@@ -7709,10 +7765,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             calculate_possible_violation(getattr(check_in_record, 'distance', None))
                         ]
                         
+                        # Calculate total rows for this day
+                        total_rows_for_day = num_complete_pairs + (1 if len(sorted_records) % 2 == 1 else 0)
+                        row_position = i // 2  # Current pair index
+                        
+                        day_border = get_day_border(row_position, total_rows_for_day)
                         for col, value in enumerate(row_data, 1):
                             cell = ws.cell(row=current_row, column=col, value=value)
                             cell.font = data_font
-                            cell.border = border
+                            cell.border = day_border
                             # No orange background for complete pairs
                         current_row += 1
                     
@@ -7762,12 +7823,17 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             calculate_possible_violation(getattr(last_record, 'distance', None))
                         ]
                         
+                        # This is the last row for this day
+                        total_rows_for_day = num_complete_pairs + 1
+                        row_position = total_rows_for_day - 1  # Last position
+                        
+                        day_border = get_day_border(row_position, total_rows_for_day)
                         for col, value in enumerate(row_data, 1):
                             cell = ws.cell(row=current_row, column=col, value=value)
                             cell.font = data_font
-                            cell.border = border
-                            # Apply orange background to Missed Punch cells (columns G and H)
-                            if col in [7, 8]:
+                            cell.border = day_border
+                            # Apply orange background to Missed Punch cell (column G)
+                            if col == 7:
                                 cell.fill = missed_punch_fill
                         current_row += 1
             else:
@@ -7794,10 +7860,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             calculate_possible_violation(getattr(start_record, 'distance', None))
                         ]
                         
+                        # Calculate total pairs for this day
+                        total_pairs = len(sorted_records) // 2
+                        pair_index = i // 2
+                        
+                        day_border = get_day_border(pair_index, total_pairs)
                         for col, value in enumerate(row_data, 1):
                             cell = ws.cell(row=current_row, column=col, value=value)
                             cell.font = data_font
-                            cell.border = border
+                            cell.border = day_border
                         current_row += 1
                 else:
                     # Single record (rare case)
@@ -7819,10 +7890,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         calculate_possible_violation(getattr(start_record, 'distance', None))
                     ]
                     
+                    # Single row for this day
+                    day_border = border_day_single
                     for col, value in enumerate(row_data, 1):
                         cell = ws.cell(row=current_row, column=col, value=value)
                         cell.font = data_font
-                        cell.border = border
+                        cell.border = day_border
                     current_row += 1
         
         # Write final weekly total for this employee
