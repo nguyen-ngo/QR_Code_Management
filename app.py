@@ -8121,7 +8121,25 @@ def delete_time_attendance_record(record_id):
         logger_handler.log_database_error('time_attendance_delete', e)
         flash('Failed to delete time attendance record.', 'error')
     
-    return redirect(url_for('time_attendance_records'))
+    # Get filter parameters from BOTH request.form (POST) and request.args (GET query params)
+    # This handles both the records list page and the detail page
+    filter_params = {}
+    
+    # List of possible filter parameters
+    filter_keys = ['employee_id', 'location_name', 'project_id', 'start_date', 'end_date', 'page']
+    
+    for key in filter_keys:
+        # Try to get from form data first (records list page)
+        value = request.form.get(key)
+        # If not in form, try query parameters (detail page)
+        if not value:
+            value = request.args.get(key)
+        # Only include if value exists and is not empty
+        if value:
+            filter_params[key] = value
+    
+    # Redirect back with filters preserved
+    return redirect(url_for('time_attendance_records', **filter_params))
 
 @app.route('/api/time-attendance/employee/<employee_id>')
 @login_required

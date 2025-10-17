@@ -236,8 +236,8 @@
             <!-- Actions -->
             <td class="actions-cell">
               <div class="action-buttons">
-                <a href="{{ url_for('time_attendance_record_detail', record_id=record.id) }}" 
-                   class="action-btn view">
+                <a href="{{ url_for('time_attendance_record_detail', record_id=record.id, **request.args) }}" 
+                  class="action-btn view">
                   <i class="fas fa-eye"></i>
                   View
                 </a>
@@ -346,9 +346,34 @@ function toggleFilters() {
 
 function confirmDelete(recordId, employeeName, date) {
   if (confirm(`Are you sure you want to delete the attendance record for ${employeeName} on ${date}?`)) {
+    // Get current URL parameters (filters)
+    const currentUrl = new URL(window.location.href);
+    const params = currentUrl.searchParams;
+    
+    // Create form
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/time-attendance/delete/${recordId}`;
+    
+    // Add all current filter parameters as hidden inputs
+    for (const [key, value] of params.entries()) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    }
+    
+    // Add CSRF token if available
+    const sessionCsrfToken = '{{ session.get("csrf_token", "") }}';
+    if (sessionCsrfToken) {
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrf_token';
+      csrfInput.value = sessionCsrfToken;
+      form.appendChild(csrfInput);
+    }
+    
     document.body.appendChild(form);
     form.submit();
   }
@@ -370,7 +395,7 @@ function exportRecords(format) {
   // Get current filter values
   const employeeId = document.querySelector('select[name="employee_id"]')?.value || '';
   const locationName = document.querySelector('select[name="location_name"]')?.value || '';
-  const projectId = document.querySelector('select[name="project_id"]')?.value || '';  // ADD THIS LINE
+  const projectId = document.querySelector('select[name="project_id"]')?.value || '';
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
   const endDate = document.querySelector('input[name="end_date"]')?.value || '';
   
@@ -378,7 +403,7 @@ function exportRecords(format) {
   const params = new URLSearchParams();
   if (employeeId) params.append('employee_id', employeeId);
   if (locationName) params.append('location_name', locationName);
-  if (projectId) params.append('project_id', projectId);  // ADD THIS LINE
+  if (projectId) params.append('project_id', projectId); 
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
   params.append('format', format);

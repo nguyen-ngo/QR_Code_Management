@@ -840,23 +840,35 @@ function closeDeleteModal() {
 }
 
 function submitDelete() {
-  console.log('[DEBUG] Submit delete function called');
+  console.log('[DEBUG] Submit delete called');
   
-  // Close the modal if it exists
-  const modal = document.getElementById('deleteModal');
-  if (modal) {
-    closeDeleteModal();
-  }
+  // Close modal
+  closeDeleteModal();
   
-  // Create form dynamically
+  // Get current URL parameters (filters that were passed from records page)
+  const currentUrl = new URL(window.location.href);
+  const params = currentUrl.searchParams;
+  
+  console.log('[DEBUG] Current URL params:', params.toString());
+  
+  // Create form
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = "{{ url_for('delete_time_attendance_record', record_id=record.id) }}";
   
-  // Add session-based CSRF token if available
+  // Add all URL parameters as hidden form inputs
+  for (const [key, value] of params.entries()) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = value;
+    form.appendChild(input);
+    console.log('[DEBUG] Added param:', key, '=', value);
+  }
+  
+  // Add CSRF token
   const sessionCsrfToken = '{{ session.get("csrf_token", "") }}';
   if (sessionCsrfToken) {
-    console.log('[DEBUG] Adding CSRF token');
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = 'csrf_token';
@@ -864,9 +876,9 @@ function submitDelete() {
     form.appendChild(csrfInput);
   }
   
-  // Append form to body and submit
+  // Submit
   document.body.appendChild(form);
-  console.log('[DEBUG] Submitting form...');
+  console.log('[DEBUG] Submitting form with', form.querySelectorAll('input').length, 'inputs');
   form.submit();
 }
 
