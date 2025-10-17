@@ -151,7 +151,16 @@ class RecordPairBuilder:
     
     @staticmethod
     def build_pairs_from_records(records: List[AttendanceRecord]) -> List[RecordPair]:
-        """Build check-in/check-out pairs from attendance records"""
+        """
+        Build check-in/check-out pairs from attendance records with missed punch handling
+        
+        Pairing Rules:
+        - Normal: IN - OUT - IN - OUT (2 pairs)
+        - Missed punch IN-IN-OUT: First IN to OUT (1 pair, marked as missed punch)
+        - Missed punch IN-OUT-OUT: IN to last OUT (1 pair, marked as missed punch)
+        - General: If next to first IN isn't OUT, or before OUT isn't IN, 
+                pair from first IN to last OUT
+        """
         if not records:
             return []
         
@@ -163,35 +172,65 @@ class RecordPairBuilder:
         while i < len(sorted_records):
             current_record = sorted_records[i]
             
-            # Look for matching check-out record
-            check_out_record = None
-            if i + 1 < len(sorted_records):
-                next_record = sorted_records[i + 1]
-                # Simple pairing: assume alternating check-in/check-out
-                if current_record.record_type == 'check_in' and next_record.record_type == 'check_out':
-                    check_out_record = next_record
-                    i += 2  # Skip both records
-                else:
-                    i += 1
-            else:
-                i += 1
+            # Determine if current record is check-in or check-out
+            is_check_in = current_record.record_type == 'check_in'
             
-            # Create pair
-            if current_record.record_type == 'check_in':
+            if is_check_in:
+                # Found a check-in, now look for matching check-out
+                check_out_record = None
+                is_miss_punch = False
+                j = i + 1
+                
+                # Look ahead for the matching OUT
+                while j < len(sorted_records):
+                    next_record = sorted_records[j]
+                    
+                    if next_record.record_type == 'check_out':
+                        # Found a check-out
+                        check_out_record = next_record
+                        
+                        # Check if there's a missed punch between IN and OUT
+                        # (if j > i+1, there are records in between)
+                        if j > i + 1:
+                            is_miss_punch = True
+                            # Log missed punch detection
+                            print(f"⚠️ Missed punch detected: IN at {current_record.timestamp} paired with OUT at {check_out_record.timestamp} (skipped {j-i-1} record(s))")
+                        
+                        i = j + 1  # Move past this OUT
+                        break
+                    else:
+                        # It's another IN, keep looking
+                        j += 1
+                
+                # If no OUT found, it's an incomplete pair (missed punch)
+                if check_out_record is None:
+                    is_miss_punch = True
+                    print(f"⚠️ Incomplete pair: IN at {current_record.timestamp} has no matching OUT")
+                    i += 1
+                
+                # Create the pair
                 pair = RecordPair(
                     check_in=current_record,
                     check_out=check_out_record,
-                    is_miss_punch=(check_out_record is None)
+                    is_miss_punch=is_miss_punch
                 )
+                pairs.append(pair)
+                
             else:
-                # Orphaned check-out
+                # Orphaned check-out (OUT without preceding IN)
+                print(f"⚠️ Orphaned check-out at {current_record.timestamp} (no preceding IN)")
                 pair = RecordPair(
                     check_in=None,
                     check_out=current_record,
                     is_miss_punch=True
                 )
-            
-            pairs.append(pair)
+                pairs.append(pair)
+                i += 1
+        
+        # Log pairing summary
+        total_pairs = len(pairs)
+        missed_pairs = sum(1 for p in pairs if p.is_miss_punch)
+        print(f"📊 Pairing complete: {total_pairs} total pairs, {missed_pairs} with missed punches")
         
         return pairs
 
@@ -237,13 +276,28 @@ class WorkingHoursCalculator:
                     record_id = record['id']
                 
                 if emp_id == employee_id:
+                    # Determine record_type from action_description if available
+                    record_type = 'check_in'  # Default
+                    if hasattr(record, 'action_description'):
+                        action_desc = getattr(record, 'action_description', '')
+                        if action_desc:
+                            action_lower = str(action_desc).lower()
+                            if 'out' in action_lower or 'checkout' in action_lower:
+                                record_type = 'check_out'
+                    elif isinstance(record, dict) and 'action_description' in record:
+                        action_desc = record.get('action_description', '')
+                        if action_desc:
+                            action_lower = str(action_desc).lower()
+                            if 'out' in action_lower or 'checkout' in action_lower:
+                                record_type = 'check_out'
+
                     att_record = AttendanceRecord(
                         id=record_id,
                         employee_id=emp_id,
                         check_in_date=date_val,
                         check_in_time=time_val,
                         location_name=location,
-                        record_type='check_in'  # Default, could be enhanced
+                        record_type=record_type  # Now properly determined
                     )
                     records.append(att_record)
             

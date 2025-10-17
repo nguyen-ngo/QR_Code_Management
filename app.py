@@ -7388,6 +7388,13 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         # Get distance value from the record
         distance_value = getattr(record, 'distance', None)
         
+        # CRITICAL: Determine record_type from action_description
+        record_type = 'check_in'  # Default
+        if hasattr(record, 'action_description') and record.action_description:
+            action_lower = record.action_description.lower()
+            if 'out' in action_lower or 'checkout' in action_lower:
+                record_type = 'check_out'
+        
         converted_record = type('Record', (), {
             'id': record.id,
             'employee_id': str(record.employee_id),
@@ -7397,8 +7404,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             'latitude': None,
             'longitude': None,
             'distance': distance_value,
-            'event_description': record.event_description or '',  # ADD: Building Address
-            'recorded_address': record.recorded_address or '',    # ADD: Recorded Location
+            'record_type': record_type,  # ADD THIS LINE
+            'action_description': record.action_description,  # ADD THIS LINE
+            'event_description': record.event_description or '',
+            'recorded_address': record.recorded_address or '',
             'qr_code': type('QRCode', (), {
                 'location': record.location_name,
                 'location_address': record.recorded_address or '',
@@ -7757,130 +7766,151 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     current_row += 1
                     
                 else:
-                    # Multiple records for this location - show pairs
-                    num_complete_pairs = len(sorted_records) // 2
-                    
-                    # Write complete pairs (2 records per row)
-                    for i in range(0, num_complete_pairs * 2, 2):
-                        check_in_record = sorted_records[i]
-                        check_out_record = sorted_records[i + 1]
+                    # Multiple records for this location - use action_description for pairing
+                    # Determine record types based on action_description
+                    record_info = []
+                    for record in sorted_records:
+                        action_desc = record.action_description.lower() if record.action_description else ''
+                        is_out = 'out' in action_desc or 'checkout' in action_desc
+                        record_info.append({
+                            'record': record,
+                            'is_out': is_out,
+                            'used': False
+                        })
+                        print(f"  Record at {record.check_in_time}: action='{record.action_description}', is_out={is_out}")
+
+                    # Create pairs based on IN -> OUT logic
+                    pairs_to_write = []
+                    i = 0
+                    while i < len(record_info):
+                        if record_info[i]['used']:
+                            i += 1
+                            continue
                         
-                        # Calculate hours for this complete pair
-                        pair_datetime_in = datetime.combine(date_obj, check_in_record.check_in_time)
-                        pair_datetime_out = datetime.combine(date_obj, check_out_record.check_in_time)
-                        pair_hours = (pair_datetime_out - pair_datetime_in).total_seconds() / 3600.0
-                        pair_hours = round(pair_hours, 2)
+                        current_is_out = record_info[i]['is_out']
                         
-                        # Show day name and date only for first group's first row
-                        day_display = date_obj.strftime('%A').upper() if (location_count == 1 and i == 0) else ''
-                        date_display = date_obj.strftime('%m/%d/%Y') if (location_count == 1 and i == 0) else ''
+                        if not current_is_out:  # This is an IN
+                            # Look for next OUT
+                            out_found = False
+                            for j in range(i + 1, len(record_info)):
+                                if record_info[j]['used']:
+                                    continue
+                                if record_info[j]['is_out']:  # Found an OUT
+                                    pairs_to_write.append({
+                                        'check_in': record_info[i]['record'],
+                                        'check_out': record_info[j]['record'],
+                                        'is_miss_punch': (j > i + 1)  # Missed punch if not consecutive
+                                    })
+                                    record_info[i]['used'] = True
+                                    record_info[j]['used'] = True
+                                    out_found = True
+                                    break
+                            
+                            if not out_found:  # No OUT found for this IN
+                                pairs_to_write.append({
+                                    'check_in': record_info[i]['record'],
+                                    'check_out': None,
+                                    'is_miss_punch': True
+                                })
+                                record_info[i]['used'] = True
+                        else:  # This is an orphaned OUT
+                            pairs_to_write.append({
+                                'check_in': None,
+                                'check_out': record_info[i]['record'],
+                                'is_miss_punch': True
+                            })
+                            record_info[i]['used'] = True
                         
-                        # Show daily total only on last group's last complete pair (if no unpaired record)
-                        is_last_pair_of_location = (i == (num_complete_pairs - 1) * 2)
-                        has_unpaired = (len(sorted_records) % 2 == 1)
-                        show_daily_total = is_last_location and is_last_pair_of_location and not has_unpaired
-                        current_daily_total = daily_total_display if show_daily_total else ''
+                        i += 1
+
+                    print(f"  Created {len(pairs_to_write)} pairs")
+
+                    # Write all pairs
+                    for pair_idx, pair_data in enumerate(pairs_to_write):
+                        check_in_record = pair_data['check_in']
+                        check_out_record = pair_data['check_out']
+                        is_miss_punch = pair_data['is_miss_punch']
                         
-                        row_data = [
-                            day_display,
-                            date_display,
-                            check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
-                            check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
-                            check_in_record.location_name,
-                            '',
-                            pair_hours,
-                            current_daily_total,
-                            '',
-                            '',
-                            check_in_record.event_description or '',
-                            check_in_record.recorded_address or '',
-                            getattr(check_in_record, 'distance', None) or '',
-                            calculate_possible_violation(getattr(check_in_record, 'distance', None))
-                        ]
+                        # Show day name and date only for first pair of first location
+                        day_display = date_obj.strftime('%A').upper() if (location_count == 1 and pair_idx == 0) else ''
+                        date_display = date_obj.strftime('%m/%d/%Y') if (location_count == 1 and pair_idx == 0) else ''
                         
-                        # Determine border style
-                        is_last_pair_overall = is_last_location and is_last_pair_of_location and not has_unpaired
-                        day_border = border_day_last if is_last_pair_overall else border_day_middle
+                        # Calculate hours if complete pair
+                        if check_in_record and check_out_record and not is_miss_punch:
+                            pair_datetime_in = datetime.combine(date_obj, check_in_record.check_in_time)
+                            pair_datetime_out = datetime.combine(date_obj, check_out_record.check_in_time)
+                            pair_hours = (pair_datetime_out - pair_datetime_in).total_seconds() / 3600.0
+                            pair_hours = round(pair_hours, 2)
+                        else:
+                            pair_hours = 'Missed Punch'
                         
+                        # Show daily total on last pair of last location
+                        is_last_pair = (pair_idx == len(pairs_to_write) - 1) and is_last_location
+                        current_daily_total = daily_total_display if is_last_pair else ''
+                        
+                        # Build row data
+                        if check_in_record and check_out_record:
+                            row_data = [
+                                day_display,
+                                date_display,
+                                check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
+                                check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
+                                check_in_record.location_name,
+                                '',
+                                pair_hours,
+                                current_daily_total,
+                                '',
+                                '',
+                                check_in_record.event_description or '',
+                                check_in_record.recorded_address or '',
+                                getattr(check_in_record, 'distance', None) or '',
+                                calculate_possible_violation(getattr(check_in_record, 'distance', None))
+                            ]
+                        elif check_in_record:  # IN without OUT
+                            row_data = [
+                                day_display,
+                                date_display,
+                                check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
+                                '',  # No OUT
+                                check_in_record.location_name,
+                                '',
+                                'Missed Punch',
+                                current_daily_total,
+                                '',
+                                '',
+                                check_in_record.event_description or '',
+                                check_in_record.recorded_address or '',
+                                getattr(check_in_record, 'distance', None) or '',
+                                calculate_possible_violation(getattr(check_in_record, 'distance', None))
+                            ]
+                        else:  # OUT without IN
+                            row_data = [
+                                day_display,
+                                date_display,
+                                '',  # No IN
+                                check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
+                                check_out_record.location_name,
+                                '',
+                                'Missed Punch',
+                                current_daily_total,
+                                '',
+                                '',
+                                check_out_record.event_description or '',
+                                check_out_record.recorded_address or '',
+                                getattr(check_out_record, 'distance', None) or '',
+                                calculate_possible_violation(getattr(check_out_record, 'distance', None))
+                            ]
+                        
+                        day_border = border_day_last if is_last_pair else border_day_middle
                         for col, value in enumerate(row_data, 1):
                             cell = ws.cell(row=current_row, column=col, value=value)
                             cell.font = data_font
                             cell.border = day_border
-                        current_row += 1
-                    
-                    # Write the last unpaired record if odd number of records
-                    if len(sorted_records) % 2 == 1:
-                        last_record = sorted_records[-1]
-                        
-                        # Get the original TimeAttendance record to check action_description
-                        original_record = None
-                        for rec in records:
-                            if (rec.employee_id == last_record.employee_id and 
-                                rec.attendance_date == last_record.check_in_date and 
-                                rec.attendance_time == last_record.check_in_time):
-                                original_record = rec
-                                break
-                        
-                        # Determine if this is a check-in or check-out
-                        is_check_out = False
-                        if original_record and original_record.action_description:
-                            action_lower = original_record.action_description.lower()
-                            is_check_out = 'out' in action_lower or 'checkout' in action_lower
-                        
-                        # Show day name and date only for first group's first row
-                        day_display = date_obj.strftime('%A').upper() if (location_count == 1 and num_complete_pairs == 0) else ''
-                        date_display = date_obj.strftime('%m/%d/%Y') if (location_count == 1 and num_complete_pairs == 0) else ''
-                        
-                        # Show daily total only if this is the last group
-                        current_daily_total = daily_total_display if is_last_location else ''
-                        
-                        if is_check_out:
-                            # Unpaired check-out
-                            row_data = [
-                                day_display,
-                                date_display,
-                                '',  # No check-in
-                                last_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
-                                last_record.location_name,
-                                '',
-                                'Missed Punch',
-                                current_daily_total,
-                                '',
-                                '',
-                                last_record.event_description or '',
-                                last_record.recorded_address or '',
-                                getattr(last_record, 'distance', None) or '',
-                                calculate_possible_violation(getattr(last_record, 'distance', None))
-                            ]
-                        else:
-                            # Unpaired check-in
-                            row_data = [
-                                day_display,
-                                date_display,
-                                last_record.check_in_time.strftime('%I:%M:%S %p'),  # In
-                                '',  # No check-out
-                                last_record.location_name,
-                                '',
-                                'Missed Punch',
-                                current_daily_total,
-                                '',
-                                '',
-                                last_record.event_description or '',
-                                last_record.recorded_address or '',
-                                getattr(last_record, 'distance', None) or '',
-                                calculate_possible_violation(getattr(last_record, 'distance', None))
-                            ]
-                        
-                        day_border_last = border_day_last
-                        for col, value in enumerate(row_data, 1):
-                            cell = ws.cell(row=current_row, column=col, value=value)
-                            cell.font = data_font
-                            cell.border = day_border_last
-                            # Apply orange background to Missed Punch cell (column G)
-                            if col == 7:
+                            # Apply orange background to Missed Punch cell
+                            if col == 7 and value == 'Missed Punch':
                                 cell.fill = missed_punch_fill
                         current_row += 1
-        
+                            
         # Write final weekly total for this employee
         if weekly_total_hours > 0:
             week_regular = min(weekly_total_hours, 40.0)
