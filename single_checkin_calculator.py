@@ -93,6 +93,7 @@ class SingleCheckInCalculator:
                             'check_in_time': record_time,
                             'location_name': location,
                             'work_type': work_type,
+                            'action_description': getattr(record, 'action_description', '') if hasattr(record, '__dict__') else record.get('action_description', ''),
                             'timestamp': datetime.combine(record_date, record_time) if record_date and record_time else datetime.now()
                         }
                         records_by_type[work_type].append(processed_record)
@@ -228,6 +229,21 @@ class SingleCheckInCalculator:
         if len(sorted_records) == 1:
             return 0.0, True
         
+        # NEW: Check if all records are IN or all OUT using action_description
+        if len(sorted_records) >= 2:
+            record_types = []
+            for record in sorted_records:
+                action_desc = record.get('action_description', '').lower()
+                if 'out' in action_desc or 'checkout' in action_desc:
+                    record_types.append('OUT')
+                else:
+                    record_types.append('IN')
+            
+            # If all are IN or all are OUT, return 0 hours with miss punch
+            if len(set(record_types)) == 1:
+                print(f"⚠️ All {len(sorted_records)} records are {record_types[0]} - 0 working hours")
+                return 0.0, True
+        
         # Calculate complete pairs only
         num_complete_pairs = len(sorted_records) // 2
         total_hours = 0.0
@@ -238,21 +254,14 @@ class SingleCheckInCalculator:
                 end_time = sorted_records[i + 1]['timestamp']
                 
                 duration = end_time - start_time
-                period_hours = duration.total_seconds() / 3600.0
-                
-                # Validate reasonable work period
-                if 0 < period_hours <= self.max_work_period_hours:
-                    total_hours += period_hours
-                    
+                hours = duration.total_seconds() / 3600.0
+                total_hours += hours
             except Exception as e:
-                print(f"⚠️ Error calculating work period: {e}")
-                continue
+                print(f"⚠️ Error calculating pair hours: {e}")
+                return 0.0, True
         
-        # Round to nearest quarter hour
-        total_hours = round(total_hours * 4) / 4
-        
-        # Determine if miss punch
-        is_miss_punch = len(sorted_records) % 2 != 0
+        # Odd number of records = miss punch
+        is_miss_punch = (len(sorted_records) % 2 != 0)
         
         return total_hours, is_miss_punch
     

@@ -7432,7 +7432,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     
     # Setup styles
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
-    header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     data_font = Font(name='Arial', size=10)
     bold_font = Font(name='Arial', size=10, bold=True)
     border = Border(
@@ -7631,19 +7631,36 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                 all_records_for_day = []
                 for loc_data in date_locations.values():
                     all_records_for_day.extend(loc_data['records'])
-                
+
                 if len(all_records_for_day) >= 2:
                     sorted_all_records = sorted(all_records_for_day, key=lambda x: x.check_in_time)
-                    first_time = sorted_all_records[0].check_in_time
-                    last_time = sorted_all_records[-1].check_in_time
                     
-                    first_datetime = datetime.combine(date_obj, first_time)
-                    last_datetime = datetime.combine(date_obj, last_time)
-                    calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
-                    calculated_hours = round(calculated_hours, 2)
+                    # NEW: Check if all records are IN or all OUT
+                    record_types = []
+                    for record in sorted_all_records:
+                        action_desc = record.action_description.lower() if record.action_description else ''
+                        if 'out' in action_desc or 'checkout' in action_desc:
+                            record_types.append('OUT')
+                        else:
+                            record_types.append('IN')
                     
-                    weekly_total_hours += calculated_hours
-                    total_hours = calculated_hours
+                    # If all same type (all IN or all OUT), hours = 0
+                    if len(set(record_types)) == 1:
+                        print(f"⚠️ {date_str}: All {len(sorted_all_records)} records are {record_types[0]} - 0 working hours")
+                        calculated_hours = 0.0
+                        total_hours = 0.0
+                    else:
+                        # Mixed IN/OUT - calculate from first to last
+                        first_time = sorted_all_records[0].check_in_time
+                        last_time = sorted_all_records[-1].check_in_time
+                        
+                        first_datetime = datetime.combine(date_obj, first_time)
+                        last_datetime = datetime.combine(date_obj, last_time)
+                        calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
+                        calculated_hours = round(calculated_hours, 2)
+                        
+                        weekly_total_hours += calculated_hours
+                        total_hours = calculated_hours
             
             # Daily total display (only shown on last location's last row)
             daily_total_display = round(total_hours, 2) if total_hours > 0 else ''
