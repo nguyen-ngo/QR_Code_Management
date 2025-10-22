@@ -37,6 +37,83 @@ def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
     # Default to regular work
     return employee_id_clean, 'regular'
 
+def round_time_to_quarter_hour(minutes: float) -> float:
+    """
+    Round time to nearest quarter hour based on 7.5-minute increments
+    
+    Rules:
+    - 0:00-0:07 → 0:00
+    - 0:08-0:22 → 0:15  
+    - 0:23-0:37 → 0:30
+    - 0:38-0:52 → 0:45
+    - 0:53-1:07 → 1:00
+    """
+    if minutes < 0:
+        return 0.0
+    
+    # Get minutes within the hour
+    total_minutes = minutes
+    hours = int(total_minutes // 60)
+    minutes_in_hour = total_minutes % 60
+    
+    # Determine rounding
+    if minutes_in_hour <= 7:
+        rounded_in_hour = 0
+    elif minutes_in_hour <= 22:
+        rounded_in_hour = 15
+    elif minutes_in_hour <= 37:
+        rounded_in_hour = 30
+    elif minutes_in_hour <= 52:
+        rounded_in_hour = 45
+    else:  # 53-59
+        hours += 1
+        rounded_in_hour = 0
+    
+    return hours * 60 + rounded_in_hour
+
+
+def convert_minutes_to_base100(minutes: float) -> float:
+    """Convert minutes to base-100 hours (each hour = 100 units)"""
+    if minutes < 0:
+        return 0.0
+    
+    decimal_hours = minutes / 60.0
+    whole_hours = int(decimal_hours)
+    fractional_hours = decimal_hours - whole_hours
+    base100_fraction = fractional_hours * 100
+    
+    return whole_hours + (base100_fraction / 100)
+
+
+def round_base100_hours(base100_hours: float) -> float:
+    """
+    Round base-100 hours to nearest quarter using 12.5 thresholds
+    
+    Examples:
+    - 4.12 → 4.00
+    - 4.18 → 4.25
+    - 8.02 → 8.00
+    """
+    if base100_hours < 0:
+        return 0.0
+    
+    whole_hours = int(base100_hours)
+    fractional_part = (base100_hours - whole_hours) * 100
+    
+    # Round to nearest quarter
+    if fractional_part < 12.5:
+        rounded_fraction = 0
+    elif fractional_part < 37.5:
+        rounded_fraction = 25
+    elif fractional_part < 62.5:
+        rounded_fraction = 50
+    elif fractional_part < 87.5:
+        rounded_fraction = 75
+    else:
+        whole_hours += 1
+        rounded_fraction = 0
+    
+    return round(whole_hours + (rounded_fraction / 100), 2)
 
 class SingleCheckInCalculator:
     """Enhanced calculator for single check-in attendance systems with SP/PW support"""
@@ -153,21 +230,31 @@ class SingleCheckInCalculator:
                     week_sp_total = sum(current_week_hours['SP'])
                     week_pw_total = sum(current_week_hours['PW'])
                     
+                    # NEW: Round the weekly total
+                    week_total_raw = week_regular_total + week_sp_total + week_pw_total
+                    week_total_rounded = round_base100_hours(week_total_raw)
+                    
                     # Only regular hours count toward overtime
                     week_regular_hours = min(week_regular_total, 40.0)
                     week_overtime_hours = max(0, week_regular_total - 40.0)
                     
+                    # NEW: Round regular and overtime hours
+                    week_regular_hours_rounded = round_base100_hours(week_regular_hours)
+                    week_overtime_hours_rounded = round_base100_hours(week_overtime_hours)
+                    week_sp_hours_rounded = round_base100_hours(week_sp_total)
+                    week_pw_hours_rounded = round_base100_hours(week_pw_total)
+                    
                     weekly_totals.append({
-                        'total_hours': week_regular_total + week_sp_total + week_pw_total,
-                        'regular_hours': week_regular_hours,
-                        'overtime_hours': week_overtime_hours,
-                        'sp_hours': week_sp_total,
-                        'pw_hours': week_pw_total,
-                        'total_minutes': int((week_regular_total + week_sp_total + week_pw_total) * 60),
-                        'regular_minutes': int(week_regular_hours * 60),
-                        'overtime_minutes': int(week_overtime_hours * 60),
-                        'sp_minutes': int(week_sp_total * 60),
-                        'pw_minutes': int(week_pw_total * 60)
+                        'total_hours': week_total_rounded,  # CHANGED: Use rounded value
+                        'regular_hours': week_regular_hours_rounded,  # CHANGED: Use rounded value
+                        'overtime_hours': week_overtime_hours_rounded,  # CHANGED: Use rounded value
+                        'sp_hours': week_sp_hours_rounded,  # CHANGED: Use rounded value
+                        'pw_hours': week_pw_hours_rounded,  # CHANGED: Use rounded value
+                        'total_minutes': int(week_total_rounded * 60),
+                        'regular_minutes': int(week_regular_hours_rounded * 60),
+                        'overtime_minutes': int(week_overtime_hours_rounded * 60),
+                        'sp_minutes': int(week_sp_hours_rounded * 60),
+                        'pw_minutes': int(week_pw_hours_rounded * 60)
                     })
                     
                     current_week_hours = {'regular': [], 'SP': [], 'PW': []}
@@ -175,11 +262,18 @@ class SingleCheckInCalculator:
                 current_date += timedelta(days=1)
             
             # Calculate grand totals
-            grand_total_hours = sum(week['total_hours'] for week in weekly_totals)
-            grand_regular_hours = sum(week['regular_hours'] for week in weekly_totals)
-            grand_overtime_hours = sum(week['overtime_hours'] for week in weekly_totals)
-            grand_sp_hours = sum(week['sp_hours'] for week in weekly_totals)
-            grand_pw_hours = sum(week['pw_hours'] for week in weekly_totals)
+            grand_total_raw = sum(week['total_hours'] for week in weekly_totals)
+            grand_regular_raw = sum(week['regular_hours'] for week in weekly_totals)
+            grand_overtime_raw = sum(week['overtime_hours'] for week in weekly_totals)
+            grand_sp_raw = sum(week['sp_hours'] for week in weekly_totals)
+            grand_pw_raw = sum(week['pw_hours'] for week in weekly_totals)
+            
+            # Round grand totals
+            grand_total_hours = round_base100_hours(grand_total_raw)
+            grand_regular_hours = round_base100_hours(grand_regular_raw)
+            grand_overtime_hours = round_base100_hours(grand_overtime_raw)
+            grand_sp_hours = round_base100_hours(grand_sp_raw)
+            grand_pw_hours = round_base100_hours(grand_pw_raw)
             
             print(f"✅ Employee {employee_id}: Total: {grand_total_hours:.2f}h (Regular: {grand_regular_hours:.2f}h, OT: {grand_overtime_hours:.2f}h, SP: {grand_sp_hours:.2f}h, PW: {grand_pw_hours:.2f}h)")
             
@@ -247,23 +341,36 @@ class SingleCheckInCalculator:
         # Calculate complete pairs only
         num_complete_pairs = len(sorted_records) // 2
         total_hours = 0.0
+        total_rounded_minutes = 0.0  # NEW: Track rounded minutes for Daily Total
         
         for i in range(0, num_complete_pairs * 2, 2):
             try:
                 start_time = sorted_records[i]['timestamp']
                 end_time = sorted_records[i + 1]['timestamp']
                 
+                # Calculate exact hours (for Hours/Building column)
                 duration = end_time - start_time
-                hours = duration.total_seconds() / 3600.0
+                exact_minutes = duration.total_seconds() / 60.0
+                hours = exact_minutes / 60.0
                 total_hours += hours
+                
+                # NEW: Round this pair's time and accumulate for Daily Total
+                pair_rounded_minutes = round_time_to_quarter_hour(exact_minutes)
+                total_rounded_minutes += pair_rounded_minutes
+                
             except Exception as e:
                 print(f"⚠️ Error calculating pair hours: {e}")
                 return 0.0, True
         
+        # NEW: Convert rounded minutes to base-100 and round
+        base100_hours = convert_minutes_to_base100(total_rounded_minutes)
+        rounded_total_hours = round_base100_hours(base100_hours)
+        
         # Odd number of records = miss punch
         is_miss_punch = (len(sorted_records) % 2 != 0)
         
-        return total_hours, is_miss_punch
+        # NEW: Return rounded hours instead of exact hours for Daily Total
+        return rounded_total_hours, is_miss_punch
     
     def _empty_result(self, employee_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Return empty result structure with SP/PW support"""

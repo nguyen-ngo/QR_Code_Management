@@ -5291,7 +5291,7 @@ def payroll_dashboard():
                     employee_query = db.session.execute(text(f"""
                         SELECT 
                             ad.employee_id,
-                            CONCAT(e.firstName, ' ', e.lastName) as full_name 
+                            CONCAT(e.lastName, ',', e.firstName) as full_name 
                         FROM attendance_data ad
                         LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
                         WHERE ad.employee_id IN ({placeholders})
