@@ -12,7 +12,7 @@ from typing import List, Dict, Optional, Any
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from single_checkin_calculator import SingleCheckInCalculator
+from working_hours_calculator import WorkingHoursCalculator
 from logger_handler import log_database_operations
 
 
@@ -93,7 +93,7 @@ class EnhancedPayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours using enhanced calculator
-            calculator = SingleCheckInCalculator()
+            calculator = WorkingHoursCalculator()
             working_hours_data = calculator.calculate_all_employees_hours(
                 start_date, end_date, attendance_records
             )
@@ -294,7 +294,7 @@ class EnhancedPayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
-            calculator = SingleCheckInCalculator()
+            calculator = WorkingHoursCalculator()
             working_hours_data = calculator.calculate_all_employees_hours(
                 start_date, end_date, attendance_records
             )

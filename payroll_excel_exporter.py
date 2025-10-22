@@ -20,7 +20,7 @@ from typing import List, Dict, Any, Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from single_checkin_calculator import SingleCheckInCalculator
+from working_hours_calculator import WorkingHoursCalculator
 from logger_handler import log_database_operations
 
 
@@ -181,7 +181,7 @@ class PayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
-            calculator = SingleCheckInCalculator()
+            calculator = WorkingHoursCalculator()
             hours_data = calculator.calculate_all_employees_hours(start_date, end_date, attendance_records)
             
             # Create workbook
@@ -417,7 +417,7 @@ class PayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
-            calculator = SingleCheckInCalculator()
+            calculator = WorkingHoursCalculator()
             hours_data = calculator.calculate_all_employees_hours(start_date, end_date, attendance_records)
             
             # Create workbook
@@ -544,7 +544,7 @@ class PayrollExcelExporter:
                 employee_names = self._get_employee_names(attendance_records)
             
             # Calculate working hours
-            calculator = SingleCheckInCalculator()
+            calculator = WorkingHoursCalculator()
             hours_data = calculator.calculate_all_employees_hours(start_date, end_date, attendance_records)
             
             # Create workbook with single sheet

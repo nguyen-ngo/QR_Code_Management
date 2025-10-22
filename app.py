@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
 from single_checkin_calculator import SingleCheckInCalculator
+from working_hours_calculator import WorkingHoursCalculator
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 from time_attendance_import_service import TimeAttendanceImportService
@@ -5265,7 +5266,7 @@ def payroll_dashboard():
 
                 # Calculate working hours if we have records
                 if attendance_records:
-                    calculator = SingleCheckInCalculator()
+                    calculator = WorkingHoursCalculator()
                     working_hours_data = calculator.calculate_all_employees_hours(
                         start_date, end_date, attendance_records
                     )
@@ -7417,7 +7418,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         converted_records.append(converted_record)
     
     # Calculate working hours using SingleCheckInCalculator
-    calculator = SingleCheckInCalculator()
+    calculator = WorkingHoursCalculator()
     hours_data = calculator.calculate_all_employees_hours(
         datetime.combine(start_date, datetime.min.time()),
         datetime.combine(end_date, datetime.max.time()),
