@@ -212,7 +212,7 @@ STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
 
 # Import and initialize models
 from models import set_db
-User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance = set_db(db)
+User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance, UserProjectPermission, UserLocationPermission = set_db(db)
 
 # Initialize the logging system
 logger_handler = AppLogger(app, db)
@@ -1816,28 +1816,42 @@ def users():
 @admin_required
 @log_database_operations('user_creation')
 def create_user():
-    """Create new user (Admin only)"""
+    """Create new user (Admin only) with Project Manager permissions support"""
     if request.method == 'POST':
         try:
-            full_name = request.form['full_name']
-            email = request.form['email']
-            username = request.form['username']
-            password = request.form['password']
-            role = request.form['role']
+            # Get basic form data
+            full_name = request.form.get('full_name', '').strip()
+            email = request.form.get('email', '').strip()
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            role = request.form.get('role', '')
+
+            # Validate required fields
+            if not all([full_name, email, username, password, role]):
+                flash('All fields are required.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                return render_template('create_user.html', projects=projects, locations=locations)
 
             # Validate role
             if role not in VALID_ROLES:
                 flash(f'Invalid role selected. Valid roles: {", ".join(VALID_ROLES)}', 'error')
-                return render_template('create_user.html')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                return render_template('create_user.html', projects=projects, locations=locations)
 
             # Check if user already exists
             if User.query.filter_by(username=username).first():
                 flash('Username already exists.', 'error')
-                return render_template('create_user.html')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                return render_template('create_user.html', projects=projects, locations=locations)
 
             if User.query.filter_by(email=email).first():
                 flash('Email already registered.', 'error')
-                return render_template('create_user.html')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                return render_template('create_user.html', projects=projects, locations=locations)
 
             # Create new user
             new_user = User(
@@ -1850,6 +1864,69 @@ def create_user():
             new_user.set_password(password)
 
             db.session.add(new_user)
+            db.session.flush()  # Get the user ID without committing
+
+            # Handle Project Manager permissions
+            if role == 'project_manager':
+                # Get selected projects - getlist returns empty list if field doesn't exist
+                selected_projects = request.form.getlist('assigned_projects')
+                
+                # Validate and filter project IDs
+                valid_project_ids = []
+                if selected_projects:
+                    for pid in selected_projects:
+                        try:
+                            project_id = int(pid)
+                            # Verify project exists
+                            if Project.query.get(project_id):
+                                valid_project_ids.append(project_id)
+                        except (ValueError, TypeError):
+                            logger_handler.logger.warning(f"Invalid project ID received: {pid}")
+                
+                # Add project permissions
+                if valid_project_ids:
+                    for project_id in valid_project_ids:
+                        try:
+                            permission = UserProjectPermission(
+                                user_id=new_user.id,
+                                project_id=project_id
+                            )
+                            db.session.add(permission)
+                        except Exception as e:
+                            logger_handler.logger.error(f"Error adding project permission: {e}")
+                    
+                    logger_handler.logger.info(
+                        f"Admin {session['username']} assigned {len(valid_project_ids)} projects to new Project Manager {username}"
+                    )
+
+                # Get selected locations
+                selected_locations = request.form.getlist('assigned_locations')
+                
+                # Filter and clean location names
+                valid_locations = []
+                if selected_locations:
+                    for location in selected_locations:
+                        location_clean = location.strip()
+                        if location_clean:
+                            valid_locations.append(location_clean)
+                
+                # Add location permissions
+                if valid_locations:
+                    for location_name in valid_locations:
+                        try:
+                            permission = UserLocationPermission(
+                                user_id=new_user.id,
+                                location_name=location_name
+                            )
+                            db.session.add(permission)
+                        except Exception as e:
+                            logger_handler.logger.error(f"Error adding location permission: {e}")
+                    
+                    logger_handler.logger.info(
+                        f"Admin {session['username']} assigned {len(valid_locations)} locations to new Project Manager {username}"
+                    )
+
+            # Commit all changes
             db.session.commit()
 
             # Log user creation
@@ -1858,13 +1935,47 @@ def create_user():
             flash(f'User "{full_name}" created successfully with role "{role}".', 'success')
             return redirect(url_for('users'))
 
+        except KeyError as e:
+            db.session.rollback()
+            logger_handler.logger.error(f"Missing form field: {e}")
+            flash(f'Missing required field: {e}. Please fill in all fields.', 'error')
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            locations = get_all_locations_from_qr_codes()
+            return render_template('create_user.html', projects=projects, locations=locations)
         except Exception as e:
             db.session.rollback()
             logger_handler.log_database_error('user_creation', e)
-            flash('Failed to create user. Please try again.', 'error')
+            logger_handler.logger.error(f"User creation error details: {str(e)}")
+            flash('User creation failed. Please try again.', 'error')
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            locations = get_all_locations_from_qr_codes()
+            return render_template('create_user.html', projects=projects, locations=locations)
 
-    return render_template('create_user.html', valid_roles=VALID_ROLES)
+    # GET request - load form with projects and locations
+    try:
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        locations = get_all_locations_from_qr_codes()
+        return render_template('create_user.html', projects=projects, locations=locations)
+    except Exception as e:
+        logger_handler.logger.error(f"Error loading create user form: {e}")
+        flash('Error loading form. Please try again.', 'error')
+        return redirect(url_for('users'))
 
+def get_all_locations_from_qr_codes():
+    """Helper function to get all unique locations from QR codes"""
+    try:
+        result = db.session.execute(text("""
+            SELECT DISTINCT location 
+            FROM qr_codes 
+            WHERE location IS NOT NULL 
+            AND active_status = 1
+            ORDER BY location
+        """))
+        return [row[0] for row in result.fetchall()]
+    except Exception as e:
+        logger_handler.logger.error(f"Error loading locations: {e}")
+        return []
+    
 @app.route('/users/<int:user_id>/delete', methods=['GET', 'POST'])
 @admin_required
 def delete_user(user_id):
@@ -2001,35 +2112,72 @@ def demote_user(user_id):
 
 @app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @admin_required
-@log_database_operations('user_update')
+@log_database_operations('user_edit')
 def edit_user(user_id):
-    """Edit user details (Admin only)"""
+    """Edit existing user with Project Manager permissions support"""
     try:
         user_to_edit = User.query.get_or_404(user_id)
+        
+        # Track old role for permission cleanup
+        old_role = user_to_edit.role
 
         if request.method == 'POST':
-            # Track changes
-            changes = {}
+            # Store old values for change tracking
             old_values = {
                 'full_name': user_to_edit.full_name,
                 'email': user_to_edit.email,
-                'role': user_to_edit.role
+                'username': user_to_edit.username,
+                'role': user_to_edit.role,
+                'active_status': user_to_edit.active_status
             }
+            changes = {}
 
-            # Update user details
-            user_to_edit.full_name = request.form['full_name']
-            user_to_edit.email = request.form['email']
-            new_role = request.form['role']
+            # Update basic info with validation
+            full_name = request.form.get('full_name', '').strip()
+            email = request.form.get('email', '').strip()
+            username = request.form.get('username', '').strip()
+            
+            if not all([full_name, email, username]):
+                flash('Name, email, and username are required.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                assigned_project_ids = []
+                assigned_location_names = []
+                if user_to_edit.role == 'project_manager':
+                    assigned_project_ids = [p.project_id for p in UserProjectPermission.query.filter_by(user_id=user_id).all()]
+                    assigned_location_names = [l.location_name for l in UserLocationPermission.query.filter_by(user_id=user_id).all()]
+                return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES,
+                                     projects=projects, locations=locations,
+                                     assigned_project_ids=assigned_project_ids,
+                                     assigned_location_names=assigned_location_names)
 
-            # Validate role
+            user_to_edit.full_name = full_name
+            user_to_edit.email = email
+            user_to_edit.username = username
+            
+            # Update active status
+            user_to_edit.active_status = 'active_status' in request.form
+
+            # Update role with validation
+            new_role = request.form.get('role', '')
             if new_role not in VALID_ROLES:
                 flash(f'Invalid role selected. Valid roles: {", ".join(VALID_ROLES)}', 'error')
-                return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES)
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                locations = get_all_locations_from_qr_codes()
+                assigned_project_ids = []
+                assigned_location_names = []
+                if user_to_edit.role == 'project_manager':
+                    assigned_project_ids = [p.project_id for p in UserProjectPermission.query.filter_by(user_id=user_id).all()]
+                    assigned_location_names = [l.location_name for l in UserLocationPermission.query.filter_by(user_id=user_id).all()]
+                return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES,
+                                     projects=projects, locations=locations,
+                                     assigned_project_ids=assigned_project_ids,
+                                     assigned_location_names=assigned_location_names)
 
             user_to_edit.role = new_role
 
             # Handle password update if provided
-            new_password = request.form.get('new_password')
+            new_password = request.form.get('new_password', '')
             if new_password and new_password.strip():
                 user_to_edit.set_password(new_password)
                 changes['password'] = 'Password updated'
@@ -2040,25 +2188,141 @@ def edit_user(user_id):
                     severity="MEDIUM"
                 )
 
+            # Handle Project Manager permissions
+            if new_role == 'project_manager':
+                # Update project permissions
+                # First, remove existing project permissions
+                try:
+                    UserProjectPermission.query.filter_by(user_id=user_id).delete()
+                except Exception as e:
+                    logger_handler.logger.error(f"Error deleting old project permissions: {e}")
+                
+                # Add new project permissions
+                selected_projects = request.form.getlist('assigned_projects')
+                
+                # Validate project IDs
+                valid_project_ids = []
+                if selected_projects:
+                    for pid in selected_projects:
+                        try:
+                            project_id = int(pid)
+                            # Verify project exists
+                            if Project.query.get(project_id):
+                                valid_project_ids.append(project_id)
+                        except (ValueError, TypeError):
+                            logger_handler.logger.warning(f"Invalid project ID received: {pid}")
+                
+                # Add validated project permissions
+                if valid_project_ids:
+                    for project_id in valid_project_ids:
+                        try:
+                            permission = UserProjectPermission(
+                                user_id=user_id,
+                                project_id=project_id
+                            )
+                            db.session.add(permission)
+                        except Exception as e:
+                            logger_handler.logger.error(f"Error adding project permission: {e}")
+                    
+                    changes['assigned_projects'] = f'{len(valid_project_ids)} projects assigned'
+                    logger_handler.logger.info(
+                        f"Admin {session['username']} updated project permissions for Project Manager {user_to_edit.username}: {len(valid_project_ids)} projects"
+                    )
+
+                # Update location permissions
+                # First, remove existing location permissions
+                try:
+                    UserLocationPermission.query.filter_by(user_id=user_id).delete()
+                except Exception as e:
+                    logger_handler.logger.error(f"Error deleting old location permissions: {e}")
+                
+                # Add new location permissions
+                selected_locations = request.form.getlist('assigned_locations')
+                
+                # Validate and clean locations
+                valid_locations = []
+                if selected_locations:
+                    for location in selected_locations:
+                        location_clean = location.strip()
+                        if location_clean:
+                            valid_locations.append(location_clean)
+                
+                # Add validated location permissions
+                if valid_locations:
+                    for location_name in valid_locations:
+                        try:
+                            permission = UserLocationPermission(
+                                user_id=user_id,
+                                location_name=location_name
+                            )
+                            db.session.add(permission)
+                        except Exception as e:
+                            logger_handler.logger.error(f"Error adding location permission: {e}")
+                    
+                    changes['assigned_locations'] = f'{len(valid_locations)} locations assigned'
+                    logger_handler.logger.info(
+                        f"Admin {session['username']} updated location permissions for Project Manager {user_to_edit.username}: {len(valid_locations)} locations"
+                    )
+            
+            # If role changed from project_manager to something else, remove permissions
+            elif old_role == 'project_manager' and new_role != 'project_manager':
+                try:
+                    UserProjectPermission.query.filter_by(user_id=user_id).delete()
+                    UserLocationPermission.query.filter_by(user_id=user_id).delete()
+                    logger_handler.logger.info(
+                        f"Admin {session['username']} removed Project Manager permissions from user {user_to_edit.username} (role changed to {new_role})"
+                    )
+                except Exception as e:
+                    logger_handler.logger.error(f"Error removing permissions: {e}")
+
             # Track changes
             for field, old_value in old_values.items():
                 new_value = getattr(user_to_edit, field)
                 if old_value != new_value:
                     changes[field] = {'old': old_value, 'new': new_value}
 
+            # Commit all changes
             db.session.commit()
 
             # Log user update
             if changes:
-                logger_handler.logger.info(f"Admin user {session['username']} updated user {user_to_edit.username}: {json.dumps(changes)}")
+                logger_handler.logger.info(f"Admin user {session['username']} updated user {user_to_edit.username}: {json.dumps(changes, default=str)}")
 
             flash(f'User "{user_to_edit.full_name}" updated successfully.', 'success')
             return redirect(url_for('users'))
 
-        return render_template('edit_user.html', user=user_to_edit, valid_roles=VALID_ROLES)
+        # GET request - load form with current assignments
+        try:
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            locations = get_all_locations_from_qr_codes()
+            
+            # Get current assignments if user is a project manager
+            assigned_project_ids = []
+            assigned_location_names = []
+            
+            if user_to_edit.role == 'project_manager':
+                try:
+                    assigned_project_ids = [p.project_id for p in UserProjectPermission.query.filter_by(user_id=user_id).all()]
+                    assigned_location_names = [l.location_name for l in UserLocationPermission.query.filter_by(user_id=user_id).all()]
+                except Exception as e:
+                    logger_handler.logger.error(f"Error loading current permissions: {e}")
+
+            return render_template('edit_user.html', 
+                                 user=user_to_edit, 
+                                 valid_roles=VALID_ROLES,
+                                 projects=projects,
+                                 locations=locations,
+                                 assigned_project_ids=assigned_project_ids,
+                                 assigned_location_names=assigned_location_names)
+        except Exception as e:
+            logger_handler.logger.error(f"Error loading edit user form: {e}")
+            flash('Error loading edit form. Please try again.', 'error')
+            return redirect(url_for('users'))
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('user_update', e)
+        logger_handler.logger.error(f"User update error details: {str(e)}")
         flash('Error updating user. Please try again.', 'error')
         return redirect(url_for('users'))
 
@@ -2240,6 +2504,47 @@ def user_stats_api():
         logger_handler.log_database_error('user_stats_api', e)
         print(f"Error fetching user stats: {e}")
         return jsonify({'error': 'Failed to fetch user statistics'}), 500
+    
+@app.route('/api/locations-by-projects', methods=['POST'])
+@admin_required
+def get_locations_by_projects():
+    """Get locations that belong to selected projects"""
+    try:
+        data = request.get_json()
+        project_ids = data.get('project_ids', [])
+        
+        if not project_ids:
+            # No projects selected, return empty list
+            return jsonify({
+                'success': True,
+                'locations': [],
+                'message': 'No projects selected'
+            })
+        
+        # Get unique locations from QR codes that belong to selected projects
+        result = db.session.execute(text("""
+            SELECT DISTINCT location 
+            FROM qr_codes 
+            WHERE project_id IN :project_ids
+            AND location IS NOT NULL 
+            AND active_status = 1
+            ORDER BY location
+        """), {'project_ids': tuple(project_ids)})
+        
+        locations = [row[0] for row in result.fetchall()]
+        
+        return jsonify({
+            'success': True,
+            'locations': locations,
+            'count': len(locations)
+        })
+        
+    except Exception as e:
+        logger_handler.logger.error(f"Error fetching locations by projects: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/roles/permissions')
 @admin_required

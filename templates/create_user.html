@@ -110,6 +110,114 @@ Code Management{% endblock %} {% block content %}
         >
       </div>
 
+      <!-- Project Manager Permissions Section -->
+      <div class="permissions-section" id="pmPermissionsSection" style="display: none;">
+        <div class="section-header">
+          <h3>
+            <i class="fas fa-shield-alt"></i>
+            Project Manager Permissions
+          </h3>
+          <p class="section-description">
+            Follow the steps below to configure access permissions for this Project Manager.
+          </p>
+        </div>
+
+        <!-- Step 1: Select Projects -->
+        <div class="permission-step" id="projectStep">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <div class="step-info">
+              <h4>Select Projects</h4>
+              <p>Choose which projects this Project Manager can access</p>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <div class="checkbox-group" id="projectCheckboxGroup">
+              {% if projects %}
+                {% for project in projects %}
+                <label class="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    name="assigned_projects" 
+                    value="{{ project.id }}"
+                    class="checkbox-input project-checkbox"
+                    data-project-name="{{ project.name }}"
+                  >
+                  <span class="checkbox-text">{{ project.name }}</span>
+                  <span class="project-qr-count" title="QR codes in this project">
+                    <i class="fas fa-qrcode"></i> {{ project.qr_count or 0 }}
+                  </span>
+                </label>
+                {% endfor %}
+              {% else %}
+                <p class="text-muted">No active projects available</p>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="step-footer">
+            <div class="selection-summary" id="projectSummary">
+              <i class="fas fa-info-circle"></i>
+              <span>No projects selected</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Select Locations -->
+        <div class="permission-step" id="locationStep" style="display: none;">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <div class="step-info">
+              <h4>Select Locations</h4>
+              <p>Choose specific locations within the selected projects</p>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <div class="location-loading" id="locationLoading" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i>
+              <span>Loading locations...</span>
+            </div>
+            
+            <div class="checkbox-group" id="locationCheckboxGroup">
+              <!-- Locations will be populated dynamically -->
+            </div>
+            
+            <div class="location-empty" id="locationEmpty" style="display: none;">
+              <i class="fas fa-info-circle"></i>
+              <p>No locations found for the selected projects.</p>
+              <small>QR codes in these projects may not have location data.</small>
+            </div>
+          </div>
+          
+          <div class="step-footer">
+            <div class="selection-summary" id="locationSummary">
+              <i class="fas fa-info-circle"></i>
+              <span>No locations selected</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selection Overview -->
+        <div class="permissions-overview" id="permissionsOverview" style="display: none;">
+          <div class="overview-header">
+            <i class="fas fa-check-circle"></i>
+            <h4>Permission Summary</h4>
+          </div>
+          <div class="overview-content">
+            <div class="overview-item">
+              <strong>Projects:</strong>
+              <span id="overviewProjects">-</span>
+            </div>
+            <div class="overview-item">
+              <strong>Locations:</strong>
+              <span id="overviewLocations">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Role Information Panel -->
       <div class="info-panel" id="roleInfo" style="display: none">
         <div class="info-header">
@@ -170,6 +278,18 @@ Code Management{% endblock %} {% block content %}
     const previewBtn = document.getElementById("previewUser");
     const creationSummary = document.getElementById("creationSummary");
 
+    // Permission section elements
+    const pmSection = document.getElementById('pmPermissionsSection');
+    const projectStep = document.getElementById('projectStep');
+    const locationStep = document.getElementById('locationStep');
+    const permissionsOverview = document.getElementById('permissionsOverview');
+    const projectCheckboxes = document.querySelectorAll('.project-checkbox');
+    const projectSummary = document.getElementById('projectSummary');
+    const locationSummary = document.getElementById('locationSummary');
+    const locationCheckboxGroup = document.getElementById('locationCheckboxGroup');
+    const locationLoading = document.getElementById('locationLoading');
+    const locationEmpty = document.getElementById('locationEmpty');
+
     // Form inputs
     const fullNameInput = document.getElementById("full_name");
     const emailInput = document.getElementById("email");
@@ -213,17 +333,19 @@ Code Management{% endblock %} {% block content %}
       project_manager: {
         title: "Project Manager Permissions",
         permissions: [
-          "Create and edit QR codes",
-          "View all QR codes in the system",
+          "View assigned projects only",
+          "View assigned locations only",
+          "Create and edit QR codes for assigned projects",
+          "View attendance data for assigned projects/locations",
           "Download QR code images",
           "Update personal profile information",
-          "Access dashboard and reports",
-          "Same permissions as Staff (additional features coming soon)",
+          "Access dashboard with filtered data",
         ],
         restrictions: [
           "Cannot delete QR codes",
           "Cannot manage other users",
           "Cannot access admin settings",
+          "Can only view data for assigned projects and locations",
         ],
       },
       admin: {
@@ -246,28 +368,23 @@ Code Management{% endblock %} {% block content %}
 
       if (selectedRole && rolePermissions[selectedRole]) {
         const roleData = rolePermissions[selectedRole];
-
         let permissionsHtml = `
           <h4>${roleData.title}</h4>
           <div class="permissions-section">
             <h5><i class="fas fa-check-circle text-success"></i> Permissions</h5>
             <ul class="permissions-list">
         `;
-
         roleData.permissions.forEach((permission) => {
           permissionsHtml += `<li><i class="fas fa-check"></i> ${permission}</li>`;
         });
-
         permissionsHtml += `
             </ul>
             <h5><i class="fas fa-times-circle text-warning"></i> Restrictions</h5>
             <ul class="restrictions-list">
         `;
-
         roleData.restrictions.forEach((restriction) => {
           permissionsHtml += `<li><i class="fas fa-times"></i> ${restriction}</li>`;
         });
-
         permissionsHtml += `</ul></div>`;
 
         roleContent.innerHTML = permissionsHtml;
@@ -277,7 +394,181 @@ Code Management{% endblock %} {% block content %}
         roleInfo.style.display = "none";
         roleInfo.classList.remove("fade-in");
       }
+
+      // Show/hide Project Manager permissions section
+      if (selectedRole === 'project_manager') {
+        pmSection.style.display = 'block';
+        setupPermissionFlow();
+      } else {
+        pmSection.style.display = 'none';
+        resetPermissionFlow();
+      }
     });
+
+    // Setup cascading permission flow
+    function setupPermissionFlow() {
+      // Reset state
+      locationStep.style.display = 'none';
+      permissionsOverview.style.display = 'none';
+      locationCheckboxGroup.innerHTML = '';
+      
+      // Add event listeners to project checkboxes
+      projectCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', handleProjectSelection);
+      });
+    }
+
+    // Handle project selection changes
+    function handleProjectSelection() {
+      const selectedProjects = Array.from(projectCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => ({
+          id: cb.value,
+          name: cb.dataset.projectName
+        }));
+
+      // Update project summary
+      if (selectedProjects.length > 0) {
+        projectSummary.innerHTML = `
+          <i class="fas fa-check-circle" style="color: #10b981;"></i>
+          <span><strong>${selectedProjects.length}</strong> project${selectedProjects.length > 1 ? 's' : ''} selected</span>
+        `;
+        
+        // Show location step and load locations
+        locationStep.style.display = 'block';
+        loadLocationsByProjects(selectedProjects.map(p => p.id));
+      } else {
+        projectSummary.innerHTML = `
+          <i class="fas fa-info-circle"></i>
+          <span>No projects selected</span>
+        `;
+        locationStep.style.display = 'none';
+        permissionsOverview.style.display = 'none';
+      }
+    }
+
+    // Load locations for selected projects
+    async function loadLocationsByProjects(projectIds) {
+      locationLoading.style.display = 'flex';
+      locationCheckboxGroup.innerHTML = '';
+      locationEmpty.style.display = 'none';
+      locationSummary.innerHTML = `
+        <i class="fas fa-info-circle"></i>
+        <span>Loading locations...</span>
+      `;
+
+      try {
+        const response = await fetch('/api/locations-by-projects', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ project_ids: projectIds })
+        });
+
+        const data = await response.json();
+
+        locationLoading.style.display = 'none';
+
+        if (data.success && data.locations.length > 0) {
+          // Populate location checkboxes
+          locationCheckboxGroup.innerHTML = data.locations.map(location => `
+            <label class="checkbox-label">
+              <input 
+                type="checkbox" 
+                name="assigned_locations" 
+                value="${location}"
+                class="checkbox-input location-checkbox"
+              >
+              <span class="checkbox-text">${location}</span>
+            </label>
+          `).join('');
+
+          // Add event listeners to location checkboxes
+          document.querySelectorAll('.location-checkbox').forEach(cb => {
+            cb.addEventListener('change', handleLocationSelection);
+          });
+
+          locationSummary.innerHTML = `
+            <i class="fas fa-info-circle"></i>
+            <span>${data.count} location${data.count > 1 ? 's' : ''} available</span>
+          `;
+        } else {
+          locationEmpty.style.display = 'block';
+          locationSummary.innerHTML = `
+            <i class="fas fa-exclamation-circle"></i>
+            <span>No locations available</span>
+          `;
+        }
+
+        updatePermissionsOverview();
+      } catch (error) {
+        console.error('Error loading locations:', error);
+        locationLoading.style.display = 'none';
+        locationEmpty.style.display = 'block';
+        locationSummary.innerHTML = `
+          <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+          <span>Error loading locations</span>
+        `;
+      }
+    }
+
+    // Handle location selection changes
+    function handleLocationSelection() {
+      const selectedLocations = Array.from(document.querySelectorAll('.location-checkbox:checked'));
+      
+      if (selectedLocations.length > 0) {
+        locationSummary.innerHTML = `
+          <i class="fas fa-check-circle" style="color: #10b981;"></i>
+          <span><strong>${selectedLocations.length}</strong> location${selectedLocations.length > 1 ? 's' : ''} selected</span>
+        `;
+      } else {
+        const totalLocations = document.querySelectorAll('.location-checkbox').length;
+        locationSummary.innerHTML = `
+          <i class="fas fa-info-circle"></i>
+          <span>${totalLocations} location${totalLocations > 1 ? 's' : ''} available</span>
+        `;
+      }
+
+      updatePermissionsOverview();
+    }
+
+    // Update permissions overview
+    function updatePermissionsOverview() {
+      const selectedProjects = Array.from(projectCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.dataset.projectName);
+      
+      const selectedLocations = Array.from(document.querySelectorAll('.location-checkbox:checked'))
+        .map(cb => cb.value);
+
+      if (selectedProjects.length > 0 || selectedLocations.length > 0) {
+        permissionsOverview.style.display = 'block';
+        
+        document.getElementById('overviewProjects').textContent = 
+          selectedProjects.length > 0 
+            ? selectedProjects.join(', ') 
+            : 'All projects';
+        
+        document.getElementById('overviewLocations').textContent = 
+          selectedLocations.length > 0 
+            ? selectedLocations.join(', ') 
+            : 'All locations in selected projects';
+      } else {
+        permissionsOverview.style.display = 'none';
+      }
+    }
+
+    // Reset permission flow
+    function resetPermissionFlow() {
+      projectCheckboxes.forEach(cb => {
+        cb.checked = false;
+        cb.removeEventListener('change', handleProjectSelection);
+      });
+      locationStep.style.display = 'none';
+      permissionsOverview.style.display = 'none';
+      locationCheckboxGroup.innerHTML = '';
+    }
 
     // Password strength indicator
     passwordInput.addEventListener("input", function () {
