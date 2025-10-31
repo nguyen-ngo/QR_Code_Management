@@ -6605,11 +6605,13 @@ def import_time_attendance():
         try:
             # Check if this is coming from invalid review (file is already in session)
             coming_from_invalid_review = request.form.get('from_invalid_review', 'false').lower() == 'true'
-            
+            coming_from_duplicate_review = request.form.get('from_duplicate_review', 'false').lower() == 'true'
+
             print(f"\n🔍 IMPORT FLOW DEBUG:")
             print(f"   Coming from invalid review: {coming_from_invalid_review}")
-            
-            if coming_from_invalid_review:
+            print(f"   Coming from duplicate review: {coming_from_duplicate_review}")
+
+            if coming_from_invalid_review or coming_from_duplicate_review:
                 # Retrieve file from session
                 if 'pending_import_file' not in session or 'pending_import_filename' not in session:
                     flash('Session expired. Please upload the file again.', 'error')
@@ -6678,8 +6680,8 @@ def import_time_attendance():
                 # Check if this is coming from duplicate review
                 force_import_hashes = request.form.getlist('force_import_hashes[]')
                 
-                # If analyzing for duplicates, show review page (but not if coming from invalid review)
-                if analyze_duplicates and not force_import_hashes and not coming_from_invalid_review:
+                # If analyzing for duplicates, show review page (but not if coming from invalid/duplicate review)
+                if analyze_duplicates and not force_import_hashes and not coming_from_invalid_review and not coming_from_duplicate_review:
                     print("🔍 Analyzing for duplicates...")
                     duplicate_analysis = import_service.analyze_for_duplicates(temp_path)
                     
