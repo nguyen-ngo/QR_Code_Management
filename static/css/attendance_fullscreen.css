@@ -1,0 +1,364 @@
+/**
+ * Attendance Fullscreen CSS
+ * Optimized for iPad and tablet viewing
+ * static/css/attendance_fullscreen.css
+ */
+
+/* Fullscreen Toggle Button */
+.fullscreen-toggle-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fullscreen-toggle-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.fullscreen-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* Fullscreen Mode Styles */
+.fullscreen-mode {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #f8fafc;
+  z-index: 9998;
+  overflow: auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Hide sidebar and other UI elements in fullscreen */
+.fullscreen-mode ~ #sidebar,
+.fullscreen-mode ~ .sidebar-overlay,
+body.fullscreen-active #sidebar,
+body.fullscreen-active .sidebar-overlay {
+  display: none !important;
+}
+
+/* Adjust main wrapper in fullscreen */
+body.fullscreen-active .main-wrapper {
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+/* Compact header in fullscreen mode */
+.fullscreen-mode .attendance-header {
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.fullscreen-mode .attendance-header h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.fullscreen-mode .attendance-header p {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* Compact stats in fullscreen */
+.fullscreen-mode .stats-section {
+  margin-bottom: 1rem;
+}
+
+.fullscreen-mode .stat-card {
+  padding: 1rem;
+}
+
+.fullscreen-mode .stat-icon {
+  width: 50px;
+  height: 50px;
+  font-size: 1.25rem;
+}
+
+.fullscreen-mode .stat-content h3 {
+  font-size: 1.5rem;
+}
+
+.fullscreen-mode .stat-content p {
+  font-size: 0.875rem;
+}
+
+.fullscreen-mode .stat-trend {
+  font-size: 0.75rem;
+}
+
+/* Compact filters in fullscreen */
+.fullscreen-mode .filters-section {
+  margin-bottom: 1rem;
+}
+
+.fullscreen-mode .filters-header {
+  padding: 1rem 1.5rem;
+}
+
+.fullscreen-mode .filters-header h3 {
+  font-size: 1.125rem;
+}
+
+.fullscreen-mode .filters-form {
+  padding: 1rem 1.5rem;
+}
+
+.fullscreen-mode .filter-row {
+  gap: 0.75rem;
+}
+
+.fullscreen-mode .filter-group label {
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+
+.fullscreen-mode .filter-group input,
+.fullscreen-mode .filter-group select {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Optimized table for fullscreen */
+.fullscreen-mode .attendance-table-section {
+  margin-bottom: 1rem;
+}
+
+.fullscreen-mode .table-header {
+  padding: 1rem 1.5rem;
+}
+
+.fullscreen-mode .table-header h3 {
+  font-size: 1.125rem;
+}
+
+.fullscreen-mode .attendance-table {
+  font-size: 0.875rem;
+}
+
+.fullscreen-mode .attendance-table th,
+.fullscreen-mode .attendance-table td {
+  padding: 0.75rem 0.5rem;
+}
+
+.fullscreen-mode .employee-id {
+  font-size: 0.875rem;
+}
+
+.fullscreen-mode .time-info {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.fullscreen-mode .action-btn {
+  width: 30px;
+  height: 30px;
+  font-size: 0.75rem;
+}
+
+/* iPad Landscape Optimization */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+  .fullscreen-mode {
+    padding: 15px;
+  }
+
+  .fullscreen-mode .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+
+  .fullscreen-mode .filter-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .fullscreen-mode .filter-actions {
+    grid-column: 1 / -1;
+  }
+
+  .fullscreen-mode .attendance-table {
+    font-size: 0.8125rem;
+  }
+}
+
+/* iPad Portrait Optimization */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+  .fullscreen-mode {
+    padding: 15px;
+  }
+
+  .fullscreen-mode .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .fullscreen-mode .filter-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fullscreen-mode .attendance-table {
+    font-size: 0.8125rem;
+  }
+
+  /* Hide less important columns on iPad portrait */
+  .fullscreen-mode .attendance-table th:nth-child(8),
+  .fullscreen-mode .attendance-table td:nth-child(8),
+  .fullscreen-mode .attendance-table th:nth-child(9),
+  .fullscreen-mode .attendance-table td:nth-child(9) {
+    display: none;
+  }
+}
+
+/* Small tablets and large phones */
+@media (max-width: 767px) {
+  .fullscreen-toggle-btn {
+    width: 45px;
+    height: 45px;
+    top: 15px;
+    right: 15px;
+    font-size: 1.125rem;
+  }
+
+  .fullscreen-mode {
+    padding: 10px;
+  }
+
+  .fullscreen-mode .attendance-header {
+    padding: 1rem;
+  }
+
+  .fullscreen-mode .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .fullscreen-mode .filter-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .fullscreen-mode .filter-actions {
+    grid-column: 1;
+    flex-direction: column;
+  }
+
+  .fullscreen-mode .filter-actions .btn {
+    width: 100%;
+  }
+
+  /* Show only essential columns on mobile */
+  .fullscreen-mode .attendance-table th:nth-child(4),
+  .fullscreen-mode .attendance-table td:nth-child(4),
+  .fullscreen-mode .attendance-table th:nth-child(5),
+  .fullscreen-mode .attendance-table td:nth-child(5),
+  .fullscreen-mode .attendance-table th:nth-child(8),
+  .fullscreen-mode .attendance-table td:nth-child(8),
+  .fullscreen-mode .attendance-table th:nth-child(9),
+  .fullscreen-mode .attendance-table td:nth-child(9),
+  .fullscreen-mode .attendance-table th:nth-child(11),
+  .fullscreen-mode .attendance-table td:nth-child(11) {
+    display: none;
+  }
+}
+
+/* Smooth transitions */
+.fullscreen-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar styling for fullscreen mode */
+.fullscreen-mode::-webkit-scrollbar {
+  width: 10px;
+}
+
+.fullscreen-mode::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 5px;
+}
+
+.fullscreen-mode::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+}
+
+.fullscreen-mode::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus states for accessibility */
+.fullscreen-toggle-btn:focus {
+  outline: 3px solid rgba(37, 99, 235, 0.5);
+  outline-offset: 2px;
+}
+
+/* Animation for entering/exiting fullscreen */
+@keyframes fadeInFullscreen {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fullscreen-mode {
+  animation: fadeInFullscreen 0.3s ease-out;
+}
+
+/* Print styles - hide fullscreen button when printing */
+@media print {
+  .fullscreen-toggle-btn {
+    display: none !important;
+  }
+
+  .fullscreen-mode {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 0;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .fullscreen-toggle-btn {
+    border: 2px solid white;
+  }
+
+  .fullscreen-mode {
+    border: 2px solid #000;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .fullscreen-toggle-btn,
+  .fullscreen-mode,
+  .fullscreen-transition {
+    animation: none !important;
+    transition: none !important;
+  }
+}
