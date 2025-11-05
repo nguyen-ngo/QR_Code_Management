@@ -74,6 +74,21 @@
                                    value="{{ date_to }}"
                                    max="{{ today_date }}">
                         </div>
+
+                        <div class="filter-group">
+                            <label for="project">
+                                <i class="fas fa-project-diagram"></i>
+                                Project
+                            </label>
+                            <select id="project" name="project">
+                                <option value="">All Projects</option>
+                                {% for project in projects %}
+                                <option value="{{ project.id }}" {{ 'selected' if project.id|string == project_filter else '' }}>
+                                    {{ project.name }} ({{ project.attendance_count }} records)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         
                         <div class="filter-group">
                             <label for="location">
@@ -101,21 +116,7 @@
                                    value="{{ employee_filter }}"
                                    placeholder="Enter Employee ID">
                         </div>
-                        <div class="filter-group">
-                            <label for="project">
-                                <i class="fas fa-project-diagram"></i>
-                                Project
-                            </label>
-                            <select id="project" name="project">
-                                <option value="">All Projects</option>
-                                {% for project in projects %}
-                                <option value="{{ project.id }}" {{ 'selected' if project.id|string == project_filter else '' }}>
-                                    {{ project.name }} ({{ project.attendance_count }} records)
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
+                                                
                         <div class="filter-actions">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-search"></i>
@@ -248,7 +249,7 @@
                             <div class="address-info checkin-address">
                                 <i class="fas fa-location-arrow"></i>
                                 <span title="{{ record.checked_in_address }}">
-                                    {{ record.checked_in_address[:50] }}{% if record.checked_in_address|length > 50 %}...{% endif %}
+                                    {{ (record.checked_in_address or 'N/A')[:50] }}{% if (record.checked_in_address or '')|length > 50 %}...{% endif %}
                                 </span>
                             </div>
                         </td>

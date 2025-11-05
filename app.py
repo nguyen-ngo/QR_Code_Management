@@ -4274,6 +4274,74 @@ def attendance_report():
         employee_filter = request.args.get('employee', '')
         project_filter = request.args.get('project', '')
 
+        # ============================================================
+        # PROJECT MANAGER ACCESS CONTROL
+        # ============================================================
+        user_role = session.get('role')
+        user_id = session.get('user_id')
+        
+        # Initialize permission filters
+        allowed_project_ids = []
+        allowed_location_names = []
+        
+        # Check if user is Project Manager and get their permissions
+        if user_role == 'project_manager':
+            print(f"🔒 Project Manager access control enabled for user {session.get('username')}")
+            
+            try:
+                # Get assigned projects
+                assigned_projects = UserProjectPermission.query.filter_by(user_id=user_id).all()
+                allowed_project_ids = [p.project_id for p in assigned_projects]
+                
+                # Get assigned locations
+                assigned_locations = UserLocationPermission.query.filter_by(user_id=user_id).all()
+                allowed_location_names = [l.location_name for l in assigned_locations]
+                
+                # Log the permissions
+                logger_handler.logger.info(
+                    f"🔒 Project Manager {session.get('username')} restricted to: "
+                    f"Projects: {allowed_project_ids}, Locations: {allowed_location_names}"
+                )
+                
+                print(f"🔒 Allowed projects: {allowed_project_ids}")
+                print(f"🔒 Allowed locations: {allowed_location_names}")
+            except Exception as perm_error:
+                print(f"⚠️ Error loading permissions: {perm_error}")
+                logger_handler.logger.error(f"Error loading Project Manager permissions: {perm_error}")
+            
+            # If no permissions assigned, user cannot view anything
+            if not allowed_project_ids and not allowed_location_names:
+                logger_handler.logger.warning(
+                    f"Project Manager {session.get('username')} has no assigned projects or locations"
+                )
+                flash('You do not have access to any projects or locations. Please contact an administrator.', 'warning')
+                
+                # Create empty stats object using named tuple style
+                from collections import namedtuple
+                Stats = namedtuple('Stats', ['total_checkins', 'unique_employees', 'active_locations', 
+                                             'today_checkins', 'records_with_gps', 'records_with_accuracy', 
+                                             'avg_location_accuracy'])
+                empty_stats = Stats(0, 0, 0, 0, 0, 0, 0)
+                
+                # Return empty template
+                return render_template('attendance_report.html',
+                                     attendance_records=[],
+                                     locations=[],
+                                     projects=[],
+                                     stats=empty_stats,
+                                     date_from=date_from,
+                                     date_to=date_to,
+                                     location_filter=location_filter,
+                                     employee_filter=employee_filter,
+                                     project_filter=project_filter,
+                                     today_date=datetime.now().strftime('%Y-%m-%d'),
+                                     current_date_formatted=datetime.now().strftime('%B %d'),
+                                     has_location_accuracy_feature=has_location_accuracy,
+                                     user_role=user_role)
+        # ============================================================
+        # END: PROJECT MANAGER ACCESS CONTROL
+        # ============================================================
+
         # Build base query - conditional based on column existence
         if has_location_accuracy:
             # New query with location accuracy
@@ -4326,200 +4394,274 @@ def attendance_report():
                 WHERE 1=1
             """
 
-        conditions = []
-        params = {}
+        # Prepare filter conditions and parameters
+        filter_conditions = []
+        query_params = {}
 
-        # Apply date range filter
+        # ============================================================
+        # APPLY PROJECT MANAGER FILTERS TO SQL QUERY
+        # ============================================================
+        if user_role == 'project_manager':
+            # Filter by allowed projects
+            if allowed_project_ids:
+                project_placeholders = ','.join([f':project_{i}' for i in range(len(allowed_project_ids))])
+                filter_conditions.append(f"qc.project_id IN ({project_placeholders})")
+                for i, pid in enumerate(allowed_project_ids):
+                    query_params[f'project_{i}'] = pid
+            
+            # Filter by allowed locations
+            if allowed_location_names:
+                location_placeholders = ','.join([f':location_{i}' for i in range(len(allowed_location_names))])
+                filter_conditions.append(f"ad.location_name IN ({location_placeholders})")
+                for i, loc in enumerate(allowed_location_names):
+                    query_params[f'location_{i}'] = loc
+        # ============================================================
+        # END: APPLY PROJECT MANAGER FILTERS
+        # ============================================================
+
+        # Apply user-selected filters
         if date_from:
-            conditions.append("ad.check_in_date >= :date_from")
-            params['date_from'] = date_from
+            filter_conditions.append("ad.check_in_date >= :date_from")
+            query_params['date_from'] = date_from
 
         if date_to:
-            conditions.append("ad.check_in_date <= :date_to")
-            params['date_to'] = date_to
+            filter_conditions.append("ad.check_in_date <= :date_to")
+            query_params['date_to'] = date_to
 
-        # Apply location filter
         if location_filter:
-            conditions.append("ad.location_name LIKE :location")
-            params['location'] = f"%{location_filter}%"
+            filter_conditions.append("ad.location_name = :location")
+            query_params['location'] = location_filter
 
-        # Apply employee filter
         if employee_filter:
-            conditions.append("ad.employee_id LIKE :employee")
-            params['employee'] = f"%{employee_filter}%"
+            filter_conditions.append("ad.employee_id = :employee")
+            query_params['employee'] = employee_filter
 
-        # Apply project filter using SQL approach (not ORM)
         if project_filter:
-            conditions.append("qc.project_id = :project_id")
-            params['project_id'] = int(project_filter)
-            print(f"📊 Applied project filter: {project_filter}")
+            filter_conditions.append("qc.project_id = :project")
+            query_params['project'] = project_filter
 
-        # Add conditions to query
-        if conditions:
-            base_query += " AND " + " AND ".join(conditions)
+        # Combine query with filters
+        if filter_conditions:
+            base_query += " AND " + " AND ".join(filter_conditions)
 
-        # Add ordering
-        base_query += " ORDER BY ad.check_in_date DESC, ad.check_in_time DESC"
+        base_query += " ORDER BY ad.check_in_date DESC, ad.check_in_time DESC LIMIT 1000"
 
-        print(f"🔍 Executing query with {len(params)} parameters")
+        print(f"🔍 Executing attendance query with filters: {list(query_params.keys())}")
 
         # Execute query
-        query_result = db.session.execute(text(base_query), params)
-        attendance_records = query_result.fetchall()
+        result = db.session.execute(text(base_query), query_params)
+        records = result.fetchall()
+        print(f"✅ Loaded {len(records)} attendance records")
 
-        # FIXED: Process records to add calculated fields with proper datetime handling
+        # Process records
         processed_records = []
-        for record in attendance_records:
-            # Safe attribute access with fallbacks
-            location_accuracy = getattr(record, 'location_accuracy', None)
-            gps_accuracy = getattr(record, 'gps_accuracy', None)
-
-            # Create processed record with calculated fields
-            processed_record = {
-                'id': record.id,
-                'employee_id': record.employee_id or 'Unknown',
-                'employee_name': getattr(record, 'employee_name', None) or record.employee_id or 'Unknown',
-                'check_in_date': record.check_in_date,
-                'check_in_time': record.check_in_time,
-                'location_name': record.location_name or 'Unknown Location',
-                'location_event': getattr(record, 'location_event', None) or 'Check In',
-                'qr_address': getattr(record, 'qr_address', None) or 'N/A',
-                'checked_in_address': getattr(record, 'checked_in_address', None) or 'N/A',
-                'latitude': record.latitude,
-                'longitude': record.longitude,
-                'location_accuracy': location_accuracy,
-                'gps_accuracy': gps_accuracy,
-                'device_info': getattr(record, 'device_info', None) or 'Unknown Device',
-                'created_timestamp': record.created_timestamp,
-                'updated_timestamp': record.updated_timestamp,
-            }
-
-            # FIXED: Add address display logic based on location accuracy
-            # If location accuracy < 0.3 miles, display QR address; otherwise display actual check-in address
-            if location_accuracy is not None:
-                try:
-                    accuracy_value = float(location_accuracy) if isinstance(location_accuracy, str) else location_accuracy
-                    if accuracy_value < 0.3:
-                        # High accuracy - use QR code address
-                        processed_record['display_address'] = getattr(record, 'qr_address', None) or 'N/A'
-                        processed_record['address_source'] = 'qr'
-                        print(f"📍 Using QR address for employee {record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
-                    else:
-                        # Lower accuracy - use actual check-in address
-                        processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
-                        processed_record['address_source'] = 'checkin'
-                        print(f"📍 Using check-in address for employee {record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
-                except (ValueError, TypeError):
-                    # If accuracy can't be converted to float, use check-in address
-                    processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
-                    processed_record['address_source'] = 'checkin'
-            else:
-                # No location accuracy data - use actual check-in address
-                processed_record['display_address'] = getattr(record, 'checked_in_address', None) or 'N/A'
-                processed_record['address_source'] = 'checkin'
-
-            # Add accuracy level calculation if location_accuracy exists
-            if location_accuracy is not None:
-                if location_accuracy <= 10:
-                    processed_record['accuracy_level'] = 'High'
-                elif location_accuracy <= 50:
-                    processed_record['accuracy_level'] = 'Medium'
-                else:
-                    processed_record['accuracy_level'] = 'Low'
-            else:
-                processed_record['accuracy_level'] = 'Unknown'
-
-            # Add formatted datetime for display
+        for record in records:
             try:
-                if record.check_in_date and record.check_in_time:
-                    datetime_obj = datetime.combine(record.check_in_date, record.check_in_time)
-                    processed_record['formatted_datetime'] = datetime_obj.strftime('%m/%d/%Y %I:%M %p')
-                else:
-                    processed_record['formatted_datetime'] = 'Invalid Date/Time'
-            except Exception as e:
-                print(f"⚠️ Error formatting datetime for record {record.id}: {e}")
-                processed_record['formatted_datetime'] = 'Error'
-
-            processed_records.append(processed_record)
+                record_dict = {
+                    'id': record[0],
+                    'employee_id': record[1],
+                    'check_in_date': record[2],
+                    'check_in_time': record[3],
+                    'location_name': record[4],
+                    'location_event': record[5],
+                    'qr_address': record[6],
+                    'checked_in_address': record[7],
+                    'latitude': record[8],
+                    'longitude': record[9],
+                    'location_accuracy': record[10] if has_location_accuracy else None,
+                    'gps_accuracy': record[11],
+                    'device_info': record[12],
+                    'created_timestamp': record[13],
+                    'updated_timestamp': record[14],
+                    'employee_name': record[15] or 'Unknown Employee'
+                }
+                processed_records.append(record_dict)
+            except Exception as rec_error:
+                print(f"⚠️ Error processing record: {rec_error}")
+                continue
 
         # Get unique locations for filter dropdown
         try:
-            locations_query = db.session.execute(text("""
-                SELECT DISTINCT location_name 
-                FROM attendance_data 
-                WHERE location_name IS NOT NULL 
-                ORDER BY location_name
-            """))
-            locations = [row[0] for row in locations_query.fetchall()]
-            print(f"✅ Found {len(locations)} unique locations")
+            # ============================================================
+            # FILTER LOCATIONS FOR PROJECT MANAGER
+            # ============================================================
+            if user_role == 'project_manager' and allowed_location_names:
+                # Only show locations the PM has access to
+                locations = sorted(allowed_location_names)
+                print(f"✅ Filtered to {len(locations)} locations for Project Manager")
+            else:
+                # Show all locations for Admin/Staff/Payroll
+                locations_query = db.session.execute(text("""
+                    SELECT DISTINCT location_name 
+                    FROM attendance_data 
+                    WHERE location_name IS NOT NULL 
+                    ORDER BY location_name
+                """))
+                locations = [row[0] for row in locations_query.fetchall()]
+                print(f"✅ Found {len(locations)} unique locations")
+            # ============================================================
+            # END: FILTER LOCATIONS FOR PROJECT MANAGER
+            # ============================================================
         except Exception as e:
             print(f"⚠️ Error loading locations: {e}")
             locations = []
 
-        # Update the projects query to get only active projects for the dropdown
+        # Get projects for filter dropdown
         try:
-            projects = db.session.execute(text("""
-                SELECT p.id, p.name, COUNT(DISTINCT ad.id) as attendance_count
-                FROM projects p
-                LEFT JOIN qr_codes qc ON qc.project_id = p.id
-                LEFT JOIN attendance_data ad ON ad.qr_code_id = qc.id
-                WHERE p.active_status = true
-                GROUP BY p.id, p.name
-                HAVING COUNT(DISTINCT ad.id) > 0
-                ORDER BY p.name
-            """)).fetchall()
-            print(f"✅ Loaded {len(projects)} projects with attendance data")
+            # ============================================================
+            # FILTER PROJECTS FOR PROJECT MANAGER
+            # ============================================================
+            if user_role == 'project_manager' and allowed_project_ids:
+                # Only show projects the PM has access to
+                project_placeholders = ','.join([str(pid) for pid in allowed_project_ids])
+                projects_query = db.session.execute(text(f"""
+                    SELECT p.id, p.name, COUNT(DISTINCT ad.id) as attendance_count
+                    FROM projects p
+                    LEFT JOIN qr_codes qc ON qc.project_id = p.id
+                    LEFT JOIN attendance_data ad ON ad.qr_code_id = qc.id
+                    WHERE p.active_status = true AND p.id IN ({project_placeholders})
+                    GROUP BY p.id, p.name
+                    ORDER BY p.name
+                """))
+                projects = projects_query.fetchall()
+                print(f"✅ Filtered to {len(projects)} projects for Project Manager")
+            else:
+                # Show all projects for Admin/Staff/Payroll
+                projects = db.session.execute(text("""
+                    SELECT p.id, p.name, COUNT(DISTINCT ad.id) as attendance_count
+                    FROM projects p
+                    LEFT JOIN qr_codes qc ON qc.project_id = p.id
+                    LEFT JOIN attendance_data ad ON ad.qr_code_id = qc.id
+                    WHERE p.active_status = true
+                    GROUP BY p.id, p.name
+                    HAVING COUNT(DISTINCT ad.id) > 0
+                    ORDER BY p.name
+                """)).fetchall()
+                print(f"✅ Loaded {len(projects)} projects with attendance data")
+            # ============================================================
+            # END: FILTER PROJECTS FOR PROJECT MANAGER
+            # ============================================================
         except Exception as e:
             print(f"⚠️ Error loading projects: {e}")
             projects = []
 
-        # Get attendance statistics
+        # ============================================================
+        # STATISTICS - COMPLETELY REWRITTEN FOR SAFETY
+        # ============================================================
+        print("📊 Loading statistics...")
+        
+        # Create simple dict for stats (most compatible approach)
+        stats_dict = {
+            'total_checkins': 0,
+            'unique_employees': 0,
+            'active_locations': 0,
+            'today_checkins': 0,
+            'records_with_gps': 0,
+            'records_with_accuracy': 0,
+            'avg_location_accuracy': 0.0
+        }
+        
         try:
+            # Build stats query
             if has_location_accuracy:
-                stats_query = db.session.execute(text("""
+                stats_select = """
                     SELECT 
-                        COUNT(*) as total_checkins,
-                        COUNT(DISTINCT employee_id) as unique_employees,
-                        COUNT(DISTINCT qr_code_id) as active_locations,
-                        COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins,
-                        COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END) as records_with_gps,
-                        COUNT(CASE WHEN location_accuracy IS NOT NULL THEN 1 END) as records_with_accuracy,
-                        AVG(location_accuracy) as avg_location_accuracy
-                    FROM attendance_data
-                """))
+                        COALESCE(COUNT(*), 0) as total_checkins,
+                        COALESCE(COUNT(DISTINCT employee_id), 0) as unique_employees,
+                        COALESCE(COUNT(DISTINCT qr_code_id), 0) as active_locations,
+                        COALESCE(COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END), 0) as today_checkins,
+                        COALESCE(COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END), 0) as records_with_gps,
+                        COALESCE(COUNT(CASE WHEN location_accuracy IS NOT NULL THEN 1 END), 0) as records_with_accuracy,
+                        COALESCE(AVG(location_accuracy), 0) as avg_location_accuracy
+                """
             else:
-                stats_query = db.session.execute(text("""
+                stats_select = """
                     SELECT 
-                        COUNT(*) as total_checkins,
-                        COUNT(DISTINCT employee_id) as unique_employees,
-                        COUNT(DISTINCT qr_code_id) as active_locations,
-                        COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END) as today_checkins,
-                        COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END) as records_with_gps,
+                        COALESCE(COUNT(*), 0) as total_checkins,
+                        COALESCE(COUNT(DISTINCT employee_id), 0) as unique_employees,
+                        COALESCE(COUNT(DISTINCT qr_code_id), 0) as active_locations,
+                        COALESCE(COUNT(CASE WHEN check_in_date = CURRENT_DATE THEN 1 END), 0) as today_checkins,
+                        COALESCE(COUNT(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 END), 0) as records_with_gps,
                         0 as records_with_accuracy,
                         0 as avg_location_accuracy
-                    FROM attendance_data
-                """))
-
-            stats = stats_query.fetchone()
-            print(f"✅ Loaded statistics: {stats.total_checkins} total check-ins")
-        except Exception as e:
-            print(f"⚠️ Error loading statistics: {e}")
-            # Fallback stats
-            stats = type('Stats', (), {
-                'total_checkins': 0,
-                'unique_employees': 0,
-                'active_locations': 0,
-                'today_checkins': 0,
-                'records_with_gps': 0,
-                'records_with_accuracy': 0,
-                'avg_location_accuracy': 0
-            })()
-
+                """
+            
+            stats_query_text = stats_select + " FROM attendance_data ad"
+            stats_params = {}
+            
+            # Add filters for Project Manager
+            if user_role == 'project_manager':
+                stats_query_text += " LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id WHERE 1=1"
+                
+                stats_conditions = []
+                
+                if allowed_project_ids:
+                    project_placeholders = ','.join([f':stat_project_{i}' for i in range(len(allowed_project_ids))])
+                    stats_conditions.append(f"qc.project_id IN ({project_placeholders})")
+                    for i, pid in enumerate(allowed_project_ids):
+                        stats_params[f'stat_project_{i}'] = pid
+                
+                if allowed_location_names:
+                    location_placeholders = ','.join([f':stat_location_{i}' for i in range(len(allowed_location_names))])
+                    stats_conditions.append(f"ad.location_name IN ({location_placeholders})")
+                    for i, loc in enumerate(allowed_location_names):
+                        stats_params[f'stat_location_{i}'] = loc
+                
+                if stats_conditions:
+                    stats_query_text += " AND " + " AND ".join(stats_conditions)
+            
+            print(f"📊 Executing stats query...")
+            print(f"📊 Stats params: {list(stats_params.keys())}")
+            
+            # Execute stats query
+            stats_result = db.session.execute(text(stats_query_text), stats_params)
+            stats_row = stats_result.fetchone()
+            
+            print(f"📊 Stats row type: {type(stats_row)}")
+            print(f"📊 Stats row value: {stats_row}")
+            
+            # Safely extract stats from row
+            if stats_row is not None and len(stats_row) >= 7:
+                try:
+                    stats_dict['total_checkins'] = int(stats_row[0]) if stats_row[0] is not None else 0
+                    stats_dict['unique_employees'] = int(stats_row[1]) if stats_row[1] is not None else 0
+                    stats_dict['active_locations'] = int(stats_row[2]) if stats_row[2] is not None else 0
+                    stats_dict['today_checkins'] = int(stats_row[3]) if stats_row[3] is not None else 0
+                    stats_dict['records_with_gps'] = int(stats_row[4]) if stats_row[4] is not None else 0
+                    stats_dict['records_with_accuracy'] = int(stats_row[5]) if stats_row[5] is not None else 0
+                    stats_dict['avg_location_accuracy'] = float(stats_row[6]) if stats_row[6] is not None else 0.0
+                    print(f"✅ Loaded statistics: {stats_dict['total_checkins']} total check-ins")
+                except (IndexError, TypeError, ValueError) as extract_error:
+                    print(f"⚠️ Error extracting stats values: {extract_error}")
+                    # stats_dict already has default values
+            else:
+                print("⚠️ Stats query returned None or insufficient columns, using default stats")
+                
+        except Exception as stats_error:
+            print(f"❌ Error loading statistics: {stats_error}")
+            import traceback
+            print(f"❌ Stats error traceback: {traceback.format_exc()}")
+            # stats_dict already has default values
+        
+        # Convert dict to object-like for template compatibility
+        class StatsObject:
+            def __init__(self, stats_dict):
+                for key, value in stats_dict.items():
+                    setattr(self, key, value)
+        
+        stats = StatsObject(stats_dict)
+        print(f"✅ Stats object created: total_checkins={stats.total_checkins}")
+        
+        # ============================================================
+        # END: STATISTICS
+        # ============================================================
+        
         # Add today's date for template
         today_date = datetime.now().strftime('%Y-%m-%d')
         current_date_formatted = datetime.now().strftime('%B %d')
 
         print("✅ Rendering attendance report template")
+        print(f"✅ Stats object: {stats}")
 
         return render_template('attendance_report.html',
                              attendance_records=processed_records,
@@ -4539,7 +4681,10 @@ def attendance_report():
     except Exception as e:
         print(f"❌ Error loading attendance report: {e}")
         print(f"❌ Exception type: {type(e)}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"❌ Traceback: {error_traceback}")
 
         # Log the error
         try:
