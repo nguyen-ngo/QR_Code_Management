@@ -937,10 +937,10 @@ tr.modified-record {
 
 /* Enhanced table responsive design */
 @media (max-width: 1200px) {
-  .attendance-table th:nth-child(7),
-  .attendance-table td:nth-child(7),
-  .attendance-table th:nth-child(8),
-  .attendance-table td:nth-child(8) {
+  .attendance-table th:nth-child(10),
+  .attendance-table td:nth-child(10),
+  .attendance-table th:nth-child(11),
+  .attendance-table td:nth-child(11) {
     display: none;
   }
 }
