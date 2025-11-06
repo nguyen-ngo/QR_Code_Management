@@ -49,12 +49,11 @@
                 <span class="menu-text">Dashboard</span>
               </a>
 
+              {% if session.role == 'admin' %}
               <a href="{{ url_for('create_qr_code') }}" class="menu-item">
                 <i class="fas fa-plus"></i>
                 <span class="menu-text">Create QR</span>
               </a>
-
-              {% if session.role == 'admin' %}
               <a
                 href="{{ url_for('projects') }}"
                 class="menu-item {% if request.endpoint in ['projects', 'create_project', 'edit_project'] %}active{% endif %}"
@@ -111,10 +110,12 @@
                 <i class="fas fa-clock"></i>
                 <span class="menu-text">Time Attendance</span>
               </a>
+              <!--
               <a href="{{ url_for('payroll_dashboard') }}" class="menu-item">
                 <i class="fas fa-calculator"></i>
                 <span class="menu-text">Payroll</span>
               </a>
+              -->
               {% elif session.role in ['project_manager'] %}
               <a href="{{ url_for('attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
