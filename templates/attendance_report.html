@@ -5,12 +5,22 @@
 {% block extra_head %}
 <!-- Attendance-specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+<!-- Fullscreen CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance_fullscreen.css') }}">
 <!-- Chart.js for analytics -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<!-- Fullscreen JavaScript -->
+<script src="{{ url_for('static', filename='js/attendance_fullscreen.js') }}" defer></script>
 {% endblock %}
 
 {% block content %}
-<div class="attendance-page" data-user-role="{{ session.role }}">
+<!-- Fullscreen Toggle Button -->
+<button id="fullscreenToggle" class="fullscreen-toggle-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+    <i id="fullscreenIcon" class="fas fa-expand"></i>
+</button>
+
+<!-- Attendance Report Container with Fullscreen Support -->
+<div id="attendanceReportContainer" class="attendance-page" data-user-role="{{ session.role }}">
     <!-- Header Section -->
     <div class="attendance-header">
         <div class="header-content">
@@ -633,5 +643,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 window.userRole = '{{ session.role }}';
+</script>
+<script>
+// Initialize fullscreen functionality when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof initializeFullscreen === 'function') {
+        initializeFullscreen();
+        console.log('Fullscreen functionality initialized for attendance report');
+    }
+});
 </script>
 {% endblock %}
