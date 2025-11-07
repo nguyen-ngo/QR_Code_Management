@@ -50,23 +50,32 @@ function enterFullscreen(container, icon, body) {
     button.setAttribute('title', 'Exit Fullscreen');
   }
 
-  // Try to use native fullscreen API if available
-  if (container.requestFullscreen) {
-    container.requestFullscreen().catch(err => {
-      console.log('Native fullscreen not available, using CSS fullscreen');
-    });
-  } else if (container.webkitRequestFullscreen) {
-    container.webkitRequestFullscreen().catch(err => {
-      console.log('Native fullscreen not available, using CSS fullscreen');
-    });
-  } else if (container.mozRequestFullScreen) {
-    container.mozRequestFullScreen().catch(err => {
-      console.log('Native fullscreen not available, using CSS fullscreen');
-    });
-  } else if (container.msRequestFullscreen) {
-    container.msRequestFullscreen().catch(err => {
-      console.log('Native fullscreen not available, using CSS fullscreen');
-    });
+  // Detect if device is touch-enabled (iPad/tablet)
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  
+  // Only use native fullscreen API on non-touch devices
+  // This prevents swipe-down gesture from exiting fullscreen on iPad
+  if (!isTouchDevice) {
+    // Try to use native fullscreen API for desktop browsers
+    if (container.requestFullscreen) {
+      container.requestFullscreen().catch(err => {
+        console.log('Native fullscreen not available, using CSS fullscreen');
+      });
+    } else if (container.webkitRequestFullscreen) {
+      container.webkitRequestFullscreen().catch(err => {
+        console.log('Native fullscreen not available, using CSS fullscreen');
+      });
+    } else if (container.mozRequestFullScreen) {
+      container.mozRequestFullScreen().catch(err => {
+        console.log('Native fullscreen not available, using CSS fullscreen');
+      });
+    } else if (container.msRequestFullscreen) {
+      container.msRequestFullscreen().catch(err => {
+        console.log('Native fullscreen not available, using CSS fullscreen');
+      });
+    }
+  } else {
+    console.log('Touch device detected - using CSS-only fullscreen to prevent swipe-down exit');
   }
 
   // Adjust table layout for better viewing
@@ -74,6 +83,9 @@ function enterFullscreen(container, icon, body) {
 
   // Save fullscreen preference
   saveFullscreenPreference(true);
+  
+  // Prevent default touch behaviors that might interfere
+  preventSwipeGestures(container, true);
 }
 
 /**
@@ -94,30 +106,111 @@ function exitFullscreen(container, icon, body) {
     button.setAttribute('title', 'Toggle Fullscreen');
   }
 
-  // Exit native fullscreen if active
-  if (document.exitFullscreen) {
-    document.exitFullscreen().catch(err => {
-      console.log('Native fullscreen exit not needed');
-    });
-  } else if (document.webkitExitFullscreen) {
-    document.webkitExitFullscreen().catch(err => {
-      console.log('Native fullscreen exit not needed');
-    });
-  } else if (document.mozCancelFullScreen) {
-    document.mozCancelFullScreen().catch(err => {
-      console.log('Native fullscreen exit not needed');
-    });
-  } else if (document.msExitFullscreen) {
-    document.msExitFullscreen().catch(err => {
-      console.log('Native fullscreen exit not needed');
-    });
+  // Exit native fullscreen if active (only for desktop)
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  
+  if (!isTouchDevice) {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(err => {
+        console.log('Native fullscreen exit not needed');
+      });
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen().catch(err => {
+        console.log('Native fullscreen exit not needed');
+      });
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen().catch(err => {
+        console.log('Native fullscreen exit not needed');
+      });
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen().catch(err => {
+        console.log('Native fullscreen exit not needed');
+      });
+    }
   }
+
+  /**
+ * Prevent swipe gestures from interfering with fullscreen on touch devices
+ */
+function preventSwipeGestures(container, enable) {
+  if (enable) {
+    // Prevent pull-to-refresh and other touch gestures
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    // Prevent overscroll
+    document.body.style.overscrollBehavior = 'none';
+    container.style.overscrollBehavior = 'none';
+    
+    console.log('Swipe gestures prevented for fullscreen mode');
+  } else {
+    // Re-enable normal touch behavior
+    container.removeEventListener('touchstart', handleTouchStart);
+    container.removeEventListener('touchmove', handleTouchMove);
+    container.removeEventListener('touchend', handleTouchEnd);
+    
+    // Restore overscroll
+    document.body.style.overscrollBehavior = '';
+    container.style.overscrollBehavior = '';
+    
+    console.log('Swipe gestures re-enabled');
+  }
+}
+
+// Touch event handlers
+let touchStartY = 0;
+let touchStartX = 0;
+
+function handleTouchStart(e) {
+  touchStartY = e.touches[0].clientY;
+  touchStartX = e.touches[0].clientX;
+}
+
+function handleTouchMove(e) {
+  if (!isFullscreen) return;
+  
+  const touchY = e.touches[0].clientY;
+  const touchX = e.touches[0].clientX;
+  const deltaY = touchY - touchStartY;
+  const deltaX = touchX - touchStartX;
+  
+  const container = document.getElementById('attendanceReportContainer');
+  const scrollTop = container.scrollTop;
+  const scrollHeight = container.scrollHeight;
+  const clientHeight = container.clientHeight;
+  const isAtTop = scrollTop === 0;
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+  
+  // Prevent pull-down-to-refresh when at top
+  if (isAtTop && deltaY > 0) {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Prevent overscroll at bottom
+  if (isAtBottom && deltaY < 0) {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Allow normal scrolling within the container
+  // Don't prevent default for vertical scrolling when not at boundaries
+}
+
+function handleTouchEnd(e) {
+  touchStartY = 0;
+  touchStartX = 0;
+}
 
   // Restore table layout
   adjustTableForFullscreen(false);
 
   // Save fullscreen preference
   saveFullscreenPreference(false);
+  
+  // Re-enable default touch behaviors
+  preventSwipeGestures(container, false);
 }
 
 /**
@@ -194,9 +287,15 @@ function logFullscreenAction(action) {
 }
 
 /**
- * Handle native fullscreen change events
+ * Handle native fullscreen change events (only for desktop)
  */
 function handleFullscreenChange() {
+  // Skip handling on touch devices since we're not using native fullscreen there
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (isTouchDevice) {
+    return;
+  }
+  
   const isNativeFullscreen = !!(
     document.fullscreenElement ||
     document.webkitFullscreenElement ||
@@ -204,7 +303,7 @@ function handleFullscreenChange() {
     document.msFullscreenElement
   );
 
-  // Sync our state with native fullscreen
+  // Sync our state with native fullscreen (desktop only)
   if (!isNativeFullscreen && isFullscreen) {
     // User exited native fullscreen, update our state
     const container = document.getElementById('attendanceReportContainer');
