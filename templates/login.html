@@ -34,6 +34,19 @@
         <input type="password" id="password" name="password" required />
       </div>
 
+      <!-- Remember Me Checkbox -->
+      <div class="form-group" style="margin-top: 1rem; margin-bottom: 1.5rem;">
+        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal;">
+          <input 
+            type="checkbox" 
+            id="remember_me" 
+            name="remember_me" 
+            style="margin-right: 0.5rem; width: auto; cursor: pointer;"
+          />
+          <span>Remember me for 30 days</span>
+        </label>
+      </div>
+      
       <!-- Turnstile Integration -->
       {% if turnstile_enabled %}
       <div class="form-group turnstile-container">

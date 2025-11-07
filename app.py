@@ -32,6 +32,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.environ.get('SQLALCHEMY_TRACK_MODIFICATIONS')
 app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
+# Session configuration for "Remember Me" functionality
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 # Initialize database
 db = SQLAlchemy(app)
@@ -1529,6 +1531,15 @@ def login():
             ).first()
 
             if user and user.check_password(password):
+                # Check if "Remember Me" is checked
+                remember_me = request.form.get('remember_me') == 'on'
+                
+                # Set session as permanent if "Remember Me" is checked
+                if remember_me:
+                    session.permanent = True
+                else:
+                    session.permanent = False
+                
                 # Successful login
                 session['user_id'] = user.id
                 session['username'] = user.username
