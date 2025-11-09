@@ -176,10 +176,11 @@ class SecurityManager:
             if not stored_token or not hmac.compare_digest(session_token, stored_token['token']):
                 return False
             
-            # Check session timeout
-            if time.time() - stored_token['created'] > self.session_timeout:
-                del self.session_tokens[user_id]
-                return False
+            # Check session timeout - skip if "Remember Me" is enabled
+            if not session.get('remember_me', False):
+                if time.time() - stored_token['created'] > self.session_timeout:
+                    del self.session_tokens[user_id]
+                    return False
             
             # Check if session IP matches (optional security measure)
             if self.app.config.get('STRICT_SESSION_IP', False):
@@ -425,17 +426,18 @@ def enhanced_login_required(f):
             session.clear()
             return jsonify({'error': 'Session security validation failed'}), 401
         
-        # Check session timeout
-        login_time_str = session.get('login_time')
-        if login_time_str:
-            try:
-                login_time = datetime.fromisoformat(login_time_str)
-                if datetime.utcnow() - login_time > timedelta(hours=8):
+        # Check session timeout - skip if "Remember Me" is enabled
+        if not session.get('remember_me', False):
+            login_time_str = session.get('login_time')
+            if login_time_str:
+                try:
+                    login_time = datetime.fromisoformat(login_time_str)
+                    if datetime.utcnow() - login_time > timedelta(hours=8):
+                        session.clear()
+                        return jsonify({'error': 'Session expired'}), 401
+                except ValueError:
                     session.clear()
-                    return jsonify({'error': 'Session expired'}), 401
-            except ValueError:
-                session.clear()
-                return jsonify({'error': 'Invalid session data'}), 401
+                    return jsonify({'error': 'Invalid session data'}), 401
         
         return f(*args, **kwargs)
     return decorated_function
