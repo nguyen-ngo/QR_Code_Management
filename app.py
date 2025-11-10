@@ -2172,9 +2172,6 @@ def edit_user(user_id):
             user_to_edit.email = email
             user_to_edit.username = username
             
-            # Update active status
-            user_to_edit.active_status = 'active_status' in request.form
-
             # Update role with validation
             new_role = request.form.get('role', '')
             if new_role not in VALID_ROLES:
