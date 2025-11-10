@@ -7,6 +7,10 @@
 // Fullscreen state management
 let isFullscreen = false;
 
+// Touch event handlers
+let touchStartY = 0;
+let touchStartX = 0;
+
 /**
  * Toggle fullscreen mode for attendance report
  */
@@ -30,6 +34,75 @@ function toggleFullscreen() {
 
   // Log fullscreen action
   logFullscreenAction(isFullscreen ? 'enter' : 'exit');
+}
+
+/**
+ * Prevent swipe gestures from interfering with fullscreen on touch devices
+ */
+function preventSwipeGestures(container, enable) {
+  if (enable) {
+    // Prevent pull-to-refresh and other touch gestures
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    // Prevent overscroll
+    document.body.style.overscrollBehavior = 'none';
+    container.style.overscrollBehavior = 'none';
+    
+    console.log('Swipe gestures prevented for fullscreen mode');
+  } else {
+    // Re-enable normal touch behavior
+    container.removeEventListener('touchstart', handleTouchStart);
+    container.removeEventListener('touchmove', handleTouchMove);
+    container.removeEventListener('touchend', handleTouchEnd);
+    
+    // Restore overscroll
+    document.body.style.overscrollBehavior = '';
+    container.style.overscrollBehavior = '';
+    
+    console.log('Swipe gestures re-enabled');
+  }
+}
+
+function handleTouchStart(e) {
+  touchStartY = e.touches[0].clientY;
+  touchStartX = e.touches[0].clientX;
+}
+
+function handleTouchMove(e) {
+  if (!isFullscreen) return;
+  
+  const touchY = e.touches[0].clientY;
+  const touchX = e.touches[0].clientX;
+  const deltaY = touchY - touchStartY;
+  const deltaX = touchX - touchStartX;
+  
+  const container = document.getElementById('attendanceReportContainer');
+  const scrollTop = container.scrollTop;
+  const scrollHeight = container.scrollHeight;
+  const clientHeight = container.clientHeight;
+  const isAtTop = scrollTop === 0;
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+  
+  // Prevent pull-down-to-refresh when at top
+  if (isAtTop && deltaY > 0) {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Prevent overscroll at bottom
+  if (isAtBottom && deltaY < 0) {
+    e.preventDefault();
+    return false;
+  }
+  
+  // Allow normal scrolling within the container
+}
+
+function handleTouchEnd(e) {
+  touchStartY = 0;
+  touchStartX = 0;
 }
 
 /**
@@ -129,80 +202,6 @@ function exitFullscreen(container, icon, body) {
     }
   }
 
-  /**
- * Prevent swipe gestures from interfering with fullscreen on touch devices
- */
-function preventSwipeGestures(container, enable) {
-  if (enable) {
-    // Prevent pull-to-refresh and other touch gestures
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: false });
-    
-    // Prevent overscroll
-    document.body.style.overscrollBehavior = 'none';
-    container.style.overscrollBehavior = 'none';
-    
-    console.log('Swipe gestures prevented for fullscreen mode');
-  } else {
-    // Re-enable normal touch behavior
-    container.removeEventListener('touchstart', handleTouchStart);
-    container.removeEventListener('touchmove', handleTouchMove);
-    container.removeEventListener('touchend', handleTouchEnd);
-    
-    // Restore overscroll
-    document.body.style.overscrollBehavior = '';
-    container.style.overscrollBehavior = '';
-    
-    console.log('Swipe gestures re-enabled');
-  }
-}
-
-// Touch event handlers
-let touchStartY = 0;
-let touchStartX = 0;
-
-function handleTouchStart(e) {
-  touchStartY = e.touches[0].clientY;
-  touchStartX = e.touches[0].clientX;
-}
-
-function handleTouchMove(e) {
-  if (!isFullscreen) return;
-  
-  const touchY = e.touches[0].clientY;
-  const touchX = e.touches[0].clientX;
-  const deltaY = touchY - touchStartY;
-  const deltaX = touchX - touchStartX;
-  
-  const container = document.getElementById('attendanceReportContainer');
-  const scrollTop = container.scrollTop;
-  const scrollHeight = container.scrollHeight;
-  const clientHeight = container.clientHeight;
-  const isAtTop = scrollTop === 0;
-  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
-  
-  // Prevent pull-down-to-refresh when at top
-  if (isAtTop && deltaY > 0) {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Prevent overscroll at bottom
-  if (isAtBottom && deltaY < 0) {
-    e.preventDefault();
-    return false;
-  }
-  
-  // Allow normal scrolling within the container
-  // Don't prevent default for vertical scrolling when not at boundaries
-}
-
-function handleTouchEnd(e) {
-  touchStartY = 0;
-  touchStartX = 0;
-}
-
   // Restore table layout
   adjustTableForFullscreen(false);
 
@@ -237,11 +236,19 @@ function adjustTableForFullscreen(isFullscreen) {
 }
 
 /**
- * Save fullscreen preference to localStorage
+ * Save fullscreen preference to localStorage and URL
  */
 function saveFullscreenPreference(isFullscreen) {
   try {
     localStorage.setItem('attendance_fullscreen_preference', isFullscreen ? 'true' : 'false');
+    
+    // Also update the hidden form field if it exists
+    const fullscreenInput = document.getElementById('fullscreenState');
+    if (fullscreenInput) {
+      fullscreenInput.value = isFullscreen ? '1' : '';
+    }
+    
+    console.log('Fullscreen preference saved:', isFullscreen);
   } catch (e) {
     console.warn('Could not save fullscreen preference:', e);
   }
@@ -338,7 +345,7 @@ function handleKeyboardShortcuts(event) {
  */
 function detectAndOptimizeForIPad() {
   const isIPad = /iPad/.test(navigator.userAgent) || 
-                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 0);
 
   if (isIPad) {
     console.log('iPad detected - optimizing UI');
@@ -353,6 +360,48 @@ function detectAndOptimizeForIPad() {
 }
 
 /**
+ * Restore fullscreen state from URL (CSS-only, no native fullscreen)
+ */
+function restoreFullscreenFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const fullscreenParam = urlParams.get('fullscreen');
+  
+  if (fullscreenParam === '1' && !isFullscreen) {
+    console.log('Restoring fullscreen mode from URL parameter (CSS-only)');
+    
+    // Use CSS-only fullscreen (no native fullscreen API call)
+    const container = document.getElementById('attendanceReportContainer');
+    const icon = document.getElementById('fullscreenIcon');
+    const body = document.body;
+    
+    if (container && icon) {
+      // Manually set fullscreen state without calling native API
+      isFullscreen = true;
+      container.classList.add('fullscreen-mode');
+      body.classList.add('fullscreen-active');
+      
+      // Update icon
+      icon.classList.remove('fa-expand');
+      icon.classList.add('fa-compress');
+      
+      // Update button
+      const button = document.getElementById('fullscreenToggle');
+      if (button) {
+        button.setAttribute('title', 'Exit Fullscreen');
+      }
+      
+      // Apply touch gesture prevention
+      preventSwipeGestures(container, true);
+      
+      // Save preference
+      saveFullscreenPreference(true);
+      
+      console.log('Fullscreen restored successfully (CSS-only mode)');
+    }
+  }
+}
+
+/**
  * Initialize fullscreen functionality
  */
 function initializeFullscreen() {
@@ -361,7 +410,7 @@ function initializeFullscreen() {
   // Detect iPad
   detectAndOptimizeForIPad();
 
-  // Add event listeners for native fullscreen changes
+  // Add event listeners for native fullscreen changes (desktop only)
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
   document.addEventListener('mozfullscreenchange', handleFullscreenChange);
@@ -370,12 +419,16 @@ function initializeFullscreen() {
   // Add keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
-  // Load saved preference
-  const savedPreference = loadFullscreenPreference();
-  if (savedPreference) {
-    console.log('Restoring fullscreen preference');
-    // Optional: Auto-enter fullscreen if user had it enabled last time
-    // toggleFullscreen();
+  // Intercept filter form submission to preserve fullscreen state
+  const filterForm = document.getElementById('filterForm');
+  if (filterForm) {
+    filterForm.addEventListener('submit', function(e) {
+      const fullscreenInput = document.getElementById('fullscreenState');
+      if (fullscreenInput) {
+        fullscreenInput.value = isFullscreen ? '1' : '';
+        console.log('Filter form submitted with fullscreen state:', isFullscreen);
+      }
+    });
   }
 
   // Handle orientation changes
@@ -396,6 +449,12 @@ function initializeFullscreen() {
       }
     }, 250);
   });
+
+  // Restore fullscreen state from URL if present
+  // Use setTimeout to ensure DOM is fully loaded
+  setTimeout(function() {
+    restoreFullscreenFromURL();
+  }, 100);
 
   console.log('Fullscreen functionality initialized');
 }

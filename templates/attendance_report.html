@@ -59,6 +59,8 @@
             </div>
             <div class="filters-form">
                 <form method="GET" action="{{ url_for('attendance_report') }}">
+                    <!-- Hidden field to preserve fullscreen state -->
+                    <input type="hidden" id="fullscreenState" name="fullscreen" value="">
                     <div class="filter-row">
                         <!-- Date Range Filters -->
                         <div class="filter-group">
@@ -410,11 +412,33 @@ const hasEditPermission = ['admin'].includes(userRole);
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
 
 function clearFilters() {
-    window.location.href = "{{ url_for('attendance_report') }}";
+    // Get current fullscreen state
+    const fullscreenState = window.isAttendanceFullscreen && window.isAttendanceFullscreen() ? '1' : '';
+    
+    // Redirect to clean URL with only fullscreen parameter if active
+    if (fullscreenState === '1') {
+        window.location.href = '{{ url_for('attendance_report') }}?fullscreen=1';
+    } else {
+        window.location.href = '{{ url_for('attendance_report') }}';
+    }
 }
 
 function refreshReport() {
-    window.location.reload();
+    // Get current fullscreen state
+    const fullscreenState = window.isAttendanceFullscreen && window.isAttendanceFullscreen() ? '1' : '';
+    
+    // Build URL with current filters and fullscreen state
+    const params = new URLSearchParams(window.location.search);
+    
+    // Add or update fullscreen parameter
+    if (fullscreenState === '1') {
+        params.set('fullscreen', '1');
+    } else {
+        params.delete('fullscreen');
+    }
+    
+    // Reload with preserved state
+    window.location.href = window.location.pathname + '?' + params.toString();
 }
 
 function showLocationMap(recordId) {
@@ -650,6 +674,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof initializeFullscreen === 'function') {
         initializeFullscreen();
         console.log('Fullscreen functionality initialized for attendance report');
+    }
+    
+    // Check if we should restore fullscreen from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldBeFullscreen = urlParams.get('fullscreen') === '1';
+    
+    if (shouldBeFullscreen) {
+        console.log('URL indicates fullscreen should be active');
+        // The initializeFullscreen function will handle restoration
     }
 });
 </script>
