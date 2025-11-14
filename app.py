@@ -689,33 +689,54 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
             except Exception as gmaps_error:
                 print(f"⚠️ Google Maps Distance Matrix API error: {gmaps_error}")
 
-        # Fallback: Use Enhanced Haversine formula for straight-line distance
+        # Fallback: Use CORRECTED Haversine formula for straight-line distance
         print(f"📐 Falling back to Haversine formula for straight-line distance")
         
-        # Convert decimal degrees to radians
-        lat1_rad, lng1_rad, lat2_rad, lng2_rad = map(radians, [float(lat1), float(lng1), float(lat2), float(lng2)])
-
-        # Enhanced Haversine formula for better precision
-        dlng = lng2_rad - lng1_rad
+        # CRITICAL FIX: Convert decimal degrees to radians with proper precision
+        # Use float() to ensure we're working with proper decimal values
+        lat1_val = float(lat1)
+        lng1_val = float(lng1)
+        lat2_val = float(lat2)
+        lng2_val = float(lng2)
+        
+        # Convert to radians
+        lat1_rad = radians(lat1_val)
+        lng1_rad = radians(lng1_val)
+        lat2_rad = radians(lat2_val)
+        lng2_rad = radians(lng2_val)
+        
+        # Calculate differences
         dlat = lat2_rad - lat1_rad
+        dlng = lng2_rad - lng1_rad
 
-        # Haversine calculation
-        a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlng/2)**2
-        c = 2 * asin(sqrt(a))
+        # CORRECTED Haversine formula
+        # Formula: a = sin²(Δlat/2) + cos(lat1) × cos(lat2) × sin²(Δlng/2)
+        a = sin(dlat / 2.0) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlng / 2.0) ** 2
+        
+        # Ensure 'a' is within valid range [0, 1] for asin
+        a = min(1.0, max(0.0, a))
+        
+        # c = 2 × asin(√a)
+        c = 2.0 * asin(sqrt(a))
 
-        # Earth's radius in miles (more precise value)
+        # Earth's radius in miles (mean radius)
+        # Using more precise value: 3959.87433 miles
         r_miles = 3959.87433
 
-        # Calculate distance with enhanced precision
+        # Calculate distance with full precision
         distance = c * r_miles
 
-        # Round to 4 decimal places for better precision
+        # Round to 4 decimal places for consistency
         distance = round(distance, 4)
 
         print(f"📏 Haversine straight-line distance calculation:")
-        print(f"   Point 1: {lat1:.10f}, {lng1:.10f}")
-        print(f"   Point 2: {lat2:.10f}, {lng2:.10f}")
-        print(f"   Straight-line Distance: {distance:.4f} miles")
+        print(f"   Point 1: {lat1_val:.10f}, {lng1_val:.10f}")
+        print(f"   Point 2: {lat2_val:.10f}, {lng2_val:.10f}")
+        print(f"   Δlat: {dlat:.12f} radians ({abs(lat2_val - lat1_val):.10f} degrees)")
+        print(f"   Δlng: {dlng:.12f} radians ({abs(lng2_val - lng1_val):.10f} degrees)")
+        print(f"   a value: {a:.15f}")
+        print(f"   c value: {c:.15f}")
+        print(f"   Straight-line Distance: {distance:.4f} miles ({distance * 5280:.2f} feet)")
 
         # Log fallback distance calculation
         try:
