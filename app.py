@@ -26,6 +26,24 @@ from turnstile_utils import turnstile_utils
 from db_performance_optimization import initialize_performance_optimizations
 from app_performance_middleware import PerformanceMonitor
 
+from utils.validation import (
+    is_valid_role,
+    has_admin_privileges,
+    has_staff_level_access,
+    has_export_permissions,
+    get_role_permissions,
+    VALID_ROLES,
+    STAFF_LEVEL_ROLES
+)
+
+from utils.auth_decorators import (
+    login_required,
+    admin_required,
+    staff_or_admin_required,
+    project_manager_required,
+    payroll_required
+)
+
 # Initialize Flask application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -210,12 +228,6 @@ def cache_coordinates(address, lat, lng, accuracy):
     except Exception as e:
         print(f"⚠️ Error caching coordinates: {e}")
 
-# Valid user roles with new additions
-VALID_ROLES = ['admin', 'staff', 'payroll', 'project_manager']
-
-# Roles that have staff-level permissions (non-admin roles)
-STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
-
 # Import and initialize models
 from models import set_db
 User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance, UserProjectPermission, UserLocationPermission = set_db(db)
@@ -223,82 +235,7 @@ User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance, Us
 # Initialize the logging system
 logger_handler = AppLogger(app, db)
 
-# Utility functions
-def is_valid_role(role):
-    """Check if role is valid"""
-    return role in VALID_ROLES
 
-def has_admin_privileges(role):
-    """Check if role has admin privileges"""
-    return role == 'admin'
-
-def has_staff_level_access(role):
-    """Check if role has staff-level access (includes new roles)"""
-    return role in STAFF_LEVEL_ROLES
-
-def get_role_permissions(role):
-    """Get permissions description for a role"""
-    permissions = {
-        'admin': {
-            'title': 'Administrator Permissions',
-            'permissions': [
-                'Full QR code management (create, edit, delete)',
-                'Complete user management capabilities',
-                'System configuration access',
-                'View all system analytics',
-                'Bulk operations and data export',
-                'Access to all admin features'
-            ],
-            'restrictions': ['With great power comes great responsibility!']
-        },
-        'staff': {
-            'title': 'Staff User Permissions',
-            'permissions': [
-                'Create and edit QR codes',
-                'View all QR codes in the system',
-                'Download QR code images',
-                'Update personal profile information',
-            ],
-            'restrictions': [
-                'Cannot delete QR codes',
-                'Cannot manage other users',
-                'Cannot access admin settings'
-            ]
-        },
-        'payroll': {
-            'title': 'Payroll Specialist Permissions',
-            'permissions': [
-                'Create and edit QR codes',
-                'View all QR codes in the system',
-                'Download QR code images',
-                'Update personal profile information',
-                'Access dashboard and reports',
-                'Same permissions as Staff (additional features coming soon)'
-            ],
-            'restrictions': [
-                'Cannot delete QR codes',
-                'Cannot manage other users',
-                'Cannot access admin settings'
-            ]
-        },
-        'project_manager': {
-            'title': 'Project Manager Permissions',
-            'permissions': [
-                'Create and edit QR codes',
-                'View all QR codes in the system',
-                'Download QR code images',
-                'Update personal profile information',
-                'Access dashboard and reports',
-                'Same permissions as Staff (additional features coming soon)'
-            ],
-            'restrictions': [
-                'Cannot delete QR codes',
-                'Cannot manage other users',
-                'Cannot access admin settings'
-            ]
-        }
-    }
-    return permissions.get(role, {})
 
 def log_google_maps_usage(operation_type):
     """Log Google Maps API usage for monitoring"""
@@ -1352,49 +1289,6 @@ def format_time_interval(minutes):
             return f"{days} day{'s' if days != 1 else ''}"
         else:
             return f"{days}d {remaining_hours}h"
-
-# Authentication decorator
-def login_required(f):
-    """Decorator to ensure user is logged in"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please log in to access this page.', 'error')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-def admin_required(f):
-    """Decorator to ensure user has admin privileges"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('Please log in to access this page.', 'error')
-            return redirect(url_for('login'))
-
-        user_role = session.get('role')
-        if not has_admin_privileges(user_role):
-            flash('Administrator privileges required for this action.', 'error')
-            return redirect(url_for('dashboard'))
-
-        return f(*args, **kwargs)
-    return decorated_function
-
-def staff_or_admin_required(f):
-    """Decorator to ensure user has staff-level or admin privileges"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('Please log in to access this page.', 'error')
-            return redirect(url_for('login'))
-
-        user_role = session.get('role')
-        if not (has_admin_privileges(user_role) or has_staff_level_access(user_role)):
-            flash('Insufficient privileges to access this page.', 'error')
-            return redirect(url_for('dashboard'))
-
-        return f(*args, **kwargs)
-    return decorated_function
 
 # Add this helper function to check admin requirements more safely
 def is_admin_user(user_id):
