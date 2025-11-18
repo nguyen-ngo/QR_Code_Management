@@ -1,0 +1,616 @@
+{% extends "base_authenticated.html" %}
+
+{% block title %}Bulk QR Code Import{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>
+      <i class="fas fa-upload"></i>
+      Bulk QR Code Import
+    </h1>
+    <p>Import multiple QR codes from an Excel file</p>
+  </div>
+
+  <!-- Import Instructions -->
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-info-circle"></i>
+        Import Instructions
+      </h2>
+    </div>
+    <div class="import-body">
+      <div class="instructions-grid">
+        <div class="instruction-card">
+          <div class="instruction-icon">
+            <i class="fas fa-table"></i>
+          </div>
+          <h3>Required Columns</h3>
+          <ul>
+            <li><strong>QR Code Name</strong> - Unique name for the QR code</li>
+            <li><strong>QR Code Location</strong> - Location identifier</li>
+            <li><strong>Project</strong> - Project name (must exist)</li>
+            <li><strong>Location Address</strong> - Complete address</li>
+            <li><strong>Event</strong> - Check IN or Check OUT</li>
+          </ul>
+        </div>
+
+        <div class="instruction-card">
+          <div class="instruction-icon">
+            <i class="fas fa-map-marker-alt"></i>
+          </div>
+          <h3>Optional Columns</h3>
+          <ul>
+            <li><strong>Latitude</strong> - GPS latitude coordinate</li>
+            <li><strong>Longitude</strong> - GPS longitude coordinate</li>
+          </ul>
+          <p class="instruction-note">
+            <i class="fas fa-exclamation-triangle"></i>
+            If providing coordinates, both Latitude and Longitude are required
+          </p>
+        </div>
+
+        <div class="instruction-card">
+          <div class="instruction-icon">
+            <i class="fas fa-download"></i>
+          </div>
+          <h3>Download Template</h3>
+          <p>Use our pre-formatted template to ensure proper column structure:</p>
+          <a href="{{ url_for('download_qr_import_template') }}" class="btn btn-primary">
+            <i class="fas fa-file-excel"></i>
+            Download Excel Template
+          </a>
+        </div>
+      </div>
+
+      <!-- Example Data Table -->
+      <div class="example-section">
+        <h3>
+          <i class="fas fa-lightbulb"></i>
+          Example Data
+        </h3>
+        <div class="table-responsive">
+          <table class="example-table">
+            <thead>
+              <tr>
+                <th>QR Code Name</th>
+                <th>QR Code Location</th>
+                <th>Project</th>
+                <th>Location Address</th>
+                <th>Event</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>HQ-Entrance</td>
+                <td>Main Building</td>
+                <td>Corporate HQ</td>
+                <td>123 Main St, Springfield, IL 62701</td>
+                <td>Check IN</td>
+                <td>39.781721</td>
+                <td>-89.650148</td>
+              </tr>
+              <tr>
+                <td>HQ-Exit</td>
+                <td>Main Building</td>
+                <td>Corporate HQ</td>
+                <td>123 Main St, Springfield, IL 62701</td>
+                <td>Check OUT</td>
+                <td>39.781721</td>
+                <td>-89.650148</td>
+              </tr>
+              <tr>
+                <td>Site-A-Gate1</td>
+                <td>Construction Site A</td>
+                <td>Construction Projects</td>
+                <td>456 Oak Ave, Chicago, IL 60601</td>
+                <td>Check IN</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Upload Form -->
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-upload"></i>
+        Upload Excel File
+      </h2>
+    </div>
+    <div class="import-body">
+      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('import_bulk_qr_codes') }}">
+        <!-- File Upload Area -->
+        <div class="file-upload-area" id="fileUploadArea">
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <div class="upload-text">
+            <h3>Drag & Drop Excel File</h3>
+            <p>Or click to browse and select an Excel file (.xlsx, .xls)</p>
+            <div class="file-info" id="fileInfo" style="display: none;">
+              <i class="fas fa-file-excel"></i>
+              <span class="file-name"></span>
+              <span class="file-size"></span>
+            </div>
+          </div>
+          <input type="file" 
+                 id="fileInput" 
+                 name="file" 
+                 accept=".xlsx,.xls" 
+                 class="file-input" 
+                 required>
+        </div>
+
+        <!-- Import Options -->
+        <div class="import-options">
+          <h3>
+            <i class="fas fa-cog"></i>
+            Import Options
+          </h3>
+          
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="validate_only" name="validate_only" value="true">
+              <label for="validate_only" class="checkbox-label">
+                <strong>Validate Only (Don't Import)</strong>
+                <span>Check for errors without importing data</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="form-actions">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i>
+            Cancel
+          </a>
+          <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+            <i class="fas fa-upload"></i>
+            <span id="submitBtnText">Upload & Import</span>
+          </button>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div id="progressIndicator" class="progress-indicator" style="display: none;">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-text" id="progressText">Processing...</div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Validation Results -->
+  {% if validation_result %}
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-check-circle"></i>
+        Validation Results
+      </h2>
+    </div>
+    <div class="import-body">
+      <div class="validation-summary">
+        <div class="validation-stat success">
+          <i class="fas fa-check-circle"></i>
+          <div>
+            <h3>{{ validation_result.valid_rows }}</h3>
+            <p>Valid Records</p>
+          </div>
+        </div>
+        <div class="validation-stat {% if validation_result.invalid_rows > 0 %}error{% else %}muted{% endif %}">
+          <i class="fas fa-exclamation-circle"></i>
+          <div>
+            <h3>{{ validation_result.invalid_rows }}</h3>
+            <p>Invalid Records</p>
+          </div>
+        </div>
+        <div class="validation-stat info">
+          <i class="fas fa-file-alt"></i>
+          <div>
+            <h3>{{ validation_result.total_rows }}</h3>
+            <p>Total Records</p>
+          </div>
+        </div>
+      </div>
+
+      {% if validation_result.success and validation_result.valid_rows > 0 %}
+      <div class="validation-message success">
+        <i class="fas fa-check-circle"></i>
+        <div>
+          <h3>Validation Successful!</h3>
+          <p>All {{ validation_result.valid_rows }} records are valid and ready to import.</p>
+        </div>
+        <form method="POST" action="{{ url_for('import_bulk_qr_codes') }}">
+          <input type="hidden" name="proceed_import" value="true">
+          <button type="submit" class="btn btn-success">
+            <i class="fas fa-check"></i>
+            Proceed with Import
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if validation_result.errors %}
+      <div class="validation-errors">
+        <h3>
+          <i class="fas fa-exclamation-triangle"></i>
+          Validation Errors ({{ validation_result.errors|length }})
+        </h3>
+        <ul class="error-list">
+          {% for error in validation_result.errors[:20] %}
+          <li>{{ error }}</li>
+          {% endfor %}
+          {% if validation_result.errors|length > 20 %}
+          <li><em>...and {{ validation_result.errors|length - 20 }} more errors</em></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {% if validation_result.warnings %}
+      <div class="validation-warnings">
+        <h3>
+          <i class="fas fa-info-circle"></i>
+          Warnings ({{ validation_result.warnings|length }})
+        </h3>
+        <ul class="warning-list">
+          {% for warning in validation_result.warnings[:10] %}
+          <li>{{ warning }}</li>
+          {% endfor %}
+          {% if validation_result.warnings|length > 10 %}
+          <li><em>...and {{ validation_result.warnings|length - 10 }} more warnings</em></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Import Results -->
+  {% if import_result %}
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-check-circle"></i>
+        Import Results
+      </h2>
+    </div>
+    <div class="import-body">
+      <div class="validation-summary">
+        <div class="validation-stat success">
+          <i class="fas fa-check-circle"></i>
+          <div>
+            <h3>{{ import_result.imported_records }}</h3>
+            <p>Successfully Imported</p>
+          </div>
+        </div>
+        <div class="validation-stat {% if import_result.failed_records > 0 %}error{% else %}muted{% endif %}">
+          <i class="fas fa-times-circle"></i>
+          <div>
+            <h3>{{ import_result.failed_records }}</h3>
+            <p>Failed Records</p>
+          </div>
+        </div>
+        <div class="validation-stat info">
+          <i class="fas fa-file-alt"></i>
+          <div>
+            <h3>{{ import_result.total_rows }}</h3>
+            <p>Total Records</p>
+          </div>
+        </div>
+      </div>
+
+      {% if import_result.success and import_result.imported_records > 0 %}
+      <div class="validation-message success">
+        <i class="fas fa-check-circle"></i>
+        <div>
+          <h3>Import Successful!</h3>
+          <p>Successfully imported {{ import_result.imported_records }} QR codes.</p>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+          <i class="fas fa-eye"></i>
+          View QR Codes
+        </a>
+      </div>
+
+      {% if import_result.imported_qr_codes %}
+      <div class="imported-qr-list">
+        <h3>
+          <i class="fas fa-qrcode"></i>
+          Imported QR Codes
+        </h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Project</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for qr in import_result.imported_qr_codes[:10] %}
+              <tr>
+                <td>{{ qr.id }}</td>
+                <td>{{ qr.name }}</td>
+                <td>{{ qr.location }}</td>
+                <td>{{ qr.project }}</td>
+              </tr>
+              {% endfor %}
+              {% if import_result.imported_qr_codes|length > 10 %}
+              <tr>
+                <td colspan="4" style="text-align: center; font-style: italic;">
+                  ...and {{ import_result.imported_qr_codes|length - 10 }} more QR codes
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if import_result.errors %}
+      <div class="validation-errors">
+        <h3>
+          <i class="fas fa-exclamation-triangle"></i>
+          Import Errors ({{ import_result.errors|length }})
+        </h3>
+        <ul class="error-list">
+          {% for error in import_result.errors[:20] %}
+          <li>{{ error }}</li>
+          {% endfor %}
+          {% if import_result.errors|length > 20 %}
+          <li><em>...and {{ import_result.errors|length - 20 }} more errors</em></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  /* Reuse time attendance import styles */
+  @import url('/static/css/time_attendance.css');
+
+  .instructions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .instruction-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  .instruction-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .instruction-card h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 1rem;
+  }
+
+  .instruction-card ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .instruction-card li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .instruction-card li:last-child {
+    border-bottom: none;
+  }
+
+  .instruction-note {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 0.75rem;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    color: #92400e;
+  }
+
+  .example-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+  }
+
+  .example-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+  }
+
+  .example-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .example-table th,
+  .example-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+  }
+
+  .example-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .example-table tbody tr:hover {
+    background: #f8fafc;
+  }
+
+  .imported-qr-list {
+    margin-top: 2rem;
+  }
+
+  .imported-qr-list h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: #0f172a;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .data-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .data-table tbody tr:hover {
+    background: #f8fafc;
+  }
+</style>
+
+<script>
+// File upload handling
+const fileInput = document.getElementById('fileInput');
+const fileUploadArea = document.getElementById('fileUploadArea');
+const fileInfo = document.getElementById('fileInfo');
+const submitBtn = document.getElementById('submitBtn');
+const importForm = document.getElementById('importForm');
+const progressIndicator = document.getElementById('progressIndicator');
+const validateOnlyCheckbox = document.getElementById('validate_only');
+const submitBtnText = document.getElementById('submitBtnText');
+
+// Update button text based on validate only checkbox
+if (validateOnlyCheckbox) {
+  validateOnlyCheckbox.addEventListener('change', function() {
+    if (this.checked) {
+      submitBtnText.textContent = 'Validate File';
+    } else {
+      submitBtnText.textContent = 'Upload & Import';
+    }
+  });
+}
+
+// Drag and drop handlers
+fileUploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  fileUploadArea.classList.add('dragover');
+});
+
+fileUploadArea.addEventListener('dragleave', () => {
+  fileUploadArea.classList.remove('dragover');
+});
+
+fileUploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  fileUploadArea.classList.remove('dragover');
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    fileInput.files = files;
+    handleFileSelect();
+  }
+});
+
+fileUploadArea.addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', handleFileSelect);
+
+function handleFileSelect() {
+  const file = fileInput.files[0];
+  if (file) {
+    const fileName = file.name;
+    const fileSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+    
+    fileInfo.querySelector('.file-name').textContent = fileName;
+    fileInfo.querySelector('.file-size').textContent = fileSize;
+    fileInfo.style.display = 'flex';
+    
+    submitBtn.disabled = false;
+    
+    // Validate file extension
+    if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
+      alert('Please select an Excel file (.xlsx or .xls)');
+      resetForm();
+    }
+  }
+}
+
+// Form submission
+importForm.addEventListener('submit', (e) => {
+  if (!fileInput.files[0]) {
+    e.preventDefault();
+    alert('Please select a file to import');
+    return;
+  }
+
+  // Show progress indicator
+  progressIndicator.style.display = 'block';
+  submitBtn.disabled = true;
+});
+
+function resetForm() {
+  fileInput.value = '';
+  fileInfo.style.display = 'none';
+  submitBtn.disabled = true;
+  progressIndicator.style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -556,6 +556,13 @@
           <p>Generate a QR code for attendance tracking at your location</p>
         </div>
 
+        <div style="margin-top: 1rem; margin-bottom: 1rem;">
+          <a href="{{ url_for('import_bulk_qr_codes') }}" class="btn btn-outline" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+            <i class="fas fa-file-excel"></i>
+            Bulk Import from Excel
+          </a>
+        </div>
+
         <form method="POST" class="form" id="createQRForm">
           <!-- Basic Information Section -->
           <div class="form-section">

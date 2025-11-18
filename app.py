@@ -19,6 +19,7 @@ from working_hours_calculator import WorkingHoursCalculator
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 from time_attendance_import_service import TimeAttendanceImportService
+from qr_code_import_service import QRCodeImportService
 
 # Load environment variables in .env
 load_dotenv()
@@ -3683,6 +3684,185 @@ def create_qr_code():
 
     return render_template('create_qr_code.html', projects=projects, styles=styles)
 
+@app.route('/qr-codes/bulk-import', methods=['GET', 'POST'])
+@login_required
+@log_database_operations('qr_code_bulk_import')
+def import_bulk_qr_codes():
+    """Bulk import QR codes from Excel file"""
+    
+    if request.method == 'GET':
+        return render_template('bulk_qr_import.html')
+    
+    try:
+        proceed_import = request.form.get('proceed_import') == 'true'
+        
+        if proceed_import:
+            if 'pending_qr_import_file' not in session or 'pending_qr_import_filename' not in session:
+                flash('Import session expired. Please upload the file again.', 'error')
+                return redirect(url_for('import_bulk_qr_codes'))
+            
+            temp_path = session['pending_qr_import_file']
+            filename = session['pending_qr_import_filename']
+            
+            if not os.path.exists(temp_path):
+                flash('Temporary file not found. Please upload the file again.', 'error')
+                session.pop('pending_qr_import_file', None)
+                session.pop('pending_qr_import_filename', None)
+                return redirect(url_for('import_bulk_qr_codes'))
+        else:
+            if 'file' not in request.files:
+                flash('No file uploaded.', 'error')
+                return redirect(request.url)
+            
+            file = request.files['file']
+            if file.filename == '':
+                flash('No file selected.', 'error')
+                return redirect(request.url)
+            
+            if not file.filename.lower().endswith(('.xlsx', '.xls')):
+                flash('Please upload an Excel file (.xlsx or .xls).', 'error')
+                return redirect(request.url)
+            
+            filename = secure_filename(file.filename)
+            temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                                   f"temp_qr_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+            
+            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+            file.save(temp_path)
+            
+            session['pending_qr_import_file'] = temp_path
+            session['pending_qr_import_filename'] = filename
+        
+        validate_only = request.form.get('validate_only') == 'true' and not proceed_import
+        
+        import_service = QRCodeImportService(db, logger_handler)
+        
+        if validate_only:
+            validation_result = import_service.validate_excel_file(temp_path)
+            
+            if validation_result['success']:
+                flash(f"Validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
+            else:
+                flash(f"Validation found errors. Please fix them before importing.", 'error')
+            
+            return render_template('bulk_qr_import.html', validation_result=validation_result)
+        
+        projects = Project.query.filter_by(active_status=True).all()
+        project_lookup = {p.name: p.id for p in projects}
+        
+        import_result = import_service.import_from_excel(
+            file_path=temp_path,
+            created_by=session['user_id'],
+            generate_qr_code_func=generate_qr_code,
+            generate_qr_url_func=generate_qr_url,
+            request_url_root=request.url_root,
+            project_lookup=project_lookup,
+            QRCode=QRCode,
+            Project=Project,
+            geocode_func=get_coordinates_from_address_enhanced
+        )
+        
+        if import_result['success']:
+            logger_handler.logger.info(
+                f"User {session['username']} successfully imported {import_result['imported_records']} QR codes via bulk import "
+                f"({import_result.get('geocoded_records', 0)} addresses auto-geocoded)"
+            )
+            
+            flash(f"Import successful! Imported {import_result['imported_records']} QR codes "
+                f"out of {import_result['total_rows']} total records.", 'success')
+            
+            # Show geocoding info
+            if import_result.get('geocoded_records', 0) > 0:
+                flash(f"✓ {import_result['geocoded_records']} addresses were automatically geocoded using Google Maps.", 'info')
+            
+            if import_result['failed_records'] > 0:
+                flash(f"Note: {import_result['failed_records']} records failed to import. "
+                    f"Check the error details below.", 'warning')
+        else:
+            flash(f"Import failed: {import_result.get('error', 'Unknown error')}", 'error')
+        
+        session.pop('pending_qr_import_file', None)
+        session.pop('pending_qr_import_filename', None)
+        
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception as cleanup_error:
+            logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+        
+        return render_template('bulk_qr_import.html', import_result=import_result)
+    
+    except Exception as e:
+        logger_handler.log_database_error('qr_code_bulk_import', e)
+        flash(f'Import failed: {str(e)}', 'error')
+        return redirect(url_for('import_bulk_qr_codes'))
+
+
+@app.route('/qr-codes/bulk-import/template')
+@login_required
+def download_qr_import_template():
+    """Download Excel template for bulk QR code import"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "QR Code Import Template"
+        
+        headers = [
+            'QR Code Name',
+            'QR Code Location',
+            'Project',
+            'Location Address',
+            'Event',
+            'Latitude',
+            'Longitude'
+        ]
+        
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+        header_alignment = Alignment(horizontal='center', vertical='center')
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+        
+        example_data = [
+            ['HQ-Entrance', 'Main Building', 'Corporate HQ', '123 Main St, Springfield, IL 62701', 'Check IN', 39.781721, -89.650148],
+            ['HQ-Exit', 'Main Building', 'Corporate HQ', '123 Main St, Springfield, IL 62701', 'Check OUT', 39.781721, -89.650148],
+            ['Site-A-Gate1', 'Construction Site A', 'Construction Projects', '456 Oak Ave, Chicago, IL 60601', 'Check IN', '', '']
+        ]
+        
+        for row_num, row_data in enumerate(example_data, 2):
+            for col_num, value in enumerate(row_data, 1):
+                ws.cell(row=row_num, column=col_num, value=value)
+        
+        column_widths = [20, 20, 20, 40, 15, 15, 15]
+        for col_num, width in enumerate(column_widths, 1):
+            ws.column_dimensions[ws.cell(row=1, column=col_num).column_letter].width = width
+        
+        excel_buffer = io.BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        logger_handler.logger.info(f"User {session.get('username', 'unknown')} downloaded QR import template")
+        
+        return send_file(
+            excel_buffer,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='QR_Code_Import_Template.xlsx'
+        )
+    
+    except Exception as e:
+        logger_handler.log_flask_error('qr_import_template_download', str(e))
+        flash('Error generating template. Please try again.', 'error')
+        return redirect(url_for('import_bulk_qr_codes'))
+    
 @app.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'])
 @login_required
 @log_database_operations('qr_code_edit')
