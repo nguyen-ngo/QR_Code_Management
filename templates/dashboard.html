@@ -1096,19 +1096,7 @@ Management{% endblock %} {% block extra_head %}
               {{ 'Active' if project.active_status else 'Inactive' }}
             </span>
           </div>
-
-          <!-- Show "View All" button if project has more than 20 QR codes -->
-          {% if project_qr_codes|length > 12 %}
-          <a
-            href="{{ url_for('project_qr_codes', project_id=project.id) }}"
-            class="btn btn-sm btn-primary view-all-qr-btn"
-            onclick="event.stopPropagation()"
-          >
-            <i class="fas fa-th-large"></i>
-            View All
-          </a>
-          {% endif %}
-
+        
           <button class="project-toggle" id="toggle-{{ project.id }}">
             <i class="fas fa-chevron-down"></i>
           </button>
@@ -1220,6 +1208,17 @@ Management{% endblock %} {% block extra_head %}
             </div>
           </div>
           {% endfor %}
+          <!-- Show "View All" button if project has more than 20 QR codes -->
+            {% if project_qr_codes|length > 12 %}
+            <a
+              href="{{ url_for('project_qr_codes', project_id=project.id) }}"
+              class="btn btn-sm btn-primary view-all-qr-btn"
+              onclick="event.stopPropagation()"
+            >
+              <i class="fas fa-th-large"></i>
+              View All Project's QR Codes
+            </a>
+            {% endif %}
         </div>
         {% else %}
         <div class="empty-project-qr">

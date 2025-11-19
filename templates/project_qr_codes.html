@@ -1,9 +1,9 @@
-{% extends "base_authenticated.html" %} {% block title %}{{ project.name }} - QR
-Codes{% endblock %} {% block extra_head %}
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/dashboard.css') }}"
-/>
+{% extends "base_authenticated.html" %}
+
+{% block title %}{{ project.name }} - QR Codes{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 <style>
   .project-qr-page {
     max-width: 1400px;
@@ -320,8 +320,296 @@ Codes{% endblock %} {% block extra_head %}
       gap: var(--spacing-3);
     }
   }
+
+/* Modal Styles - CRITICAL FOR CENTERING */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .modal-content {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: auto;
+    animation: slideIn 0.3s ease;
+  }
+
+  .qr-modal-content {
+    max-width: 900px;
+    width: 90vw;
+    max-height: 80vh;
+  }
+
+  .modal-header {
+    padding: var(--spacing-6);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: var(--font-size-xl);
+    color: var(--gray-500);
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+  }
+
+  .modal-close:hover {
+    background: var(--gray-100);
+    color: var(--gray-700);
+  }
+
+  .qr-modal-body {
+    padding: var(--spacing-6);
+  }
+
+  .qr-modal-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--spacing-8);
+    align-items: start;
+  }
+
+  .qr-modal-image {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+  }
+
+  .qr-modal-image img {
+    width: 280px;
+    height: 280px;
+    border: 3px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    padding: var(--spacing-2);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .qr-modal-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .qr-detail-section {
+    background: #f8fafc;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-6);
+  }
+
+  .qr-detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin: 0 0 var(--spacing-6) 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: var(--spacing-2);
+  }
+
+  .qr-detail-section .qr-detail-item {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-4);
+    align-items: start;
+  }
+
+  .qr-detail-section .qr-detail-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .qr-detail-section .qr-detail-item label {
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: var(--font-size-sm);
+    padding-top: 2px;
+  }
+
+  .qr-detail-section .qr-detail-item span {
+    color: var(--gray-900);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .qr-destination-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid var(--primary-color);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+    font-size: var(--font-size-sm);
+  }
+
+  .qr-destination-link a:hover {
+    background: var(--primary-color);
+    color: var(--white);
+  }
+
+  .qr-modal-footer {
+    padding: var(--spacing-6);
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: var(--spacing-3);
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    background: #f8fafc;
+  }
+
+  .qr-modal-footer .btn {
+    min-width: 140px;
+  }
+
+  /* Image Lightbox Styles */
+  .image-lightbox {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+    cursor: pointer;
+  }
+
+  .lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    text-align: center;
+  }
+
+  .lightbox-image {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius-lg);
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: var(--white);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.25rem;
+    color: var(--gray-700);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    transition: var(--transition);
+  }
+
+  .lightbox-close:hover {
+    background: var(--danger-color);
+    color: var(--white);
+  }
+
+  .lightbox-info {
+    color: var(--white);
+    margin-top: var(--spacing-4);
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+  }
+
+  .lightbox-hint {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-2);
+  }
+
+  /* Animation keyframes */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Responsive modal styles */
+  @media (max-width: 768px) {
+    .qr-modal-layout {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-6);
+    }
+
+    .qr-modal-image {
+      order: 1;
+    }
+
+    .qr-modal-info {
+      order: 2;
+    }
+
+    .qr-modal-image img {
+      width: 240px;
+      height: 240px;
+    }
+
+    .qr-modal-footer {
+      flex-direction: column;
+    }
+
+    .qr-modal-footer .btn {
+      width: 100%;
+      min-width: unset;
+    }
+  }
 </style>
-{% endblock %} {% block content %}
+{% endblock %}
+
+{% block content %}
 <div class="project-qr-page">
   <!-- Project Header -->
   <div class="project-qr-header">
@@ -348,30 +636,15 @@ Codes{% endblock %} {% block extra_head %}
       </div>
       <div class="project-qr-stat">
         <i class="fas fa-check-circle"></i>
-        <span
-          ><strong
-            >{{ qr_codes|selectattr('active_status', 'equalto',
-            True)|list|length }}</strong
-          >
-          Active</span
-        >
+        <span><strong>{{ qr_codes|selectattr('active_status', 'equalto', True)|list|length }}</strong> Active</span>
       </div>
       <div class="project-qr-stat">
         <i class="fas fa-pause-circle"></i>
-        <span
-          ><strong
-            >{{ qr_codes|selectattr('active_status', 'equalto',
-            False)|list|length }}</strong
-          >
-          Inactive</span
-        >
+        <span><strong>{{ qr_codes|selectattr('active_status', 'equalto', False)|list|length }}</strong> Inactive</span>
       </div>
       <div class="project-qr-stat">
         <i class="fas fa-file-alt"></i>
-        <span
-          >Page <strong>{{ pagination.page }}</strong> of
-          <strong>{{ pagination.pages }}</strong></span
-        >
+        <span>Page <strong>{{ pagination.page }}</strong> of <strong>{{ pagination.pages }}</strong></span>
       </div>
     </div>
   </div>
@@ -380,26 +653,19 @@ Codes{% endblock %} {% block extra_head %}
   {% if qr_codes %}
   <div class="project-qr-grid">
     {% for qr in qr_codes %}
-    <div
-      class="qr-card {{ 'inactive' if not qr.active_status }}"
-      data-qr-id="{{ qr.id }}"
-      data-qr-name="{{ qr.name }}"
-      data-qr-location="{{ qr.location }}"
-      data-qr-address="{{ qr.location_address }}"
-      data-qr-event="{{ qr.location_event }}"
-      data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
-      onclick="openQRModalFromData(this)"
-    >
+    <div class="qr-card {{ 'inactive' if not qr.active_status }}" 
+         data-qr-id="{{ qr.id }}"
+         data-qr-name="{{ qr.name }}"
+         data-qr-location="{{ qr.location }}"
+         data-qr-address="{{ qr.location_address }}"
+         data-qr-event="{{ qr.location_event }}"
+         data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+         onclick="openQRModalFromData(this)">
       <div class="qr-card-layout">
-        <div
-          class="qr-preview-large"
-          onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
-        >
-          <img
-            src="data:image/png;base64,{{ qr.qr_code_image }}"
-            alt="QR Code for {{ qr.name }}"
-            loading="lazy"
-          />
+        <div class="qr-preview-large" onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')">
+          <img src="data:image/png;base64,{{ qr.qr_code_image }}" 
+               alt="QR Code for {{ qr.name }}" 
+               loading="lazy">
         </div>
 
         <div class="qr-details">
@@ -424,16 +690,11 @@ Codes{% endblock %} {% block extra_head %}
           {% if qr.qr_url %}
           <div class="qr-detail-item">
             <i class="fas fa-link"></i>
-            <span
-              >{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif
-              %}</span
-            >
+            <span>{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif %}</span>
           </div>
           {% endif %}
 
-          <span
-            class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
-          >
+          <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
             <i class="fas fa-circle"></i>
             {{ 'Active' if qr.active_status else 'Inactive' }}
           </span>
@@ -443,17 +704,13 @@ Codes{% endblock %} {% block extra_head %}
       <!-- QR Actions -->
       {% if session.role == 'admin' %}
       <div class="qr-actions">
-        <a
-          href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
-          class="btn btn-sm btn-secondary"
-          onclick="event.stopPropagation()"
-        >
+        <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" 
+           class="btn btn-sm btn-secondary" 
+           onclick="event.stopPropagation()">
           <i class="fas fa-edit"></i> Edit
         </a>
-        <button
-          onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')"
-          class="btn btn-sm btn-danger"
-        >
+        <button onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" 
+                class="btn btn-sm btn-danger">
           <i class="fas fa-trash"></i> Delete
         </button>
       </div>
@@ -466,9 +723,7 @@ Codes{% endblock %} {% block extra_head %}
   {% if pagination.pages > 1 %}
   <div class="pagination-container">
     <div class="pagination-info">
-      Showing {{ (pagination.page - 1) * pagination.per_page + 1 }} to {{
-      [pagination.page * pagination.per_page, pagination.total]|min }} of {{
-      pagination.total }} QR codes
+      Showing {{ (pagination.page - 1) * pagination.per_page + 1 }} to {{ [pagination.page * pagination.per_page, pagination.total]|min }} of {{ pagination.total }} QR codes
     </div>
 
     <ul class="pagination">
@@ -477,9 +732,7 @@ Codes{% endblock %} {% block extra_head %}
         {% if pagination.page == 1 %}
         <span><i class="fas fa-angle-double-left"></i></span>
         {% else %}
-        <a
-          href="{{ url_for('project_qr_codes', project_id=project.id, page=1) }}"
-        >
+        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=1) }}">
           <i class="fas fa-angle-double-left"></i>
         </a>
         {% endif %}
@@ -488,9 +741,7 @@ Codes{% endblock %} {% block extra_head %}
       <!-- Previous Page -->
       <li class="{{ 'disabled' if not pagination.has_prev }}">
         {% if pagination.has_prev %}
-        <a
-          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.prev_num) }}"
-        >
+        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.prev_num) }}">
           <i class="fas fa-angle-left"></i>
         </a>
         {% else %}
@@ -499,32 +750,30 @@ Codes{% endblock %} {% block extra_head %}
       </li>
 
       <!-- Page Numbers -->
-      {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1,
-      left_current=2, right_current=2) %} {% if page_num %} {% if page_num ==
-      pagination.page %}
-      <li class="active">
-        <span>{{ page_num }}</span>
-      </li>
-      {% else %}
-      <li>
-        <a
-          href="{{ url_for('project_qr_codes', project_id=project.id, page=page_num) }}"
-        >
-          {{ page_num }}
-        </a>
-      </li>
-      {% endif %} {% else %}
-      <li class="disabled">
-        <span>...</span>
-      </li>
-      {% endif %} {% endfor %}
+      {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if page_num %}
+          {% if page_num == pagination.page %}
+          <li class="active">
+            <span>{{ page_num }}</span>
+          </li>
+          {% else %}
+          <li>
+            <a href="{{ url_for('project_qr_codes', project_id=project.id, page=page_num) }}">
+              {{ page_num }}
+            </a>
+          </li>
+          {% endif %}
+        {% else %}
+        <li class="disabled">
+          <span>...</span>
+        </li>
+        {% endif %}
+      {% endfor %}
 
       <!-- Next Page -->
       <li class="{{ 'disabled' if not pagination.has_next }}">
         {% if pagination.has_next %}
-        <a
-          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.next_num) }}"
-        >
+        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.next_num) }}">
           <i class="fas fa-angle-right"></i>
         </a>
         {% else %}
@@ -537,27 +786,23 @@ Codes{% endblock %} {% block extra_head %}
         {% if pagination.page == pagination.pages %}
         <span><i class="fas fa-angle-double-right"></i></span>
         {% else %}
-        <a
-          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.pages) }}"
-        >
+        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.pages) }}">
           <i class="fas fa-angle-double-right"></i>
         </a>
         {% endif %}
       </li>
     </ul>
   </div>
-  {% endif %} {% else %}
+  {% endif %}
+
+  {% else %}
   <!-- Empty State -->
   <div class="empty-state">
     <i class="fas fa-qrcode"></i>
     <h3>No QR Codes Found</h3>
     <p>This project doesn't have any QR codes yet.</p>
     {% if session.role == 'admin' %}
-    <a
-      href="{{ url_for('create_qr_code') }}"
-      class="btn btn-primary"
-      style="margin-top: var(--spacing-4)"
-    >
+    <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
       <i class="fas fa-plus"></i> Create QR Code
     </a>
     {% endif %}
@@ -565,8 +810,132 @@ Codes{% endblock %} {% block extra_head %}
   {% endif %}
 </div>
 
-<!-- Include QR Modal from dashboard (if exists) -->
-{% include 'partials/_qr_modal.html' ignore missing %} {% endblock %} {% block
-extra_scripts %}
+<!-- Image Lightbox (COPIED FROM DASHBOARD) -->
+<div id="imageLightbox" class="image-lightbox" onclick="closeImageLightbox()">
+  <div class="lightbox-content" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeImageLightbox()">
+      <i class="fas fa-times"></i>
+    </button>
+    <img id="lightboxImage" src="" alt="" class="lightbox-image" />
+    <div class="lightbox-info" id="lightboxInfo"></div>
+    <div class="lightbox-hint">Click anywhere outside the image to close</div>
+  </div>
+</div>
+
+<!-- Enhanced QR Code Modal (COPIED FROM DASHBOARD) -->
+<div id="qrModal" class="modal" onclick="closeQRModal()">
+  <div class="modal-content qr-modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modalTitle">QR Code Details</h3>
+      <button class="modal-close" onclick="closeQRModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="modal-body qr-modal-body">
+      <div class="qr-modal-layout">
+        <div class="qr-modal-image">
+          <img id="modalQRImage" src="" alt="QR Code" />
+        </div>
+
+        <div class="qr-modal-info">
+          <div class="qr-detail-section">
+            <h4><i class="fas fa-qrcode"></i> QR Code Information</h4>
+
+            <div class="qr-detail-item">
+              <label>Name:</label>
+              <span id="modalQRName">-</span>
+            </div>
+
+            <div class="qr-detail-item">
+              <label>Location:</label>
+              <span id="modalQRLocation">-</span>
+            </div>
+
+            <div class="qr-detail-item">
+              <label>Address:</label>
+              <span id="modalQRAddress">-</span>
+            </div>
+
+            <div class="qr-detail-item">
+              <label>Event:</label>
+              <span id="modalQREvent">-</span>
+            </div>
+
+            <div class="qr-detail-item">
+              <label>QR Destination:</label>
+              <span id="modalQRDestination" class="qr-destination-link">
+                <a href="#" target="_blank" rel="noopener noreferrer">
+                  <i class="fas fa-external-link-alt"></i>
+                  View QR Destination
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer qr-modal-footer">
+      <button class="btn btn-primary" onclick="downloadModalQR()">
+        <i class="fas fa-download"></i>
+        Download QR Code
+      </button>
+      <button class="btn btn-outline" onclick="copyModalQRData()">
+        <i class="fas fa-copy"></i>
+        Copy Information
+      </button>
+      <button class="btn btn-secondary" onclick="copyQRDestination()">
+        <i class="fas fa-link"></i>
+        Copy QR Link
+      </button>
+      <button class="btn btn-outline" onclick="closeQRModal()">
+        <i class="fas fa-times"></i>
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+<script>
+// Delete QR Code function for project QR codes page
+function deleteQRCode(qrId, qrName) {
+  if (confirm(`Are you sure you want to permanently delete "${qrName}"?\n\nThis action cannot be undone and will remove all associated data.`)) {
+    // Create a form and submit it
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/qr-codes/${qrId}/delete`;
+    
+    // Add CSRF token if needed
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+    if (csrfToken) {
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrf_token';
+      csrfInput.value = csrfToken.content;
+      form.appendChild(csrfInput);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+
+// Ensure modal functions are available
+if (typeof openQRModalFromData === 'undefined') {
+  console.warn('openQRModalFromData function not found, modal interactions may not work');
+}
+
+if (typeof openImageLightbox === 'undefined') {
+  console.warn('openImageLightbox function not found, image preview may not work');
+}
+
+// Log successful page load
+console.log('✅ Project QR Codes page loaded successfully');
+console.log('📊 Total QR codes on page:', document.querySelectorAll('.qr-card').length);
+</script>
 {% endblock %}
