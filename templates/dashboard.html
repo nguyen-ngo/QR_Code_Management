@@ -160,6 +160,26 @@ Management{% endblock %} {% block extra_head %}
     transform: rotate(180deg);
   }
 
+  .view-all-qr-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    height: 20px;
+  }
+
+  .view-all-qr-btn i {
+    font-size: 0.7rem;
+  }
+
+  .view-all-qr-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+  }
+
   .project-qr-codes {
     max-height: 0;
     overflow: hidden;
@@ -1076,6 +1096,19 @@ Management{% endblock %} {% block extra_head %}
               {{ 'Active' if project.active_status else 'Inactive' }}
             </span>
           </div>
+
+          <!-- Show "View All" button if project has more than 20 QR codes -->
+          {% if project_qr_codes|length > 12 %}
+          <a
+            href="{{ url_for('project_qr_codes', project_id=project.id) }}"
+            class="btn btn-sm btn-primary view-all-qr-btn"
+            onclick="event.stopPropagation()"
+          >
+            <i class="fas fa-th-large"></i>
+            View All
+          </a>
+          {% endif %}
+
           <button class="project-toggle" id="toggle-{{ project.id }}">
             <i class="fas fa-chevron-down"></i>
           </button>
@@ -1086,7 +1119,7 @@ Management{% endblock %} {% block extra_head %}
       <div class="project-qr-codes" id="project-qr-{{ project.id }}">
         {% if project_qr_codes %}
         <div class="project-qr-grid">
-          {% for qr in project_qr_codes %}
+          {% for qr in project_qr_codes[:12] %}
           <div
             class="qr-card {{ 'inactive' if not qr.active_status }}"
             data-qr-id="{{ qr.id }}"

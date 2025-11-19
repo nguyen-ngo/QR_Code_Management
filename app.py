@@ -1703,6 +1703,45 @@ def dashboard():
         flash('Error loading dashboard. Please try again.', 'error')
         return redirect(url_for('login'))
 
+@app.route('/project/<int:project_id>/qr-codes')
+@login_required
+def project_qr_codes(project_id):
+    """
+    Paginated view of all QR codes for a specific project
+    Shows 20 QR codes per page with pagination controls
+    """
+    try:
+        # Get the project
+        project = Project.query.get_or_404(project_id)
+        
+        # Get page number from query parameter (default to 1)
+        page = request.args.get('page', 1, type=int)
+        per_page = 20  # QR codes per page
+        
+        # Query QR codes for this project with pagination
+        pagination = QRCode.query.filter_by(project_id=project_id)\
+            .order_by(QRCode.created_date.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
+        
+        qr_codes = pagination.items
+        
+        # Log access
+        logger_handler.logger.info(
+            f"User {session['username']} viewed project '{project.name}' QR codes page {page}: "
+            f"{len(qr_codes)} QR codes displayed (total: {pagination.total})"
+        )
+        
+        return render_template('project_qr_codes.html',
+                             project=project,
+                             qr_codes=qr_codes,
+                             pagination=pagination)
+    
+    except Exception as e:
+        logger_handler.log_database_error('project_qr_codes_view', e)
+        print(f"Error loading project QR codes: {e}")
+        flash('Error loading project QR codes. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
+
 @app.route('/api/dashboard/stats')
 @login_required
 def dashboard_stats_api():

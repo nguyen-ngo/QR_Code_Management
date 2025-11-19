@@ -1,0 +1,572 @@
+{% extends "base_authenticated.html" %} {% block title %}{{ project.name }} - QR
+Codes{% endblock %} {% block extra_head %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/dashboard.css') }}"
+/>
+<style>
+  .project-qr-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: var(--spacing-6);
+  }
+
+  .project-qr-header {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-6);
+    margin-bottom: var(--spacing-6);
+  }
+
+  .project-qr-header-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .project-qr-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--white);
+    font-size: 1.75rem;
+    flex-shrink: 0;
+  }
+
+  .project-qr-info {
+    flex: 1;
+  }
+
+  .project-qr-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--gray-900);
+    margin: 0 0 var(--spacing-2) 0;
+  }
+
+  .project-qr-description {
+    color: var(--gray-600);
+    font-size: var(--font-size-base);
+    margin: 0;
+  }
+
+  .project-qr-stats {
+    display: flex;
+    gap: var(--spacing-6);
+    padding-top: var(--spacing-4);
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .project-qr-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--gray-600);
+    font-size: var(--font-size-sm);
+  }
+
+  .project-qr-stat i {
+    color: var(--primary-color);
+  }
+
+  .project-qr-stat strong {
+    color: var(--gray-900);
+    font-weight: 600;
+  }
+
+  .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: 0.625rem 1.25rem;
+    background: var(--white);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-lg);
+    color: var(--gray-700);
+    text-decoration: none;
+    font-weight: 500;
+    transition: var(--transition);
+  }
+
+  .back-button:hover {
+    background: var(--gray-50);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-4);
+    margin-top: var(--spacing-6);
+    padding: var(--spacing-4);
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+  }
+
+  .pagination {
+    display: flex;
+    gap: var(--spacing-2);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .pagination li a,
+  .pagination li span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    color: var(--gray-700);
+    text-decoration: none;
+    font-weight: 500;
+    transition: var(--transition);
+  }
+
+  .pagination li a:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--white);
+  }
+
+  .pagination li.active span {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--white);
+  }
+
+  .pagination li.disabled span {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pagination-info {
+    color: var(--gray-600);
+    font-size: var(--font-size-sm);
+  }
+
+  .project-qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-6);
+  }
+
+  .qr-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .qr-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .qr-card.inactive {
+    opacity: 0.7;
+    background: linear-gradient(135deg, var(--white), #f8fafc);
+  }
+
+  .qr-card-layout {
+    display: flex;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-3);
+    align-items: flex-start;
+  }
+
+  .qr-preview-large {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 2px solid var(--gray-200);
+    transition: var(--transition);
+  }
+
+  .qr-preview-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .qr-card:hover .qr-preview-large {
+    border-color: var(--primary-color);
+  }
+
+  .qr-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-width: 0;
+  }
+
+  .qr-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0 0 var(--spacing-1) 0;
+    line-height: 1.3;
+  }
+
+  .qr-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--font-size-xs);
+    color: var(--gray-600);
+    min-width: 0;
+  }
+
+  .qr-detail-item i {
+    font-size: 0.65rem;
+    width: auto;
+    flex-shrink: 0;
+    color: var(--gray-400);
+  }
+
+  .qr-detail-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .qr-actions {
+    display: flex;
+    gap: var(--spacing-2);
+    padding-top: var(--spacing-3);
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .qr-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: 0.2rem 0.4rem;
+    border-radius: var(--radius-full);
+    font-size: 0.65rem;
+    font-weight: 500;
+    margin-top: var(--spacing-1);
+  }
+
+  .qr-status-badge.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #047857;
+  }
+
+  .qr-status-badge.inactive {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: var(--spacing-12) var(--spacing-6);
+    background: var(--white);
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-xl);
+    color: var(--gray-500);
+  }
+
+  .empty-state i {
+    font-size: 4rem;
+    color: var(--gray-400);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .empty-state h3 {
+    font-size: var(--font-size-xl);
+    color: var(--gray-700);
+    margin-bottom: var(--spacing-2);
+  }
+
+  @media (max-width: 768px) {
+    .project-qr-page {
+      padding: var(--spacing-4);
+    }
+
+    .project-qr-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pagination-container {
+      flex-direction: column;
+      gap: var(--spacing-3);
+    }
+
+    .project-qr-stats {
+      flex-direction: column;
+      gap: var(--spacing-3);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="project-qr-page">
+  <!-- Project Header -->
+  <div class="project-qr-header">
+    <div class="project-qr-header-content">
+      <div class="project-qr-icon">
+        <i class="fas fa-folder-open"></i>
+      </div>
+      <div class="project-qr-info">
+        <h1 class="project-qr-title">{{ project.name }}</h1>
+        {% if project.description %}
+        <p class="project-qr-description">{{ project.description }}</p>
+        {% endif %}
+      </div>
+      <a href="{{ url_for('dashboard') }}" class="back-button">
+        <i class="fas fa-arrow-left"></i>
+        Back to Dashboard
+      </a>
+    </div>
+
+    <div class="project-qr-stats">
+      <div class="project-qr-stat">
+        <i class="fas fa-qrcode"></i>
+        <span><strong>{{ pagination.total }}</strong> Total QR Codes</span>
+      </div>
+      <div class="project-qr-stat">
+        <i class="fas fa-check-circle"></i>
+        <span
+          ><strong
+            >{{ qr_codes|selectattr('active_status', 'equalto',
+            True)|list|length }}</strong
+          >
+          Active</span
+        >
+      </div>
+      <div class="project-qr-stat">
+        <i class="fas fa-pause-circle"></i>
+        <span
+          ><strong
+            >{{ qr_codes|selectattr('active_status', 'equalto',
+            False)|list|length }}</strong
+          >
+          Inactive</span
+        >
+      </div>
+      <div class="project-qr-stat">
+        <i class="fas fa-file-alt"></i>
+        <span
+          >Page <strong>{{ pagination.page }}</strong> of
+          <strong>{{ pagination.pages }}</strong></span
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Codes Grid -->
+  {% if qr_codes %}
+  <div class="project-qr-grid">
+    {% for qr in qr_codes %}
+    <div
+      class="qr-card {{ 'inactive' if not qr.active_status }}"
+      data-qr-id="{{ qr.id }}"
+      data-qr-name="{{ qr.name }}"
+      data-qr-location="{{ qr.location }}"
+      data-qr-address="{{ qr.location_address }}"
+      data-qr-event="{{ qr.location_event }}"
+      data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+      onclick="openQRModalFromData(this)"
+    >
+      <div class="qr-card-layout">
+        <div
+          class="qr-preview-large"
+          onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+        >
+          <img
+            src="data:image/png;base64,{{ qr.qr_code_image }}"
+            alt="QR Code for {{ qr.name }}"
+            loading="lazy"
+          />
+        </div>
+
+        <div class="qr-details">
+          <h4 class="qr-name">{{ qr.name }}</h4>
+          <div class="qr-detail-item">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>{{ qr.location }}</span>
+          </div>
+
+          {% if qr.location_address %}
+          <div class="qr-detail-item">
+            <i class="fas fa-home"></i>
+            <span>{{ qr.location_address }}</span>
+          </div>
+          {% endif %}
+
+          <div class="qr-detail-item qr-checkins-count">
+            <i class="fas fa-users"></i>
+            <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
+          </div>
+
+          {% if qr.qr_url %}
+          <div class="qr-detail-item">
+            <i class="fas fa-link"></i>
+            <span
+              >{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif
+              %}</span
+            >
+          </div>
+          {% endif %}
+
+          <span
+            class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+          >
+            <i class="fas fa-circle"></i>
+            {{ 'Active' if qr.active_status else 'Inactive' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- QR Actions -->
+      {% if session.role == 'admin' %}
+      <div class="qr-actions">
+        <a
+          href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+          class="btn btn-sm btn-secondary"
+          onclick="event.stopPropagation()"
+        >
+          <i class="fas fa-edit"></i> Edit
+        </a>
+        <button
+          onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')"
+          class="btn btn-sm btn-danger"
+        >
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div class="pagination-container">
+    <div class="pagination-info">
+      Showing {{ (pagination.page - 1) * pagination.per_page + 1 }} to {{
+      [pagination.page * pagination.per_page, pagination.total]|min }} of {{
+      pagination.total }} QR codes
+    </div>
+
+    <ul class="pagination">
+      <!-- First Page -->
+      <li class="{{ 'disabled' if pagination.page == 1 }}">
+        {% if pagination.page == 1 %}
+        <span><i class="fas fa-angle-double-left"></i></span>
+        {% else %}
+        <a
+          href="{{ url_for('project_qr_codes', project_id=project.id, page=1) }}"
+        >
+          <i class="fas fa-angle-double-left"></i>
+        </a>
+        {% endif %}
+      </li>
+
+      <!-- Previous Page -->
+      <li class="{{ 'disabled' if not pagination.has_prev }}">
+        {% if pagination.has_prev %}
+        <a
+          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.prev_num) }}"
+        >
+          <i class="fas fa-angle-left"></i>
+        </a>
+        {% else %}
+        <span><i class="fas fa-angle-left"></i></span>
+        {% endif %}
+      </li>
+
+      <!-- Page Numbers -->
+      {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1,
+      left_current=2, right_current=2) %} {% if page_num %} {% if page_num ==
+      pagination.page %}
+      <li class="active">
+        <span>{{ page_num }}</span>
+      </li>
+      {% else %}
+      <li>
+        <a
+          href="{{ url_for('project_qr_codes', project_id=project.id, page=page_num) }}"
+        >
+          {{ page_num }}
+        </a>
+      </li>
+      {% endif %} {% else %}
+      <li class="disabled">
+        <span>...</span>
+      </li>
+      {% endif %} {% endfor %}
+
+      <!-- Next Page -->
+      <li class="{{ 'disabled' if not pagination.has_next }}">
+        {% if pagination.has_next %}
+        <a
+          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.next_num) }}"
+        >
+          <i class="fas fa-angle-right"></i>
+        </a>
+        {% else %}
+        <span><i class="fas fa-angle-right"></i></span>
+        {% endif %}
+      </li>
+
+      <!-- Last Page -->
+      <li class="{{ 'disabled' if pagination.page == pagination.pages }}">
+        {% if pagination.page == pagination.pages %}
+        <span><i class="fas fa-angle-double-right"></i></span>
+        {% else %}
+        <a
+          href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.pages) }}"
+        >
+          <i class="fas fa-angle-double-right"></i>
+        </a>
+        {% endif %}
+      </li>
+    </ul>
+  </div>
+  {% endif %} {% else %}
+  <!-- Empty State -->
+  <div class="empty-state">
+    <i class="fas fa-qrcode"></i>
+    <h3>No QR Codes Found</h3>
+    <p>This project doesn't have any QR codes yet.</p>
+    {% if session.role == 'admin' %}
+    <a
+      href="{{ url_for('create_qr_code') }}"
+      class="btn btn-primary"
+      style="margin-top: var(--spacing-4)"
+    >
+      <i class="fas fa-plus"></i> Create QR Code
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Include QR Modal from dashboard (if exists) -->
+{% include 'partials/_qr_modal.html' ignore missing %} {% endblock %} {% block
+extra_scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
