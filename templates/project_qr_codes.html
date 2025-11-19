@@ -252,11 +252,78 @@
     min-width: 0;
   }
 
-  .qr-actions {
+  /* QR Card Actions - ADDED FROM DASHBOARD */
+  .qr-card-actions {
     display: flex;
-    gap: var(--spacing-2);
-    padding-top: var(--spacing-3);
+    gap: var(--spacing-1);
+    justify-content: flex-start;
+    padding-top: var(--spacing-2);
     border-top: 1px solid var(--gray-200);
+    margin-top: var(--spacing-2);
+  }
+
+  .qr-action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+
+  .qr-action-btn.copy {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+  }
+
+  .qr-action-btn.copy:hover {
+    background: #059669;
+    color: var(--white);
+  }
+
+  .qr-action-btn.link {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+  }
+
+  .qr-action-btn.link:hover {
+    background: #2563eb;
+    color: var(--white);
+  }
+
+  .qr-action-btn.download {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+  }
+
+  .qr-action-btn.download:hover {
+    background: #059669;
+    color: var(--white);
+  }
+
+  .qr-action-btn.edit {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary-color);
+  }
+
+  .qr-action-btn.edit:hover {
+    background: var(--primary-color);
+    color: var(--white);
+  }
+
+  .qr-action-btn.toggle {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+  }
+
+  .qr-action-btn.toggle:hover {
+    background: #d97706;
+    color: var(--white);
   }
 
   .qr-status-badge {
@@ -301,27 +368,7 @@
     margin-bottom: var(--spacing-2);
   }
 
-  @media (max-width: 768px) {
-    .project-qr-page {
-      padding: var(--spacing-4);
-    }
-
-    .project-qr-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .pagination-container {
-      flex-direction: column;
-      gap: var(--spacing-3);
-    }
-
-    .project-qr-stats {
-      flex-direction: column;
-      gap: var(--spacing-3);
-    }
-  }
-
-/* Modal Styles - CRITICAL FOR CENTERING */
+  /* Modal Styles - CRITICAL FOR CENTERING */
   .modal {
     display: none;
     position: fixed;
@@ -579,6 +626,24 @@
 
   /* Responsive modal styles */
   @media (max-width: 768px) {
+    .project-qr-page {
+      padding: var(--spacing-4);
+    }
+
+    .project-qr-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pagination-container {
+      flex-direction: column;
+      gap: var(--spacing-3);
+    }
+
+    .project-qr-stats {
+      flex-direction: column;
+      gap: var(--spacing-3);
+    }
+
     .qr-modal-layout {
       grid-template-columns: 1fr;
       gap: var(--spacing-6);
@@ -695,26 +760,47 @@
           {% endif %}
 
           <span class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}">
-            <i class="fas fa-circle"></i>
+            <i class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"></i>
             {{ 'Active' if qr.active_status else 'Inactive' }}
           </span>
         </div>
       </div>
 
-      <!-- QR Actions -->
-      {% if session.role == 'admin' %}
-      <div class="qr-actions">
-        <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}" 
-           class="btn btn-sm btn-secondary" 
-           onclick="event.stopPropagation()">
-          <i class="fas fa-edit"></i> Edit
-        </a>
-        <button onclick="event.stopPropagation(); deleteQRCode({{ qr.id }}, '{{ qr.name }}')" 
-                class="btn btn-sm btn-danger">
-          <i class="fas fa-trash"></i> Delete
+      <!-- QR Card Actions - ADDED ALL BUTTONS -->
+      <div class="qr-card-actions">
+        <button class="qr-action-btn copy"
+                onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
+                title="Copy QR Code URL">
+          <i class="fas fa-copy"></i>
         </button>
+
+        <button class="qr-action-btn link"
+                onclick="event.stopPropagation(); openQRLink({{ qr.id }})"
+                title="Open QR Code Link">
+          <i class="fas fa-external-link-alt"></i>
+        </button>
+
+        <button class="qr-action-btn download"
+                onclick="event.stopPropagation(); downloadQRFromCard(this)"
+                title="Download QR Code">
+          <i class="fas fa-download"></i>
+        </button>
+
+        <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+           class="qr-action-btn edit"
+           onclick="event.stopPropagation()"
+           title="Edit QR Code">
+          <i class="fas fa-edit"></i>
+        </a>
+
+        {% if session.role == 'admin' %}
+        <button class="qr-action-btn toggle"
+                onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})"
+                title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code">
+          <i class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"></i>
+        </button>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
     {% endfor %}
   </div>
@@ -905,12 +991,10 @@
 // Delete QR Code function for project QR codes page
 function deleteQRCode(qrId, qrName) {
   if (confirm(`Are you sure you want to permanently delete "${qrName}"?\n\nThis action cannot be undone and will remove all associated data.`)) {
-    // Create a form and submit it
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/qr-codes/${qrId}/delete`;
     
-    // Add CSRF token if needed
     const csrfToken = document.querySelector('meta[name="csrf-token"]');
     if (csrfToken) {
       const csrfInput = document.createElement('input');
@@ -925,17 +1009,26 @@ function deleteQRCode(qrId, qrName) {
   }
 }
 
-// Ensure modal functions are available
+// Ensure all dashboard functions are available
 if (typeof openQRModalFromData === 'undefined') {
-  console.warn('openQRModalFromData function not found, modal interactions may not work');
+  console.warn('openQRModalFromData function not found');
 }
 
 if (typeof openImageLightbox === 'undefined') {
-  console.warn('openImageLightbox function not found, image preview may not work');
+  console.warn('openImageLightbox function not found');
+}
+
+if (typeof copyQRUrl === 'undefined') {
+  console.warn('copyQRUrl function not found');
+}
+
+if (typeof openQRLink === 'undefined') {
+  console.warn('openQRLink function not found');
 }
 
 // Log successful page load
 console.log('✅ Project QR Codes page loaded successfully');
 console.log('📊 Total QR codes on page:', document.querySelectorAll('.qr-card').length);
+console.log('🔘 Action buttons per card: 5 (Copy, Link, Download, Edit, Toggle)');
 </script>
 {% endblock %}
