@@ -1337,3 +1337,99 @@
   border-top: 1px solid var(--gray-200);
   background: var(--gray-50);
 }
+
+/* ============================================
+   QR Code Search Section
+   ============================================ */
+.search-section {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-6);
+  margin-bottom: var(--spacing-6);
+}
+
+.search-form {
+  width: 100%;
+}
+
+.search-inputs {
+  display: flex;
+  gap: var(--spacing-4);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.search-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 250px;
+  max-width: 400px;
+}
+
+.search-input-group label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--gray-700);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.search-input,
+.search-select {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-base);
+  transition: var(--transition);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search-input:focus,
+.search-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.search-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.search-actions .btn {
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+  .search-input-group {
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .search-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-input-group {
+    max-width: 100%;
+    min-width: 100%;
+  }
+  
+  .search-actions {
+    width: 100%;
+  }
+  
+  .search-actions .btn {
+    width: 100%;
+  }
+}

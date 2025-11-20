@@ -981,6 +981,58 @@ Management{% endblock %} {% block extra_head %}
       padding: var(--spacing-4);
     }
   }
+
+/* ============================================
+   Search Results Banner
+   ============================================ */
+.search-results-banner {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  border: 1px solid #3b82f6;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4) var(--spacing-6);
+  margin-bottom: var(--spacing-6);
+  animation: slideIn 0.3s ease;
+}
+
+.search-results-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  color: #1e40af;
+  flex-wrap: wrap;
+}
+
+.search-results-content i {
+  font-size: 1.2rem;
+}
+
+.search-results-content span {
+  flex: 1;
+  font-weight: 500;
+  min-width: 250px;
+}
+
+.search-results-content .btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: var(--font-size-sm);
+  height: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .search-results-banner {
+    padding: var(--spacing-3) var(--spacing-4);
+  }
+  
+  .search-results-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .search-results-content .btn-sm {
+    width: 100%;
+  }
+} 
 </style>
 {% endblock %} {% block content %}
 <div class="dashboard-container">
@@ -1056,6 +1108,206 @@ Management{% endblock %} {% block extra_head %}
     </div>
     {% endif %}
   </div>
+  <!-- QR Code Search Section -->
+    <div class="search-section">
+      <form action="{{ url_for('dashboard') }}" method="GET" class="search-form">
+        <div class="search-inputs">
+          <div class="search-input-group">
+            <label for="search_name">
+              <i class="fas fa-search"></i> Search by Name
+            </label>
+            <input 
+              type="text" 
+              id="search_name" 
+              name="search_name" 
+              placeholder="Enter QR code name..."
+              class="search-input"
+            />
+          </div>
+          
+          <div class="search-input-group">
+            <label for="search_status">
+              <i class="fas fa-filter"></i> Filter by Status
+            </label>
+            <select id="search_status" name="search_status" class="search-select">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          
+          <div class="search-actions">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-search"></i>
+              Search
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Search Results Banner and Section -->
+  {% if search_name or search_status %}
+  <div class="search-results-banner">
+    <div class="search-results-content">
+      <i class="fas fa-filter"></i>
+      <span>
+        Showing filtered results
+        {% if search_name %} - <strong>{{ search_status|title }}</strong> only{% endif %}
+        {% if search_status %} - <strong>{{ search_status|title }}</strong> only{% endif %}
+        ({{ qr_codes|length }} QR code{{ 's' if qr_codes|length != 1 else '' }} found)
+      </span>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline">
+        <i class="fas fa-times"></i>
+        Clear Filters
+      </a>
+    </div>
+  </div>
+  
+  <!-- Search Results Display -->
+  {% if qr_codes %}
+  <div class="unassigned-qr-section">
+    <div class="unassigned-header">
+      <h3 class="unassigned-title">
+        <i class="fas fa-search"></i>
+        Search Results
+      </h3>
+      <span class="unassigned-count"
+        >{{ qr_codes|length }} QR Code{{ 's' if qr_codes|length != 1 else '' }}</span
+      >
+    </div>
+
+    <div class="project-qr-grid">
+      {% for qr in qr_codes %}
+      <div
+        class="qr-card {{ 'inactive' if not qr.active_status }}"
+        data-qr-id="{{ qr.id }}"
+        data-qr-name="{{ qr.name }}"
+        data-qr-location="{{ qr.location }}"
+        data-qr-address="{{ qr.location_address }}"
+        data-qr-event="{{ qr.location_event }}"
+        data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+        onclick="openQRModalFromData(this)"
+      >
+        <div class="qr-card-compact">
+          <div
+            class="qr-preview-compact"
+            onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+          >
+            <img
+              src="data:image/png;base64,{{ qr.qr_code_image }}"
+              alt="QR Code for {{ qr.name }}"
+              loading="lazy"
+            />
+          </div>
+
+          <div class="qr-info-compact">
+            <h4 class="qr-name-compact">{{ qr.name }}</h4>
+            <div class="qr-details-row">
+              <div class="qr-detail-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>{{ qr.location }}</span>
+              </div>
+
+              {% if qr.location_address %}
+              <div class="qr-detail-item">
+                <i class="fas fa-home"></i>
+                <span>{{ qr.location_address }}</span>
+              </div>
+              {% endif %}
+
+              <div class="qr-detail-item qr-checkins-count">
+                <i class="fas fa-users"></i>
+                <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
+              </div>
+
+              {% if qr.qr_url %}
+              <div class="qr-detail-item">
+                <i class="fas fa-link"></i>
+                <span class="qr-url-short">{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif %}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="qr-status-compact">
+            <span
+              class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+            >
+              <i
+                class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
+              ></i>
+              {{ 'Active' if qr.active_status else 'Inactive' }}
+            </span>
+          </div>
+
+          <div class="qr-actions-compact">
+            <button
+              class="qr-action-btn copy"
+              onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
+              title="Copy QR Code URL"
+            >
+              <i class="fas fa-copy"></i>
+            </button>
+
+            <button
+              class="qr-action-btn link"
+              onclick="event.stopPropagation(); openQRLink({{ qr.id }})"
+              title="Open QR Code Link"
+            >
+              <i class="fas fa-external-link-alt"></i>
+            </button>
+
+            <button
+              class="qr-action-btn download"
+              onclick="event.stopPropagation(); downloadQRFromCard(this)"
+              title="Download QR Code"
+            >
+              <i class="fas fa-download"></i>
+            </button>
+
+            <a
+              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              class="qr-action-btn edit"
+              onclick="event.stopPropagation()"
+              title="Edit QR Code"
+            >
+              <i class="fas fa-edit"></i>
+            </a>
+
+            {% if session.role == 'admin' %}
+            <button
+              class="qr-action-btn toggle"
+              onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})"
+              title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
+            >
+              <i
+                class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+              ></i>
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <!-- No Search Results -->
+  <div class="dashboard-empty">
+    <div class="empty-icon">
+      <i class="fas fa-search"></i>
+    </div>
+    <h3>No QR Codes Found</h3>
+    <p>No QR codes match your search criteria. Try adjusting your filters.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+      <i class="fas fa-times"></i>
+      Clear Filters
+    </a>
+  </div>
+  {% endif %}
+  {% else %}
   <!-- Projects Dashboard -->
   {% if projects %}
   <div class="projects-dashboard">
@@ -1375,8 +1627,24 @@ Management{% endblock %} {% block extra_head %}
   {% endif %}
 
   <!-- Empty State -->
-  {% if not projects and not qr_codes %}
+  {% if not qr_codes and not projects %}
   <div class="dashboard-empty">
+    {% if search_name or search_status %}
+    <div class="empty-icon">
+      <i class="fas fa-search"></i>
+    </div>
+    <h3>No QR Codes Found</h3>
+    <p>
+      No QR codes match your search criteria.
+      {% if search_name %}Try a different name{% endif %}
+      {% if search_name and search_status %} or {% endif %}
+      {% if search_status %}try changing the status filter{% endif %}.
+    </p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+      <i class="fas fa-times"></i>
+      Clear Filters
+    </a>
+    {% elif not projects %}
     <div class="empty-icon">
       <i class="fas fa-folder-open"></i>
     </div>
@@ -1385,23 +1653,15 @@ Management{% endblock %} {% block extra_head %}
       Get started by creating your first project and QR codes to organize your
       digital assets effectively.
     </p>
-    <div
-      style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap"
-    >
-      {% if session.role == 'admin' %}
-      <a href="{{ url_for('create_project') }}" class="btn btn-primary">
-        <i class="fas fa-folder-plus"></i>
-        Create Project
-      </a>
-      {% endif %}
-      <a href="{{ url_for('create_qr_code') }}" class="btn btn-secondary">
-        <i class="fas fa-plus"></i>
-        Create QR Code
-      </a>
-    </div>
+    <a href="{{ url_for('projects') }}" class="btn btn-primary">
+      <i class="fas fa-plus"></i>
+      Create Your First Project
+    </a>
+    {% endif %}
   </div>
   {% endif %}
 </div>
+{% endif %}
 
 <!-- Image Lightbox -->
 <div id="imageLightbox" class="image-lightbox" onclick="closeImageLightbox()">

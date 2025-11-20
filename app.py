@@ -1681,22 +1681,51 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Enhanced project-centric dashboard"""
+    """Enhanced project-centric dashboard with search filters"""
     try:
         user = User.query.get(session['user_id'])
-
-        # Get ALL QR codes and projects for project-centric view
-        qr_codes = QRCode.query.order_by(QRCode.created_date.desc()).all()
+        
+        # Get search parameters from URL
+        search_name = request.args.get('search_name', '').strip()
+        search_status = request.args.get('search_status', '').strip()
+        
+        # Build QR codes query with filters
+        qr_query = QRCode.query
+        
+        # Apply name filter if provided
+        if search_name:
+            qr_query = qr_query.filter(QRCode.name.ilike(f'%{search_name}%'))
+        
+        # Apply status filter if provided
+        if search_status == 'active':
+            qr_query = qr_query.filter(QRCode.active_status == True)
+        elif search_status == 'inactive':
+            qr_query = qr_query.filter(QRCode.active_status == False)
+        
+        # Execute query
+        qr_codes = qr_query.order_by(QRCode.created_date.desc()).all()
         projects = Project.query.order_by(Project.name.asc()).all()
-
-        # Log dashboard access with project info
-        logger_handler.logger.info(f"User {session['username']} accessed project dashboard: {len(qr_codes)} QR codes, {len(projects)} projects")
-
+        
+        # Log dashboard access with filter info
+        filter_info = []
+        if search_name:
+            filter_info.append(f"name contains '{search_name}'")
+        if search_status:
+            filter_info.append(f"status is {search_status}")
+        
+        log_message = f"User {session['username']} accessed dashboard: {len(qr_codes)} QR codes"
+        if filter_info:
+            log_message += f" (filtered: {', '.join(filter_info)})"
+        
+        logger_handler.logger.info(log_message)
+        
         return render_template('dashboard.html',
                              user=user,
                              qr_codes=qr_codes,
-                             projects=projects)
-
+                             projects=projects,
+                             search_name=search_name,
+                             search_status=search_status)
+    
     except Exception as e:
         logger_handler.log_database_error('dashboard_load', e)
         print(f"Error loading dashboard: {e}")
@@ -1741,6 +1770,22 @@ def project_qr_codes(project_id):
         print(f"Error loading project QR codes: {e}")
         flash('Error loading project QR codes. Please try again.', 'error')
         return redirect(url_for('dashboard'))
+    
+@app.route('/dashboard/search', methods=['GET'])
+@login_required
+def search_qr_codes():
+    """Search QR codes - redirect to dashboard with filters"""
+    search_name = request.args.get('search_name', '').strip()
+    search_status = request.args.get('search_status', '').strip()
+    
+    # Log search activity
+    logger_handler.logger.info(
+        f"User {session['username']} searched QR codes: "
+        f"name='{search_name}', status='{search_status}'"
+    )
+    
+    # Redirect to dashboard with search parameters
+    return redirect(url_for('dashboard', search_name=search_name, search_status=search_status))
 
 @app.route('/api/dashboard/stats')
 @login_required
