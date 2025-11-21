@@ -126,6 +126,10 @@
   gap: 2rem;
 }
 
+.dashboard-content-section {
+  margin-bottom: var(--spacing-8);
+}
+
 /* Responsive Design for Header */
 @media (max-width: 1024px) {
   .dashboard-header {
