@@ -5603,7 +5603,7 @@ def create_excel_export(selected_columns, column_names, filters):
                 try:
                     # Handle each column type
                     if column_key == 'employee_id':
-                        cell.value = attendance_record.employee_id or ''
+                        cell.value = int(attendance_record.employee_id) or ''
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
@@ -5840,7 +5840,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 try:
                     # Handle each column type
                     if column_key == 'employee_id':
-                        cell.value = attendance_record.employee_id or ''
+                        cell.value = int(attendance_record.employee_id) or ''
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
