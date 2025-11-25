@@ -8,6 +8,50 @@ let availableColumns = [];
 let sortableInstance = null;
 let savedColumnOrder = [];
 
+function toggleSection(sectionId) {
+    try {
+        const section = document.getElementById(sectionId);
+        const icon = document.getElementById(sectionId + 'Icon');
+        
+        if (!section) return;
+        
+        if (section.classList.contains('collapsed')) {
+            section.classList.remove('collapsed');
+            if (icon) icon.classList.remove('rotated');
+        } else {
+            section.classList.add('collapsed');
+            if (icon) icon.classList.add('rotated');
+        }
+        
+        // Save state
+        try {
+            const collapsedSections = JSON.parse(localStorage.getItem('collapsedSections') || '{}');
+            collapsedSections[sectionId] = section.classList.contains('collapsed');
+            localStorage.setItem('collapsedSections', JSON.stringify(collapsedSections));
+        } catch (e) {}
+    } catch (error) {
+        console.error('Error toggling section:', error);
+    }
+}
+
+function restoreCollapsedState() {
+    try {
+        const collapsedSections = JSON.parse(localStorage.getItem('collapsedSections') || '{}');
+        
+        Object.keys(collapsedSections).forEach(sectionId => {
+            if (collapsedSections[sectionId]) {
+                const section = document.getElementById(sectionId);
+                const icon = document.getElementById(sectionId + 'Icon');
+                
+                if (section) {
+                    section.classList.add('collapsed');
+                    if (icon) icon.classList.add('rotated');
+                }
+            }
+        });
+    } catch (error) {}
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Enhanced Export Configuration with Drag & Drop initialized');

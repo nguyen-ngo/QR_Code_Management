@@ -744,3 +744,55 @@
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* Collapsible Sections */
+.collapsible-content {
+    max-height: 5000px;
+    overflow: hidden;
+    transition: max-height 0.5s ease-in-out, opacity 0.3s ease-in-out;
+    opacity: 1;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    margin-left: 10px;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.toggle-icon.rotated {
+    transform: rotate(-180deg);
+}
+
+.config-header[onclick],
+.selected-columns-section h4[onclick] {
+    transition: background-color 0.2s ease;
+    border-radius: 8px;
+    padding: 10px;
+    margin: -10px;
+    user-select: none;
+}
+
+.config-header[onclick]:hover,
+.selected-columns-section h4[onclick]:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.config-header h3 {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.selected-columns-section h4 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}

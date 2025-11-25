@@ -89,12 +89,11 @@
             <input type="hidden" id="column_order" name="column_order" value="">
             
             <div class="config-card">
-                <div class="config-header">
+                <div class="config-header" onclick="toggleSection('columnsSection')" style="cursor: pointer;">
                     <h3>
-                        <i class="fas fa-columns"></i>
-                        Select & Order Columns for Export
+                        Select & Order Columns for Export <i class="fas fa-chevron-down toggle-icon" id="columnsSectionIcon"></i>
                     </h3>
-                    <div class="config-actions">
+                    <div class="config-actions" onclick="event.stopPropagation();">
                         <button type="button" onclick="selectAllColumns()" class="btn btn-sm btn-outline">
                             <i class="fas fa-check-double"></i>
                             Select All
@@ -109,62 +108,63 @@
                         </button>
                     </div>
                 </div>
-
-                <!-- Instructions -->
-                <div class="instructions-card">
-                    <div class="instructions-content">
-                        <h4><i class="fas fa-info-circle"></i> How to Use</h4>
-                        <ul>
-                            <li><strong>Select columns:</strong> Check the boxes for columns you want to export</li>
-                            <li><strong>Customize names:</strong> Edit the "Export as" field to change column headers</li>
-                            <li><strong>Reorder columns:</strong> <span class="highlight">Drag & drop</span> the selected columns to change their order in the Excel file</li>
-                            <li><strong>Preview:</strong> See how your export will look in the preview below</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Available Columns Grid -->
-                <div class="columns-section">
-                    <h4><i class="fas fa-list"></i> Available Columns</h4>
-                    <div class="columns-grid" id="columnsGrid">
-                        {% for column in available_columns %}
-                        <div class="column-item" data-column-key="{{ column.key }}">
-                            <div class="column-checkbox">
-                                <input type="checkbox" 
-                                       id="col_{{ column.key }}" 
-                                       name="selected_columns" 
-                                       value="{{ column.key }}"
-                                       {% if column.enabled %}checked{% endif %}
-                                       onchange="toggleColumnName('{{ column.key }}')">
-                                <label for="col_{{ column.key }}">
-                                    <i class="fas fa-check"></i>
-                                    {{ column.label }}
-                                </label>
-                            </div>
-                            
-                            <div class="column-name-input" id="name_group_{{ column.key }}" 
-                                 style="{% if not column.enabled %}display: none;{% endif %}">
-                                <label for="name_{{ column.key }}">Export as:</label>
-                                <input type="text" 
-                                       id="name_{{ column.key }}" 
-                                       name="name_{{ column.key }}" 
-                                       value="{{ column.default_name }}"
-                                       placeholder="Column name in Excel">
-                            </div>
+                <div class="collapsible-content" id="columnsSection">
+                    <!-- Instructions 
+                    <div class="instructions-card">
+                        <div class="instructions-content">
+                            <h4><i class="fas fa-info-circle"></i> How to Use</h4>
+                            <ul>
+                                <li><strong>Select columns:</strong> Check the boxes for columns you want to export</li>
+                                <li><strong>Customize names:</strong> Edit the "Export as" field to change column headers</li>
+                                <li><strong>Reorder columns:</strong> <span class="highlight">Drag & drop</span> the selected columns to change their order in the Excel file</li>
+                                <li><strong>Preview:</strong> See how your export will look in the preview below</li>
+                            </ul>
                         </div>
-                        {% endfor %}
                     </div>
-                </div>
+                    -->
+                    
+                    <!-- Available Columns Grid -->
+                    <div class="columns-section">
+                        <h4><i class="fas fa-list"></i> Available Columns</h4>
+                        <div class="columns-grid" id="columnsGrid">
+                            {% for column in available_columns %}
+                            <div class="column-item" data-column-key="{{ column.key }}">
+                                <div class="column-checkbox">
+                                    <input type="checkbox" 
+                                        id="col_{{ column.key }}" 
+                                        name="selected_columns" 
+                                        value="{{ column.key }}"
+                                        {% if column.enabled %}checked{% endif %}
+                                        onchange="toggleColumnName('{{ column.key }}')">
+                                    <label for="col_{{ column.key }}">
+                                        <i class="fas fa-check"></i>
+                                        {{ column.label }}
+                                    </label>
+                                </div>
+                                
+                                <div class="column-name-input" id="name_group_{{ column.key }}" 
+                                    style="{% if not column.enabled %}display: none;{% endif %}">
+                                    <label for="name_{{ column.key }}">Export as:</label>
+                                    <input type="text" 
+                                        id="name_{{ column.key }}" 
+                                        name="name_{{ column.key }}" 
+                                        value="{{ column.default_name }}"
+                                        placeholder="Column name in Excel">
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
 
-                <!-- Selected Columns Ordering Section -->
-                <div class="selected-columns-section" id="selectedColumnsSection" style="display: none;">
-                    <h4><i class="fas fa-sort"></i> Column Order in Export <span class="drag-hint">(Drag to reorder)</span></h4>
-                    <div class="selected-columns-list" id="selectedColumnsList">
-                        <!-- Selected columns will appear here for reordering -->
+                    <!-- Selected Columns Ordering Section -->
+                    <div class="selected-columns-section" id="selectedColumnsSection" style="display: none;">
+                        <h4><i class="fas fa-sort"></i> Column Order in Export<span class="drag-hint">(Drag to reorder)</span></h4>
+                        <div class="selected-columns-list" id="selectedColumnsList">
+                                <!-- Selected columns will appear here for reordering -->
+                        </div>
                     </div>
                 </div>
             </div>
-
             <!-- Preview Section -->
             <div class="preview-section">
                 <div class="preview-header">
