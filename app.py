@@ -1736,34 +1736,51 @@ def dashboard():
 @login_required
 def project_qr_codes(project_id):
     """
-    Paginated view of all QR codes for a specific project
-    Shows 20 QR codes per page with pagination controls
+    View all QR codes for a specific project with search filters
+    Allows filtering by name and status within the project
     """
     try:
         # Get the project
         project = Project.query.get_or_404(project_id)
         
-        # Get page number from query parameter (default to 1)
-        page = request.args.get('page', 1, type=int)
-        per_page = 20  # QR codes per page
+        # Get search parameters from URL
+        search_name = request.args.get('search_name', '').strip()
+        search_status = request.args.get('search_status', '').strip()
         
-        # Query QR codes for this project with pagination
-        pagination = QRCode.query.filter_by(project_id=project_id)\
-            .order_by(QRCode.created_date.desc())\
-            .paginate(page=page, per_page=per_page, error_out=False)
+        # Build QR codes query with filters for this project only
+        qr_query = QRCode.query.filter_by(project_id=project_id)
         
-        qr_codes = pagination.items
+        # Apply name filter if provided
+        if search_name:
+            qr_query = qr_query.filter(QRCode.name.ilike(f'%{search_name}%'))
         
-        # Log access
-        logger_handler.logger.info(
-            f"User {session['username']} viewed project '{project.name}' QR codes page {page}: "
-            f"{len(qr_codes)} QR codes displayed (total: {pagination.total})"
-        )
+        # Apply status filter if provided
+        if search_status == 'active':
+            qr_query = qr_query.filter(QRCode.active_status == True)
+        elif search_status == 'inactive':
+            qr_query = qr_query.filter(QRCode.active_status == False)
+        
+        # Execute query
+        qr_codes = qr_query.order_by(QRCode.created_date.desc()).all()
+        
+        # Log access with filter info
+        filter_info = []
+        if search_name:
+            filter_info.append(f"name contains '{search_name}'")
+        if search_status:
+            filter_info.append(f"status is {search_status}")
+        
+        log_message = f"User {session['username']} viewed project '{project.name}' QR codes: {len(qr_codes)} QR codes"
+        if filter_info:
+            log_message += f" (filtered: {', '.join(filter_info)})"
+        
+        logger_handler.logger.info(log_message)
         
         return render_template('project_qr_codes.html',
                              project=project,
                              qr_codes=qr_codes,
-                             pagination=pagination)
+                             search_name=search_name,
+                             search_status=search_status)
     
     except Exception as e:
         logger_handler.log_database_error('project_qr_codes_view', e)

@@ -697,7 +697,7 @@
     <div class="project-qr-stats">
       <div class="project-qr-stat">
         <i class="fas fa-qrcode"></i>
-        <span><strong>{{ pagination.total }}</strong> Total QR Codes</span>
+        <span><strong>{{ qr_codes|length }}</strong> Total QR Codes</span>
       </div>
       <div class="project-qr-stat">
         <i class="fas fa-check-circle"></i>
@@ -707,12 +707,72 @@
         <i class="fas fa-pause-circle"></i>
         <span><strong>{{ qr_codes|selectattr('active_status', 'equalto', False)|list|length }}</strong> Inactive</span>
       </div>
-      <div class="project-qr-stat">
-        <i class="fas fa-file-alt"></i>
-        <span>Page <strong>{{ pagination.page }}</strong> of <strong>{{ pagination.pages }}</strong></span>
-      </div>
     </div>
   </div>
+
+  <!-- QR Code Search Section -->
+  <div class="search-section">
+    <form action="{{ url_for('project_qr_codes', project_id=project.id) }}" method="GET" class="search-form">
+      <div class="search-inputs">
+        <div class="search-input-group">
+          <label for="search_name">
+            <i class="fas fa-search"></i> Search by Name
+          </label>
+          <input 
+            type="text" 
+            id="search_name" 
+            name="search_name" 
+            value="{{ search_name if search_name else '' }}"
+            placeholder="Enter QR code name..."
+            class="search-input"
+          />
+        </div>
+        
+        <div class="search-input-group">
+          <label for="search_status">
+            <i class="fas fa-filter"></i> Filter by Status
+          </label>
+          <select id="search_status" name="search_status" class="search-select">
+            <option value="" {% if not search_status %}selected{% endif %}>All Statuses</option>
+            <option value="active" {% if search_status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if search_status == 'inactive' %}selected{% endif %}>Inactive</option>
+          </select>
+        </div>
+        
+        <div class="search-actions">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search"></i>
+            Search
+          </button>
+          {% if search_name or search_status %}
+          <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-outline">
+            <i class="fas fa-times"></i>
+            Clear
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Search Results Banner -->
+  {% if search_name or search_status %}
+  <div class="search-results-banner">
+    <div class="search-results-content">
+      <i class="fas fa-filter"></i>
+      <span>
+        Showing filtered results
+        {% if search_name %} - Name: "<strong>{{ search_name }}</strong>"{% endif %}
+        {% if search_status %} - Status: <strong>{{ search_status|title }}</strong>{% endif %}
+        ({{ qr_codes|length }} QR code{{ 's' if qr_codes|length != 1 else '' }} found)
+      </span>
+      <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-sm btn-outline">
+        <i class="fas fa-times"></i>
+        Clear Filters
+      </a>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- QR Codes Grid -->
   {% if qr_codes %}
@@ -803,87 +863,24 @@
       </div>
     </div>
     {% endfor %}
-  </div>
-
-  <!-- Pagination -->
-  {% if pagination.pages > 1 %}
-  <div class="pagination-container">
-    <div class="pagination-info">
-      Showing {{ (pagination.page - 1) * pagination.per_page + 1 }} to {{ [pagination.page * pagination.per_page, pagination.total]|min }} of {{ pagination.total }} QR codes
-    </div>
-
-    <ul class="pagination">
-      <!-- First Page -->
-      <li class="{{ 'disabled' if pagination.page == 1 }}">
-        {% if pagination.page == 1 %}
-        <span><i class="fas fa-angle-double-left"></i></span>
-        {% else %}
-        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=1) }}">
-          <i class="fas fa-angle-double-left"></i>
-        </a>
-        {% endif %}
-      </li>
-
-      <!-- Previous Page -->
-      <li class="{{ 'disabled' if not pagination.has_prev }}">
-        {% if pagination.has_prev %}
-        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.prev_num) }}">
-          <i class="fas fa-angle-left"></i>
-        </a>
-        {% else %}
-        <span><i class="fas fa-angle-left"></i></span>
-        {% endif %}
-      </li>
-
-      <!-- Page Numbers -->
-      {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-        {% if page_num %}
-          {% if page_num == pagination.page %}
-          <li class="active">
-            <span>{{ page_num }}</span>
-          </li>
-          {% else %}
-          <li>
-            <a href="{{ url_for('project_qr_codes', project_id=project.id, page=page_num) }}">
-              {{ page_num }}
-            </a>
-          </li>
-          {% endif %}
-        {% else %}
-        <li class="disabled">
-          <span>...</span>
-        </li>
-        {% endif %}
-      {% endfor %}
-
-      <!-- Next Page -->
-      <li class="{{ 'disabled' if not pagination.has_next }}">
-        {% if pagination.has_next %}
-        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.next_num) }}">
-          <i class="fas fa-angle-right"></i>
-        </a>
-        {% else %}
-        <span><i class="fas fa-angle-right"></i></span>
-        {% endif %}
-      </li>
-
-      <!-- Last Page -->
-      <li class="{{ 'disabled' if pagination.page == pagination.pages }}">
-        {% if pagination.page == pagination.pages %}
-        <span><i class="fas fa-angle-double-right"></i></span>
-        {% else %}
-        <a href="{{ url_for('project_qr_codes', project_id=project.id, page=pagination.pages) }}">
-          <i class="fas fa-angle-double-right"></i>
-        </a>
-        {% endif %}
-      </li>
-    </ul>
-  </div>
-  {% endif %}
-
+  </div>  
   {% else %}
   <!-- Empty State -->
   <div class="empty-state">
+    {% if search_name or search_status %}
+    <i class="fas fa-search"></i>
+    <h3>No Matching QR Codes</h3>
+    <p>
+      No QR codes in this project match your search criteria.
+      {% if search_name %}Try a different name{% endif %}
+      {% if search_name and search_status %} or {% endif %}
+      {% if search_status %}try changing the status filter{% endif %}.
+    </p>
+    <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
+      <i class="fas fa-times"></i>
+      Clear Filters
+    </a>
+    {% else %}
     <i class="fas fa-qrcode"></i>
     <h3>No QR Codes Found</h3>
     <p>This project doesn't have any QR codes yet.</p>
@@ -891,6 +888,7 @@
     <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
       <i class="fas fa-plus"></i> Create QR Code
     </a>
+    {% endif %}
     {% endif %}
   </div>
   {% endif %}

@@ -1437,3 +1437,144 @@
     width: 100%;
   }
 }
+
+/* ============================================
+   Search Results Categorization Styles
+   ============================================ */
+
+/* Overall Search Results Header */
+.search-results-header {
+  background: linear-gradient(135deg, #f0f9ff, #dbeafe);
+  border: 1px solid #3b82f6;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-6);
+  margin-bottom: var(--spacing-6);
+}
+
+.search-results-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: #1e40af;
+  margin: 0 0 var(--spacing-2) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.search-results-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  color: #1e40af;
+  font-size: var(--font-size-base);
+}
+
+.result-count {
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+}
+
+.project-count {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+/* Project Section in Search Results */
+.search-results-project-section {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
+  transition: var(--transition);
+}
+
+.search-results-project-section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-color);
+}
+
+.search-results-project-section.unassigned {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+
+.search-project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.search-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.search-project-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.search-project-icon.unassigned-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.search-project-name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.search-project-description {
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+  margin: 0.25rem 0 0 0;
+}
+
+.search-project-count {
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.search-results-project-section.unassigned .search-project-count {
+  background: #f59e0b;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .search-project-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+  }
+
+  .search-project-count {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .search-results-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+  }
+}

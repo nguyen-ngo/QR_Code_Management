@@ -1032,7 +1032,148 @@ Management{% endblock %} {% block extra_head %}
   .search-results-content .btn-sm {
     width: 100%;
   }
-} 
+}
+
+/* ============================================
+   Search Results Categorization Styles
+   ============================================ */
+
+/* Overall Search Results Header */
+.search-results-header {
+  background: linear-gradient(135deg, #f0f9ff, #dbeafe);
+  border: 1px solid #3b82f6;
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-6);
+  margin-bottom: var(--spacing-6);
+}
+
+.search-results-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: #1e40af;
+  margin: 0 0 var(--spacing-2) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.search-results-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  color: #1e40af;
+  font-size: var(--font-size-base);
+}
+
+.result-count {
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+}
+
+.project-count {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+/* Project Section in Search Results */
+.search-results-project-section {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
+  transition: var(--transition);
+}
+
+.search-results-project-section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-color);
+}
+
+.search-results-project-section.unassigned {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+
+.search-project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.search-project-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.search-project-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.search-project-icon.unassigned-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.search-project-name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.search-project-description {
+  font-size: var(--font-size-sm);
+  color: var(--gray-600);
+  margin: 0.25rem 0 0 0;
+}
+
+.search-project-count {
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.search-results-project-section.unassigned .search-project-count {
+  background: #f59e0b;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .search-project-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+  }
+
+  .search-project-count {
+    align-self: stretch;
+    text-align: center;
+  }
+
+  .search-results-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+  }
+}
 </style>
 {% endblock %} {% block content %}
 <div class="dashboard-container">
@@ -1164,46 +1305,75 @@ Management{% endblock %} {% block extra_head %}
     </div>
   </div>
   
-  <!-- Search Results Display -->
+  <!-- Search Results Display - Categorized by Project -->
   {% if qr_codes %}
-  <div class="unassigned-qr-section">
-    <div class="unassigned-header">
-      <h3 class="unassigned-title">
-        <i class="fas fa-search"></i>
-        Search Results
-      </h3>
-      <span class="unassigned-count"
-        >{{ qr_codes|length }} QR Code{{ 's' if qr_codes|length != 1 else '' }}</span
-      >
+  
+  <!-- Overall Search Results Header -->
+  <div class="search-results-header">
+    <h2 class="search-results-title">
+      <i class="fas fa-search"></i>
+      Search Results
+    </h2>
+    <div class="search-results-summary">
+      <span class="result-count">
+        {{ qr_codes|length }} QR code{{ 's' if qr_codes|length != 1 else '' }} found
+      </span>
+      {% set projects_with_results = qr_codes|map(attribute='project_id')|select|unique|list|length %}
+      {% if projects_with_results > 0 %}
+      <span class="project-count">across {{ projects_with_results }} project{{ 's' if projects_with_results != 1 else '' }}</span>
+      {% endif %}
     </div>
+  </div>
 
-    <div class="project-qr-grid">
-      {% for qr in qr_codes %}
-      <div
-        class="qr-card {{ 'inactive' if not qr.active_status }}"
-        data-qr-id="{{ qr.id }}"
-        data-qr-name="{{ qr.name }}"
-        data-qr-location="{{ qr.location }}"
-        data-qr-address="{{ qr.location_address }}"
-        data-qr-event="{{ qr.location_event }}"
-        data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
-        onclick="openQRModalFromData(this)"
-      >
-        <div class="qr-card-compact">
-          <div
-            class="qr-preview-compact"
-            onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
-          >
-            <img
-              src="data:image/png;base64,{{ qr.qr_code_image }}"
-              alt="QR Code for {{ qr.name }}"
-              loading="lazy"
-            />
+  <!-- Group QR Codes by Project -->
+  {% for project in projects %}
+    {% set project_search_results = qr_codes|selectattr('project_id', 'equalto', project.id)|list %}
+    {% if project_search_results %}
+    <div class="search-results-project-section">
+      <div class="search-project-header">
+        <div class="search-project-info">
+          <div class="search-project-icon">
+            <i class="fas fa-folder-open"></i>
           </div>
+          <div>
+            <h3 class="search-project-name">{{ project.name }}</h3>
+            {% if project.description %}
+            <p class="search-project-description">{{ project.description }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <span class="search-project-count">
+          {{ project_search_results|length }} QR code{{ 's' if project_search_results|length != 1 else '' }}
+        </span>
+      </div>
 
-          <div class="qr-info-compact">
-            <h4 class="qr-name-compact">{{ qr.name }}</h4>
-            <div class="qr-details-row">
+      <div class="project-qr-grid">
+        {% for qr in project_search_results %}
+        <div
+          class="qr-card {{ 'inactive' if not qr.active_status }}"
+          data-qr-id="{{ qr.id }}"
+          data-qr-name="{{ qr.name }}"
+          data-qr-location="{{ qr.location }}"
+          data-qr-address="{{ qr.location_address }}"
+          data-qr-event="{{ qr.location_event }}"
+          data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+          onclick="openQRModalFromData(this)"
+        >
+          <div class="qr-card-layout">
+            <div
+              class="qr-preview-large"
+              onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+            >
+              <img
+                src="data:image/png;base64,{{ qr.qr_code_image }}"
+                alt="QR Code for {{ qr.name }}"
+                loading="lazy"
+              />
+            </div>
+
+            <div class="qr-details">
+              <h4 class="qr-name">{{ qr.name }}</h4>
+              
               <div class="qr-detail-item">
                 <i class="fas fa-map-marker-alt"></i>
                 <span>{{ qr.location }}</span>
@@ -1216,6 +1386,13 @@ Management{% endblock %} {% block extra_head %}
               </div>
               {% endif %}
 
+              {% if qr.location_event %}
+              <div class="qr-detail-item">
+                <i class="fas fa-calendar"></i>
+                <span>{{ qr.location_event }}</span>
+              </div>
+              {% endif %}
+
               <div class="qr-detail-item qr-checkins-count">
                 <i class="fas fa-users"></i>
                 <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
@@ -1224,24 +1401,22 @@ Management{% endblock %} {% block extra_head %}
               {% if qr.qr_url %}
               <div class="qr-detail-item">
                 <i class="fas fa-link"></i>
-                <span class="qr-url-short">{{ qr.qr_url[:50] }}{% if qr.qr_url|length > 50 %}...{% endif %}</span>
+                <span class="qr-url-short">{{ qr.qr_url[:40] }}{% if qr.qr_url|length > 40 %}...{% endif %}</span>
               </div>
               {% endif %}
+
+              <span
+                class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+              >
+                <i
+                  class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
+                ></i>
+                {{ 'Active' if qr.active_status else 'Inactive' }}
+              </span>
             </div>
           </div>
 
-          <div class="qr-status-compact">
-            <span
-              class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
-            >
-              <i
-                class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
-              ></i>
-              {{ 'Active' if qr.active_status else 'Inactive' }}
-            </span>
-          </div>
-
-          <div class="qr-actions-compact">
+          <div class="qr-card-actions">
             <button
               class="qr-action-btn copy"
               onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
@@ -1288,10 +1463,152 @@ Management{% endblock %} {% block extra_head %}
             {% endif %}
           </div>
         </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <!-- Unassigned QR Codes in Search Results -->
+  {% set unassigned_search_results = qr_codes|selectattr('project_id', 'equalto', None)|list %}
+  {% if unassigned_search_results %}
+  <div class="search-results-project-section unassigned">
+    <div class="search-project-header">
+      <div class="search-project-info">
+        <div class="search-project-icon unassigned-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div>
+          <h3 class="search-project-name">Unassigned QR Codes</h3>
+          <p class="search-project-description">QR codes not assigned to any project</p>
+        </div>
+      </div>
+      <span class="search-project-count">
+        {{ unassigned_search_results|length }} QR code{{ 's' if unassigned_search_results|length != 1 else '' }}
+      </span>
+    </div>
+
+    <div class="project-qr-grid">
+      {% for qr in unassigned_search_results %}
+      <div
+        class="qr-card {{ 'inactive' if not qr.active_status }}"
+        data-qr-id="{{ qr.id }}"
+        data-qr-name="{{ qr.name }}"
+        data-qr-location="{{ qr.location }}"
+        data-qr-address="{{ qr.location_address }}"
+        data-qr-event="{{ qr.location_event }}"
+        data-qr-url="{{ qr.qr_url if qr.qr_url else '' }}"
+        onclick="openQRModalFromData(this)"
+      >
+        <div class="qr-card-layout">
+          <div
+            class="qr-preview-large"
+            onclick="event.stopPropagation(); openImageLightbox(this, '{{ qr.name }}')"
+          >
+            <img
+              src="data:image/png;base64,{{ qr.qr_code_image }}"
+              alt="QR Code for {{ qr.name }}"
+              loading="lazy"
+            />
+          </div>
+
+          <div class="qr-details">
+            <h4 class="qr-name">{{ qr.name }}</h4>
+            
+            <div class="qr-detail-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>{{ qr.location }}</span>
+            </div>
+
+            {% if qr.location_address %}
+            <div class="qr-detail-item">
+              <i class="fas fa-home"></i>
+              <span>{{ qr.location_address }}</span>
+            </div>
+            {% endif %}
+
+            {% if qr.location_event %}
+            <div class="qr-detail-item">
+              <i class="fas fa-calendar"></i>
+              <span>{{ qr.location_event }}</span>
+            </div>
+            {% endif %}
+
+            <div class="qr-detail-item qr-checkins-count">
+              <i class="fas fa-users"></i>
+              <span>{{ get_qr_code_checkin_count(qr.id) }} check-ins</span>
+            </div>
+
+            {% if qr.qr_url %}
+            <div class="qr-detail-item">
+              <i class="fas fa-link"></i>
+              <span class="qr-url-short">{{ qr.qr_url[:40] }}{% if qr.qr_url|length > 40 %}...{% endif %}</span>
+            </div>
+            {% endif %}
+
+            <span
+              class="qr-status-badge {{ 'active' if qr.active_status else 'inactive' }}"
+            >
+              <i
+                class="fas {{ 'fa-check-circle' if qr.active_status else 'fa-pause-circle' }}"
+              ></i>
+              {{ 'Active' if qr.active_status else 'Inactive' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="qr-card-actions">
+          <button
+            class="qr-action-btn copy"
+            onclick="event.stopPropagation(); copyQRUrl({{ qr.id }})"
+            title="Copy QR Code URL"
+          >
+            <i class="fas fa-copy"></i>
+          </button>
+
+          <button
+            class="qr-action-btn link"
+            onclick="event.stopPropagation(); openQRLink({{ qr.id }})"
+            title="Open QR Code Link"
+          >
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+
+          <button
+            class="qr-action-btn download"
+            onclick="event.stopPropagation(); downloadQRFromCard(this)"
+            title="Download QR Code"
+          >
+            <i class="fas fa-download"></i>
+          </button>
+
+          <a
+            href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+            class="qr-action-btn edit"
+            onclick="event.stopPropagation()"
+            title="Edit QR Code"
+          >
+            <i class="fas fa-edit"></i>
+          </a>
+
+          {% if session.role == 'admin' %}
+          <button
+            class="qr-action-btn toggle"
+            onclick="event.stopPropagation(); toggleQRCodeStatus({{ qr.id }})"
+            title="{{ 'Deactivate' if qr.active_status else 'Activate' }} QR Code"
+          >
+            <i
+              class="fas {{ 'fa-pause' if qr.active_status else 'fa-play' }}"
+            ></i>
+          </button>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
     </div>
   </div>
+  {% endif %}
+
   {% else %}
   <!-- No Search Results -->
   <div class="dashboard-empty">
