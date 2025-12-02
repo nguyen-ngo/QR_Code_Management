@@ -8081,7 +8081,7 @@ def export_time_attendance():
         
         # Export based on format
         if export_format == 'excel' or export_format == 'xlsx':
-            return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str)
+            return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date, end_date)
         else:
             return export_time_attendance_csv(records, project_name_for_filename, date_range_str, filter_str)
     
@@ -8161,7 +8161,7 @@ def calculate_possible_violation(distance_value):
     except (ValueError, TypeError):
         return 'No'
     
-def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str):
+def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -8174,7 +8174,19 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     ws.title = "Sheet0"
     
     # Get date range for calculations
-    if records:
+    if start_date_filter and end_date_filter:
+        # Convert string dates to date objects if needed
+        if isinstance(start_date_filter, str):
+            start_date = datetime.strptime(start_date_filter, '%Y-%m-%d').date()
+        else:
+            start_date = start_date_filter
+        
+        if isinstance(end_date_filter, str):
+            end_date = datetime.strptime(end_date_filter, '%Y-%m-%d').date()
+        else:
+            end_date = end_date_filter
+    elif records:
+        # Fallback to calculating from records if no filter dates provided
         start_date = min(r.attendance_date for r in records)
         end_date = max(r.attendance_date for r in records)
     else:
