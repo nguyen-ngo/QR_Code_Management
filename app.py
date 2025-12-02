@@ -1628,7 +1628,7 @@ def login():
 
                 # Redirect to intended page or dashboard
                 next_page = request.args.get('next')
-                return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+                return redirect(next_page) if next_page else redirect(url_for('attendance_report'))
 
             else:
                 # Invalid credentials - log failed attempt
