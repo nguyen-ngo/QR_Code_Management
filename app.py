@@ -8202,8 +8202,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             'latitude': None,
             'longitude': None,
             'distance': distance_value,
-            'record_type': record_type,  # ADD THIS LINE
-            'action_description': record.action_description,  # ADD THIS LINE
+            'record_type': record_type,
+            'action_description': record.action_description,
             'event_description': record.event_description or '',
             'recorded_address': record.recorded_address or '',
             'qr_code': type('QRCode', (), {
@@ -8299,7 +8299,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     
     # Row 1: Company name
     ws.merge_cells(f'A{current_row}:N{current_row}')
-    title_cell = ws.cell(row=current_row, column=1, value='LT Services Inc.')
+    title_cell = ws.cell(row=current_row, column=1, value=os.environ.get('COMPANY_NAME', 'Your Company'))
     title_cell.font = Font(name='Arial', size=14, bold=True)
     title_cell.alignment = Alignment(horizontal='left')
     current_row += 1
