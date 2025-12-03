@@ -7970,8 +7970,7 @@ def download_import_template():
 def export_time_attendance():
     """Export time attendance records to CSV or Excel"""
     try:
-        # Get export format (default to CSV)
-        export_format = request.args.get('format', 'csv').lower()
+        export_format = request.args.get('format', 'excel').lower()
         
         # Get filter parameters (same as records page)
         employee_filter = request.args.get('employee_id')
@@ -8079,68 +8078,13 @@ def export_time_attendance():
         
         filter_str = "_".join(filter_desc) if filter_desc else "all"
         
-        # Export based on format
-        if export_format == 'excel' or export_format == 'xlsx':
-            return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date, end_date)
-        else:
-            return export_time_attendance_csv(records, project_name_for_filename, date_range_str, filter_str)
+        return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date, end_date)
     
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records: {e}")
         flash('Error generating export file. Please try again.', 'error')
         return redirect(url_for('time_attendance_records'))
 
-
-def export_time_attendance_csv(records, project_name_for_filename, date_range_str, filter_str):
-    """Generate CSV export of time attendance records"""
-    import csv
-    import io
-    
-    # Create CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write header
-    writer.writerow([
-        'Employee ID',
-        'Employee Name',
-        'Platform',
-        'Date',
-        'Time',
-        'Location Name',
-        'Action Description',
-        'Event Description',
-        'Recorded Address'
-    ])
-    
-    # Write data rows
-    for record in records:
-        writer.writerow([
-            record.employee_id,
-            record.employee_name,
-            record.platform or '',
-            record.attendance_date.strftime('%Y-%m-%d') if record.attendance_date else '',
-            record.attendance_time.strftime('%H:%M:%S') if record.attendance_time else '',
-            record.location_name,
-            record.action_description,
-            record.event_description or '',
-            record.recorded_address or ''
-        ])
-    
-    # Prepare response with new filename format
-    output.seek(0)
-    if date_range_str:
-        filename = f'{project_name_for_filename}time_attendance_{date_range_str}.csv'
-    else:
-        filename = f'{project_name_for_filename}time_attendance.csv'
-    
-    return Response(
-        output.getvalue(),
-        mimetype='text/csv',
-        headers={
-            'Content-Disposition': f'attachment; filename={filename}'
-        }
-    )
 
 def calculate_possible_violation(distance_value):
     """
@@ -8801,14 +8745,6 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         as_attachment=True,
         download_name=filename
     )
-
-@app.route('/time-attendance/export/quick-csv')
-@login_required
-@log_user_activity('time_attendance_quick_csv_export')
-def quick_csv_export_time_attendance():
-    """Quick CSV export with current page filters"""
-    # Redirect to main export with CSV format
-    return redirect(url_for('export_time_attendance', format='csv', **request.args))
 
 @app.route('/time-attendance/export/excel')
 @login_required

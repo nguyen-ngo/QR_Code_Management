@@ -33,23 +33,10 @@
         Import Data
       </a>
       {% endif %}
-      <div class="export-dropdown-wrapper">
-        <button class="btn btn-secondary" onclick="toggleExportMenu(event)">
-          <i class="fas fa-download"></i>
-          Export
-          <i class="fas fa-chevron-down" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>
-        </button>
-        <div class="export-dropdown-menu" id="exportMenu" style="display: none;">
-          <button type="button" onclick="exportRecords('excel')" class="export-option">
-            <i class="fas fa-file-excel" style="color: #10b981;"></i>
-            <span>Export to Excel</span>
-          </button>
-          <button type="button" onclick="exportRecords('csv')" class="export-option">
-            <i class="fas fa-file-csv" style="color: #3b82f6;"></i>
-            <span>Export to CSV</span>
-          </button>
-        </div>
-      </div>
+      <button class="btn btn-secondary" onclick="exportRecords('excel')">
+        <i class="fas fa-file-excel"></i>
+        Export to Excel
+      </button>
     </div>
   </div>
 
@@ -379,19 +366,7 @@ function confirmDelete(recordId, employeeName, date) {
   }
 }
 
-function toggleExportMenu(event) {
-  event.stopPropagation();
-  const menu = document.getElementById('exportMenu');
-  const isVisible = menu.style.display === 'block';
-  
-  // Close menu if open, open if closed
-  menu.style.display = isVisible ? 'none' : 'block';
-}
-
 function exportRecords(format) {
-  // Close the dropdown menu
-  document.getElementById('exportMenu').style.display = 'none';
-  
   // Get current filter values
   const employeeId = document.querySelector('select[name="employee_id"]')?.value || '';
   const locationName = document.querySelector('select[name="location_name"]')?.value || '';
