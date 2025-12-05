@@ -5620,11 +5620,11 @@ def create_excel_export(selected_columns, column_names, filters):
                 try:
                     # Handle each column type
                     if column_key == 'employee_id':
-                        cell.value = int(attendance_record.employee_id) or ''
+                        cell.value = format_employee_id_for_excel(attendance_record.employee_id)
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
-                            cell.value = f"{employee_record.firstName} {employee_record.lastName}"
+                            cell.value = f"{employee_record.firstName}, {employee_record.lastName}"
                         else:
                             cell.value = f"Unknown (ID: {attendance_record.employee_id})"
                     elif column_key == 'location_name':
@@ -5757,6 +5757,15 @@ def create_excel_export(selected_columns, column_names, filters):
             
         return None
 
+def format_employee_id_for_excel(employee_id):
+    if not employee_id:
+        return ''
+    emp_id_str = str(employee_id).strip()
+    if emp_id_str.isdigit():
+        return int(emp_id_str)
+    else:
+        return emp_id_str
+    
 def create_excel_export_ordered(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data in specified column order"""
     try:
@@ -5857,11 +5866,11 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 try:
                     # Handle each column type
                     if column_key == 'employee_id':
-                        cell.value = int(attendance_record.employee_id) or ''
+                        cell.value = format_employee_id_for_excel(attendance_record.employee_id)
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
-                            cell.value = f"{employee_record.firstName} {employee_record.lastName}"
+                            cell.value = f"{employee_record.firstName}, {employee_record.lastName}"
                         else:
                             cell.value = f"Unknown (ID: {attendance_record.employee_id})"
                     elif column_key == 'location_name':
