@@ -36,9 +36,9 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 
 # Session configuration for "Remember Me" functionality
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-app.config['SESSION_COOKIE_SECURE'] = True  # Set to True if using HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE')   # Set to True if using HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY')
+app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE')
 
 # Initialize database
 db = SQLAlchemy(app)
@@ -9407,4 +9407,5 @@ if __name__ == '__main__':
 
     app.run(debug=os.environ.get('DEBUG'),
             host=os.environ.get('FLASK_HOST'),
-            port=os.environ.get('FLASK_PORT'))
+            port=os.environ.get('FLASK_PORT'),
+            threaded=os.environ.get ('THREADED'))
