@@ -26,6 +26,7 @@ load_dotenv()
 from turnstile_utils import turnstile_utils
 from db_performance_optimization import initialize_performance_optimizations
 from app_performance_middleware import PerformanceMonitor
+from address_normalization_fix import normalize_address, addresses_are_similar
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -413,15 +414,18 @@ def get_coordinates_from_address_enhanced(address):
     Returns (latitude, longitude, accuracy_level)
     """
     if not address or address.strip() == "":
-        print("⚠️ Empty address provided for geocoding")
         return None, None, None
-
+        
     address = address.strip()
     print(f"🌍 Enhanced geocoding for: {address}")
-
-    # Check cache first
-    cached_lat, cached_lng, cached_accuracy = get_cached_coordinates(address)
+        
+    # STEP 1: Normalize address before any processing
+    normalized_address = normalize_address(address)
+        
+    # STEP 2: Check cache using normalized address
+    cached_lat, cached_lng, cached_accuracy = get_cached_coordinates(normalized_address)
     if cached_lat is not None:
+        print(f"✅ Using cached coordinates for normalized address")
         return cached_lat, cached_lng, cached_accuracy
 
     # Log enhanced geocoding action
@@ -470,7 +474,7 @@ def get_coordinates_from_address_enhanced(address):
                 print(f"   Place types: {place_types[:3]}")  # Show first 3 types
                 
                 # Cache the result
-                cache_coordinates(address, lat, lng, accuracy)
+                cache_coordinates(normalized_address, lat, lng, accuracy)
                 
                 # Log successful enhanced geocoding
                 try:
@@ -526,7 +530,7 @@ def get_coordinates_from_address_enhanced(address):
                 print(f"   Accuracy: {accuracy} (fallback)")
                 
                 # Cache the fallback result
-                cache_coordinates(address, lat, lng, accuracy)
+                cache_coordinates(normalized_address, lat, lng, accuracy)
                 
                 # Log fallback enhanced geocoding
                 try:
@@ -849,6 +853,12 @@ def calculate_location_accuracy_enhanced(qr_address, checkin_address, checkin_la
     # Step 1: Get coordinates for QR address using enhanced geocoding
     print(f"\n📍 Step 1: Geocoding QR address...")
     try:
+        # STEP 0: Check if addresses are essentially the same
+        if addresses_are_similar(qr_address, checkin_address, threshold=0.90):
+            print(f"🎯 Addresses are essentially identical - returning near-zero distance")
+            # Return very small distance (within 50 feet / ~0.01 miles)
+            return 0.01
+        
         qr_lat, qr_lng, qr_accuracy = get_coordinates_from_address_enhanced(qr_address)
         print(f"   Geocoding result: lat={qr_lat}, lng={qr_lng}, accuracy={qr_accuracy}")
 
