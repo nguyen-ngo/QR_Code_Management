@@ -385,6 +385,146 @@
         transform: none !important;
       }
 
+      /* Camera Verification Styles */
+      .verification-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .verification-modal.active {
+        display: flex;
+      }
+
+      .verification-content {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .verification-header {
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .verification-header h2 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .verification-header .distance-warning {
+        color: #dc2626;
+        font-weight: 600;
+        margin-top: 0.5rem;
+      }
+
+      .camera-preview {
+        position: relative;
+        width: 100%;
+        background: #000;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+
+      .camera-preview video {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .camera-preview canvas {
+        display: none;
+      }
+
+      .camera-preview img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .camera-controls {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+      }
+
+      .camera-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: var(--border-radius);
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .camera-btn.capture {
+        background: var(--primary-color);
+        color: white;
+      }
+
+      .camera-btn.capture:hover {
+        background: var(--primary-dark);
+      }
+
+      .camera-btn.retake {
+        background: #f59e0b;
+        color: white;
+      }
+
+      .camera-btn.retake:hover {
+        background: #d97706;
+      }
+
+      .camera-btn.submit-verification {
+        background: #10b981;
+        color: white;
+      }
+
+      .camera-btn.submit-verification:hover {
+        background: #059669;
+      }
+
+      .camera-btn.cancel {
+        background: #6b7280;
+        color: white;
+      }
+
+      .camera-btn.cancel:hover {
+        background: #4b5563;
+      }
+
+      .camera-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .verification-instructions {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+      }
+
+      .verification-instructions p {
+        margin: 0.5rem 0;
+        color: #78350f;
+      }
+
       .success-card {
         background: rgba(255, 255, 255, 0.95);
         border-radius: var(--border-radius);
@@ -581,6 +721,159 @@
 
       .spanish-legend {
         background: #15803d;
+      }
+
+      /* Camera Verification Styles */
+      .verification-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .verification-modal.active {
+        display: flex;
+      }
+
+      .verification-content {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .verification-header h2 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+
+      .verification-header .distance-warning {
+        color: #dc2626;
+        font-weight: 600;
+        margin-top: 0.5rem;
+        font-size: 1rem;
+      }
+
+      .camera-preview {
+        position: relative;
+        width: 100%;
+        background: #000;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        margin: 1rem 0;
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .camera-preview video {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .camera-preview canvas {
+        display: none;
+      }
+
+      .camera-preview img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .camera-controls {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .camera-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: var(--border-radius);
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .camera-btn.capture {
+        background: var(--primary-color);
+        color: white;
+      }
+
+      .camera-btn.capture:hover {
+        background: var(--primary-hover);
+      }
+
+      .camera-btn.retake {
+        background: #f59e0b;
+        color: white;
+      }
+
+      .camera-btn.retake:hover {
+        background: #d97706;
+      }
+
+      .camera-btn.submit-verification {
+        background: #10b981;
+        color: white;
+      }
+
+      .camera-btn.submit-verification:hover {
+        background: #059669;
+      }
+
+      .camera-btn.cancel {
+        background: #6b7280;
+        color: white;
+      }
+
+      .camera-btn.cancel:hover {
+        background: #4b5563;
+      }
+
+      .camera-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .verification-instructions {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+      }
+
+      .verification-instructions p {
+        margin: 0.5rem 0;
+        color: #78350f;
+        font-size: 0.95rem;
+      }
+
+      .verification-instructions strong {
+        color: #92400e;
       }
 
       /* Responsive Design */
@@ -918,7 +1211,54 @@
           </div>
         </div>
       </div>
+      <!-- Camera Verification Modal -->
+      <div id="verificationModal" class="verification-modal">
+        <div class="verification-content">
+          <div class="verification-header">
+            <h2>
+              <i class="fas fa-camera"></i>
+              Photo Verification Required
+            </h2>
+            <p class="verification-instructions">
+              <i class="fas fa-exclamation-triangle"></i>
+              <strong>You are checking in from a location that is too far from the designated area.</strong>
+            </p>
+            <p class="distance-warning">
+              Distance: <span id="verificationDistance">--</span> miles
+              (Threshold: <span id="verificationThreshold">0.3</span> miles)
+            </p>
+          </div>
 
+          <div class="verification-instructions">
+            <p><strong>Please take a photo of your current location:</strong></p>
+            <p>• Make sure the photo clearly shows your surroundings</p>
+            <p>• The photo will be reviewed by management</p>
+            <p>• You can retake the photo if needed</p>
+          </div>
+
+          <div class="camera-preview" id="cameraPreview">
+            <video id="cameraVideo" autoplay playsinline></video>
+            <canvas id="cameraCanvas"></canvas>
+            <img id="capturedPhoto" style="display: none;" />
+          </div>
+
+          <div class="camera-controls">
+            <button type="button" class="camera-btn capture" id="captureBtn">
+              <i class="fas fa-camera"></i> Take Photo
+            </button>
+            <button type="button" class="camera-btn retake" id="retakeBtn" style="display: none;">
+              <i class="fas fa-redo"></i> Retake
+            </button>
+            <button type="button" class="camera-btn submit-verification" id="submitVerificationBtn" style="display: none;">
+              <i class="fas fa-check"></i> Submit with Photo
+            </button>
+            <button type="button" class="camera-btn cancel" id="cancelVerificationBtn">
+              <i class="fas fa-times"></i> Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>  
     <!-- Enhanced JavaScript with preserved functionality -->
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
     <script src="{{ url_for('static', filename='js/android_location_handler.js') }}"></script>
@@ -1206,6 +1546,14 @@
                 "success"
               );
               showEnhancedSuccessCard(data);
+            } else if (data.requires_verification) {
+              // Photo verification required
+              console.log('⚠️ Photo verification required');
+              verificationAttemptData = formData; // Store for retry with photo
+              showVerificationModal(
+                data.distance || 0,
+                data.threshold || 0.3
+              );
             } else {
               showStatusMessage(
                 data.message || "Submission failed / Envío fallido",

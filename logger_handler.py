@@ -473,6 +473,12 @@ class AppLogger:
             'data': event_data
         }))
 
+    def log_photo_verification(self, employee_id, qr_code_id, distance, status='pending'):
+        """Log photo verification event"""
+        self.logger.info(
+            f"Photo Verification - Employee: {employee_id}, QR: {qr_code_id}, Distance: {distance:.3f} mi, Status: {status}"
+        )
+        
     def log_qr_code_generated(self, data_length, fill_color, back_color, box_size, border, error_correction):
         """Log QR code generation with customization details"""
         try:

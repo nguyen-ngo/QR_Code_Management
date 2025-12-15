@@ -40,6 +40,11 @@ app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE')   
 app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY')
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE')
 
+# Photo Verification Configuration
+PHOTO_VERIFICATION_ENABLED = os.environ.get('ENABLE_PHOTO_VERIFICATION', 'true').lower() == 'true'
+DISTANCE_THRESHOLD_FOR_VERIFICATION = float(os.environ.get('PHOTO_VERIFICATION_DISTANCE_THRESHOLD', '0.3'))
+VERIFICATION_PHOTO_MAX_SIZE = int(os.environ.get('VERIFICATION_PHOTO_MAX_SIZE', str(5 * 1024 * 1024)))
+
 # Initialize database
 db = SQLAlchemy(app)
 
@@ -4279,7 +4284,9 @@ def qr_checkin(qr_url):
             altitude=location_data['altitude'],
             location_source=location_data['source'],
             address=location_data['address'],
-            status='present'
+            status='present',
+            verification_required=False,  # Will be set below if needed
+            verification_status=None
         )
 
         print(f"✅ Created base attendance record")
@@ -4333,6 +4340,47 @@ def qr_checkin(qr_url):
                 else:
                     print(f"⚠️ Could not calculate location accuracy - calculation returned None")
 
+                # CHECK DISTANCE THRESHOLD FOR PHOTO VERIFICATION
+                print(f"\n📸 CHECKING PHOTO VERIFICATION REQUIREMENT:")
+                print(f"   Photo Verification Enabled: {PHOTO_VERIFICATION_ENABLED}")
+                requires_verification = False
+                verification_photo_data = None
+                
+                if PHOTO_VERIFICATION_ENABLED and location_accuracy is not None and location_accuracy > DISTANCE_THRESHOLD_FOR_VERIFICATION:
+                    print(f"⚠️ Distance ({location_accuracy:.3f} mi) exceeds threshold ({DISTANCE_THRESHOLD_FOR_VERIFICATION} mi)")
+                    
+                    # Check if photo was provided
+                    verification_photo_data = request.form.get('verification_photo', None)
+                    
+                    if verification_photo_data:
+                        print(f"✅ Verification photo provided (size: {len(verification_photo_data)} chars)")
+                        
+                        # Validate photo data (basic validation)
+                        if verification_photo_data.startswith('data:image/'):
+                            attendance.verification_photo = verification_photo_data
+                            attendance.verification_required = True
+                            attendance.verification_status = 'pending'
+                            attendance.verification_timestamp = datetime.utcnow()
+                            print(f"✅ Photo verification set to PENDING status")
+                        else:
+                            print(f"⚠️ Invalid photo format provided")
+                            return jsonify({
+                                'success': False,
+                                'message': 'Invalid photo format. Please try again.',
+                                'requires_verification': True
+                            }), 400
+                    else:
+                        print(f"❌ Photo verification REQUIRED but not provided")
+                        return jsonify({
+                            'success': False,
+                            'message': 'Photo verification required. Distance from location is too far.',
+                            'requires_verification': True,
+                            'distance': round(location_accuracy, 3),
+                            'threshold': DISTANCE_THRESHOLD_FOR_VERIFICATION
+                        }), 400
+                else:
+                    print(f"✅ Distance within threshold - no verification needed")
+
         except Exception as e:
             print(f"❌ Error in location accuracy calculation: {e}")
             print(f"❌ Full traceback: {traceback.format_exc()}")
@@ -4350,6 +4398,15 @@ def qr_checkin(qr_url):
 
             db.session.add(attendance)
             db.session.commit()
+
+            # Log verification if required
+            if attendance.verification_required:
+                logger_handler.log_photo_verification(
+                    employee_id=attendance.employee_id,
+                    qr_code_id=qr_code.id,
+                    distance=location_accuracy,
+                    status='pending'
+                )
 
             # VERIFICATION: Read back from database
             saved_record = AttendanceData.query.get(attendance.id)
@@ -5227,6 +5284,118 @@ def delete_attendance(record_id):
         else:
             flash('Error deleting attendance record. Please try again.', 'error')
             return redirect(url_for('attendance_report'))
+        
+@app.route('/verification-review')
+@login_required
+def verification_review():
+    """Admin page to review pending photo verifications"""
+    try:
+        # Only admins can access
+        if session.get('role') != 'admin':
+            flash('Unauthorized access.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        # Get filter parameters
+        status_filter = request.args.get('status', 'pending')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        # Build query
+        query = AttendanceData.query.filter(
+            AttendanceData.verification_required == True
+        )
+        
+        if status_filter and status_filter != 'all':
+            query = query.filter(AttendanceData.verification_status == status_filter)
+        
+        if date_from:
+            query = query.filter(AttendanceData.check_in_date >= date_from)
+        
+        if date_to:
+            query = query.filter(AttendanceData.check_in_date <= date_to)
+        
+        # Get records with QR code information
+        verifications = query.join(QRCode).order_by(
+            AttendanceData.verification_timestamp.desc()
+        ).all()
+        
+        # Get counts for status badges
+        pending_count = AttendanceData.query.filter(
+            AttendanceData.verification_status == 'pending'
+        ).count()
+        
+        approved_count = AttendanceData.query.filter(
+            AttendanceData.verification_status == 'approved'
+        ).count()
+        
+        rejected_count = AttendanceData.query.filter(
+            AttendanceData.verification_status == 'rejected'
+        ).count()
+        
+        return render_template('verification_review.html',
+                             verifications=verifications,
+                             pending_count=pending_count,
+                             approved_count=approved_count,
+                             rejected_count=rejected_count,
+                             status_filter=status_filter,
+                             date_from=date_from,
+                             date_to=date_to)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error in verification review: {e}")
+        flash('Error loading verification review.', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/verification-review/<int:record_id>/update', methods=['POST'])
+@login_required
+@log_database_operations('verification_update')
+def update_verification_status(record_id):
+    """Update verification status (approve/reject)"""
+    try:
+        # Only admins can update
+        if session.get('role') != 'admin':
+            return jsonify({
+                'success': False,
+                'message': 'Unauthorized access'
+            }), 403
+        
+        record = AttendanceData.query.get_or_404(record_id)
+        
+        new_status = request.json.get('status')
+        admin_note = request.json.get('note', '')
+        
+        if new_status not in ['approved', 'rejected']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid status'
+            }), 400
+        
+        # Update record
+        record.verification_status = new_status
+        record.edit_note = f"Verification {new_status} by {session.get('username')}. {admin_note}"
+        
+        db.session.commit()
+        
+        # Log the action
+        logger_handler.log_photo_verification(
+            employee_id=record.employee_id,
+            qr_code_id=record.qr_code_id,
+            distance=record.location_accuracy or 0,
+            status=new_status
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Verification {new_status} successfully'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.logger.error(f"Error updating verification: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'Error updating verification status'
+        }), 500
 
 @app.route('/api/attendance/stats')
 @admin_required

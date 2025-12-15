@@ -33,6 +33,10 @@ class AttendanceData(base.db.Model):
     altitude = base.db.Column(base.db.Float, nullable=True)
     location_source = base.db.Column(base.db.String(50), default='manual')
     address = base.db.Column(base.db.String(500), nullable=True)
+    verification_photo = base.db.Column(base.db.Text, nullable=True)  # Base64 encoded image
+    verification_required = base.db.Column(base.db.Boolean, default=False)
+    verification_status = base.db.Column(base.db.String(20), nullable=True)  # 'pending', 'approved', 'rejected'
+    verification_timestamp = base.db.Column(base.db.DateTime, nullable=True)
     edit_note = base.db.Column(base.db.Text, nullable=True)
     # Relationships
     qr_code = base.db.relationship('QRCode', backref=base.db.backref('attendance_records', lazy='dynamic'))
@@ -56,3 +60,18 @@ class AttendanceData(base.db.Model):
             return 'medium'
         else:
             return 'low'
+        
+    @property
+    def needs_photo_verification(self):
+        """Check if this check-in requires photo verification"""
+        return self.verification_required == True
+    
+    @property
+    def is_verification_pending(self):
+        """Check if photo verification is pending approval"""
+        return self.verification_status == 'pending'
+    
+    @property
+    def is_verification_approved(self):
+        """Check if photo verification was approved"""
+        return self.verification_status == 'approved'

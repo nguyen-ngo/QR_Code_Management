@@ -7,6 +7,11 @@
 let isSubmitting = false;
 let currentTime = new Date();
 
+// Camera verification variables
+let cameraStream = null;
+let capturedPhotoData = null;
+let verificationAttemptData = null;
+
 // Location tracking variables
 let userLocation = {
   latitude: null,
@@ -318,7 +323,14 @@ function submitCheckin() {
       return response.json();
     })
     .then((data) => {
-      handleCheckinResponse(data);
+      // Check if photo verification is required
+      if (data.requires_verification) {
+        console.log('⚠️ Photo verification required');
+        verificationAttemptData = formData; // Store for retry with photo
+        showVerificationModal(data.distance || 0, data.threshold || 0.3);
+      } else {
+        handleCheckinResponse(data);
+      }
     })
     .catch((error) => {
       handleCheckinError(error);
@@ -867,7 +879,7 @@ function checkLocationServicesStatus() {
       },
       {
         enableHighAccuracy: false,
-        timeout: 4000,
+        timeout: 10000,
         maximumAge: 30000,
       }
     );
@@ -1130,4 +1142,233 @@ function initializeLocationServicesCheck() {
       }
     }
   }, 1500);
+}
+
+// ===================================
+// CAMERA VERIFICATION FUNCTIONALITY
+// ===================================
+
+function showVerificationModal(distance, threshold) {
+  console.log(`📸 Showing verification modal - Distance: ${distance}, Threshold: ${threshold}`);
+  
+  const modal = document.getElementById('verificationModal');
+  const distanceSpan = document.getElementById('verificationDistance');
+  const thresholdSpan = document.getElementById('verificationThreshold');
+  
+  if (distanceSpan) distanceSpan.textContent = distance.toFixed(3);
+  if (thresholdSpan) thresholdSpan.textContent = threshold.toFixed(3);
+  
+  modal.classList.add('active');
+  startCamera();
+}
+
+function hideVerificationModal() {
+  const modal = document.getElementById('verificationModal');
+  modal.classList.remove('active');
+  stopCamera();
+  resetCameraInterface();
+}
+
+function startCamera() {
+  const video = document.getElementById('cameraVideo');
+  
+  console.log('📸 Starting camera...');
+  
+  const constraints = {
+    video: {
+      facingMode: 'environment', // Use back camera on mobile
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    audio: false
+  };
+
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(stream => {
+      cameraStream = stream;
+      video.srcObject = stream;
+      video.style.display = 'block';
+      console.log('✅ Camera started successfully');
+    })
+    .catch(error => {
+      console.error('❌ Camera error:', error);
+      alert('Unable to access camera. Please check permissions and try again. / No se puede acceder a la cámara.');
+      hideVerificationModal();
+      isSubmitting = false;
+      updateSubmitButton(false);
+    });
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+    console.log('📸 Camera stopped');
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  const capturedImage = document.getElementById('capturedPhoto');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const submitBtn = document.getElementById('submitVerificationBtn');
+  
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  // Draw video frame to canvas
+  const context = canvas.getContext('2d');
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Get photo data as base64
+  capturedPhotoData = canvas.toDataURL('image/jpeg', 0.8);
+  
+  // Show captured photo
+  capturedImage.src = capturedPhotoData;
+  capturedImage.style.display = 'block';
+  video.style.display = 'none';
+  
+  // Update button visibility
+  captureBtn.style.display = 'none';
+  retakeBtn.style.display = 'inline-flex';
+  submitBtn.style.display = 'inline-flex';
+  
+  console.log('📸 Photo captured');
+}
+
+function retakePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const capturedImage = document.getElementById('capturedPhoto');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const submitBtn = document.getElementById('submitVerificationBtn');
+  
+  // Reset interface
+  capturedImage.style.display = 'none';
+  video.style.display = 'block';
+  
+  captureBtn.style.display = 'inline-flex';
+  retakeBtn.style.display = 'none';
+  submitBtn.style.display = 'none';
+  
+  capturedPhotoData = null;
+  
+  console.log('📸 Ready to retake photo');
+}
+
+function resetCameraInterface() {
+  const video = document.getElementById('cameraVideo');
+  const capturedImage = document.getElementById('capturedPhoto');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const submitBtn = document.getElementById('submitVerificationBtn');
+  
+  if (capturedImage) capturedImage.style.display = 'none';
+  if (video) video.style.display = 'block';
+  
+  if (captureBtn) captureBtn.style.display = 'inline-flex';
+  if (retakeBtn) retakeBtn.style.display = 'none';
+  if (submitBtn) submitBtn.style.display = 'none';
+  
+  capturedPhotoData = null;
+  verificationAttemptData = null;
+}
+
+function submitWithVerification() {
+  if (!capturedPhotoData) {
+    alert('Please capture a photo first. / Por favor capture una foto primero.');
+    return;
+  }
+
+  console.log('📸 Submitting check-in with verification photo...');
+  
+  const submitBtn = document.getElementById('submitVerificationBtn');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+  
+  // Use stored form data from initial attempt
+  if (verificationAttemptData) {
+    verificationAttemptData.append('verification_photo', capturedPhotoData);
+    
+    const currentUrl = window.location.pathname;
+    const checkinUrl = `${currentUrl}/checkin`;
+    
+    fetch(checkinUrl, {
+      method: "POST",
+      body: verificationAttemptData,
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        hideVerificationModal();
+        
+        if (data.success) {
+          showCustomStatusMessage(
+            "Submission successful! Photo pending review. / ¡Envío exitoso! Foto pendiente de revisión.",
+            "success"
+          );
+          handleCheckinSuccess(data);
+        } else {
+          showCustomStatusMessage(
+            data.message || "Submission failed / Envío fallido",
+            "error"
+          );
+        }
+      })
+      .catch((error) => {
+        hideVerificationModal();
+        console.error('❌ Verification submit error:', error);
+        showLocalizedStatusMessage("networkError", "error");
+      })
+      .finally(() => {
+        isSubmitting = false;
+        updateSubmitButton(false);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Submit with Photo';
+      });
+  }
+}
+
+function cancelVerification() {
+  hideVerificationModal();
+  isSubmitting = false;
+  updateSubmitButton(false);
+}
+
+// Initialize camera button event listeners
+function initializeCameraButtons() {
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const submitBtn = document.getElementById('submitVerificationBtn');
+  const cancelBtn = document.getElementById('cancelVerificationBtn');
+  
+  if (captureBtn) {
+    captureBtn.addEventListener('click', capturePhoto);
+  }
+  
+  if (retakeBtn) {
+    retakeBtn.addEventListener('click', retakePhoto);
+  }
+  
+  if (submitBtn) {
+    submitBtn.addEventListener('click', submitWithVerification);
+  }
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', cancelVerification);
+  }
+  
+  console.log('📸 Camera verification buttons initialized');
+}
+
+// Call initialization when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeCameraButtons);
+} else {
+  initializeCameraButtons();
 }

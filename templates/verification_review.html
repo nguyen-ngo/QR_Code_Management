@@ -1,0 +1,597 @@
+{% extends "base_authenticated.html" %}
+
+{% block title %}Photo Verification Review{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>
+      <i class="fas fa-camera-retro"></i>
+      Photo Verification Review
+    </h1>
+    <p>Review and approve/reject check-ins requiring photo verification</p>
+  </div>
+
+  <!-- Status Summary Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon pending">
+        <i class="fas fa-clock"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ pending_count }}</h3>
+        <p>Pending Review</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon approved">
+        <i class="fas fa-check-circle"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ approved_count }}</h3>
+        <p>Approved</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon rejected">
+        <i class="fas fa-times-circle"></i>
+      </div>
+      <div class="stat-info">
+        <h3>{{ rejected_count }}</h3>
+        <p>Rejected</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters Section -->
+  <div class="filter-section">
+    <form method="GET" action="{{ url_for('verification_review') }}">
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label for="status">Status</label>
+          <select name="status" id="status" class="filter-select">
+            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Status</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="date_from">From Date</label>
+          <input type="date" name="date_from" id="date_from" value="{{ date_from }}" class="filter-input">
+        </div>
+
+        <div class="filter-group">
+          <label for="date_to">To Date</label>
+          <input type="date" name="date_to" id="date_to" value="{{ date_to }}" class="filter-input">
+        </div>
+
+        <div class="filter-group">
+          <button type="submit" class="btn-filter">
+            <i class="fas fa-filter"></i> Apply Filters
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Verifications List -->
+  <div class="verifications-section">
+    {% if verifications %}
+    <div class="verifications-grid">
+      {% for record in verifications %}
+      <div class="verification-card" data-record-id="{{ record.id }}">
+        <div class="verification-header">
+          <div class="verification-info">
+            <h3>
+              <i class="fas fa-user"></i>
+              Employee {{ record.employee_id }}
+            </h3>
+            <div class="verification-meta">
+              <span class="meta-item">
+                <i class="fas fa-calendar"></i>
+                {{ record.check_in_date.strftime('%b %d, %Y') }}
+              </span>
+              <span class="meta-item">
+                <i class="fas fa-clock"></i>
+                {{ record.check_in_time.strftime('%I:%M %p') }}
+              </span>
+              <span class="meta-item">
+                <i class="fas fa-map-marker-alt"></i>
+                {{ record.location_name }}
+              </span>
+            </div>
+          </div>
+          <div class="verification-status">
+            {% if record.verification_status == 'pending' %}
+            <span class="status-badge pending">
+              <i class="fas fa-clock"></i> Pending
+            </span>
+            {% elif record.verification_status == 'approved' %}
+            <span class="status-badge approved">
+              <i class="fas fa-check-circle"></i> Approved
+            </span>
+            {% elif record.verification_status == 'rejected' %}
+            <span class="status-badge rejected">
+              <i class="fas fa-times-circle"></i> Rejected
+            </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="verification-body">
+          <div class="photo-section">
+            <div class="photo-container">
+              {% if record.verification_photo %}
+              <img src="{{ record.verification_photo }}" alt="Verification Photo" class="verification-photo" />
+              {% else %}
+              <div class="no-photo">
+                <i class="fas fa-image"></i>
+                <p>No photo available</p>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="details-section">
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-ruler"></i> Distance from Location:
+              </span>
+              <span class="detail-value distance-value">
+                {% if record.location_accuracy %}
+                {{ "%.3f"|format(record.location_accuracy) }} miles
+                {% else %}
+                N/A
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-map-pin"></i> QR Location:
+              </span>
+              <span class="detail-value">
+                {{ record.qr_code.location_address if record.qr_code.location_address else 'N/A' }}
+              </span>
+            </div>
+
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-location-arrow"></i> Check-in Address:
+              </span>
+              <span class="detail-value">
+                {{ record.address if record.address else 'N/A' }}
+              </span>
+            </div>
+
+            {% if record.latitude and record.longitude %}
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-globe"></i> GPS Coordinates:
+              </span>
+              <span class="detail-value">
+                <a href="https://www.google.com/maps?q={{ record.latitude }},{{ record.longitude }}" target="_blank" class="coordinates-link">
+                  {{ "%.6f"|format(record.latitude) }}, {{ "%.6f"|format(record.longitude) }}
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </span>
+            </div>
+            {% endif %}
+
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-clock"></i> Verification Submitted:
+              </span>
+              <span class="detail-value">
+                {{ record.verification_timestamp.strftime('%b %d, %Y %I:%M %p') if record.verification_timestamp else 'N/A' }}
+              </span>
+            </div>
+
+            {% if record.edit_note %}
+            <div class="detail-row">
+              <span class="detail-label">
+                <i class="fas fa-sticky-note"></i> Note:
+              </span>
+              <span class="detail-value">
+                {{ record.edit_note }}
+              </span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if record.verification_status == 'pending' %}
+        <div class="verification-actions">
+          <button type="button" class="btn-action approve" onclick="updateVerificationStatus({{ record.id }}, 'approved')">
+            <i class="fas fa-check"></i> Approve
+          </button>
+          <button type="button" class="btn-action reject" onclick="updateVerificationStatus({{ record.id }}, 'rejected')">
+            <i class="fas fa-times"></i> Reject
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="fas fa-inbox"></i>
+      <h3>No Verifications Found</h3>
+      <p>There are no photo verifications matching your current filters.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+  }
+
+  .stat-icon.pending {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+  }
+
+  .stat-icon.approved {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+
+  .stat-icon.rejected {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+  }
+
+  .stat-info h3 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .stat-info p {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin: 0;
+  }
+
+  .filter-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .filter-group label {
+    display: block;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .filter-select,
+  .filter-input {
+    width: 100%;
+    padding: 0.625rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+  }
+
+  .btn-filter {
+    width: 100%;
+    padding: 0.625rem 1.5rem;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-filter:hover {
+    background: #2563eb;
+  }
+
+  .verifications-grid {
+    display: grid;
+    gap: 2rem;
+  }
+
+  .verification-card {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+
+  .verification-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+  }
+
+  .verification-info h3 {
+    margin: 0 0 0.5rem 0;
+    color: #0f172a;
+    font-size: 1.25rem;
+  }
+
+  .verification-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .status-badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .status-badge.approved {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .status-badge.rejected {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .verification-body {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 2rem;
+    padding: 1.5rem;
+  }
+
+  @media (max-width: 1024px) {
+    .verification-body {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .photo-container {
+    background: #f9fafb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    aspect-ratio: 4/3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .verification-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: pointer;
+  }
+
+  .verification-photo:hover {
+    opacity: 0.9;
+  }
+
+  .no-photo {
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  .no-photo i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .details-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .detail-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .detail-value {
+    color: #0f172a;
+    font-size: 1rem;
+  }
+
+  .distance-value {
+    font-weight: 700;
+    color: #dc2626;
+    font-size: 1.125rem;
+  }
+
+  .coordinates-link {
+    color: #3b82f6;
+    text-decoration: none;
+  }
+
+  .coordinates-link:hover {
+    text-decoration: underline;
+  }
+
+  .verification-actions {
+    padding: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .btn-action {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-action.approve {
+    background: #10b981;
+    color: white;
+  }
+
+  .btn-action.approve:hover {
+    background: #059669;
+  }
+
+  .btn-action.reject {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-action.reject:hover {
+    background: #dc2626;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #9ca3af;
+  }
+
+  .empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h3 {
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-state p {
+    color: #9ca3af;
+  }
+</style>
+
+<script>
+  function updateVerificationStatus(recordId, status) {
+    const card = document.querySelector(`[data-record-id="${recordId}"]`);
+    const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+    
+    if (!confirm(`Are you sure you want to ${status} this verification?`)) {
+      return;
+    }
+    
+    // Optional: Add note
+    let note = '';
+    if (status === 'rejected') {
+      note = prompt('Optional: Add a note explaining why this was rejected:');
+      if (note === null) return; // User cancelled
+    }
+    
+    // Disable buttons
+    const buttons = card.querySelectorAll('.btn-action');
+    buttons.forEach(btn => btn.disabled = true);
+    
+    fetch(`/verification-review/${recordId}/update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: status,
+        note: note
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(`Verification ${status} successfully!`);
+        window.location.reload();
+      } else {
+        alert(`Error: ${data.message}`);
+        buttons.forEach(btn => btn.disabled = false);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Network error. Please try again.');
+      buttons.forEach(btn => btn.disabled = false);
+    });
+  }
+  
+  // Click photo to view full size
+  document.addEventListener('DOMContentLoaded', function() {
+    const photos = document.querySelectorAll('.verification-photo');
+    photos.forEach(photo => {
+      photo.addEventListener('click', function() {
+        window.open(this.src, '_blank');
+      });
+    });
+  });
+</script>
+{% endblock %}
