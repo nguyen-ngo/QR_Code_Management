@@ -1217,23 +1217,19 @@
           <div class="verification-header">
             <h2>
               <i class="fas fa-camera"></i>
-              Photo Verification Required
+              Distance Violation<br>
+              Violación de distancia
             </h2>
             <p class="verification-instructions">
               <i class="fas fa-exclamation-triangle"></i>
-              <strong>You are checking in from a location that is too far from the designated area.</strong>
+              <strong>Please take a picture with the QR code to verification.</strong><br>
+              <i class="fas fa-exclamation-triangle"></i>
+              <strong>Por favor, tome una foto con el código QR para la verificación.</strong>
             </p>
             <p class="distance-warning">
-              Distance: <span id="verificationDistance">--</span> miles
-              (Threshold: <span id="verificationThreshold">0.3</span> miles)
+              Distance/Distancia: <span id="verificationDistance">--</span> miles
+              (Threshold/Umbral: <span id="verificationThreshold">0.3</span> miles)
             </p>
-          </div>
-
-          <div class="verification-instructions">
-            <p><strong>Please take a photo of your current location:</strong></p>
-            <p>• Make sure the photo clearly shows your surroundings</p>
-            <p>• The photo will be reviewed by management</p>
-            <p>• You can retake the photo if needed</p>
           </div>
 
           <div class="camera-preview" id="cameraPreview">
@@ -1244,16 +1240,16 @@
 
           <div class="camera-controls">
             <button type="button" class="camera-btn capture" id="captureBtn">
-              <i class="fas fa-camera"></i> Take Photo
+              <i class="fas fa-camera"></i> Take Photo/Tomar foto
             </button>
             <button type="button" class="camera-btn retake" id="retakeBtn" style="display: none;">
-              <i class="fas fa-redo"></i> Retake
+              <i class="fas fa-redo"></i> Retake/Volver a tomar
             </button>
             <button type="button" class="camera-btn submit-verification" id="submitVerificationBtn" style="display: none;">
-              <i class="fas fa-check"></i> Submit with Photo
+              <i class="fas fa-check"></i> Submit with Photo/Entregar
             </button>
             <button type="button" class="camera-btn cancel" id="cancelVerificationBtn">
-              <i class="fas fa-times"></i> Cancel
+              <i class="fas fa-times"></i> Cancel/Cancelar
             </button>
           </div>
         </div>
