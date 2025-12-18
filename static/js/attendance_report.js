@@ -37,89 +37,6 @@ function initializeReport() {
   applyFilters();
 }
 
-function loadTableData() {
-  const table = document.getElementById("attendanceTable");
-  if (table) {
-    const rows = table.querySelectorAll("tbody tr");
-    attendanceData = Array.from(rows).map((row, index) => {
-      const cells = row.querySelectorAll("td");
-
-      // Debug: Log the actual cell content
-      if (index < 3) {
-        // Only log first 3 rows for debugging
-        console.log(`=== DEBUGGING ROW ${index + 1} ===`);
-        console.log(
-          `Cell 7 (check-in address):`,
-          cells[7] ? cells[7].innerHTML : "NOT FOUND"
-        );
-        console.log(
-          `Cell 8 (accuracy):`,
-          cells[8] ? cells[8].innerHTML : "NOT FOUND"
-        );
-
-        if (cells[8]) {
-          const accuracyText = cells[8].textContent;
-          console.log(`Accuracy text:`, accuracyText);
-
-          const milesMatch = accuracyText.match(/(\d+\.?\d*)\s*mi/);
-          const metersMatch = accuracyText.match(/(\d+\.?\d*)\s*m/);
-          console.log(`Miles match:`, milesMatch);
-          console.log(`Meters match:`, metersMatch);
-        }
-      }
-
-      return {
-          id: row.dataset.recordId,
-          index: index + 1,
-          employeeId: cells[1] ? cells[1].textContent.trim() : "",
-          employeeName: cells[2] ? cells[2].textContent.trim() : "",
-          location: cells[3] ? cells[3].textContent.trim() : "",
-          event: cells[4] ? cells[4].textContent.trim() : "",
-          date: cells[5] ? cells[5].textContent.trim() : "",
-          time: cells[6] ? cells[6].textContent.trim() : "",
-          qr_address: cells[7]
-              ? cells[7].getAttribute("title") || cells[7].textContent.trim()
-              : "",
-          checked_in_address: cells[8]
-              ? cells[8].getAttribute("title") || cells[8].textContent.trim()
-              : "",
-          location_accuracy: cells[9] ? extractLocationAccuracy(cells[9]) : null,
-          accuracy_level: cells[9]
-              ? extractLocationAccuracyLevel(cells[9])
-              : "unknown",
-          device: cells[10]
-              ? cells[10].textContent.trim()
-              : ""
-      };
-    });
-
-    filteredData = [...attendanceData];
-    console.log(`Loaded ${attendanceData.length} attendance records`);
-
-    // Debug log for location accuracy data
-    const recordsWithAccuracy = attendanceData.filter(
-      (r) => r.location_accuracy !== null
-    );
-    console.log(
-      `Records with location accuracy: ${recordsWithAccuracy.length}`
-    );
-    if (recordsWithAccuracy.length > 0) {
-      console.log(
-        `Sample records with accuracy:`,
-        recordsWithAccuracy.slice(0, 3).map((r) => ({
-          employeeId: r.employeeId,
-          location_accuracy: r.location_accuracy,
-          accuracy_level: r.accuracy_level,
-          qr_address: r.qr_address,
-          checked_in_address: r.checked_in_address,
-        }))
-      );
-    }
-
-    // Log all first 3 records for debugging
-    console.log("First 3 attendance records:", attendanceData.slice(0, 3));
-  }
-}
 
 function extractAccuracyValue(cell) {
   const text = cell.textContent;
@@ -563,6 +480,10 @@ function loadTableData() {
     const rows = table.querySelectorAll("tbody tr");
     attendanceData = Array.from(rows).map((row, index) => {
       const cells = row.querySelectorAll("td");
+      
+      // Extract verification data from the accuracy badge
+      const verificationData = extractVerificationData(cells[9]);
+      
       return {
           id: row.dataset.recordId,
           index: index + 1,
@@ -587,6 +508,8 @@ function loadTableData() {
               ? cells[10].textContent.trim()
               : "",
           isModified: row.classList.contains('modified-record'),
+          verification_required: verificationData.required,
+          verification_status: verificationData.status
       };
     });
 
@@ -661,6 +584,37 @@ function extractLocationAccuracyLevel(cell) {
   return "unknown";
 }
 
+function extractVerificationData(cell) {
+  // Extract verification status from badge classes in the HTML
+  if (!cell) {
+    console.log('extractVerificationData: No cell provided');
+    return { required: false, status: null };
+  }
+  
+  const badge = cell.querySelector('.location-accuracy-badge');
+  if (!badge) {
+    console.log('extractVerificationData: No badge found in cell');
+    return { required: false, status: null };
+  }
+  
+  console.log('extractVerificationData: Badge classes:', badge.className);
+  
+  // Check badge classes for verification status
+  if (badge.classList.contains('badge-review-needed')) {
+    console.log('extractVerificationData: Found pending verification');
+    return { required: true, status: 'pending' };
+  } else if (badge.classList.contains('badge-verified')) {
+    console.log('extractVerificationData: Found approved verification');
+    return { required: true, status: 'approved' };
+  } else if (badge.classList.contains('badge-rejected')) {
+    console.log('extractVerificationData: Found rejected verification');
+    return { required: true, status: 'rejected' };
+  }
+  
+  console.log('extractVerificationData: No verification status found, standard badge');
+  return { required: false, status: null };
+}
+
 function createTableRow(record, displayIndex) {
   const row = document.createElement("tr");
   row.dataset.recordId = record.id;
@@ -675,14 +629,44 @@ function createTableRow(record, displayIndex) {
     console.log(`=== CREATING ROW ${displayIndex} ===`);
     console.log(`Employee: ${record.employeeId}`);
     console.log(`Location accuracy: ${record.location_accuracy}`);
+    console.log(`Verification required: ${record.verification_required}`);
+    console.log(`Verification status: ${record.verification_status}`);
     console.log(`QR address: ${record.qr_address}`);
     console.log(`Check-in address: ${record.checked_in_address}`);
   }
 
-  // Create location accuracy badge HTML
-  const locationAccuracyBadge =
-    record.location_accuracy !== null
-      ? `<span class="location-accuracy-badge accuracy-${
+  // Create location accuracy badge HTML - check verification status first
+  let locationAccuracyBadge;
+  
+  if (record.verification_required && record.verification_status === 'pending') {
+    // Show Review Needed badge for pending verification
+    locationAccuracyBadge = `<span class="location-accuracy-badge badge-review-needed" 
+            onclick="openVerificationPhotoModal('${record.id}')"
+            style="cursor: pointer;"
+            title="Click to review verification photo - Distance: ${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} miles">
+        <i class="fas fa-exclamation-triangle"></i>
+        Review Needed
+        <small>(${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} mi)</small>
+    </span>`;
+  } else if (record.verification_status === 'approved') {
+    // Show Verified badge for approved verification
+    locationAccuracyBadge = `<span class="location-accuracy-badge badge-verified" 
+            title="Verification approved - Distance: ${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} miles">
+        <i class="fas fa-check-circle"></i>
+        Verified
+        <small>(${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} mi)</small>
+    </span>`;
+  } else if (record.verification_status === 'rejected') {
+    // Show Rejected badge for rejected verification
+    locationAccuracyBadge = `<span class="location-accuracy-badge badge-rejected" 
+            title="Verification rejected - Distance: ${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} miles">
+        <i class="fas fa-times-circle"></i>
+        Rejected
+        <small>(${record.location_accuracy ? record.location_accuracy.toFixed(3) : 'N/A'} mi)</small>
+    </span>`;
+  } else if (record.location_accuracy !== null) {
+    // Show standard location accuracy badge
+    locationAccuracyBadge = `<span class="location-accuracy-badge accuracy-${
           record.accuracy_level
         }" 
                 title="Distance between QR location and check-in location: ${
@@ -691,11 +675,14 @@ function createTableRow(record, displayIndex) {
             <i class="fas fa-ruler"></i>
             ${record.location_accuracy.toFixed(3)} mi
             <small>(${record.accuracy_level})</small>
-        </span>`
-      : `<span class="location-accuracy-badge accuracy-unknown" title="Location accuracy could not be calculated">
+        </span>`;
+  } else {
+    // No accuracy data
+    locationAccuracyBadge = `<span class="location-accuracy-badge accuracy-unknown" title="Location accuracy could not be calculated">
             <i class="fas fa-question-circle"></i>
             Unknown
         </span>`;
+  }
 
   // Address display logic based on location accuracy
   let addressDisplayHTML = "";
@@ -849,6 +836,15 @@ function createTableRow(record, displayIndex) {
         </td>
         <td>
             <div class="record-actions">
+                ${
+                  record.verification_required && record.verification_status === 'pending'
+                    ? `<button onclick="openVerificationPhotoModal('${record.id}')" 
+                              class="action-btn btn-review"
+                              title="Review Verification Photo">
+                          <i class="fas fa-camera"></i>
+                      </button>`
+                    : ''
+                }
                 ${
                   hasEditPermission
                     ? `
@@ -1180,4 +1176,237 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   console.log("Enhanced export functionality initialized");
+});
+
+// ============================================
+// VERIFICATION PHOTO REVIEW FUNCTIONS
+// ============================================
+
+/**
+ * Open verification photo modal for review
+ * @param {string} recordId - The attendance record ID
+ */
+function openVerificationPhotoModal(recordId) {
+  console.log(`Opening verification photo modal for record: ${recordId}`);
+
+  const modal = document.getElementById("verificationPhotoModal");
+  const modalBody = document.getElementById("verificationPhotoModalBody");
+
+  if (!modal || !modalBody) {
+    console.error("Verification photo modal elements not found");
+    return;
+  }
+
+  // Show loading state
+  modalBody.innerHTML = `
+    <div class="verification-loading">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading verification photo...</p>
+    </div>
+  `;
+
+  modal.style.display = "block";
+
+  // Fetch record details with verification photo
+  fetch(`/api/attendance/${recordId}/verification-details`)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Failed to fetch verification details");
+      }
+      return response.json();
+    })
+    .then((data) => {
+      if (!data.success) {
+        throw new Error(data.message || "Failed to load verification data");
+      }
+
+      renderVerificationPhotoModal(data.record);
+    })
+    .catch((error) => {
+      console.error("Error loading verification photo:", error);
+      modalBody.innerHTML = `
+        <div class="verification-error">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Error loading verification photo. Please try again.</p>
+          <button onclick="closeVerificationPhotoModal()" class="btn btn-secondary">Close</button>
+        </div>
+      `;
+    });
+}
+
+/**
+ * Render verification photo modal content
+ * @param {Object} record - The attendance record with verification data
+ */
+function renderVerificationPhotoModal(record) {
+  const modalBody = document.getElementById("verificationPhotoModalBody");
+
+  const content = `
+    <div class="verification-photo-review">
+      <!-- Employee & Date Info -->
+      <div class="verification-header-info">
+        <h3>
+          <i class="fas fa-user"></i>
+          Employee: ${record.employee_id}
+        </h3>
+        <p>
+          <i class="fas fa-calendar"></i>
+          ${record.check_in_date} at ${record.check_in_time}
+        </p>
+      </div>
+
+      <!-- Verification Photo -->
+      <div class="verification-photo-container">
+        ${
+          record.verification_photo
+            ? `<img src="${record.verification_photo}" 
+                   alt="Verification Photo" 
+                   class="verification-photo-large"
+                   onclick="window.open(this.src, '_blank')" 
+                   style="cursor: zoom-in;"
+                   title="Click to view full size" />`
+            : `<div class="no-photo">
+                 <i class="fas fa-image"></i>
+                 <p>No verification photo available</p>
+               </div>`
+        }
+      </div>
+
+      <!-- Location Details -->
+      <div class="verification-details-grid">
+        <div class="verification-detail-card">
+          <h4>Location Name</h4>
+          <p>${record.location_name}</p>
+        </div>
+
+        <div class="verification-detail-card">
+          <h4>Distance from QR</h4>
+          <p>${parseFloat(record.location_accuracy).toFixed(3)} miles</p>
+        </div>
+
+        <div class="verification-detail-card">
+          <h4>Verification Status</h4>
+          <p>
+            <span class="verification-status-pending">
+              <i class="fas fa-clock"></i>
+              Pending Review
+            </span>
+          </p>
+        </div>
+
+        <div class="verification-detail-card">
+          <h4>Device</h4>
+          <p>${record.device_info || "Unknown"}</p>
+        </div>
+      </div>
+
+      <!-- Address Information -->
+      <div class="verification-detail-card" style="grid-column: 1 / -1;">
+        <h4>Check-in Address</h4>
+        <p>${record.checked_in_address || "No address recorded"}</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="verification-actions">
+        <button onclick="updateVerificationStatus(${
+          record.id
+        }, 'approved')" class="btn-approve">
+          <i class="fas fa-check-circle"></i>
+          Approve Check-in
+        </button>
+        <button onclick="updateVerificationStatus(${
+          record.id
+        }, 'rejected')" class="btn-reject">
+          <i class="fas fa-times-circle"></i>
+          Reject Check-in
+        </button>
+      </div>
+    </div>
+  `;
+
+  modalBody.innerHTML = content;
+}
+
+/**
+ * Close verification photo modal
+ */
+function closeVerificationPhotoModal() {
+  const modal = document.getElementById("verificationPhotoModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+/**
+ * Update verification status (approve/reject)
+ * @param {number} recordId - The attendance record ID
+ * @param {string} status - The new status ('approved' or 'rejected')
+ */
+function updateVerificationStatus(recordId, status) {
+  if (
+    !confirm(
+      `Are you sure you want to ${status} this verification?\n\nThis action will be logged for audit purposes.`
+    )
+  ) {
+    return;
+  }
+
+  console.log(`Updating verification status for record ${recordId} to ${status}`);
+
+  // Show loading state
+  const modalBody = document.getElementById("verificationPhotoModalBody");
+  modalBody.innerHTML = `
+    <div class="verification-loading">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Updating verification status...</p>
+    </div>
+  `;
+
+  // Send update request
+  fetch(`/verification-review/${recordId}/update`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({
+      status: status,
+      note: `Verification ${status} from attendance report review`,
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        alert(
+          `Verification ${status} successfully!\n\nThe page will reload to show the updated status.`
+        );
+        closeVerificationPhotoModal();
+        // Reload the page to show updated status
+        window.location.reload();
+      } else {
+        throw new Error(data.message || "Failed to update verification status");
+      }
+    })
+    .catch((error) => {
+      console.error("Error updating verification status:", error);
+      alert(`Error: ${error.message}\n\nPlease try again.`);
+      // Reload modal to show previous state
+      openVerificationPhotoModal(recordId);
+    });
+}
+
+// Close verification modal when clicking outside
+window.addEventListener("click", function (event) {
+  const verificationModal = document.getElementById("verificationPhotoModal");
+
+  if (event.target === verificationModal) {
+    closeVerificationPhotoModal();
+  }
+});
+
+// Keyboard shortcut for closing verification modal
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape") {
+    closeVerificationPhotoModal();
+  }
 });

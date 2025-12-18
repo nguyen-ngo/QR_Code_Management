@@ -266,11 +266,43 @@
                             </div>
                         </td>
                         <td>
-                            {% if has_location_accuracy_feature and record.location_accuracy %}
-                                <!-- Show location accuracy in miles -->
+                            {% if record.verification_required and record.verification_status == 'pending' %}
+                                <!-- Show Review Needed badge for pending verification -->
+                                <div class="location-accuracy-info">
+                                    <span class="location-accuracy-badge badge-review-needed" 
+                                        onclick="openVerificationPhotoModal('{{ record.id }}')"
+                                        style="cursor: pointer;"
+                                        title="Click to review verification photo - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Review Needed
+                                        <small>({{ '%.3f'|format(record.location_accuracy) }} mi)</small>
+                                    </span>
+                                </div>
+                            {% elif record.verification_status == 'approved' %}
+                                <!-- Show Verified badge for approved verification -->
+                                <div class="location-accuracy-info">
+                                    <span class="location-accuracy-badge badge-verified" 
+                                        title="Verification approved - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
+                                        <i class="fas fa-check-circle"></i>
+                                        Verified
+                                        <small>({{ '%.3f'|format(record.location_accuracy) }} mi)</small>
+                                    </span>
+                                </div>
+                            {% elif record.verification_status == 'rejected' %}
+                                <!-- Show Rejected badge for rejected verification -->
+                                <div class="location-accuracy-info">
+                                    <span class="location-accuracy-badge badge-rejected" 
+                                        title="Verification rejected - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
+                                        <i class="fas fa-times-circle"></i>
+                                        Rejected
+                                        <small>({{ '%.3f'|format(record.location_accuracy) }} mi)</small>
+                                    </span>
+                                </div>
+                            {% elif has_location_accuracy_feature and record.location_accuracy %}
+                                <!-- Show location accuracy in miles (normal case) -->
                                 <div class="location-accuracy-info">
                                     <span class="location-accuracy-badge accuracy-{{ record.accuracy_level }}" 
-                                          title="Distance between QR location and check-in location: {{ record.location_accuracy }} miles">
+                                        title="Distance between QR location and check-in location: {{ record.location_accuracy }} miles">
                                         <i class="fas fa-ruler"></i>
                                         {{ "%.3f"|format(record.location_accuracy) }} mi
                                         <small>({{ record.accuracy_level }})</small>
@@ -280,7 +312,7 @@
                                 <!-- Fallback to GPS accuracy in meters -->
                                 <div class="accuracy-info">
                                     <span class="accuracy-badge accuracy-{{ record.accuracy_level }}" 
-                                          title="GPS accuracy: {{ record.gps_accuracy }}m">
+                                        title="GPS accuracy: {{ record.gps_accuracy }}m">
                                         <i class="fas fa-crosshairs"></i>
                                         {{ "%.1f"|format(record.gps_accuracy) }}m
                                         <small>(gps)</small>
@@ -306,6 +338,15 @@
                         </td>
                         <td>
                             <div class="record-actions">
+                                {% if record.verification_required and record.verification_status == 'pending' %}
+                                    <!-- Show Review button for pending verification -->
+                                    <button onclick="openVerificationPhotoModal('{{ record.id }}')" 
+                                            class="action-btn btn-review"
+                                            title="Review Verification Photo">
+                                        <i class="fas fa-camera"></i>
+                                    </button>
+                                {% endif %}
+                                
                                 {% if session.role in ['admin'] %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
@@ -396,6 +437,22 @@
         </div>
         <div class="modal-footer">
             <button onclick="closeMapModal()" class="btn btn-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Verification Photo Review Modal -->
+<div id="verificationPhotoModal" class="modal">
+    <div class="modal-content verification-modal-content">
+        <div class="modal-header">
+            <h2>
+                <i class="fas fa-camera-retro"></i>
+                Verification Photo Review
+            </h2>
+            <button class="close-btn" onclick="closeVerificationPhotoModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="verificationPhotoModalBody">
+            <!-- Content will be populated by JavaScript -->
         </div>
     </div>
 </div>

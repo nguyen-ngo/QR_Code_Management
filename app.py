@@ -4774,7 +4774,10 @@ def attendance_report():
                     ad.device_info,
                     ad.created_timestamp,
                     ad.updated_timestamp,
-                    CONCAT(e.firstName, ' ', e.lastName) as employee_name
+                    CONCAT(e.firstName, ' ', e.lastName) as employee_name,
+                    ad.verification_required,
+                    ad.verification_status,
+                    ad.verification_photo
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
                 LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
@@ -4799,7 +4802,10 @@ def attendance_report():
                     ad.device_info,
                     ad.created_timestamp,
                     ad.updated_timestamp,
-                    CONCAT(e.firstName, ' ', e.lastName) as employee_name
+                    CONCAT(e.firstName, ' ', e.lastName) as employee_name,
+                    ad.verification_required,
+                    ad.verification_status,
+                    ad.verification_photo
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
                 LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
@@ -4885,8 +4891,21 @@ def attendance_report():
                     'device_info': record[12],
                     'created_timestamp': record[13],
                     'updated_timestamp': record[14],
-                    'employee_name': record[15] or 'Unknown Employee'
+                    'employee_name': record[15] or 'Unknown Employee',
+                    'verification_required': record[16] if len(record) > 16 else False,
+                    'verification_status': record[17] if len(record) > 17 else None,
+                    'verification_photo': record[18] if len(record) > 18 else None
                 }
+                
+                # Calculate accuracy_level for template display
+                if record_dict['location_accuracy'] is not None:
+                    accuracy_value = float(record_dict['location_accuracy'])
+                    if accuracy_value <= 0.3:
+                        record_dict['accuracy_level'] = 'accurate'
+                    else:
+                        record_dict['accuracy_level'] = 'inaccurate'
+                else:
+                    record_dict['accuracy_level'] = 'unknown'
                 processed_records.append(record_dict)
             except Exception as rec_error:
                 print(f"⚠️ Error processing record: {rec_error}")
@@ -5405,6 +5424,91 @@ def update_verification_status(record_id):
         return jsonify({
             'success': False,
             'message': 'Error updating verification status'
+        }), 500
+    
+@app.route('/api/attendance/<int:record_id>/verification-details')
+@login_required
+def get_verification_details(record_id):
+    """API endpoint to get verification details for a specific record"""
+    try:
+        # Get the attendance record with verification data
+        record = AttendanceData.query.get_or_404(record_id)
+        
+        # DEBUG: Log record details
+        print(f"=== VERIFICATION DETAILS DEBUG ===")
+        print(f"Record ID: {record.id}")
+        print(f"Employee: {record.employee_id}")
+        print(f"check_in_date type: {type(record.check_in_date)}")
+        print(f"check_in_date value: {record.check_in_date}")
+        print(f"check_in_time type: {type(record.check_in_time)}")
+        print(f"check_in_time value: {record.check_in_time}")
+        print(f"verification_photo exists: {record.verification_photo is not None}")
+        print(f"verification_status: {record.verification_status}")
+        print(f"==================================")
+        
+        # Check if user has permission to view
+        # Allow admin and payroll staff to view verification details
+        if session.get('role') not in ['admin', 'payroll']:
+            return jsonify({
+                'success': False,
+                'message': 'Unauthorized access'
+            }), 403
+        
+        # Log the access for security audit
+        logger_handler.logger.info(f"User {session.get('username')} ({session.get('role')}) accessed verification details for record {record_id}")
+        
+        # Safely format dates/times with error handling
+        try:
+            check_in_date_str = record.check_in_date.strftime('%Y-%m-%d') if record.check_in_date else 'N/A'
+        except Exception as e:
+            print(f"Error formatting check_in_date: {e}")
+            check_in_date_str = str(record.check_in_date) if record.check_in_date else 'N/A'
+        
+        try:
+            check_in_time_str = record.check_in_time.strftime('%I:%M %p') if record.check_in_time else 'N/A'
+        except Exception as e:
+            print(f"Error formatting check_in_time: {e}")
+            check_in_time_str = str(record.check_in_time) if record.check_in_time else 'N/A'
+        
+        # Prepare record data with safe formatting
+        try:
+            check_in_date_str = record.check_in_date.strftime('%Y-%m-%d') if record.check_in_date else 'N/A'
+        except:
+            check_in_date_str = str(record.check_in_date) if record.check_in_date else 'N/A'
+        
+        try:
+            check_in_time_str = record.check_in_time.strftime('%I:%M %p') if record.check_in_time else 'N/A'
+        except:
+            check_in_time_str = str(record.check_in_time) if record.check_in_time else 'N/A'
+        
+        record_data = {
+            'id': record.id,
+            'employee_id': record.employee_id,
+            'location_name': record.location_name or 'Unknown',
+            'check_in_date': check_in_date_str,
+            'check_in_time': check_in_time_str,
+            'location_accuracy': float(record.location_accuracy) if record.location_accuracy else None,
+            'checked_in_address': record.address or 'No address',
+            'verification_photo': record.verification_photo,
+            'verification_status': record.verification_status,
+            'verification_required': record.verification_required,
+            'device_info': record.device_info or 'Unknown'
+        }
+        
+        return jsonify({
+            'success': True,
+            'record': record_data
+        })
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error getting verification details for record {record_id}: {e}")
+        print(f"❌ Error in get_verification_details for record {record_id}: {e}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        
+        return jsonify({
+            'success': False,
+            'message': 'Error loading verification details'
         }), 500
 
 @app.route('/api/attendance/stats')
