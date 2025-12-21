@@ -47,10 +47,7 @@
         <i class="fas fa-filter"></i>
         Filter Records
       </h3>
-      <button class="filter-toggle" onclick="toggleFilters()">
-        <i class="fas fa-chevron-down" id="filterIcon"></i>
-      </button>
-    </div>
+    </div>  
     <div class="filter-body" id="filterBody">
       <form method="GET" action="{{ url_for('time_attendance_records') }}" class="filter-form">
         <div class="form-group">
@@ -316,21 +313,6 @@
 </div>
 
 <script>
-function toggleFilters() {
-  const filterBody = document.getElementById('filterBody');
-  const filterIcon = document.getElementById('filterIcon');
-  
-  if (filterBody.style.display === 'none' || filterBody.style.display === '') {
-    filterBody.style.display = 'block';
-    filterIcon.classList.remove('fa-chevron-down');
-    filterIcon.classList.add('fa-chevron-up');
-  } else {
-    filterBody.style.display = 'none';
-    filterIcon.classList.remove('fa-chevron-up');
-    filterIcon.classList.add('fa-chevron-down');
-  }
-}
-
 function confirmDelete(recordId, employeeName, date) {
   if (confirm(`Are you sure you want to delete the attendance record for ${employeeName} on ${date}?`)) {
     // Get current URL parameters (filters)
@@ -407,18 +389,11 @@ document.addEventListener('keydown', function(event) {
   }
 });
 
-// Initialize filters state
+// Initialize filters state - Always visible
 document.addEventListener('DOMContentLoaded', function() {
   const filterBody = document.getElementById('filterBody');
-  const hasFilters = {{ 'true' if request.args else 'false' }};
-  
-  if (hasFilters) {
-    filterBody.style.display = 'block';
-    document.getElementById('filterIcon').classList.remove('fa-chevron-down');
-    document.getElementById('filterIcon').classList.add('fa-chevron-up');
-  } else {
-    filterBody.style.display = 'none';
-  }
+  // Always ensure the filter section is visible
+  filterBody.style.display = 'block';
 });
 </script>
 
