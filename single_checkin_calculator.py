@@ -16,7 +16,7 @@ from logger_handler import log_database_operations
 
 
 def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
-    """Parse employee ID to extract base ID and work type"""
+    """Parse employee ID to extract base ID and work type (supports SP, PW, PT)"""
     if not employee_id:
         return str(employee_id), 'regular'
     
@@ -33,6 +33,12 @@ def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
     pw_match = re.match(pw_pattern, employee_id_clean)
     if pw_match:
         return pw_match.group(1), 'PW'
+    
+    # Check for PT (Part-Time)
+    pt_pattern = r'^(\d+)\s*PT$'
+    pt_match = re.match(pt_pattern, employee_id_clean)
+    if pt_match:
+        return pt_match.group(1), 'PT'
     
     # Default to regular work
     return employee_id_clean, 'regular'
@@ -135,7 +141,7 @@ class SingleCheckInCalculator:
             base_employee_id, _ = parse_employee_id_for_work_type(employee_id)
             
             # Filter and categorize records
-            records_by_type = {'regular': [], 'SP': [], 'PW': []}
+            records_by_type = {'regular': [], 'SP': [], 'PW': [], 'PT': []}
             
             for record in attendance_records:
                 try:
@@ -195,14 +201,14 @@ class SingleCheckInCalculator:
                 hours_by_type = {}
                 is_miss_punch_by_type = {}
                 
-                for work_type in ['regular', 'SP', 'PW']:
+                for work_type in ['regular', 'SP', 'PW', 'PT']:
                     day_records = [r for r in records_by_type[work_type] 
                                  if r['check_in_date'] == current_date.date()]
                     hours, is_miss_punch = self._calculate_daily_hours_from_records(day_records)
                     hours_by_type[work_type] = hours
                     is_miss_punch_by_type[work_type] = is_miss_punch
                 
-                # Store daily data with SP/PW support
+                # Store daily data with SP/PW/PT support
                 total_day_hours = sum(hours_by_type.values())
                 daily_hours[date_key] = {
                     'total_minutes': int(total_day_hours * 60),
@@ -210,18 +216,20 @@ class SingleCheckInCalculator:
                     'regular_hours': hours_by_type['regular'],
                     'sp_hours': hours_by_type['SP'],
                     'pw_hours': hours_by_type['PW'],
+                    'pt_hours': hours_by_type['PT'],
                     'is_miss_punch': any(is_miss_punch_by_type.values()),
                     'records_count': sum(len([r for r in records_by_type[wt] if r['check_in_date'] == current_date.date()]) 
-                                       for wt in ['regular', 'SP', 'PW']),
+                                       for wt in ['regular', 'SP', 'PW', 'PT']),
                     'miss_punch_details': {
                         'regular': is_miss_punch_by_type['regular'],
                         'SP': is_miss_punch_by_type['SP'],
-                        'PW': is_miss_punch_by_type['PW']
+                        'PW': is_miss_punch_by_type['PW'],
+                        'PT': is_miss_punch_by_type['PT']
                     }
                 }
                 
                 # Add to weekly calculation
-                for work_type in ['regular', 'SP', 'PW']:
+                for work_type in ['regular', 'SP', 'PW', 'PT']:
                     current_week_hours[work_type].append(max(0, hours_by_type[work_type]))
                 
                 # Check if end of week or end of period
@@ -229,35 +237,39 @@ class SingleCheckInCalculator:
                     week_regular_total = sum(current_week_hours['regular'])
                     week_sp_total = sum(current_week_hours['SP'])
                     week_pw_total = sum(current_week_hours['PW'])
+                    week_pt_total = sum(current_week_hours['PT'])
                     
-                    # NEW: Round the weekly total
-                    week_total_raw = week_regular_total + week_sp_total + week_pw_total
+                    # Round the weekly total
+                    week_total_raw = week_regular_total + week_sp_total + week_pw_total + week_pt_total
                     week_total_rounded = round_base100_hours(week_total_raw)
                     
                     # Only regular hours count toward overtime
                     week_regular_hours = min(week_regular_total, 40.0)
                     week_overtime_hours = max(0, week_regular_total - 40.0)
                     
-                    # NEW: Round regular and overtime hours
+                    # Round regular, overtime, and special hours
                     week_regular_hours_rounded = round_base100_hours(week_regular_hours)
                     week_overtime_hours_rounded = round_base100_hours(week_overtime_hours)
                     week_sp_hours_rounded = round_base100_hours(week_sp_total)
                     week_pw_hours_rounded = round_base100_hours(week_pw_total)
+                    week_pt_hours_rounded = round_base100_hours(week_pt_total)
                     
                     weekly_totals.append({
-                        'total_hours': week_total_rounded,  # CHANGED: Use rounded value
-                        'regular_hours': week_regular_hours_rounded,  # CHANGED: Use rounded value
-                        'overtime_hours': week_overtime_hours_rounded,  # CHANGED: Use rounded value
-                        'sp_hours': week_sp_hours_rounded,  # CHANGED: Use rounded value
-                        'pw_hours': week_pw_hours_rounded,  # CHANGED: Use rounded value
+                        'total_hours': week_total_rounded,
+                        'regular_hours': week_regular_hours_rounded,
+                        'overtime_hours': week_overtime_hours_rounded,
+                        'sp_hours': week_sp_hours_rounded,
+                        'pw_hours': week_pw_hours_rounded,
+                        'pt_hours': week_pt_hours_rounded,
                         'total_minutes': int(week_total_rounded * 60),
                         'regular_minutes': int(week_regular_hours_rounded * 60),
                         'overtime_minutes': int(week_overtime_hours_rounded * 60),
                         'sp_minutes': int(week_sp_hours_rounded * 60),
-                        'pw_minutes': int(week_pw_hours_rounded * 60)
+                        'pw_minutes': int(week_pw_hours_rounded * 60),
+                        'pt_minutes': int(week_pt_hours_rounded * 60)
                     })
                     
-                    current_week_hours = {'regular': [], 'SP': [], 'PW': []}
+                    current_week_hours = {'regular': [], 'SP': [], 'PW': [], 'PT': []}
                 
                 current_date += timedelta(days=1)
             
@@ -267,6 +279,7 @@ class SingleCheckInCalculator:
             grand_overtime_raw = sum(week['overtime_hours'] for week in weekly_totals)
             grand_sp_raw = sum(week['sp_hours'] for week in weekly_totals)
             grand_pw_raw = sum(week['pw_hours'] for week in weekly_totals)
+            grand_pt_raw = sum(week.get('pt_hours', 0) for week in weekly_totals)
             
             # Round grand totals
             grand_total_hours = round_base100_hours(grand_total_raw)
@@ -274,8 +287,9 @@ class SingleCheckInCalculator:
             grand_overtime_hours = round_base100_hours(grand_overtime_raw)
             grand_sp_hours = round_base100_hours(grand_sp_raw)
             grand_pw_hours = round_base100_hours(grand_pw_raw)
+            grand_pt_hours = round_base100_hours(grand_pt_raw)
             
-            print(f"✅ Employee {employee_id}: Total: {grand_total_hours:.2f}h (Regular: {grand_regular_hours:.2f}h, OT: {grand_overtime_hours:.2f}h, SP: {grand_sp_hours:.2f}h, PW: {grand_pw_hours:.2f}h)")
+            print(f"✅ Employee {employee_id}: Total: {grand_total_hours:.2f}h (Regular: {grand_regular_hours:.2f}h, OT: {grand_overtime_hours:.2f}h, SP: {grand_sp_hours:.2f}h, PW: {grand_pw_hours:.2f}h, PT: {grand_pt_hours:.2f}h)")
             
             result = {
                 'employee_id': employee_id,
@@ -291,11 +305,13 @@ class SingleCheckInCalculator:
                     'overtime_hours': grand_overtime_hours,
                     'sp_hours': grand_sp_hours,
                     'pw_hours': grand_pw_hours,
+                    'pt_hours': grand_pt_hours,
                     'total_minutes': int(grand_total_hours * 60),
                     'regular_minutes': int(grand_regular_hours * 60),
                     'overtime_minutes': int(grand_overtime_hours * 60),
                     'sp_minutes': int(grand_sp_hours * 60),
-                    'pw_minutes': int(grand_pw_hours * 60)
+                    'pw_minutes': int(grand_pw_hours * 60),
+                    'pt_minutes': int(grand_pt_hours * 60)
                 }
             }
             
@@ -373,7 +389,7 @@ class SingleCheckInCalculator:
         return rounded_total_hours, is_miss_punch
     
     def _empty_result(self, employee_id: str, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
-        """Return empty result structure with SP/PW support"""
+        """Return empty result structure with SP/PW/PT support"""
         base_employee_id, _ = parse_employee_id_for_work_type(employee_id)
         
         return {
@@ -390,11 +406,13 @@ class SingleCheckInCalculator:
                 'overtime_hours': 0.0,
                 'sp_hours': 0.0,
                 'pw_hours': 0.0,
+                'pt_hours': 0.0,
                 'total_minutes': 0,
                 'regular_minutes': 0,
                 'overtime_minutes': 0,
                 'sp_minutes': 0,
-                'pw_minutes': 0
+                'pw_minutes': 0,
+                'pt_minutes': 0
             }
         }
     

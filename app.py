@@ -8988,6 +8988,37 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             grand_ot_hours += week_overtime
             current_row += 1
         
+        # Write extra working hours rows (SP/PW/PT) if employee has any
+        # Get extra hours from emp_data grand_totals
+        grand_totals = emp_data.get('grand_totals', {})
+        sp_hours = grand_totals.get('sp_hours', 0.0)
+        pw_hours = grand_totals.get('pw_hours', 0.0)
+        pt_hours = grand_totals.get('pt_hours', 0.0)
+        
+        # Write SP row if hours > 0
+        if sp_hours > 0:
+            ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            # Log SP hours export
+            logger_handler.logger.info(f"Export: Employee {employee_id} SP hours: {sp_hours:.2f}")
+            current_row += 1
+        
+        # Write PW row if hours > 0
+        if pw_hours > 0:
+            ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            # Log PW hours export
+            logger_handler.logger.info(f"Export: Employee {employee_id} PW hours: {pw_hours:.2f}")
+            current_row += 1
+        
+        # Write PT row if hours > 0
+        if pt_hours > 0:
+            ws.cell(row=current_row, column=7, value='Part-Time (PT): ').font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            # Log PT hours export
+            logger_handler.logger.info(f"Export: Employee {employee_id} PT hours: {pt_hours:.2f}")
+            current_row += 1
+        
         # Write GRAND TOTAL row
         ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Arial', size=10, bold=True)
         ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Arial', size=10, bold=True)
