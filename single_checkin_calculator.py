@@ -192,7 +192,7 @@ class SingleCheckInCalculator:
             daily_hours = {}
             weekly_totals = []
             current_date = start_date
-            current_week_hours = {'regular': [], 'SP': [], 'PW': []}
+            current_week_hours = {'regular': [], 'SP': [], 'PW': [], 'PT': []}
             
             while current_date <= end_date:
                 date_key = current_date.strftime('%Y-%m-%d')

@@ -8470,11 +8470,13 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         converted_records
     )
     
-    # Get employee names
+    # Get employee names - map BASE employee IDs to names for consolidated display
+    from working_hours_calculator import parse_employee_id_for_work_type
     employee_names = {}
     for record in records:
-        if record.employee_id not in employee_names:
-            employee_names[record.employee_id] = record.employee_name
+        base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
+        if base_id not in employee_names:
+            employee_names[base_id] = record.employee_name
     
     # Setup styles
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
@@ -8607,7 +8609,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         
         # Group records by date AND location for separate rows per location
         daily_location_data = {}
-        employee_records = [r for r in converted_records if str(r.employee_id) == employee_id]
+        # Import parse function to match base employee ID with all variants (SP, PW, PT)
+        from working_hours_calculator import parse_employee_id_for_work_type
+        
+        # Filter records where the BASE employee ID matches (includes 1234, 1234 SP, 1234 PW, 1234 PT)
+        employee_records = []
+        for r in converted_records:
+            record_base_id, _ = parse_employee_id_for_work_type(str(r.employee_id))
+            if record_base_id == employee_id:
+                employee_records.append(r)
 
         for record in employee_records:
             date_key = record.check_in_date.strftime('%Y-%m-%d')
