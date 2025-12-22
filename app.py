@@ -8582,8 +8582,14 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     # Empty row before first employee
     current_row += 1
     
-    # Write data for each employee
-    for employee_id, emp_data in hours_data['employees'].items():
+    # Sort employees by name for organized output
+    sorted_employees = sorted(
+        hours_data['employees'].items(),
+        key=lambda x: employee_names.get(x[0], f'Employee {x[0]}').lower()
+    )
+
+    # Write data for each employee (sorted by name)
+    for employee_id, emp_data in sorted_employees:
         employee_name = employee_names.get(employee_id, f'Employee {employee_id}')
         
         # Employee header row (merged A to O)
