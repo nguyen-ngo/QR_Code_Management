@@ -65,6 +65,19 @@ Code Management{% endblock %} {% block extra_head %}
       </div>
     </div>
 
+    <div class="stat-card accounting">
+      <div class="stat-icon accounting">
+        <i class="fas fa-file-invoice-dollar"></i>
+      </div>
+      <div class="stat-info">
+        <h3>
+          {{ users|selectattr('role', 'equalto',
+          'accounting')|selectattr('active_status', 'equalto', True)|list|length }}
+        </h3>
+        <p>Accounting Specialists</p>
+      </div>
+    </div>
+
     <div class="stat-card project-manager">
       <div class="stat-icon project-manager">
         <i class="fas fa-project-diagram"></i>

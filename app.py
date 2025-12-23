@@ -218,10 +218,10 @@ def cache_coordinates(address, lat, lng, accuracy):
         print(f"⚠️ Error caching coordinates: {e}")
 
 # Valid user roles with new additions
-VALID_ROLES = ['admin', 'staff', 'payroll', 'project_manager']
+VALID_ROLES = ['admin', 'staff', 'payroll', 'project_manager', 'accounting']
 
 # Roles that have staff-level permissions (non-admin roles)
-STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
+STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager', 'accounting']
 
 # Import and initialize models
 from models import set_db
@@ -302,6 +302,24 @@ def get_role_permissions(role):
                 'Cannot delete QR codes',
                 'Cannot manage other users',
                 'Cannot access admin settings'
+            ]
+        },
+        'accounting': {
+            'title': 'Accounting Specialist Permissions',
+            'permissions': [
+                'View and modify employee records',
+                'Access attendance reports and analytics',
+                'View and manage time attendance data',
+                'Export payroll and attendance data',
+                'Access financial reports and statistics',
+                'Update personal profile information',
+                'Delete attendance records (same as payroll)'
+            ],
+            'restrictions': [
+                'Cannot create or delete QR codes',
+                'Cannot manage other users',
+                'Cannot access admin settings',
+                'Cannot manage projects'
             ]
         }
     }
@@ -2659,6 +2677,7 @@ def user_stats_api():
         staff_users = User.query.filter_by(role='staff', active_status=True).count()
         payroll_users = User.query.filter_by(role='payroll', active_status=True).count()
         project_manager_users = User.query.filter_by(role='project_manager', active_status=True).count()
+        accounting_users = User.query.filter_by(role='accounting', active_status=True).count()
         inactive_users = User.query.filter_by(active_status=False).count()
 
         recent_registrations = User.query.filter(
@@ -2676,6 +2695,7 @@ def user_stats_api():
             'staff_users': staff_users,
             'payroll_users': payroll_users,
             'project_manager_users': project_manager_users,
+            'accounting_users': accounting_users,
             'inactive_users': inactive_users,
             'recent_registrations': recent_registrations,
             'recent_logins': recent_logins
@@ -5132,7 +5152,7 @@ def attendance_report():
 def edit_attendance(record_id):
     """Edit attendance record (Admin and Payroll only)"""
     # Check if user has permission to edit attendance records
-    if session.get('role') not in ['admin', 'payroll']:
+    if session.get('role') not in ['admin', 'payroll', 'accounting']:
         flash('Access denied. Only administrators and payroll staff can edit attendance records.', 'error')
         return redirect(url_for('attendance_report'))
 
@@ -5252,7 +5272,7 @@ def edit_attendance(record_id):
 def delete_attendance(record_id):
     """Delete attendance record (Admin and Payroll only)"""
     # Check if user has permission to delete attendance records
-    if session.get('role') not in ['admin', 'payroll']:
+    if session.get('role') not in ['admin', 'payroll', 'accounting']:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': False,
@@ -5320,7 +5340,7 @@ def verification_review():
     """Admin page to review pending photo verifications"""
     try:
         # Only admins can access
-        if session.get('role') not in ['admin', 'payroll']:
+        if session.get('role') not in ['admin', 'payroll', 'accounting']:
             flash('Unauthorized access.', 'error')
             return redirect(url_for('dashboard'))
         
@@ -5382,7 +5402,7 @@ def update_verification_status(record_id):
     """Update verification status (approve/reject)"""
     try:
         # Only admins can update
-        if session.get('role') not in ['admin', 'payroll']:
+        if session.get('role') not in ['admin', 'payroll', 'accounting']:
             return jsonify({
                 'success': False,
                 'message': 'Unauthorized access'
@@ -5448,7 +5468,7 @@ def get_verification_details(record_id):
         
         # Check if user has permission to view
         # Allow admin and payroll staff to view verification details
-        if session.get('role') not in ['admin', 'payroll']:
+        if session.get('role') not in ['admin', 'payroll', 'accounting']:
             return jsonify({
                 'success': False,
                 'message': 'Unauthorized access'
@@ -5567,7 +5587,7 @@ def export_configuration():
     """Display export configuration page for customizing Excel exports"""
     try:
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized access to export configuration")
             flash('Access denied. Only administrators and payroll staff can access export configuration.', 'error')
             return redirect(url_for('attendance_report'))
@@ -5654,7 +5674,7 @@ def generate_excel_export():
     """Generate and download Excel file with selected columns in specified order"""
     try:
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized Excel export")
             flash('Access denied. Only administrators and payroll staff can export data.', 'error')
             return redirect(url_for('attendance_report'))
@@ -6293,7 +6313,7 @@ def payroll_dashboard():
     try:
         # Check if user has payroll access
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access payroll dashboard without permissions")
             flash('Access denied. Only administrators and payroll staff can access payroll features.', 'error')
             return redirect(url_for('dashboard'))
@@ -6440,7 +6460,7 @@ def export_payroll_excel():
     try:
         # Check permissions
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized payroll Excel export")
             flash('Access denied. Only administrators and payroll staff can export payroll data.', 'error')
             return redirect(url_for('payroll_dashboard'))
@@ -6681,7 +6701,7 @@ def calculate_working_hours_api():
     try:
         # Check permissions
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             return jsonify({
                 'success': False,
                 'message': 'Access denied. Insufficient permissions.'
@@ -6758,7 +6778,7 @@ def get_miss_punch_details(employee_id):
     try:
         # Check permissions
         user_role = session.get('role')
-        if user_role not in ['admin', 'payroll']:
+        if user_role not in ['admin', 'payroll', 'accounting']:
             return jsonify({
                 'success': False,
                 'message': 'Access denied. Insufficient permissions.'
@@ -7152,7 +7172,7 @@ def export_statistics():
     """Export statistics data to CSV/Excel"""
     try:
         # Check permissions
-        if session.get('role') not in ['admin', 'payroll']:
+        if session.get('role') not in ['admin', 'payroll', 'accounting']:
             return jsonify({'error': 'Access denied'}), 403
             
         # Log export attempt

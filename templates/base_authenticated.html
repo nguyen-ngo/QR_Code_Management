@@ -101,7 +101,7 @@
                 <i class="fas fa-clipboard-list"></i>
                 <span class="menu-text">System Logs</span>
               </a>
-              {% elif session.role in ['payroll'] %}
+              {% elif session.role in ['payroll', 'accounting'] %}
               <a href="{{ url_for('employees') }}" class="menu-item">
                 <i class="fas fa-user"></i>
                 <span class="menu-text">Employees</span>

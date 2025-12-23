@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 # Valid user roles (kept in sync with app.py)
-STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager']
+STAFF_LEVEL_ROLES = ['staff', 'payroll', 'project_manager', 'accounting']
 
 # Import db from app - this works because app.py imports this file after db is created
 import sys
@@ -63,6 +63,7 @@ class User(base.db.Model):
             'admin': 'Administrator',
             'staff': 'Staff User',
             'payroll': 'Payroll Specialist',
-            'project_manager': 'Project Manager'
+            'project_manager': 'Project Manager',
+            'accounting': 'Accounting Specialist'
         }
         return role_names.get(self.role, self.role.title())

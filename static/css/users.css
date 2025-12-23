@@ -107,6 +107,10 @@
   background: linear-gradient(90deg, #17a2b8, #138496);
 }
 
+.stat-card.accounting::before {
+  background: linear-gradient(90deg, #059669, #047857);
+}
+
 .stat-card.project-manager::before {
   background: linear-gradient(90deg, #6f42c1, #5a2d91);
 }
@@ -147,6 +151,10 @@
 
 .stat-icon.payroll {
   background: linear-gradient(135deg, #17a2b8, #138496);
+}
+
+.stat-icon.accounting {
+  background: linear-gradient(135deg, #059669, #047857);
 }
 
 .stat-icon.project-manager {
@@ -383,6 +391,12 @@
   background-color: rgba(23, 162, 184, 0.1);
   color: #138496;
   border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.user-role.accounting {
+  background-color: rgba(5, 150, 105, 0.1);
+  color: #047857;
+  border: 1px solid rgba(5, 150, 105, 0.3);
 }
 
 .user-role.project_manager {

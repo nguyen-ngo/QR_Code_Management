@@ -64,6 +64,7 @@
                     <select id="role" name="role" required>
                         <option value="staff" {{ 'selected' if user.role == 'staff' else '' }}>Staff User</option>
                         <option value="payroll" {{ 'selected' if user.role == 'payroll' else '' }}>Payroll Specialist</option>
+                        <option value="accounting" {{ 'selected' if user.role == 'accounting' else '' }}>Accounting Specialist</option>
                         <option value="project_manager" {{ 'selected' if user.role == 'project_manager' else '' }}>Project Manager</option>
                         <option value="admin" {{ 'selected' if user.role == 'admin' else '' }}>Administrator</option>
                     </select>
@@ -586,7 +587,8 @@
         function getRoleDisplayName(role) {
             const roleNames = {
                 'staff': 'Staff User',
-                'payroll': 'Payroll Specialist', 
+                'payroll': 'Payroll Specialist',
+                'accounting': 'Accounting Specialist', 
                 'project_manager': 'Project Manager',
                 'admin': 'Administrator'
             };
