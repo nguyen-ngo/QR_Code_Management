@@ -5320,7 +5320,7 @@ def verification_review():
     """Admin page to review pending photo verifications"""
     try:
         # Only admins can access
-        if session.get('role') != 'admin':
+        if session.get('role') not in ['admin', 'payroll']:
             flash('Unauthorized access.', 'error')
             return redirect(url_for('dashboard'))
         
@@ -5382,7 +5382,7 @@ def update_verification_status(record_id):
     """Update verification status (approve/reject)"""
     try:
         # Only admins can update
-        if session.get('role') != 'admin':
+        if session.get('role') not in ['admin', 'payroll']:
             return jsonify({
                 'success': False,
                 'message': 'Unauthorized access'
