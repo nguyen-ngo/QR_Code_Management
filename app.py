@@ -5531,6 +5531,55 @@ def get_verification_details(record_id):
             'message': 'Error loading verification details'
         }), 500
 
+@app.route('/verification-review/<int:record_id>')
+@login_required
+def verification_review_detail(record_id):
+    """Review a single verification photo on a dedicated page"""
+    try:
+        # Check permissions
+        if session.get('role') not in ['admin', 'payroll', 'accounting']:
+            flash('Access denied. Only administrators, payroll, and accounting staff can review verification photos.', 'error')
+            return redirect(url_for('attendance_report'))
+        
+        # Get the attendance record
+        record = AttendanceData.query.get_or_404(record_id)
+        
+        # Check if this record has verification
+        if not record.verification_required:
+            flash('This record does not require verification.', 'warning')
+            return redirect(url_for('attendance_report'))
+        
+        # Get the QR code information for additional context
+        qr_code = QRCode.query.get(record.qr_code_id) if record.qr_code_id else None
+        
+        # Log the access for audit trail
+        logger_handler.logger.info(
+            f"User {session.get('username')} ({session.get('role')}) "
+            f"accessed verification review for record {record_id}"
+        )
+        
+        # Format date and time for display
+        try:
+            check_in_date = record.check_in_date.strftime('%m/%d/%Y') if record.check_in_date else 'N/A'
+        except:
+            check_in_date = str(record.check_in_date) if record.check_in_date else 'N/A'
+        
+        try:
+            check_in_time = record.check_in_time.strftime('%I:%M %p') if record.check_in_time else 'N/A'
+        except:
+            check_in_time = str(record.check_in_time) if record.check_in_time else 'N/A'
+        
+        return render_template('verification_review_detail.html',
+                             record=record,
+                             qr_code=qr_code,
+                             check_in_date=check_in_date,
+                             check_in_time=check_in_time)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error loading verification review detail: {e}")
+        flash('Error loading verification details.', 'error')
+        return redirect(url_for('attendance_report'))
+
 @app.route('/api/attendance/stats')
 @admin_required
 def attendance_stats_api():

@@ -267,19 +267,19 @@
                         </td>
                         <td>
                             {% if record.verification_required and record.verification_status == 'pending' %}
-                                <!-- Show Review Needed badge for pending verification -->
+                                <!-- Show Review Needed badge with link to review page -->
                                 <div class="location-accuracy-info">
-                                    <span class="location-accuracy-badge badge-review-needed" 
-                                        onclick="openVerificationPhotoModal('{{ record.id }}')"
-                                        style="cursor: pointer;"
-                                        title="Click to review verification photo - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
+                                    <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" 
+                                       class="location-accuracy-badge badge-review-needed" 
+                                       style="cursor: pointer; text-decoration: none;"
+                                       title="Click to review verification photo - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
                                         <i class="fas fa-exclamation-triangle"></i>
                                         Review Needed
                                         <small>({{ '%.3f'|format(record.location_accuracy) }} mi)</small>
-                                    </span>
+                                    </a>
                                 </div>
                             {% elif record.verification_status == 'approved' %}
-                                <!-- Show Verified badge for approved verification -->
+                                <!-- Show Verified badge -->
                                 <div class="location-accuracy-info">
                                     <span class="location-accuracy-badge badge-verified" 
                                         title="Verification approved - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
@@ -289,7 +289,7 @@
                                     </span>
                                 </div>
                             {% elif record.verification_status == 'rejected' %}
-                                <!-- Show Rejected badge for rejected verification -->
+                                <!-- Show Rejected badge -->
                                 <div class="location-accuracy-info">
                                     <span class="location-accuracy-badge badge-rejected" 
                                         title="Verification rejected - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
@@ -339,12 +339,12 @@
                         <td>
                             <div class="record-actions">
                                 {% if record.verification_required and record.verification_status == 'pending' %}
-                                    <!-- Show Review button for pending verification -->
-                                    <button onclick="openVerificationPhotoModal('{{ record.id }}')" 
-                                            class="action-btn btn-review"
-                                            title="Review Verification Photo">
+                                    <!-- Show Review button linking to review page -->
+                                    <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" 
+                                       class="action-btn btn-review"
+                                       title="Review Verification Photo">
                                         <i class="fas fa-camera"></i>
-                                    </button>
+                                    </a>
                                 {% endif %}
                                 
                                 {% if session.role in ['admin', 'payroll', 'accounting'] %}
@@ -399,7 +399,7 @@
     </div>
 </div>
 
-<!-- Enhanced Record Details Modal -->
+<!-- Enhanced Record Details Modal - KEPT FOR OTHER FEATURES -->
 <div id="recordModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -417,7 +417,7 @@
     </div>
 </div>
 
-<!-- Map Modal for Location Viewing -->
+<!-- Map Modal for Location Viewing - KEPT FOR OTHER FEATURES -->
 <div id="mapModal" class="modal">
     <div class="modal-content modal-large">
         <div class="modal-header">
@@ -437,22 +437,6 @@
         </div>
         <div class="modal-footer">
             <button onclick="closeMapModal()" class="btn btn-secondary">Close</button>
-        </div>
-    </div>
-</div>
-
-<!-- Verification Photo Review Modal -->
-<div id="verificationPhotoModal" class="modal">
-    <div class="modal-content verification-modal-content">
-        <div class="modal-header">
-            <h2>
-                <i class="fas fa-camera-retro"></i>
-                Verification Photo Review
-            </h2>
-            <button class="close-btn" onclick="closeVerificationPhotoModal()">&times;</button>
-        </div>
-        <div class="modal-body" id="verificationPhotoModalBody">
-            <!-- Content will be populated by JavaScript -->
         </div>
     </div>
 </div>
@@ -611,7 +595,7 @@ function viewRecordDetails(recordId) {
     modal.style.display = 'block';
 }
 
-// OVERRIDE EDIT/DELETE FUNCTIONS WITH PROPER PERMISSION CHECKING
+// Edit and Delete functions
 function editRecord(recordId) {
     console.log('Edit function called for record:', recordId);
     
@@ -632,7 +616,7 @@ function deleteRecord(recordId, employeeId) {
     
     // Check permissions before allowing delete
     if (!hasDeletePermission) {
-        alert('Access denied. Only administrators and can delete attendance records.');
+        alert('Access denied. Only administrators can delete attendance records.');
         return;
     }
     
