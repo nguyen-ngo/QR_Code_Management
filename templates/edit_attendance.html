@@ -126,7 +126,7 @@
       <i class="fas fa-edit"></i>
       Edit Attendance Record
     </h1>
-    <p>Modify attendance record details (Admin & Payroll Access)</p>
+    <p>Modify attendance record details (Admin & Accounting Access)</p>
   </div>
 
   <!-- Current Record Info -->
@@ -237,12 +237,22 @@
       </div>
     </div>
 
+    <!-- Read-Only Notice for Non-Authorized Users -->
+    {% if session.role not in ['admin', 'accounting'] %}
+    <div class="alert alert-warning" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>Read-Only Access:</strong> You can view this record but cannot make changes. Only Admin and Accounting staff can modify attendance records.
+    </div>
+    {% endif %}
+
     <!-- Form Actions -->
     <div class="form-actions">
+      {% if session.role in ['admin', 'accounting'] %}
       <button type="submit" class="btn btn-primary">
         <i class="fas fa-save"></i>
         Update Record
       </button>
+      {% endif %}
       <a href="{{ url_for('attendance_report') }}" class="btn btn-secondary">
         <i class="fas fa-times"></i>
         Cancel
@@ -255,7 +265,32 @@
 {% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    // Form validation
+    const userRole = '{{ session.role }}';
+    const authorizedRoles = ['admin', 'accounting'];
+    
+    // Disable all form inputs for non-authorized roles
+    if (!authorizedRoles.includes(userRole)) {
+      const formInputs = document.querySelectorAll('input, textarea, select, button[type="submit"]');
+      formInputs.forEach(input => {
+        if (input.type !== 'button' && !input.closest('a')) {
+          input.disabled = true;
+          input.style.backgroundColor = '#f3f4f6';
+          input.style.cursor = 'not-allowed';
+        }
+      });
+      
+      // Prevent form submission
+      const form = document.querySelector("form");
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        alert("You do not have permission to modify this record. Only Admin and Accounting staff can make changes.");
+        return false;
+      });
+      
+      return; // Exit early for non-authorized users
+    }
+    
+    // Form validation (only for authorized users)
     const form = document.querySelector("form");
     form.addEventListener("submit", function (e) {
       const employeeId = document.getElementById("employee_id").value.trim();

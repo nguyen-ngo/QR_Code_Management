@@ -5153,7 +5153,7 @@ def edit_attendance(record_id):
     """Edit attendance record (Admin and Payroll only)"""
     # Check if user has permission to edit attendance records
     if session.get('role') not in ['admin', 'payroll', 'accounting']:
-        flash('Access denied. Only administrators and payroll staff can edit attendance records.', 'error')
+        flash('Access denied. Only administrators and accounting staff can edit attendance records.', 'error')
         return redirect(url_for('attendance_report'))
 
     try:

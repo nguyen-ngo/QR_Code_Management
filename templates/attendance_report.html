@@ -347,7 +347,7 @@
                                     </button>
                                 {% endif %}
                                 
-                                {% if session.role in ['admin'] %}
+                                {% if session.role in ['admin', 'payroll', 'accounting'] %}
                                 <button onclick="editRecord('{{ record.id }}')" 
                                         class="action-btn btn-edit"
                                         title="Edit Record">
@@ -463,7 +463,8 @@
 <script>
 // Template variables (processed by Flask)
 const userRole = '{{ session.role }}';
-const hasEditPermission = ['admin'].includes(userRole);
+const hasEditPermission = ['admin', 'payroll', 'accounting'].includes(userRole);
+const hasDeletePermission = ['admin'].includes(userRole);
 
 // Enhanced JavaScript for new functionality
 const hasLocationAccuracy = {{ 'true' if has_location_accuracy_feature else 'false' }};
@@ -616,7 +617,7 @@ function editRecord(recordId) {
     
     // Check permissions before allowing edit
     if (!hasEditPermission) {
-        alert('Access denied. Only administrators can edit attendance records.');
+        alert('Access denied. Only administrators, accounting staff can edit attendance records.');
         return;
     }
     
@@ -630,7 +631,7 @@ function deleteRecord(recordId, employeeId) {
     console.log('Delete function called for record:', recordId);
     
     // Check permissions before allowing delete
-    if (!hasEditPermission) {
+    if (!hasDeletePermission) {
         alert('Access denied. Only administrators and can delete attendance records.');
         return;
     }
