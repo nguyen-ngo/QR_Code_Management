@@ -5976,7 +5976,7 @@ def create_excel_export(selected_columns, column_names, filters):
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
-                            cell.value = f"{employee_record.firstName}, {employee_record.lastName}"
+                            cell.value = f"{employee_record.lastName}, {employee_record.firstName}"
                         else:
                             cell.value = f"Unknown (ID: {attendance_record.employee_id})"
                     elif column_key == 'location_name':
@@ -6222,7 +6222,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     elif column_key == 'employee_name':
                         # NEW: Handle employee name from joined Employee table
                         if employee_record:
-                            cell.value = f"{employee_record.firstName}, {employee_record.lastName}"
+                            cell.value = f"{employee_record.lastName}, {employee_record.firstName}"
                         else:
                             cell.value = f"Unknown (ID: {attendance_record.employee_id})"
                     elif column_key == 'location_name':
