@@ -5552,6 +5552,22 @@ def verification_review_detail(record_id):
         # Get the QR code information for additional context
         qr_code = QRCode.query.get(record.qr_code_id) if record.qr_code_id else None
         
+        # Get employee name from Employee table
+        employee_name = None
+        try:
+            if record.employee_id:
+                employee = Employee.query.filter_by(id=int(record.employee_id)).first()
+                if employee:
+                    employee_name = f"{employee.lastName}, {employee.firstName}"
+                else:
+                    employee_name = f"Unknown (ID: {record.employee_id})"
+        except (ValueError, TypeError) as e:
+            logger_handler.logger.warning(f"Could not lookup employee name for ID {record.employee_id}: {e}")
+            employee_name = f"Unknown (ID: {record.employee_id})"
+
+        # Get event type from QR code (Check In/Check Out)
+        location_event = qr_code.location_event if qr_code and qr_code.location_event else 'N/A'
+
         # Log the access for audit trail
         logger_handler.logger.info(
             f"User {session.get('username')} ({session.get('role')}) "
@@ -5570,10 +5586,12 @@ def verification_review_detail(record_id):
             check_in_time = str(record.check_in_time) if record.check_in_time else 'N/A'
         
         return render_template('verification_review_detail.html',
-                             record=record,
-                             qr_code=qr_code,
-                             check_in_date=check_in_date,
-                             check_in_time=check_in_time)
+                     record=record,
+                     qr_code=qr_code,
+                     check_in_date=check_in_date,
+                     check_in_time=check_in_time,
+                     employee_name=employee_name,
+                     location_event=location_event)
     
     except Exception as e:
         logger_handler.logger.error(f"Error loading verification review detail: {e}")
