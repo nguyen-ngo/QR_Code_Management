@@ -210,6 +210,50 @@ QR Code Management{% endblock %} {% block extra_head %}
     box-shadow: 0 6px 16px rgba(107, 114, 128, 0.3);
   }
 
+  .btn-download {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn-download:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-email {
+    background: #8b5cf6;
+    color: white;
+  }
+
+  .btn-email:hover {
+    background: #7c3aed;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.3);
+  }
+
+  .photo-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+    flex-wrap: wrap;
+  }
+
+  .photo-actions .btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
   .alert {
     padding: 15px 20px;
     border-radius: 8px;
@@ -369,7 +413,18 @@ QR Code Management{% endblock %} {% block extra_head %}
         src="{{ record.verification_photo }}"
         alt="Verification Photo for {{ record.employee_id }}"
         class="verification-photo"
+        id="verificationPhoto"
       />
+      <div class="photo-actions">
+        <button onclick="downloadPhoto()" class="btn btn-download">
+          <i class="fas fa-download"></i>
+          Download Photo
+        </button>
+        <button onclick="sendByEmail()" class="btn btn-email">
+          <i class="fas fa-envelope"></i>
+          Send by Email
+        </button>
+      </div>
       {% else %}
       <div class="no-photo">
         <i class="fas fa-image"></i>
@@ -408,11 +463,30 @@ QR Code Management{% endblock %} {% block extra_head %}
 
 <script>
   function updateStatus(status) {
+      const statusText = status.charAt(0).toUpperCase() + status.slice(1);
       const confirmMessage = status === 'approved'
           ? 'Are you sure you want to APPROVE this verification?'
           : 'Are you sure you want to REJECT this verification?';
 
       if (!confirm(confirmMessage)) {
+          return;
+      }
+
+      // Prompt for reason
+      const reasonPrompt = status === 'approved'
+          ? 'Optional: Enter a reason for approval:'
+          : 'Please enter a reason for rejection:';
+
+      let reason = prompt(reasonPrompt);
+
+      // For rejection, reason is required
+      if (status === 'rejected' && (!reason || reason.trim() === '')) {
+          alert('A reason is required when rejecting a verification.');
+          return;
+      }
+
+      // User cancelled the prompt
+      if (reason === null) {
           return;
       }
 
@@ -425,7 +499,8 @@ QR Code Management{% endblock %} {% block extra_head %}
               'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-              status: status
+              status: status,
+              note: reason
           })
       })
       .then(response => response.json())
@@ -443,6 +518,102 @@ QR Code Management{% endblock %} {% block extra_head %}
           console.error('[ERROR] Failed to update verification status:', error);
           alert(`Error: ${error.message}`);
       });
+  }
+
+  // Download verification photo
+  function downloadPhoto() {
+      const photoElement = document.getElementById('verificationPhoto');
+      if (!photoElement) {
+          alert('No photo available to download.');
+          return;
+      }
+
+      const photoSrc = photoElement.src;
+      const employeeId = '{{ record.employee_id }}';
+      const checkInDate = '{{ check_in_date }}'.replace(/\//g, '-');
+      const fileName = `verification_photo_${employeeId}_${checkInDate}.jpg`;
+
+      // Handle base64 data URL
+      if (photoSrc.startsWith('data:')) {
+          const link = document.createElement('a');
+          link.href = photoSrc;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          console.log('[LOG] Photo downloaded:', fileName);
+      } else {
+          // Handle regular URL - fetch and download
+          fetch(photoSrc)
+              .then(response => response.blob())
+              .then(blob => {
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  console.log('[LOG] Photo downloaded:', fileName);
+              })
+              .catch(error => {
+                  console.error('[ERROR] Failed to download photo:', error);
+                  alert('Failed to download photo. Please try again.');
+              });
+      }
+  }
+
+  // Send verification details by email
+  function sendByEmail() {
+      const employeeId = '{{ record.employee_id }}';
+      const employeeName = '{{ employee_name or "Unknown" }}';
+      const checkInDate = '{{ check_in_date }}';
+      const checkInTime = '{{ check_in_time }}';
+      const locationName = '{{ record.location_name or "Unknown" }}';
+      const locationEvent = '{{ location_event or "N/A" }}';
+      const verificationStatus = '{{ record.verification_status }}';
+      const qrAddress = '{{ qr_code.location_address if qr_code else "N/A" }}';
+      const checkInAddress = '{{ record.address or "N/A" }}';
+      const distance = '{% if record.location_accuracy %}{{ "%.3f"|format(record.location_accuracy) }} miles{% else %}N/A{% endif %}';
+      const deviceInfo = '{{ record.device_info or "Unknown" }}';
+      const recordId = '{{ record.id }}';
+      const recordUrl = window.location.origin + '{{ url_for("verification_review_detail", record_id=record.id) }}';
+
+      // Build email subject
+      const subject = encodeURIComponent(`Verification Review - Employee ${employeeId} (${employeeName}) - ${checkInDate}`);
+
+      // Build email body with verification details
+      let body = `VERIFICATION PHOTO REVIEW DETAILS\n`;
+      body += `================================\n\n`;
+      body += `VIEW VERIFICATION RECORD ONLINE:\n`;
+      body += `${recordUrl}\n\n`;
+      body += `EMPLOYEE INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Employee ID: ${employeeId}\n`;
+      body += `Employee Name: ${employeeName}\n`;
+      body += `Check-in Date: ${checkInDate}\n`;
+      body += `Check-in Time: ${checkInTime}\n`;
+      body += `Verification Status: ${verificationStatus.toUpperCase()}\n\n`;
+      body += `LOCATION INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Location Name: ${locationName}\n`;
+      body += `Event Type: ${locationEvent}\n`;
+      body += `Distance from QR: ${distance}\n`;
+      body += `QR Code Address: ${qrAddress}\n`;
+      body += `Check-in Address: ${checkInAddress}\n`;
+      body += `Device: ${deviceInfo}\n\n`;
+      body += `--------------------\n`;
+      body += `Record ID: ${recordId}\n\n`;
+      body += `Note: Click the link above to view the verification photo and full details.\n`;
+
+      const encodedBody = encodeURIComponent(body);
+
+      // Open default email client
+      const mailtoLink = `mailto:?subject=${subject}&body=${encodedBody}`;
+      window.location.href = mailtoLink;
+
+      console.log('[LOG] Email client opened for verification record:', recordId);
   }
 </script>
 {% endblock %}
