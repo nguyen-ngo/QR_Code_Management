@@ -9293,6 +9293,611 @@ def excel_export_time_attendance():
     # Redirect to main export with Excel format
     return redirect(url_for('export_time_attendance', format='excel', **request.args))
 
+@app.route('/time-attendance/export-by-building')
+@login_required
+@log_user_activity('time_attendance_export_by_building')
+def export_time_attendance_by_building():
+    """Export time attendance records grouped by building/location to Excel"""
+    try:
+        # Get filter parameters (same as records page)
+        employee_filter = request.args.get('employee_id')
+        location_filter = request.args.get('location_name')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        import_batch = request.args.get('import_batch')
+        project_filter = request.args.get('project_id')
+        
+        # Build query with same filters as the view
+        from models.time_attendance import TimeAttendance
+        query = TimeAttendance.query
+        
+        # Apply filters
+        if employee_filter:
+            query = query.filter(TimeAttendance.employee_id == employee_filter)
+        
+        if location_filter:
+            query = query.filter(TimeAttendance.location_name == location_filter)
+        
+        if start_date:
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
+            except ValueError:
+                flash('Invalid start date format.', 'error')
+                return redirect(url_for('time_attendance_records'))
+        
+        if end_date:
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query = query.filter(TimeAttendance.attendance_date <= end_date_obj)
+            except ValueError:
+                flash('Invalid end date format.', 'error')
+                return redirect(url_for('time_attendance_records'))
+        
+        if import_batch:
+            query = query.filter(TimeAttendance.import_batch_id == import_batch)
+        
+        if project_filter:
+            query = query.filter(TimeAttendance.project_id == project_filter)
+        
+        # Order by location, date, and time
+        records = query.order_by(
+            TimeAttendance.location_name,
+            TimeAttendance.attendance_date.desc(),
+            TimeAttendance.attendance_time.desc()
+        ).all()
+        
+        if not records:
+            flash('No records found to export.', 'warning')
+            return redirect(url_for('time_attendance_records'))
+        
+        # Get project name if project filter exists
+        project_name_for_filename = ''
+        if project_filter:
+            try:
+                from models.project import Project
+                project = Project.query.get(int(project_filter))
+                if project:
+                    # Replace spaces and special characters with underscores
+                    project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+                    project_name_for_filename = f"{project_name_safe}_"
+            except Exception as e:
+                print(f"⚠️ Error getting project name for filename: {e}")
+        
+        # Log export
+        logger_handler.logger.info(
+            f"User {session['username']} exported {len(records)} time attendance records "
+            f"by building in Excel format"
+        )
+        
+        # Format dates for filename (MMDDYYYY format)
+        date_from_formatted = ''
+        date_to_formatted = ''
+        if start_date:
+            try:
+                date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                date_from_formatted = date_obj.strftime('%m%d%Y')
+            except ValueError:
+                pass
+        
+        if end_date:
+            try:
+                date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                date_to_formatted = date_obj.strftime('%m%d%Y')
+            except ValueError:
+                pass
+        
+        # Build filename with date range
+        date_range_str = ''
+        if date_from_formatted and date_to_formatted:
+            date_range_str = f"{date_from_formatted}_{date_to_formatted}"
+        elif date_from_formatted:
+            date_range_str = f"from_{date_from_formatted}"
+        elif date_to_formatted:
+            date_range_str = f"to_{date_to_formatted}"
+        
+        return export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date, end_date)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error exporting time attendance records by building: {e}")
+        flash('Error generating export file. Please try again.', 'error')
+        return redirect(url_for('time_attendance_records'))
+    
+def export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date_filter=None, end_date_filter=None):
+    """Generate Excel export grouped by building/location with template format"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+    import io
+    
+    # Create workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet0"
+    
+    # Get date range for calculations
+    if start_date_filter and end_date_filter:
+        if isinstance(start_date_filter, str):
+            start_date = datetime.strptime(start_date_filter, '%Y-%m-%d').date()
+        else:
+            start_date = start_date_filter
+        
+        if isinstance(end_date_filter, str):
+            end_date = datetime.strptime(end_date_filter, '%Y-%m-%d').date()
+        else:
+            end_date = end_date_filter
+    elif records:
+        start_date = min(r.attendance_date for r in records)
+        end_date = max(r.attendance_date for r in records)
+    else:
+        return None
+    
+    # Import parse function for work type detection
+    from working_hours_calculator import parse_employee_id_for_work_type
+    
+    # Convert TimeAttendance records to format expected by calculator
+    converted_records = []
+    for record in records:
+        distance_value = getattr(record, 'distance', None)
+        
+        record_type = 'check_in'
+        if hasattr(record, 'action_description') and record.action_description:
+            action_lower = record.action_description.lower()
+            if 'out' in action_lower or 'checkout' in action_lower:
+                record_type = 'check_out'
+        
+        _, work_type = parse_employee_id_for_work_type(str(record.employee_id))
+        
+        base_location_name = record.location_name
+        if work_type and work_type in ('PT', 'SP', 'PW'):
+            display_location_name = f"{base_location_name} ({work_type})"
+        else:
+            display_location_name = base_location_name
+        
+        converted_record = type('Record', (), {
+            'id': record.id,
+            'employee_id': str(record.employee_id),
+            'employee_name': record.employee_name,
+            'check_in_date': record.attendance_date,
+            'check_in_time': record.attendance_time,
+            'location_name': display_location_name,
+            'original_location_name': base_location_name,
+            'work_type': work_type,
+            'latitude': None,
+            'longitude': None,
+            'distance': distance_value,
+            'record_type': record_type,
+            'action_description': record.action_description,
+            'event_description': record.event_description or '',
+            'recorded_address': record.recorded_address or '',
+            'qr_code': type('QRCode', (), {
+                'location': base_location_name,
+                'location_address': record.recorded_address or '',
+                'project': None
+            })()
+        })()
+        converted_records.append(converted_record)
+    
+    # Group records by location (building)
+    location_groups = {}
+    for record in converted_records:
+        loc_name = record.original_location_name or 'Unknown Location'
+        if loc_name not in location_groups:
+            location_groups[loc_name] = []
+        location_groups[loc_name].append(record)
+    
+    # Sort locations alphabetically
+    sorted_locations = sorted(location_groups.keys())
+    
+    # Log grouping info
+    logger_handler.logger.info(
+        f"Export by Building: Grouped {len(converted_records)} records into {len(sorted_locations)} locations"
+    )
+    
+    # Calculate working hours using WorkingHoursCalculator for SP/PT/PW hours
+    calculator = WorkingHoursCalculator()
+    hours_data = calculator.calculate_all_employees_hours(
+        datetime.combine(start_date, datetime.min.time()),
+        datetime.combine(end_date, datetime.max.time()),
+        converted_records
+    )
+    
+    # Get employee names map
+    employee_names = {}
+    for record in records:
+        base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
+        if base_id not in employee_names:
+            employee_names[base_id] = record.employee_name
+    
+    # Setup styles
+    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+    data_font = Font(name='Arial', size=10)
+    bold_font = Font(name='Arial', size=10, bold=True)
+    italic_bold_font = Font(name='Arial', size=10, bold=True, italic=True)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
+    
+    # Write main headers
+    current_row = 1
+    
+    # Row 1: Company name
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    title_cell = ws.cell(row=current_row, column=1, value=os.environ.get('COMPANY_NAME', 'Your Company'))
+    title_cell.font = Font(name='Arial', size=14, bold=True)
+    title_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Row 2: Summary title
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    summary_cell = ws.cell(row=current_row, column=1, value='Summary report of Hours worked')
+    summary_cell.font = Font(name='Arial', size=12, bold=True)
+    summary_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Row 3: Project name
+    project_display = project_name_for_filename.replace('_', ' ').strip() if project_name_for_filename else "[Project Name]"
+    project_cell = ws.cell(row=current_row, column=1, value=project_display)
+    project_cell.font = Font(name='Arial', size=11, bold=True)
+    project_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Row 4: Date range
+    date_range_text = f"Date range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
+    ws.merge_cells(f'A{current_row}:N{current_row}')
+    date_cell = ws.cell(row=current_row, column=1, value=date_range_text)
+    date_cell.font = Font(name='Arial', size=11)
+    date_cell.alignment = Alignment(horizontal='left')
+    current_row += 1
+    
+    # Empty rows before first building
+    current_row += 2
+    
+    # Process each building/location
+    for location_index, location_name in enumerate(sorted_locations, 1):
+        location_records = location_groups[location_name]
+        
+        # Get zone info from QR code if available
+        zone_info = ''
+        try:
+            qr_code = QRCode.query.filter_by(location=location_name).first()
+            if qr_code:
+                zone_info = getattr(qr_code, 'zone', '') or ''
+        except:
+            pass
+        
+        # Building header row
+        building_header = f"{location_index}) {location_name} - Zone {zone_info}"
+        ws.merge_cells(f'A{current_row}:O{current_row}')
+        building_cell = ws.cell(row=current_row, column=1, value=building_header)
+        building_cell.font = Font(name='Arial', size=11, bold=True)
+        building_cell.alignment = Alignment(horizontal='left')
+        current_row += 1
+        
+        # Get unique employees for this location
+        employees_at_location = {}
+        for record in location_records:
+            base_id, _ = parse_employee_id_for_work_type(record.employee_id)
+            if base_id not in employees_at_location:
+                employees_at_location[base_id] = []
+            employees_at_location[base_id].append(record)
+        
+        # Sort employees by name
+        sorted_employee_ids = sorted(
+            employees_at_location.keys(),
+            key=lambda emp_id: employee_names.get(emp_id, f'Employee {emp_id}').lower()
+        )
+        
+        # Process each employee at this location
+        for employee_id in sorted_employee_ids:
+            emp_records = employees_at_location[employee_id]
+            emp_name = employee_names.get(employee_id, f'Employee {employee_id}')
+            
+            # Get SP/PT/PW hours from the calculator's hours_data for this employee
+            emp_hours_data = hours_data.get('employees', {}).get(employee_id, {})
+            grand_totals = emp_hours_data.get('grand_totals', {})
+            sp_hours = grand_totals.get('sp_hours', 0.0)
+            pw_hours = grand_totals.get('pw_hours', 0.0)
+            pt_hours = grand_totals.get('pt_hours', 0.0)
+            
+            # Employee header row
+            ws.merge_cells(f'A{current_row}:O{current_row}')
+            emp_header = ws.cell(row=current_row, column=1, 
+                                value=f'Employee ID {employee_id}: {emp_name}')
+            emp_header.font = Font(name='Arial', size=11, bold=True)
+            emp_header.alignment = Alignment(horizontal='left')
+            current_row += 1
+            
+            # Column headers
+            headers = ['Day', 'Date', 'In', 'Out', 'Location', 'Zone', 'Hours/Building',
+                      'Daily Total', 'Regular Hours', 'OT Hours', 'Building Address',
+                      'Recorded Location', 'Distance (Mile)', 'Possible Violation']
+            
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=current_row, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            current_row += 1
+            
+            # Group employee records by date
+            daily_records = {}
+            for record in emp_records:
+                date_key = record.check_in_date.strftime('%Y-%m-%d')
+                if date_key not in daily_records:
+                    daily_records[date_key] = []
+                daily_records[date_key].append(record)
+            
+            # Track weekly hours for overtime calculation
+            weekly_total_hours = 0
+            current_week_start = None
+            grand_regular_hours = 0
+            grand_ot_hours = 0
+            
+            # Sort dates
+            sorted_dates = sorted(daily_records.keys())
+            
+            for date_str in sorted_dates:
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                day_records = sorted(daily_records[date_str], key=lambda x: x.check_in_time)
+                
+                # Check for week boundary
+                week_start = date_obj - timedelta(days=date_obj.weekday())
+                if current_week_start is not None and week_start != current_week_start:
+                    # Write weekly total row
+                    week_regular = min(weekly_total_hours, 40.0)
+                    week_overtime = max(0, weekly_total_hours - 40.0)
+                    
+                    ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
+                    ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
+                    ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
+                    ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                    
+                    grand_regular_hours += week_regular
+                    grand_ot_hours += week_overtime
+                    current_row += 1
+                    
+                    weekly_total_hours = 0
+                
+                current_week_start = week_start
+                
+                # Process day records - create IN/OUT pairs
+                record_info = []
+                for record in day_records:
+                    action_desc = record.action_description.lower() if record.action_description else ''
+                    is_out = 'out' in action_desc or 'checkout' in action_desc
+                    record_info.append({
+                        'record': record,
+                        'is_out': is_out,
+                        'used': False
+                    })
+                
+                # Create pairs
+                pairs = []
+                i = 0
+                while i < len(record_info):
+                    if record_info[i]['used']:
+                        i += 1
+                        continue
+                    
+                    if not record_info[i]['is_out']:  # IN
+                        out_found = False
+                        for j in range(i + 1, len(record_info)):
+                            if record_info[j]['used']:
+                                continue
+                            if record_info[j]['is_out']:
+                                pairs.append({
+                                    'check_in': record_info[i]['record'],
+                                    'check_out': record_info[j]['record'],
+                                    'is_miss_punch': False
+                                })
+                                record_info[i]['used'] = True
+                                record_info[j]['used'] = True
+                                out_found = True
+                                break
+                        
+                        if not out_found:
+                            pairs.append({
+                                'check_in': record_info[i]['record'],
+                                'check_out': None,
+                                'is_miss_punch': True
+                            })
+                            record_info[i]['used'] = True
+                    else:  # Orphaned OUT
+                        pairs.append({
+                            'check_in': None,
+                            'check_out': record_info[i]['record'],
+                            'is_miss_punch': True
+                        })
+                        record_info[i]['used'] = True
+                    
+                    i += 1
+                
+                # Calculate daily hours
+                daily_hours = 0
+                for pair in pairs:
+                    if pair['check_in'] and pair['check_out'] and not pair['is_miss_punch']:
+                        pair_in = datetime.combine(date_obj, pair['check_in'].check_in_time)
+                        pair_out = datetime.combine(date_obj, pair['check_out'].check_in_time)
+                        daily_hours += (pair_out - pair_in).total_seconds() / 3600.0
+                
+                daily_hours = round(daily_hours, 2)
+                weekly_total_hours += daily_hours
+                
+                # Write pairs
+                for pair_idx, pair in enumerate(pairs):
+                    check_in = pair['check_in']
+                    check_out = pair['check_out']
+                    is_miss_punch = pair['is_miss_punch']
+                    
+                    # Day/date only on first row
+                    day_display = date_obj.strftime('%A').upper() if pair_idx == 0 else ''
+                    date_display = date_obj.strftime('%m/%d/%Y') if pair_idx == 0 else ''
+                    
+                    # Calculate hours for this pair
+                    if check_in and check_out and not is_miss_punch:
+                        pair_hours = round((datetime.combine(date_obj, check_out.check_in_time) - 
+                                           datetime.combine(date_obj, check_in.check_in_time)).total_seconds() / 3600.0, 2)
+                    else:
+                        pair_hours = 'Missed Punch'
+                    
+                    # Daily total only on last row of day
+                    daily_total_display = daily_hours if pair_idx == len(pairs) - 1 else ''
+                    
+                    # Get record for address/distance info
+                    ref_record = check_in or check_out
+                    
+                    # Build row data
+                    row_data = [
+                        day_display,
+                        date_display,
+                        check_in.check_in_time.strftime('%I:%M:%S %p') if check_in else '',
+                        check_out.check_in_time.strftime('%I:%M:%S %p') if check_out else '',
+                        ref_record.location_name if ref_record else '',
+                        zone_info,
+                        pair_hours,
+                        daily_total_display if daily_total_display else '',
+                        '',  # Regular Hours
+                        '',  # OT Hours
+                        '',  # Building Address (will be HYPERLINK)
+                        '',  # Recorded Location (will be HYPERLINK)
+                        getattr(ref_record, 'distance', None) or '' if ref_record else '',
+                        calculate_possible_violation(getattr(ref_record, 'distance', None)) if ref_record else ''
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = border
+                        if col == 7 and value == 'Missed Punch':
+                            cell.fill = missed_punch_fill
+                    
+                    # Add HYPERLINK formulas for addresses
+                    if ref_record:
+                        building_address = ref_record.event_description or ''
+                        if building_address:
+                            encoded_addr = building_address.replace(' ', '+').replace(',', '%2C')
+                            hyperlink_formula = f'=HYPERLINK("https://www.google.com/maps/place/{encoded_addr}","{building_address}")'
+                            ws.cell(row=current_row, column=11, value=hyperlink_formula)
+                        
+                        recorded_addr = ref_record.recorded_address or ''
+                        if recorded_addr:
+                            encoded_recorded = recorded_addr.replace(' ', '+').replace(',', '%2C')
+                            recorded_hyperlink = f'=HYPERLINK("https://www.google.com/maps/place/{encoded_recorded}","{recorded_addr}")'
+                            ws.cell(row=current_row, column=12, value=recorded_hyperlink)
+                    
+                    current_row += 1
+            
+            # Write final weekly total
+            if weekly_total_hours > 0:
+                week_regular = min(weekly_total_hours, 40.0)
+                week_overtime = max(0, weekly_total_hours - 40.0)
+                
+                ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
+                ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
+                ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
+                ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                
+                grand_regular_hours += week_regular
+                grand_ot_hours += week_overtime
+                current_row += 1
+            
+            # ================================================================
+            # Write extra working hours rows (SP/PW/PT) if employee has any
+            # This matches the behavior of the regular Export to Excel
+            # ================================================================
+            
+            # Write SP row if hours > 0
+            if sp_hours > 0:
+                ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = italic_bold_font
+                # Log SP hours export
+                logger_handler.logger.info(f"Export by Building: Employee {employee_id} SP hours: {sp_hours:.2f}")
+                current_row += 1
+            
+            # Write PW row if hours > 0
+            if pw_hours > 0:
+                ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = italic_bold_font
+                # Log PW hours export
+                logger_handler.logger.info(f"Export by Building: Employee {employee_id} PW hours: {pw_hours:.2f}")
+                current_row += 1
+            
+            # Write PT row if hours > 0
+            if pt_hours > 0:
+                ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = italic_bold_font
+                # Log PT hours export
+                logger_handler.logger.info(f"Export by Building: Employee {employee_id} PT hours: {pt_hours:.2f}")
+                current_row += 1
+            
+            # ================================================================
+            # End of extra working hours section
+            # ================================================================
+            
+            # Write GRAND TOTAL row
+            ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Arial', size=10, bold=True)
+            ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+            ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+            current_row += 1
+            
+            # Empty row after each employee
+            current_row += 1
+        
+        # Empty row after each building
+        current_row += 1
+    
+    # Auto-size columns
+    for col_idx in range(1, 15):
+        column_letter = get_column_letter(col_idx)
+        
+        if col_idx == 1:
+            ws.column_dimensions[column_letter].width = 18
+            continue
+        
+        max_length = 0
+        for row in ws.iter_rows(min_col=col_idx, max_col=col_idx):
+            for cell in row:
+                if isinstance(cell, openpyxl.cell.cell.MergedCell):
+                    continue
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+        
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # Save to BytesIO
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Filename
+    if date_range_str:
+        filename = f'{project_name_for_filename}time_attendance_by_building_{date_range_str}.xlsx'
+    else:
+        filename = f'{project_name_for_filename}time_attendance_by_building.xlsx'
+    
+    # Log successful export
+    logger_handler.logger.info(
+        f"Export by Building completed: {filename} with {len(sorted_locations)} buildings"
+    )
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
 @app.route('/time-attendance/records')
 @login_required
 @log_user_activity('time_attendance_records_view')
