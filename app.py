@@ -5348,9 +5348,12 @@ def verification_review():
         status_filter = request.args.get('status', 'pending')
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
+        project_filter = request.args.get('project', '')
+        location_filter = request.args.get('location', '')
+        employee_filter = request.args.get('employee', '')
         
-        # Build query
-        query = AttendanceData.query.filter(
+        # Build query - join with QRCode to access project_id
+        query = AttendanceData.query.join(QRCode).filter(
             AttendanceData.verification_required == True
         )
         
@@ -5363,10 +5366,53 @@ def verification_review():
         if date_to:
             query = query.filter(AttendanceData.check_in_date <= date_to)
         
+        # Apply project filter
+        if project_filter:
+            try:
+                query = query.filter(QRCode.project_id == int(project_filter))
+            except (ValueError, TypeError):
+                pass
+        
+        # Apply location filter
+        if location_filter:
+            query = query.filter(AttendanceData.location_name.ilike(f'%{location_filter}%'))
+        
+        # Apply employee ID filter
+        if employee_filter:
+            query = query.filter(AttendanceData.employee_id.ilike(f'%{employee_filter}%'))
+        
         # Get records with QR code information
-        verifications = query.join(QRCode).order_by(
+        verifications = query.order_by(
             AttendanceData.verification_timestamp.desc()
         ).all()
+        
+        # Build a dictionary for employee names lookup
+        employee_names = {}
+        for record in verifications:
+            if record.employee_id and record.employee_id not in employee_names:
+                try:
+                    employee = Employee.query.filter_by(id=int(record.employee_id)).first()
+                    if employee:
+                        employee_names[record.employee_id] = f"{employee.lastName}, {employee.firstName}"
+                    else:
+                        employee_names[record.employee_id] = None
+                except (ValueError, TypeError):
+                    employee_names[record.employee_id] = None
+        
+        # Build a dictionary for project names lookup
+        project_names = {}
+        for record in verifications:
+            if record.qr_code and record.qr_code.project_id:
+                project_id = record.qr_code.project_id
+                if project_id not in project_names:
+                    try:
+                        project = Project.query.get(project_id)
+                        if project:
+                            project_names[project_id] = project.name
+                        else:
+                            project_names[project_id] = None
+                    except Exception:
+                        project_names[project_id] = None
         
         # Get counts for status badges
         pending_count = AttendanceData.query.filter(
@@ -5381,6 +5427,20 @@ def verification_review():
             AttendanceData.verification_status == 'rejected'
         ).count()
         
+        # Get all projects for filter dropdown
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        
+        # Get unique locations for filter dropdown
+        locations = db.session.query(AttendanceData.location_name).filter(
+            AttendanceData.verification_required == True
+        ).distinct().order_by(AttendanceData.location_name).all()
+        location_list = [loc[0] for loc in locations if loc[0]]
+        
+        # Log access
+        logger_handler.logger.info(
+            f"User {session.get('username')} ({session.get('role')}) accessed verification review page"
+        )
+        
         return render_template('verification_review.html',
                              verifications=verifications,
                              pending_count=pending_count,
@@ -5388,7 +5448,14 @@ def verification_review():
                              rejected_count=rejected_count,
                              status_filter=status_filter,
                              date_from=date_from,
-                             date_to=date_to)
+                             date_to=date_to,
+                             project_filter=project_filter,
+                             location_filter=location_filter,
+                             employee_filter=employee_filter,
+                             projects=projects,
+                             locations=location_list,
+                             employee_names=employee_names,
+                             project_names=project_names)
     
     except Exception as e:
         logger_handler.logger.error(f"Error in verification review: {e}")
@@ -5564,10 +5631,10 @@ def verification_review_detail(record_id):
         except (ValueError, TypeError) as e:
             logger_handler.logger.warning(f"Could not lookup employee name for ID {record.employee_id}: {e}")
             employee_name = f"Unknown (ID: {record.employee_id})"
-
+        
         # Get event type from QR code (Check In/Check Out)
         location_event = qr_code.location_event if qr_code and qr_code.location_event else 'N/A'
-
+        
         # Log the access for audit trail
         logger_handler.logger.info(
             f"User {session.get('username')} ({session.get('role')}) "
@@ -5586,12 +5653,12 @@ def verification_review_detail(record_id):
             check_in_time = str(record.check_in_time) if record.check_in_time else 'N/A'
         
         return render_template('verification_review_detail.html',
-                     record=record,
-                     qr_code=qr_code,
-                     check_in_date=check_in_date,
-                     check_in_time=check_in_time,
-                     employee_name=employee_name,
-                     location_event=location_event)
+                             record=record,
+                             qr_code=qr_code,
+                             check_in_date=check_in_date,
+                             check_in_time=check_in_time,
+                             employee_name=employee_name,
+                             location_event=location_event)
     
     except Exception as e:
         logger_handler.logger.error(f"Error loading verification review detail: {e}")
