@@ -8512,6 +8512,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     else:
         return None
     
+    # Import parse function at the beginning for work type detection
+    from working_hours_calculator import parse_employee_id_for_work_type
+    
     # Convert TimeAttendance records to format expected by calculator
     converted_records = []
     for record in records:
@@ -8525,12 +8528,24 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             if 'out' in action_lower or 'checkout' in action_lower:
                 record_type = 'check_out'
         
+        # Extract work type (PT, SP, PW) from employee_id for location display in Excel
+        _, work_type = parse_employee_id_for_work_type(str(record.employee_id))
+        
+        # Create display location name with work type suffix if applicable
+        base_location_name = record.location_name
+        if work_type and work_type in ('PT', 'SP', 'PW'):
+            display_location_name = f"{base_location_name} ({work_type})"
+        else:
+            display_location_name = base_location_name
+        
         converted_record = type('Record', (), {
             'id': record.id,
             'employee_id': str(record.employee_id),
             'check_in_date': record.attendance_date,
             'check_in_time': record.attendance_time,
-            'location_name': record.location_name,
+            'location_name': display_location_name,  # Use display name with work type for Excel export
+            'original_location_name': base_location_name,  # Keep original for internal grouping
+            'work_type': work_type,  # Store work type for reference
             'latitude': None,
             'longitude': None,
             'distance': distance_value,
@@ -8539,12 +8554,28 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             'event_description': record.event_description or '',
             'recorded_address': record.recorded_address or '',
             'qr_code': type('QRCode', (), {
-                'location': record.location_name,
+                'location': base_location_name,  # Keep original for QR code matching
                 'location_address': record.recorded_address or '',
                 'project': None
             })()
         })()
         converted_records.append(converted_record)
+    
+    # Log count of records with work types for audit trail
+    work_type_counts = {'PT': 0, 'SP': 0, 'PW': 0, 'Regular': 0}
+    for r in converted_records:
+        wt = getattr(r, 'work_type', None)
+        if wt in work_type_counts:
+            work_type_counts[wt] += 1
+        else:
+            work_type_counts['Regular'] += 1
+    
+    if any(work_type_counts[wt] > 0 for wt in ['PT', 'SP', 'PW']):
+        logger_handler.logger.info(
+            f"Excel Export: Processing records with work types - "
+            f"Regular: {work_type_counts['Regular']}, PT: {work_type_counts['PT']}, "
+            f"SP: {work_type_counts['SP']}, PW: {work_type_counts['PW']}"
+        )
     
     # Calculate working hours using SingleCheckInCalculator
     calculator = WorkingHoursCalculator()
@@ -9113,7 +9144,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         
         # Write PT row if hours > 0
         if pt_hours > 0:
-            ws.cell(row=current_row, column=7, value='Part-Time (PT): ').font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = Font(name='Arial', size=10, bold=True, italic=True)
             ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
             # Log PT hours export
             logger_handler.logger.info(f"Export: Employee {employee_id} PT hours: {pt_hours:.2f}")
