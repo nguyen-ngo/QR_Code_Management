@@ -254,13 +254,22 @@ def normalize_address(address):
     filtered_parts = []
     
     # Known neighborhood keywords to remove (these don't affect geocoding)
-    neighborhood_keywords = ['hills', 'heights', 'park', 'village', 'estates', 
+    # NOTE: These should only match if NOT followed by a street type suffix
+    neighborhood_keywords = ['hills', 'heights', 'village', 'estates', 
                             'manor', 'gardens', 'terrace', 'commons', 'plaza',
                             'downtown', 'midtown', 'uptown', 'district', 'center',
                             'crossing', 'corner', 'square', 'point', 'landing',
                             'aurora', 'crystal', 'forest', 'lake', 'river', 'creek',
                             'meadow', 'valley', 'ridge', 'grove', 'glen', 'woods',
-                            'addison', 'colonial', 'fairfax', 'heritage', 'liberty']
+                            'addison', 'colonial', 'fairfax', 'heritage', 'liberty',
+                            'ballston', 'clarendon', 'rosslyn', 'shirlington']
+    
+    # Street type suffixes - if a part contains these, it's likely a street address, not a neighborhood
+    street_type_suffixes = ['rd', 'st', 'ave', 'dr', 'ln', 'ct', 'blvd', 'pkwy', 'cir', 
+                           'pl', 'ter', 'hwy', 'way', 'road', 'street', 'avenue', 
+                           'drive', 'lane', 'court', 'boulevard', 'parkway', 'circle',
+                           'place', 'terrace', 'highway', 'trail', 'pike', 'run', 
+                           'walk', 'path', 'loop']
     
     # Country names and suffixes to remove (English and other languages)
     country_suffixes = ['usa', 'us', 'united states', 'united states of america',
@@ -293,7 +302,20 @@ def normalize_address(address):
             print(f"   Removing county: '{part_clean}'")
             continue
         
-        # Skip if it's a neighborhood name (contains neighborhood keywords but no numbers)
+        # Check if this part contains a street type suffix - if so, it's a street address, KEEP IT
+        has_street_suffix = False
+        for suffix in street_type_suffixes:
+            # Match word boundary to avoid partial matches (e.g., "dr" in "andra")
+            if re.search(rf'\b{suffix}\b', part_clean):
+                has_street_suffix = True
+                break
+        
+        if has_street_suffix:
+            # This is a street address (e.g., "n park dr", "18th st s"), keep it
+            filtered_parts.append(part_clean)
+            continue
+        
+        # Skip if it's a neighborhood name (contains neighborhood keywords but no numbers and no street suffix)
         is_neighborhood = False
         for keyword in neighborhood_keywords:
             if keyword in part_clean and not re.search(r'\d', part_clean):
