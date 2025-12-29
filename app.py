@@ -6002,7 +6002,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(qr_record.address_latitude):.10f}"
                                         lng_formatted = f"{float(qr_record.address_longitude):.10f}"
-                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
                                         print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
                                     else:
@@ -6015,7 +6015,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                         lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
                                         print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
                                     else:
@@ -6028,7 +6028,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                     # Format coordinates with 10 decimal places
                                     lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                     lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                     cell.value = hyperlink_formula
                                     print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
                                 else:
@@ -6040,7 +6040,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                 # Format coordinates with 10 decimal places
                                 lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                 lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                 cell.value = hyperlink_formula
                                 print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
                             else:
@@ -6254,7 +6254,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(qr_record.address_latitude):.10f}"
                                         lng_formatted = f"{float(qr_record.address_longitude):.10f}"
-                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
                                         print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
                                     else:
@@ -6267,7 +6267,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                         lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                        hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
                                         print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
                                     else:
@@ -6280,7 +6280,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                     # Format coordinates with 10 decimal places
                                     lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                     lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                    hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                     cell.value = hyperlink_formula
                                     print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
                                 else:
@@ -6292,7 +6292,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                 # Format coordinates with 10 decimal places
                                 lat_formatted = f"{float(attendance_record.latitude):.10f}"
                                 lng_formatted = f"{float(attendance_record.longitude):.10f}"
-                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text}")'
+                                hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                 cell.value = hyperlink_formula
                                 print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
                             else:
