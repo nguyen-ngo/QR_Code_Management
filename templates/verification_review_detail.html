@@ -1,53 +1,50 @@
-{% extends "base_authenticated.html" %}
-
-{% block title %}Verification Review - QR Code Management{% endblock %}
-
-{% block extra_head %}
+{% extends "base_authenticated.html" %} {% block title %}Verification Review -
+QR Code Management{% endblock %} {% block extra_head %}
 <style>
-.verification-review-page {
+  .verification-review-page {
     max-width: 1200px;
     margin: 0 auto;
     padding: 30px 20px;
-}
+  }
 
-.review-header {
+  .review-header {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
     color: white;
     padding: 30px;
     border-radius: 12px;
     margin-bottom: 30px;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-}
+  }
 
-.review-header h1 {
+  .review-header h1 {
     margin: 0 0 10px 0;
     font-size: 2rem;
     display: flex;
     align-items: center;
     gap: 15px;
-}
+  }
 
-.review-header p {
+  .review-header p {
     margin: 0;
     opacity: 0.9;
     font-size: 1.1rem;
-}
+  }
 
-.review-content {
+  .review-content {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 30px;
     margin-bottom: 30px;
-}
+  }
 
-.review-section {
+  .review-section {
     background: white;
     border-radius: 12px;
     padding: 25px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+  }
 
-.review-section h2 {
+  .review-section h2 {
     margin: 0 0 20px 0;
     font-size: 1.3rem;
     color: #1f2937;
@@ -56,107 +53,107 @@
     gap: 10px;
     padding-bottom: 15px;
     border-bottom: 2px solid #e5e7eb;
-}
+  }
 
-.info-row {
+  .info-row {
     display: flex;
     justify-content: space-between;
     padding: 12px 0;
     border-bottom: 1px solid #f3f4f6;
-}
+  }
 
-.info-row:last-child {
+  .info-row:last-child {
     border-bottom: none;
-}
+  }
 
-.info-label {
+  .info-label {
     color: #6b7280;
     font-weight: 500;
     text-transform: uppercase;
     font-size: 0.85rem;
     letter-spacing: 0.5px;
-}
+  }
 
-.info-value {
+  .info-value {
     color: #1f2937;
     font-weight: 600;
     text-align: right;
-}
+  }
 
-.distance-badge {
+  .distance-badge {
     display: inline-block;
     padding: 6px 12px;
     border-radius: 6px;
     font-weight: 600;
     font-size: 0.9rem;
-}
+  }
 
-.distance-high {
+  .distance-high {
     background: #fee2e2;
     color: #991b1b;
-}
+  }
 
-.distance-medium {
+  .distance-medium {
     background: #fef3c7;
     color: #92400e;
-}
+  }
 
-.distance-low {
+  .distance-low {
     background: #d1fae5;
     color: #065f46;
-}
+  }
 
-.status-badge {
+  .status-badge {
     display: inline-block;
     padding: 8px 16px;
     border-radius: 20px;
     font-weight: 600;
     font-size: 0.95rem;
-}
+  }
 
-.status-pending {
+  .status-pending {
     background: #fef3c7;
     color: #92400e;
-}
+  }
 
-.status-approved {
+  .status-approved {
     background: #d1fae5;
     color: #065f46;
-}
+  }
 
-.status-rejected {
+  .status-rejected {
     background: #fee2e2;
     color: #991b1b;
-}
+  }
 
-.photo-section {
+  .photo-section {
     grid-column: 1 / -1;
-}
+  }
 
-.verification-photo {
+  .verification-photo {
     max-width: 100%;
     height: auto;
     border-radius: 12px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     display: block;
     margin: 20px auto;
-}
+  }
 
-.no-photo {
+  .no-photo {
     text-align: center;
     padding: 60px 20px;
     background: #f9fafb;
     border-radius: 12px;
     color: #6b7280;
-}
+  }
 
-.no-photo i {
+  .no-photo i {
     font-size: 4rem;
     margin-bottom: 20px;
     color: #d1d5db;
-}
+  }
 
-.action-buttons {
+  .action-buttons {
     display: flex;
     gap: 15px;
     justify-content: center;
@@ -164,9 +161,9 @@
     background: white;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+  }
 
-.action-buttons .btn {
+  .action-buttons .btn {
     padding: 14px 40px;
     font-size: 1.1rem;
     font-weight: 600;
@@ -178,263 +175,445 @@
     gap: 10px;
     transition: all 0.2s;
     text-decoration: none;
-}
+  }
 
-.btn-approve {
+  .btn-approve {
     background: #10b981;
     color: white;
-}
+  }
 
-.btn-approve:hover {
+  .btn-approve:hover {
     background: #059669;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-}
+  }
 
-.btn-reject {
+  .btn-reject {
     background: #ef4444;
     color: white;
-}
+  }
 
-.btn-reject:hover {
+  .btn-reject:hover {
     background: #dc2626;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
-}
+  }
 
-.btn-back {
+  .btn-back {
     background: #6b7280;
     color: white;
-}
+  }
 
-.btn-back:hover {
+  .btn-back:hover {
     background: #4b5563;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(107, 114, 128, 0.3);
-}
+  }
 
-.alert {
+  .btn-download {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn-download:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-email {
+    background: #8b5cf6;
+    color: white;
+  }
+
+  .btn-email:hover {
+    background: #7c3aed;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.3);
+  }
+
+  .photo-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+    flex-wrap: wrap;
+  }
+
+  .photo-actions .btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .alert {
     padding: 15px 20px;
     border-radius: 8px;
     margin-bottom: 20px;
     display: flex;
     align-items: center;
     gap: 10px;
-}
+  }
 
-.alert-warning {
+  .alert-warning {
     background: #fef3c7;
     color: #92400e;
     border-left: 4px solid #f59e0b;
-}
+  }
 
-.alert-info {
+  .alert-info {
     background: #dbeafe;
     color: #1e40af;
     border-left: 4px solid #3b82f6;
-}
+  }
 
-@media (max-width: 768px) {
+  @media (max-width: 768px) {
     .review-content {
-        grid-template-columns: 1fr;
+      grid-template-columns: 1fr;
     }
-    
+
     .action-buttons {
-        flex-direction: column;
+      flex-direction: column;
     }
-    
+
     .action-buttons .btn {
-        width: 100%;
-        justify-content: center;
+      width: 100%;
+      justify-content: center;
     }
-    
+
     .review-header h1 {
-        font-size: 1.5rem;
+      font-size: 1.5rem;
     }
-}
+  }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <div class="verification-review-page">
-    <!-- Header -->
-    <div class="review-header">
-        <h1>
-            <i class="fas fa-camera-retro"></i>
-            Verification Photo Review
-        </h1>
-        <p>Review and approve/reject employee verification photo for off-site check-in</p>
+  <!-- Header -->
+  <div class="review-header">
+    <h1>
+      <i class="fas fa-camera-retro"></i>
+      Verification Photo Review
+    </h1>
+    <p>
+      Review and approve/reject employee verification photo for off-site
+      check-in
+    </p>
+  </div>
+
+  <!-- Alert for already reviewed records -->
+  {% if record.verification_status != 'pending' %}
+  <div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    <span
+      >This verification has already been {{ record.verification_status
+      }}.</span
+    >
+  </div>
+  {% endif %}
+
+  <!-- Review Content -->
+  <div class="review-content">
+    <!-- Employee Information -->
+    <div class="review-section">
+      <h2>
+        <i class="fas fa-user"></i>
+        Employee Information
+      </h2>
+      <div class="info-row">
+        <span class="info-label">Employee ID</span>
+        <span class="info-value">{{ record.employee_id }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Employee Name</span>
+        <span class="info-value">{{ employee_name or 'Unknown' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Check-in Date</span>
+        <span class="info-value">{{ check_in_date }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Check-in Time</span>
+        <span class="info-value">{{ check_in_time }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Status</span>
+        <span class="info-value">
+          <span class="status-badge status-{{ record.verification_status }}">
+            {{ record.verification_status.upper() }}
+          </span>
+        </span>
+      </div>
     </div>
 
-    <!-- Alert for already reviewed records -->
-    {% if record.verification_status != 'pending' %}
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i>
-        <span>This verification has already been {{ record.verification_status }}.</span>
-    </div>
-    {% endif %}
-
-    <!-- Review Content -->
-    <div class="review-content">
-        <!-- Employee Information -->
-        <div class="review-section">
-            <h2>
-                <i class="fas fa-user"></i>
-                Employee Information
-            </h2>
-            <div class="info-row">
-                <span class="info-label">Employee ID</span>
-                <span class="info-value">{{ record.employee_id }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Employee Name</span>
-                <span class="info-value">{{ record.employee_name or 'Unknown' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Check-in Date</span>
-                <span class="info-value">{{ check_in_date }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Check-in Time</span>
-                <span class="info-value">{{ check_in_time }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Status</span>
-                <span class="info-value">
-                    <span class="status-badge status-{{ record.verification_status }}">
-                        {{ record.verification_status.upper() }}
-                    </span>
-                </span>
-            </div>
-        </div>
-
-        <!-- Location Information -->
-        <div class="review-section">
-            <h2>
-                <i class="fas fa-map-marker-alt"></i>
-                Location Information
-            </h2>
-            <div class="info-row">
-                <span class="info-label">Location Name</span>
-                <span class="info-value">{{ record.location_name or 'Unknown' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Event</span>
-                <span class="info-value">{{ record.location_event or 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Distance from QR</span>
-                <span class="info-value">
-                    {% if record.location_accuracy %}
-                        {% if record.location_accuracy > 0.5 %}
-                            <span class="distance-badge distance-high">{{ "%.3f"|format(record.location_accuracy) }} miles</span>
-                        {% elif record.location_accuracy > 0.2 %}
-                            <span class="distance-badge distance-medium">{{ "%.3f"|format(record.location_accuracy) }} miles</span>
-                        {% else %}
-                            <span class="distance-badge distance-low">{{ "%.3f"|format(record.location_accuracy) }} miles</span>
-                        {% endif %}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">QR Address</span>
-                <span class="info-value">{{ qr_code.address if qr_code else 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Check-in Address</span>
-                <span class="info-value">{{ record.address or 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Device</span>
-                <span class="info-value">{{ record.device_info or 'Unknown' }}</span>
-            </div>
-        </div>
-
-        <!-- Verification Photo -->
-        <div class="review-section photo-section">
-            <h2>
-                <i class="fas fa-camera"></i>
-                Verification Photo
-            </h2>
-            {% if record.verification_photo %}
-                <img src="{{ record.verification_photo }}" 
-                     alt="Verification Photo for {{ record.employee_id }}" 
-                     class="verification-photo">
-            {% else %}
-                <div class="no-photo">
-                    <i class="fas fa-image"></i>
-                    <h3>No Photo Available</h3>
-                    <p>This record does not have a verification photo.</p>
-                </div>
-            {% endif %}
-        </div>
+    <!-- Location Information -->
+    <div class="review-section">
+      <h2>
+        <i class="fas fa-map-marker-alt"></i>
+        Location Information
+      </h2>
+      <div class="info-row">
+        <span class="info-label">Location Name</span>
+        <span class="info-value">{{ record.location_name or 'Unknown' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Event</span>
+        <span class="info-value">{{ location_event or 'N/A' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Distance from QR</span>
+        <span class="info-value">
+          {% if record.location_accuracy %} {% if record.location_accuracy > 0.5
+          %}
+          <span class="distance-badge distance-high"
+            >{{ "%.3f"|format(record.location_accuracy) }} miles</span
+          >
+          {% elif record.location_accuracy > 0.2 %}
+          <span class="distance-badge distance-medium"
+            >{{ "%.3f"|format(record.location_accuracy) }} miles</span
+          >
+          {% else %}
+          <span class="distance-badge distance-low"
+            >{{ "%.3f"|format(record.location_accuracy) }} miles</span
+          >
+          {% endif %} {% else %} N/A {% endif %}
+        </span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">QR Address</span>
+        <span class="info-value"
+          >{{ qr_code.location_address if qr_code else 'N/A' }}</span
+        >
+      </div>
+      <div class="info-row">
+        <span class="info-label">Check-in Address</span>
+        <span class="info-value">{{ record.address or 'N/A' }}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Device</span>
+        <span class="info-value">{{ record.device_info or 'Unknown' }}</span>
+      </div>
     </div>
 
-    <!-- Action Buttons -->
-    {% if record.verification_status == 'pending' %}
-    <div class="action-buttons">
-        <button onclick="updateStatus('approved')" class="btn btn-approve">
-            <i class="fas fa-check"></i>
-            Approve Verification
+    <!-- Verification Photo -->
+    <div class="review-section photo-section">
+      <h2>
+        <i class="fas fa-camera"></i>
+        Verification Photo
+      </h2>
+      {% if record.verification_photo %}
+      <img
+        src="{{ record.verification_photo }}"
+        alt="Verification Photo for {{ record.employee_id }}"
+        class="verification-photo"
+        id="verificationPhoto"
+      />
+      <div class="photo-actions">
+        <button onclick="downloadPhoto()" class="btn btn-download">
+          <i class="fas fa-download"></i>
+          Download Photo
         </button>
-        <button onclick="updateStatus('rejected')" class="btn btn-reject">
-            <i class="fas fa-times"></i>
-            Reject Verification
+        <button onclick="sendByEmail()" class="btn btn-email">
+          <i class="fas fa-envelope"></i>
+          Send by Email
         </button>
-        <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
-            <i class="fas fa-arrow-left"></i>
-            Back to Attendance
-        </a>
+      </div>
+      {% else %}
+      <div class="no-photo">
+        <i class="fas fa-image"></i>
+        <h3>No Photo Available</h3>
+        <p>This record does not have a verification photo.</p>
+      </div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="action-buttons">
-        <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
-            <i class="fas fa-arrow-left"></i>
-            Back to Attendance
-        </a>
-    </div>
-    {% endif %}
+  </div>
+
+  <!-- Action Buttons -->
+  {% if record.verification_status == 'pending' %}
+  <div class="action-buttons">
+    <button onclick="updateStatus('approved')" class="btn btn-approve">
+      <i class="fas fa-check"></i>
+      Approve Verification
+    </button>
+    <button onclick="updateStatus('rejected')" class="btn btn-reject">
+      <i class="fas fa-times"></i>
+      Reject Verification
+    </button>
+    <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
+      <i class="fas fa-arrow-left"></i>
+      Back to Attendance
+    </a>
+  </div>
+  {% else %}
+  <div class="action-buttons">
+    <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
+      <i class="fas fa-arrow-left"></i>
+      Back to Attendance
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 <script>
-function updateStatus(status) {
-    const confirmMessage = status === 'approved' 
-        ? 'Are you sure you want to APPROVE this verification?' 
-        : 'Are you sure you want to REJECT this verification?';
-    
-    if (!confirm(confirmMessage)) {
-        return;
-    }
-    
-    console.log(`[LOG] Updating verification status to ${status} for record {{ record.id }}`);
-    
-    // Send update request
-    fetch('/verification-review/{{ record.id }}/update', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            status: status
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log(`[LOG] Successfully updated verification status to ${status}`);
-            alert(`Verification ${status} successfully!`);
-            // Redirect back to attendance report
-            window.location.href = '{{ url_for('attendance_report') }}';
-        } else {
-            throw new Error(data.message || 'Failed to update verification status');
-        }
-    })
-    .catch(error => {
-        console.error('[ERROR] Failed to update verification status:', error);
-        alert(`Error: ${error.message}`);
-    });
-}
+  function updateStatus(status) {
+      const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+      const confirmMessage = status === 'approved'
+          ? 'Are you sure you want to APPROVE this verification?'
+          : 'Are you sure you want to REJECT this verification?';
+
+      if (!confirm(confirmMessage)) {
+          return;
+      }
+
+      // Prompt for reason
+      const reasonPrompt = status === 'approved'
+          ? 'Optional: Enter a reason for approval:'
+          : 'Please enter a reason for rejection:';
+
+      let reason = prompt(reasonPrompt);
+
+      // For rejection, reason is required
+      if (status === 'rejected' && (!reason || reason.trim() === '')) {
+          alert('A reason is required when rejecting a verification.');
+          return;
+      }
+
+      // User cancelled the prompt
+      if (reason === null) {
+          return;
+      }
+
+      console.log(`[LOG] Updating verification status to ${status} for record {{ record.id }}`);
+
+      // Send update request
+      fetch('/verification-review/{{ record.id }}/update', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+              status: status,
+              note: reason
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              console.log(`[LOG] Successfully updated verification status to ${status}`);
+              alert(`Verification ${status} successfully!`);
+              // Redirect back to attendance report
+              window.location.href = '{{ url_for('attendance_report') }}';
+          } else {
+              throw new Error(data.message || 'Failed to update verification status');
+          }
+      })
+      .catch(error => {
+          console.error('[ERROR] Failed to update verification status:', error);
+          alert(`Error: ${error.message}`);
+      });
+  }
+
+  // Download verification photo
+  function downloadPhoto() {
+      const photoElement = document.getElementById('verificationPhoto');
+      if (!photoElement) {
+          alert('No photo available to download.');
+          return;
+      }
+
+      const photoSrc = photoElement.src;
+      const employeeId = '{{ record.employee_id }}';
+      const checkInDate = '{{ check_in_date }}'.replace(/\//g, '-');
+      const fileName = `verification_photo_${employeeId}_${checkInDate}.jpg`;
+
+      // Handle base64 data URL
+      if (photoSrc.startsWith('data:')) {
+          const link = document.createElement('a');
+          link.href = photoSrc;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          console.log('[LOG] Photo downloaded:', fileName);
+      } else {
+          // Handle regular URL - fetch and download
+          fetch(photoSrc)
+              .then(response => response.blob())
+              .then(blob => {
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  console.log('[LOG] Photo downloaded:', fileName);
+              })
+              .catch(error => {
+                  console.error('[ERROR] Failed to download photo:', error);
+                  alert('Failed to download photo. Please try again.');
+              });
+      }
+  }
+
+  // Send verification details by email
+  function sendByEmail() {
+      const employeeId = '{{ record.employee_id }}';
+      const employeeName = '{{ employee_name or "Unknown" }}';
+      const checkInDate = '{{ check_in_date }}';
+      const checkInTime = '{{ check_in_time }}';
+      const locationName = '{{ record.location_name or "Unknown" }}';
+      const locationEvent = '{{ location_event or "N/A" }}';
+      const verificationStatus = '{{ record.verification_status }}';
+      const qrAddress = '{{ qr_code.location_address if qr_code else "N/A" }}';
+      const checkInAddress = '{{ record.address or "N/A" }}';
+      const distance = '{% if record.location_accuracy %}{{ "%.3f"|format(record.location_accuracy) }} miles{% else %}N/A{% endif %}';
+      const deviceInfo = '{{ record.device_info or "Unknown" }}';
+      const recordId = '{{ record.id }}';
+      const recordUrl = window.location.origin + '{{ url_for("verification_review_detail", record_id=record.id) }}';
+
+      // Build email subject
+      const subject = encodeURIComponent(`Verification Review - Employee ${employeeId} (${employeeName}) - ${checkInDate}`);
+
+      // Build email body with verification details
+      let body = `VERIFICATION PHOTO REVIEW DETAILS\n`;
+      body += `================================\n\n`;
+      body += `VIEW VERIFICATION RECORD ONLINE:\n`;
+      body += `${recordUrl}\n\n`;
+      body += `EMPLOYEE INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Employee ID: ${employeeId}\n`;
+      body += `Employee Name: ${employeeName}\n`;
+      body += `Check-in Date: ${checkInDate}\n`;
+      body += `Check-in Time: ${checkInTime}\n`;
+      body += `Verification Status: ${verificationStatus.toUpperCase()}\n\n`;
+      body += `LOCATION INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Location Name: ${locationName}\n`;
+      body += `Event Type: ${locationEvent}\n`;
+      body += `Distance from QR: ${distance}\n`;
+      body += `QR Code Address: ${qrAddress}\n`;
+      body += `Check-in Address: ${checkInAddress}\n`;
+      body += `Device: ${deviceInfo}\n\n`;
+      body += `--------------------\n`;
+      body += `Record ID: ${recordId}\n\n`;
+      body += `Note: Click the link above to view the verification photo and full details.\n`;
+
+      const encodedBody = encodeURIComponent(body);
+
+      // Open default email client
+      const mailtoLink = `mailto:?subject=${subject}&body=${encodedBody}`;
+      window.location.href = mailtoLink;
+
+      console.log('[LOG] Email client opened for verification record:', recordId);
+  }
 </script>
 {% endblock %}

@@ -47,30 +47,53 @@ def extract_street_address(address):
     Extract the core street address (number + street name) from an address string.
     This is the most reliable identifier for location matching.
     
+    Handles cases where:
+    - Street number is at the beginning: "735 18th St S"
+    - Building name comes first: "Aurora Hills Library, 735, 18th Street South"
+    
     Args:
         address: Normalized address string
         
     Returns:
-        Core street address string (e.g., "3402 s glebe rd")
+        Core street address string (e.g., "735 18th st s")
     """
     if not address:
         return ""
     
-    # Pattern to match: street number + optional directional + street name + street type
-    # Examples: "3402 south glebe road", "7100 gordon rd", "123 n main st"
-    street_pattern = r'^(\d+[-\w]*)\s+([nsew]?\s*[\w\s]+?\s*(?:rd|st|ave|dr|ln|ct|blvd|pkwy|cir|pl|ter|hwy|way|trail|pike|run|walk|path|loop))'
+    addr_lower = address.lower()
     
-    match = re.search(street_pattern, address.lower())
+    # Pattern to match: street number + optional directional + street name + street type
+    # This pattern searches ANYWHERE in the string, not just at the beginning
+    # Examples: "735 18th st s", "3402 south glebe road", "7100 gordon rd"
+    street_types = r'(?:rd|st|ave|dr|ln|ct|blvd|pkwy|cir|pl|ter|hwy|way|trail|pike|run|walk|path|loop|road|street|avenue|drive|lane|court|boulevard|parkway|circle|place|terrace|highway)'
+    
+    # Pattern: number + ordinal/street name + optional directional + street type
+    # Handles: "735 18th st s", "735, 18th street south"
+    street_pattern = rf'(\d+)[\s,]+(\d*(?:st|nd|rd|th)?\s*[\w\s]*?{street_types})(?:\s+([nsew]|north|south|east|west))?'
+    
+    match = re.search(street_pattern, addr_lower)
     if match:
         street_num = match.group(1).strip()
         street_name = match.group(2).strip()
-        # Clean up extra spaces
-        street_name = re.sub(r'\s+', ' ', street_name)
-        return f"{street_num} {street_name}"
+        direction = match.group(3) if match.group(3) else ""
+        
+        # Clean up extra spaces and commas
+        street_name = re.sub(r'[\s,]+', ' ', street_name).strip()
+        
+        # Normalize direction
+        dir_map = {'north': 'n', 'south': 's', 'east': 'e', 'west': 'w'}
+        if direction:
+            direction = dir_map.get(direction, direction)
+        
+        result = f"{street_num} {street_name}"
+        if direction:
+            result += f" {direction}"
+        
+        return result
     
-    # Fallback: try to extract just number + next few words
-    simple_pattern = r'^(\d+[-\w]*)\s+([\w\s]+)'
-    match = re.search(simple_pattern, address.lower())
+    # Fallback: try to find just a street number followed by some words
+    simple_pattern = r'(\d+)[\s,]+([\w\s]+)'
+    match = re.search(simple_pattern, addr_lower)
     if match:
         street_num = match.group(1).strip()
         # Take words until we hit something that looks like a city/state
@@ -108,6 +131,10 @@ def normalize_address(address):
         "3402 South Glebe Road Arlington VA 22202"
         "3402, South Glebe Road, Aurora Hills, Arlington VA 22202"
         Both normalize to: "3402 s glebe rd, arlington, va 22202"
+        
+        "Aurora Hills Branch Library, 735, 18th Street South, Arlington, VA 22202"
+        "735 18th St S, Arlington, VA 22202"
+        Both normalize to: "735 18th st s, arlington, va 22202"
     """
     if not address or not isinstance(address, str):
         return address
@@ -118,6 +145,13 @@ def normalize_address(address):
     # Remove extra whitespace and normalize separators
     normalized = re.sub(r'\s+', ' ', normalized)  # Multiple spaces to single space
     normalized = re.sub(r'\s*,\s*', ', ', normalized)  # Normalize comma spacing
+    
+    # Remove building/location names that come BEFORE the street number
+    # Pattern: remove text before a street number if it looks like a building name
+    # Examples: "Aurora Hills Branch Library, 735" → "735"
+    #           "Fire Station #7, 123 Main St" → "123 Main St"
+    building_pattern = r'^[^,\d]*(?:library|station|center|building|plaza|tower|hall|office|school|church|hospital|clinic|bank|hotel|restaurant|store|shop|mall|complex|headquarters|hq|branch)[^,\d]*,\s*'
+    normalized = re.sub(building_pattern, '', normalized, flags=re.IGNORECASE)
     
     # Standardize common street abbreviations to short forms
     street_abbrev = {
@@ -154,39 +188,134 @@ def normalize_address(address):
     for full_form, abbrev in directionals.items():
         normalized = re.sub(full_form, abbrev, normalized)
     
+    # Convert full state names to abbreviations
+    state_names = {
+        r'\bvirginia\b': 'va',
+        r'\bmaryland\b': 'md',
+        r'\bdistrict of columbia\b': 'dc',
+        r'\bcalifornia\b': 'ca',
+        r'\bnew york\b': 'ny',
+        r'\btexas\b': 'tx',
+        r'\bflorida\b': 'fl',
+        r'\bpennsylvania\b': 'pa',
+        r'\billinois\b': 'il',
+        r'\bohio\b': 'oh',
+        r'\bgeorgia\b': 'ga',
+        r'\bnorth carolina\b': 'nc',
+        r'\bnew jersey\b': 'nj',
+        r'\bwashington\b': 'wa',
+        r'\bmassachusetts\b': 'ma',
+        r'\barizona\b': 'az',
+        r'\bcolorado\b': 'co',
+        r'\btennessee\b': 'tn',
+        r'\bindiana\b': 'in',
+        r'\bmissouri\b': 'mo',
+        r'\bwisconsin\b': 'wi',
+        r'\bminnesota\b': 'mn',
+        r'\bsouth carolina\b': 'sc',
+        r'\balabama\b': 'al',
+        r'\blouisiana\b': 'la',
+        r'\bkentucky\b': 'ky',
+        r'\boregon\b': 'or',
+        r'\boklahoma\b': 'ok',
+        r'\bconnecticut\b': 'ct',
+        r'\biowa\b': 'ia',
+        r'\bmississippi\b': 'ms',
+        r'\barkansas\b': 'ar',
+        r'\bkansas\b': 'ks',
+        r'\butah\b': 'ut',
+        r'\bnevada\b': 'nv',
+        r'\bnew mexico\b': 'nm',
+        r'\bwest virginia\b': 'wv',
+        r'\bnebraska\b': 'ne',
+        r'\bidaho\b': 'id',
+        r'\bhawaii\b': 'hi',
+        r'\bmaine\b': 'me',
+        r'\bnew hampshire\b': 'nh',
+        r'\brhode island\b': 'ri',
+        r'\bmontana\b': 'mt',
+        r'\bdelaware\b': 'de',
+        r'\bsouth dakota\b': 'sd',
+        r'\bnorth dakota\b': 'nd',
+        r'\balaska\b': 'ak',
+        r'\bvermont\b': 'vt',
+        r'\bwyoming\b': 'wy'
+    }
+    
+    for full_name, abbrev in state_names.items():
+        normalized = re.sub(full_name, abbrev, normalized)
+    
     # Remove neighborhood/district names that aren't essential for location
     # Examples: "Aurora Hills", "Downtown", etc.
     parts = [p.strip() for p in normalized.split(',')]
     
     # Keep: street address, city, state, zip
-    # Remove: neighborhood names, building names, country suffixes
+    # Remove: neighborhood names, building names, country suffixes, county names
     filtered_parts = []
     
     # Known neighborhood keywords to remove (these don't affect geocoding)
-    neighborhood_keywords = ['hills', 'heights', 'park', 'village', 'estates', 
+    # NOTE: These should only match if NOT followed by a street type suffix
+    neighborhood_keywords = ['hills', 'heights', 'village', 'estates', 
                             'manor', 'gardens', 'terrace', 'commons', 'plaza',
                             'downtown', 'midtown', 'uptown', 'district', 'center',
                             'crossing', 'corner', 'square', 'point', 'landing',
                             'aurora', 'crystal', 'forest', 'lake', 'river', 'creek',
-                            'meadow', 'valley', 'ridge', 'grove', 'glen', 'woods']
+                            'meadow', 'valley', 'ridge', 'grove', 'glen', 'woods',
+                            'addison', 'colonial', 'fairfax', 'heritage', 'liberty',
+                            'ballston', 'clarendon', 'rosslyn', 'shirlington']
+    
+    # Street type suffixes - if a part contains these, it's likely a street address, not a neighborhood
+    street_type_suffixes = ['rd', 'st', 'ave', 'dr', 'ln', 'ct', 'blvd', 'pkwy', 'cir', 
+                           'pl', 'ter', 'hwy', 'way', 'road', 'street', 'avenue', 
+                           'drive', 'lane', 'court', 'boulevard', 'parkway', 'circle',
+                           'place', 'terrace', 'highway', 'trail', 'pike', 'run', 
+                           'walk', 'path', 'loop']
+    
+    # Country names and suffixes to remove (English and other languages)
+    country_suffixes = ['usa', 'us', 'united states', 'united states of america',
+                       'estados unidos', 'estados unidos de américa', 'estados unidos de america',
+                       'eeuu', 'e.u.', 'u.s.a.', 'u.s.', 'america', 'américas']
     
     for i, part in enumerate(parts):
         part_clean = part.strip()
         
-        # Always keep first part (street address)
+        # Always keep first part (street address) - but only if it contains a number
         if i == 0:
-            filtered_parts.append(part_clean)
+            # Check if this looks like a building name (no street number)
+            if re.search(r'\d', part_clean):
+                filtered_parts.append(part_clean)
+            else:
+                print(f"   Removing building name: '{part_clean}'")
             continue
         
         # Skip empty parts
         if not part_clean:
             continue
         
-        # Skip country suffixes
-        if part_clean in ['usa', 'us', 'united states']:
+        # Skip country suffixes (multiple languages)
+        if part_clean in country_suffixes:
+            print(f"   Removing country: '{part_clean}'")
             continue
         
-        # Skip if it's a neighborhood name (contains neighborhood keywords but no numbers)
+        # Skip county names (e.g., "Arlington County", "Fairfax County")
+        if 'county' in part_clean:
+            print(f"   Removing county: '{part_clean}'")
+            continue
+        
+        # Check if this part contains a street type suffix - if so, it's a street address, KEEP IT
+        has_street_suffix = False
+        for suffix in street_type_suffixes:
+            # Match word boundary to avoid partial matches (e.g., "dr" in "andra")
+            if re.search(rf'\b{suffix}\b', part_clean):
+                has_street_suffix = True
+                break
+        
+        if has_street_suffix:
+            # This is a street address (e.g., "n park dr", "18th st s"), keep it
+            filtered_parts.append(part_clean)
+            continue
+        
+        # Skip if it's a neighborhood name (contains neighborhood keywords but no numbers and no street suffix)
         is_neighborhood = False
         for keyword in neighborhood_keywords:
             if keyword in part_clean and not re.search(r'\d', part_clean):
@@ -214,8 +343,8 @@ def normalize_address(address):
     # Reconstruct address
     normalized = ', '.join(filtered_parts)
     
-    # Remove common country suffixes that don't affect location
-    normalized = re.sub(r',?\s*(usa|united states|us)$', '', normalized)
+    # Remove common country suffixes that don't affect location (final cleanup)
+    normalized = re.sub(r',?\s*(usa|united states|us|estados unidos.*?|eeuu|u\.s\.a?\.|america|américas?)$', '', normalized, flags=re.IGNORECASE)
     
     # Final cleanup: remove trailing commas and spaces
     normalized = normalized.strip(', ')
@@ -230,14 +359,16 @@ def normalize_address(address):
 def extract_address_components(address):
     """
     Extract key components from an address for comparison.
+    Handles addresses where the street number may not be at the beginning
+    (e.g., "Aurora Hills Library, 735, 18th Street South")
     
     Args:
         address: Address string (raw or normalized)
         
     Returns:
         Dictionary with extracted components:
-        - street_number: The street number (e.g., "3402")
-        - street_name: The street name with type (e.g., "s glebe rd")
+        - street_number: The street number (e.g., "735")
+        - street_name: The street name with type (e.g., "18th st s")
         - city: City name if found
         - state: State abbreviation if found
         - zip_code: ZIP code if found
@@ -255,49 +386,62 @@ def extract_address_components(address):
         'zip_code': None
     }
     
-    # Extract street number (at the beginning)
-    street_num_match = re.match(r'^(\d+[-\w]*)', addr_lower)
-    if street_num_match:
-        components['street_number'] = street_num_match.group(1)
-    
-    # Extract ZIP code
+    # Extract ZIP code first (most reliable)
     zip_match = re.search(r'\b(\d{5})(?:-\d{4})?\b', addr_lower)
     if zip_match:
         components['zip_code'] = zip_match.group(1)
     
-    # Extract state (2-letter abbreviation before or after zip)
-    state_match = re.search(r'\b([a-z]{2})\s*(?:\d{5}|$)', addr_lower)
+    # Extract state (2-letter abbreviation, typically before zip or at end)
+    # Also handle full state names that might not have been normalized
+    valid_states = ['al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'de', 'fl', 'ga',
+                   'hi', 'id', 'il', 'in', 'ia', 'ks', 'ky', 'la', 'me', 'md',
+                   'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv', 'nh', 'nj',
+                   'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri', 'sc',
+                   'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi', 'wy', 'dc']
+    
+    state_match = re.search(r'\b([a-z]{2})\s*(?:,?\s*\d{5}|,|$)', addr_lower)
     if state_match:
         potential_state = state_match.group(1)
-        # Validate it's a real state abbreviation
-        valid_states = ['al', 'ak', 'az', 'ar', 'ca', 'co', 'ct', 'de', 'fl', 'ga',
-                       'hi', 'id', 'il', 'in', 'ia', 'ks', 'ky', 'la', 'me', 'md',
-                       'ma', 'mi', 'mn', 'ms', 'mo', 'mt', 'ne', 'nv', 'nh', 'nj',
-                       'nm', 'ny', 'nc', 'nd', 'oh', 'ok', 'or', 'pa', 'ri', 'sc',
-                       'sd', 'tn', 'tx', 'ut', 'vt', 'va', 'wa', 'wv', 'wi', 'wy', 'dc']
         if potential_state in valid_states:
             components['state'] = potential_state
     
-    # Extract street name (between number and city/state/zip)
-    # This is the trickiest part
-    if components['street_number']:
-        # Remove street number from beginning
-        remainder = addr_lower[len(components['street_number']):].strip()
-        remainder = remainder.lstrip(',').strip()
-        
-        # Look for street type keywords
-        street_types = ['rd', 'st', 'ave', 'dr', 'ln', 'ct', 'blvd', 'pkwy', 'cir', 
-                       'pl', 'ter', 'hwy', 'way', 'trail', 'pike', 'run', 'walk', 
-                       'path', 'loop', 'road', 'street', 'avenue', 'drive', 'lane',
-                       'court', 'boulevard', 'parkway', 'circle', 'place', 'terrace',
-                       'highway']
-        
-        for st_type in street_types:
-            pattern = rf'^([\w\s]+?\s*{st_type})\b'
-            match = re.search(pattern, remainder)
-            if match:
-                components['street_name'] = match.group(1).strip()
-                break
+    # Extract street number - look for it ANYWHERE in the address
+    # Pattern: standalone number that's likely a street number (not a zip code or ordinal in street name)
+    # Match numbers like "735" or "3402" but not "22202" (zip) or "18th" (ordinal)
+    
+    # First, try to find a number followed by a street-like pattern
+    street_num_pattern = r'(?:^|,\s*)(\d{1,5})(?:\s*,\s*|\s+)(\d*(?:st|nd|rd|th)?\s*[\w\s]*?(?:rd|st|ave|dr|ln|ct|blvd|pkwy|cir|pl|ter|hwy|way|street|road|avenue|drive|lane|court|boulevard))'
+    
+    match = re.search(street_num_pattern, addr_lower)
+    if match:
+        components['street_number'] = match.group(1)
+        street_name_raw = match.group(2).strip()
+        # Clean up the street name
+        street_name_raw = re.sub(r'[\s,]+', ' ', street_name_raw)
+        components['street_name'] = street_name_raw
+    else:
+        # Fallback: try simpler pattern - just find a number at the start or after comma
+        simple_num_match = re.search(r'(?:^|,\s*)(\d{1,5})(?:\s*,|\s+)(?!\d{4,5}\b)', addr_lower)
+        if simple_num_match:
+            components['street_number'] = simple_num_match.group(1)
+            
+            # Try to extract street name after the number
+            remainder = addr_lower[simple_num_match.end():]
+            remainder = remainder.lstrip(', ')
+            
+            # Look for street type keywords
+            street_types = ['rd', 'st', 'ave', 'dr', 'ln', 'ct', 'blvd', 'pkwy', 'cir', 
+                           'pl', 'ter', 'hwy', 'way', 'trail', 'pike', 'run', 'walk', 
+                           'path', 'loop', 'road', 'street', 'avenue', 'drive', 'lane',
+                           'court', 'boulevard', 'parkway', 'circle', 'place', 'terrace',
+                           'highway']
+            
+            for st_type in street_types:
+                pattern = rf'^([\w\s]+?\s*{st_type})\b'
+                st_match = re.search(pattern, remainder)
+                if st_match:
+                    components['street_name'] = st_match.group(1).strip()
+                    break
     
     return components
 

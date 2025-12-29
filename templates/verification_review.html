@@ -61,6 +61,36 @@
         </div>
 
         <div class="filter-group">
+          <label for="project">Project</label>
+          <select name="project" id="project" class="filter-select">
+            <option value="">All Projects</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}" {% if project_filter == project.id|string %}selected{% endif %}>
+              {{ project.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="location">Location</label>
+          <select name="location" id="location" class="filter-select">
+            <option value="">All Locations</option>
+            {% for location in locations %}
+            <option value="{{ location }}" {% if location_filter == location %}selected{% endif %}>
+              {{ location }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="employee">Employee ID</label>
+          <input type="text" name="employee" id="employee" value="{{ employee_filter }}" 
+                 class="filter-input" placeholder="Search by ID...">
+        </div>
+
+        <div class="filter-group">
           <label for="date_from">From Date</label>
           <input type="date" name="date_from" id="date_from" value="{{ date_from }}" class="filter-input">
         </div>
@@ -70,10 +100,13 @@
           <input type="date" name="date_to" id="date_to" value="{{ date_to }}" class="filter-input">
         </div>
 
-        <div class="filter-group">
+        <div class="filter-group filter-buttons">
           <button type="submit" class="btn-filter">
             <i class="fas fa-filter"></i> Apply Filters
           </button>
+          <a href="{{ url_for('verification_review') }}" class="btn-reset">
+            <i class="fas fa-undo"></i> Reset
+          </a>
         </div>
       </div>
     </form>
@@ -89,7 +122,10 @@
           <div class="verification-info">
             <h3>
               <i class="fas fa-user"></i>
-              Employee {{ record.employee_id }}
+              {{ record.employee_id }}
+              {% if employee_names.get(record.employee_id) %}
+              <span class="employee-name">- {{ employee_names.get(record.employee_id) }}</span>
+              {% endif %}
             </h3>
             <div class="verification-meta">
               <span class="meta-item">
@@ -104,7 +140,21 @@
                 <i class="fas fa-map-marker-alt"></i>
                 {{ record.location_name }}
               </span>
+              {% if record.qr_code and record.qr_code.location_event %}
+              <span class="meta-item event-badge {{ 'check-in' if record.qr_code.location_event == 'Check In' else 'check-out' }}">
+                <i class="fas fa-{{ 'sign-in-alt' if record.qr_code.location_event == 'Check In' else 'sign-out-alt' }}"></i>
+                {{ record.qr_code.location_event }}
+              </span>
+              {% endif %}
             </div>
+            {% if record.qr_code and record.qr_code.project_id and project_names.get(record.qr_code.project_id) %}
+            <div class="verification-project">
+              <span class="project-badge">
+                <i class="fas fa-folder"></i>
+                {{ project_names.get(record.qr_code.project_id) }}
+              </span>
+            </div>
+            {% endif %}
           </div>
           <div class="verification-status">
             {% if record.verification_status == 'pending' %}
@@ -127,7 +177,7 @@
           <div class="photo-section">
             <div class="photo-container">
               {% if record.verification_photo %}
-              <img src="{{ record.verification_photo }}" alt="Verification Photo" class="verification-photo" />
+              <img src="{{ record.verification_photo }}" alt="Verification Photo" class="verification-photo" data-record-id="{{ record.id }}" />
               {% else %}
               <div class="no-photo">
                 <i class="fas fa-image"></i>
@@ -135,6 +185,19 @@
               </div>
               {% endif %}
             </div>
+            {% if record.verification_photo %}
+            <div class="photo-actions">
+              <button type="button" class="btn-photo download" onclick="downloadPhoto({{ record.id }}, '{{ record.employee_id }}', '{{ record.check_in_date.strftime('%Y-%m-%d') }}')" title="Download Photo">
+                <i class="fas fa-download"></i>
+              </button>
+              <button type="button" class="btn-photo email" onclick="sendByEmail({{ record.id }}, '{{ record.employee_id }}', '{{ employee_names.get(record.employee_id) or 'Unknown' }}', '{{ record.check_in_date.strftime('%b %d, %Y') }}', '{{ record.check_in_time.strftime('%I:%M %p') }}', '{{ record.location_name }}', '{{ record.qr_code.location_event if record.qr_code and record.qr_code.location_event else 'N/A' }}', '{{ record.verification_status }}', '{{ record.qr_code.location_address if record.qr_code and record.qr_code.location_address else 'N/A' }}', '{{ record.address or 'N/A' }}', '{{ '%.3f'|format(record.location_accuracy) if record.location_accuracy else 'N/A' }}', '{{ record.device_info or 'Unknown' }}')" title="Send by Email">
+                <i class="fas fa-envelope"></i>
+              </button>
+              <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" class="btn-photo view" title="View Details">
+                <i class="fas fa-expand"></i>
+              </a>
+            </div>
+            {% endif %}
           </div>
 
           <div class="details-section">
@@ -330,6 +393,71 @@
     background: #2563eb;
   }
 
+  .btn-reset {
+    width: 100%;
+    padding: 0.625rem 1.5rem;
+    background: #6b7280;
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-decoration: none;
+    text-align: center;
+    display: inline-block;
+    margin-top: 0.5rem;
+  }
+
+  .btn-reset:hover {
+    background: #4b5563;
+    color: white;
+  }
+
+  .filter-buttons {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .employee-name {
+    font-weight: 500;
+    color: #4b5563;
+    font-size: 0.95em;
+  }
+
+  .verification-project {
+    margin-top: 0.5rem;
+  }
+
+  .project-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    background: #e0e7ff;
+    color: #3730a3;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .event-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .event-badge.check-in {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .event-badge.check-out {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
   .verifications-grid {
     display: grid;
     gap: 2rem;
@@ -439,6 +567,56 @@
     margin-bottom: 0.5rem;
   }
 
+  .photo-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 0.75rem;
+  }
+
+  .btn-photo {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-photo.download {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn-photo.download:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+  }
+
+  .btn-photo.email {
+    background: #8b5cf6;
+    color: white;
+  }
+
+  .btn-photo.email:hover {
+    background: #7c3aed;
+    transform: translateY(-2px);
+  }
+
+  .btn-photo.view {
+    background: #10b981;
+    color: white;
+  }
+
+  .btn-photo.view:hover {
+    background: #059669;
+    transform: translateY(-2px);
+  }
+
   .details-section {
     display: flex;
     flex-direction: column;
@@ -546,11 +724,22 @@
       return;
     }
     
-    // Optional: Add note
-    let note = '';
-    if (status === 'rejected') {
-      note = prompt('Optional: Add a note explaining why this was rejected:');
-      if (note === null) return; // User cancelled
+    // Prompt for reason
+    const reasonPrompt = status === 'approved' 
+        ? 'Optional: Enter a reason for approval:'
+        : 'Please enter a reason for rejection:';
+    
+    let note = prompt(reasonPrompt);
+    
+    // For rejection, reason is required
+    if (status === 'rejected' && (!note || note.trim() === '')) {
+        alert('A reason is required when rejecting a verification.');
+        return;
+    }
+    
+    // User cancelled the prompt
+    if (note === null) {
+        return;
     }
     
     // Disable buttons
@@ -593,5 +782,90 @@
       });
     });
   });
+
+  // Download verification photo
+  function downloadPhoto(recordId, employeeId, checkInDate) {
+      const card = document.querySelector(`[data-record-id="${recordId}"]`);
+      const photoElement = card.querySelector('.verification-photo');
+      
+      if (!photoElement) {
+          alert('No photo available to download.');
+          return;
+      }
+
+      const photoSrc = photoElement.src;
+      const fileName = `verification_photo_${employeeId}_${checkInDate}.jpg`;
+
+      // Handle base64 data URL
+      if (photoSrc.startsWith('data:')) {
+          const link = document.createElement('a');
+          link.href = photoSrc;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          console.log('[LOG] Photo downloaded:', fileName);
+      } else {
+          // Handle regular URL - fetch and download
+          fetch(photoSrc)
+              .then(response => response.blob())
+              .then(blob => {
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  console.log('[LOG] Photo downloaded:', fileName);
+              })
+              .catch(error => {
+                  console.error('[ERROR] Failed to download photo:', error);
+                  alert('Failed to download photo. Please try again.');
+              });
+      }
+  }
+
+  // Send verification details by email
+  function sendByEmail(recordId, employeeId, employeeName, checkInDate, checkInTime, locationName, locationEvent, verificationStatus, qrAddress, checkInAddress, distance, deviceInfo) {
+      // Build the verification record URL
+      const recordUrl = window.location.origin + `/verification-review/${recordId}`;
+
+      // Build email subject
+      const subject = encodeURIComponent(`Verification Review - Employee ${employeeId} (${employeeName}) - ${checkInDate}`);
+
+      // Build email body with verification details
+      let body = `VERIFICATION PHOTO REVIEW DETAILS\n`;
+      body += `================================\n\n`;
+      body += `VIEW VERIFICATION RECORD ONLINE:\n`;
+      body += `${recordUrl}\n\n`;
+      body += `EMPLOYEE INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Employee ID: ${employeeId}\n`;
+      body += `Employee Name: ${employeeName}\n`;
+      body += `Check-in Date: ${checkInDate}\n`;
+      body += `Check-in Time: ${checkInTime}\n`;
+      body += `Verification Status: ${verificationStatus.toUpperCase()}\n\n`;
+      body += `LOCATION INFORMATION\n`;
+      body += `--------------------\n`;
+      body += `Location Name: ${locationName}\n`;
+      body += `Event Type: ${locationEvent}\n`;
+      body += `Distance from QR: ${distance} miles\n`;
+      body += `QR Code Address: ${qrAddress}\n`;
+      body += `Check-in Address: ${checkInAddress}\n`;
+      body += `Device: ${deviceInfo}\n\n`;
+      body += `--------------------\n`;
+      body += `Record ID: ${recordId}\n\n`;
+      body += `Note: Click the link above to view the verification photo and full details.\n`;
+
+      const encodedBody = encodeURIComponent(body);
+
+      // Open default email client
+      const mailtoLink = `mailto:?subject=${subject}&body=${encodedBody}`;
+      window.location.href = mailtoLink;
+
+      console.log('[LOG] Email client opened for verification record:', recordId);
+  }
 </script>
 {% endblock %}
