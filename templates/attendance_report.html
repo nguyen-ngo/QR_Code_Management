@@ -127,15 +127,31 @@
                         </div>
                         
                         <div class="filter-group">
-                            <label for="employee">
-                                <i class="fas fa-id-badge"></i>
-                                Employee ID
+                            <label for="employee_search_filter">
+                                <i class="fas fa-user-search"></i>
+                                Employee
                             </label>
-                            <input type="text" 
-                                   id="employee" 
-                                   name="employee" 
-                                   value="{{ employee_filter }}"
-                                   placeholder="Enter Employee ID">
+                            <div class="autocomplete-container-filter">
+                                <input type="text" 
+                                    id="employee_search_filter" 
+                                    class="filter-input" 
+                                    placeholder="Search by ID or Name..."
+                                    value="{{ employee_display_name }}"
+                                    autocomplete="off">
+                                <input type="hidden" 
+                                    id="employee" 
+                                    name="employee" 
+                                    value="{{ employee_filter }}">
+                                <div id="employee_autocomplete_results" class="autocomplete-results-filter"></div>
+                                {% if employee_filter %}
+                                <button type="button" 
+                                        class="clear-employee-filter" 
+                                        onclick="clearEmployeeFilter()"
+                                        title="Clear employee filter">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                {% endif %}
+                            </div>
                         </div>
                                                 
                         <div class="filter-actions">
@@ -734,6 +750,111 @@ document.addEventListener('DOMContentLoaded', function() {
     if (shouldBeFullscreen) {
         console.log('URL indicates fullscreen should be active');
         // The initializeFullscreen function will handle restoration
+    }
+});
+</script>
+
+<script>
+// Employee Filter Autocomplete
+(function() {
+    const employeeSearchFilter = document.getElementById('employee_search_filter');
+    const employeeHiddenFilter = document.getElementById('employee');
+    const autocompleteResultsFilter = document.getElementById('employee_autocomplete_results');
+    let searchFilterTimeout;
+
+    if (employeeSearchFilter) {
+        employeeSearchFilter.addEventListener('input', function() {
+            const searchTerm = this.value.trim();
+            
+            // Clear hidden field if input is cleared
+            if (searchTerm.length === 0) {
+                employeeHiddenFilter.value = '';
+                autocompleteResultsFilter.classList.remove('show');
+                return;
+            }
+            
+            if (searchTerm.length < 2) {
+                autocompleteResultsFilter.classList.remove('show');
+                return;
+            }
+            
+            // Debounce search
+            clearTimeout(searchFilterTimeout);
+            searchFilterTimeout = setTimeout(() => {
+                fetch(`/api/search_employees?q=${encodeURIComponent(searchTerm)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        displayEmployeeAutocompleteResults(data.employees);
+                    })
+                    .catch(error => {
+                        console.error('Error searching employees:', error);
+                    });
+            }, 300);
+        });
+
+        // Close autocomplete when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.autocomplete-container-filter')) {
+                autocompleteResultsFilter.classList.remove('show');
+            }
+        });
+    }
+
+    function displayEmployeeAutocompleteResults(employees) {
+        if (employees.length === 0) {
+            autocompleteResultsFilter.innerHTML = '<div class="autocomplete-item-filter" style="cursor: default; color: #999;">No employees found</div>';
+            positionDropdown();
+            autocompleteResultsFilter.classList.add('show');
+            return;
+        }
+        
+        const html = employees.map(emp => `
+            <div class="autocomplete-item-filter" onclick="selectEmployeeFilter(${emp.id}, '${emp.lastName}, ${emp.firstName}')">
+                <div class="employee-info-filter">
+                    <span class="employee-name-filter">${emp.lastName}, ${emp.firstName}</span>
+                    <span class="employee-id-filter">ID: ${emp.id}</span>
+                </div>
+            </div>
+        `).join('');
+        
+        autocompleteResultsFilter.innerHTML = html;
+        positionDropdown();
+        autocompleteResultsFilter.classList.add('show');
+    }
+
+    // Helper function to position the dropdown correctly
+    function positionDropdown() {
+        const inputRect = employeeSearchFilter.getBoundingClientRect();
+        autocompleteResultsFilter.style.top = (inputRect.bottom + window.scrollY) + 'px';
+        autocompleteResultsFilter.style.left = inputRect.left + 'px';
+        autocompleteResultsFilter.style.width = inputRect.width + 'px';
+    }
+
+    // Make this function globally accessible
+    window.selectEmployeeFilter = function(id, name) {
+        employeeHiddenFilter.value = id;
+        employeeSearchFilter.value = name;
+        autocompleteResultsFilter.classList.remove('show');
+    };
+
+    window.clearEmployeeFilter = function() {
+        employeeSearchFilter.value = '';
+        employeeHiddenFilter.value = '';
+        // Submit the form to refresh with cleared filter
+        employeeSearchFilter.closest('form').submit();
+    };
+})();
+
+// Reposition dropdown on scroll or resize
+window.addEventListener('scroll', function() {
+    if (autocompleteResultsFilter.classList.contains('show')) {
+        positionDropdown();
+    }
+}, true);
+
+window.addEventListener('resize', function() {
+    if (autocompleteResultsFilter.classList.contains('show')) {
+        positionDropdown();
     }
 });
 </script>

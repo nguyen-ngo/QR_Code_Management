@@ -1563,3 +1563,88 @@ tr.modified-record {
     justify-content: center;
   }
 }
+
+/* Employee Filter Autocomplete Styles */
+.autocomplete-container-filter {
+    position: relative;
+}
+
+.autocomplete-results-filter {
+    position: fixed;  /* CHANGED from absolute to fixed */
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 9999;  /* INCREASED z-index */
+    display: none;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    margin-top: 0;
+}
+
+.autocomplete-results-filter.show {
+    display: block;
+}
+
+.autocomplete-item-filter {
+    padding: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.autocomplete-item-filter:hover {
+    background-color: #f8f9fa;
+}
+
+.autocomplete-item-filter:last-child {
+    border-bottom: none;
+}
+
+.employee-info-filter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.employee-name-filter {
+    font-weight: 600;
+    color: #333;
+}
+
+.employee-id-filter {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.clear-employee-filter {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
+}
+
+.clear-employee-filter:hover {
+    background: #c82333;
+}
+
+.clear-employee-filter i {
+    font-size: 0.75rem;
+}
+
+.filter-input {
+    padding-right: 35px !important;
+}

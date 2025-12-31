@@ -4706,6 +4706,18 @@ def attendance_report():
         employee_filter = request.args.get('employee', '')
         project_filter = request.args.get('project', '')
 
+        # Get employee display name for filter if employee ID is provided
+        employee_display_name = ''
+        if employee_filter:
+            try:
+                employee = Employee.query.filter_by(id=int(employee_filter)).first()
+                if employee:
+                    employee_display_name = f"{employee.lastName}, {employee.firstName}"
+                else:
+                    employee_display_name = f"ID: {employee_filter}"
+            except (ValueError, TypeError):
+                employee_display_name = employee_filter
+
         # ============================================================
         # PROJECT MANAGER ACCESS CONTROL
         # ============================================================
@@ -4757,19 +4769,21 @@ def attendance_report():
                 
                 # Return empty template
                 return render_template('attendance_report.html',
-                                     attendance_records=[],
-                                     locations=[],
-                                     projects=[],
-                                     stats=empty_stats,
-                                     date_from=date_from,
-                                     date_to=date_to,
-                                     location_filter=location_filter,
-                                     employee_filter=employee_filter,
-                                     project_filter=project_filter,
-                                     today_date=datetime.now().strftime('%Y-%m-%d'),
-                                     current_date_formatted=datetime.now().strftime('%B %d'),
-                                     has_location_accuracy_feature=has_location_accuracy,
-                                     user_role=user_role)
+                                    attendance_records=[],
+                                    locations=[],
+                                    projects=[],
+                                    stats=empty_stats,
+                                    date_from=date_from,
+                                    date_to=date_to,
+                                    location_filter=location_filter,
+                                    employee_filter=employee_filter,
+                                    employee_display_name=employee_display_name,
+                                    project_filter=project_filter,
+                                    today_date=datetime.now().strftime('%Y-%m-%d'),
+                                    current_date_formatted=datetime.now().strftime('%B %d'),
+                                    has_location_accuracy_feature=has_location_accuracy,
+                                    user_role=user_role)
+            
         # ============================================================
         # END: PROJECT MANAGER ACCESS CONTROL
         # ============================================================
@@ -5115,19 +5129,20 @@ def attendance_report():
         print(f"✅ Stats object: {stats}")
 
         return render_template('attendance_report.html',
-                             attendance_records=processed_records,
-                             locations=locations,
-                             projects=projects,
-                             stats=stats,
-                             date_from=date_from,
-                             date_to=date_to,
-                             location_filter=location_filter,
-                             employee_filter=employee_filter,
-                             project_filter=project_filter,
-                             today_date=today_date,
-                             current_date_formatted=current_date_formatted,
-                             has_location_accuracy_feature=has_location_accuracy,
-                             user_role=user_role)
+                     attendance_records=processed_records,
+                     locations=locations,
+                     projects=projects,
+                     stats=stats,
+                     date_from=date_from,
+                     date_to=date_to,
+                     location_filter=location_filter,
+                     employee_filter=employee_filter,
+                     employee_display_name=employee_display_name,
+                     project_filter=project_filter,
+                     today_date=datetime.now().strftime('%Y-%m-%d'),
+                     current_date_formatted=datetime.now().strftime('%B %d'),
+                     has_location_accuracy_feature=has_location_accuracy,
+                     user_role=user_role)
 
     except Exception as e:
         print(f"❌ Error loading attendance report: {e}")
