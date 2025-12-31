@@ -38,6 +38,15 @@
                 Export Data
             </button>
             {% endif %}
+            
+            <!-- NEW: Manual Add Record Button -->
+            {% if session.role in ['admin', 'accounting'] %}
+            <button onclick="window.location.href='{{ url_for('add_manual_attendance') }}'" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i>
+                Add Record
+            </button>
+            {% endif %}
+            
             <button onclick="refreshReport()" class="btn btn-secondary">
                 <i class="fas fa-sync-alt"></i>
                 Refresh

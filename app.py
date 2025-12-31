@@ -5266,6 +5266,227 @@ def edit_attendance(record_id):
         flash('Error updating attendance record. Please try again.', 'error')
         return redirect(url_for('attendance_report'))
 
+@app.route('/attendance/add', methods=['GET'])
+@login_required
+@log_user_activity('manual_attendance_access')
+def add_manual_attendance():
+    """
+    Display form to manually add attendance record
+    Only accessible by admin and accounting roles
+    """
+    try:
+        user_role = session.get('role')
+        
+        # Check authorization
+        if user_role not in ['admin', 'accounting']:
+            flash('You do not have permission to manually add attendance records.', 'error')
+            return redirect(url_for('attendance_report'))
+        
+        # Get all active projects
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        
+        # Get today's date for form
+        today_date = datetime.now().strftime('%Y-%m-%d')
+        
+        logger_handler.logger.info(
+            f"User {session.get('username')} ({user_role}) accessed manual attendance entry form"
+        )
+        
+        return render_template('add_manual_attendance.html',
+                             projects=projects,
+                             today_date=today_date)
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error loading manual attendance form: {e}")
+        flash('Error loading form. Please try again.', 'error')
+        return redirect(url_for('attendance_report'))
+
+
+@app.route('/attendance/save_manual', methods=['POST'])
+@login_required
+@log_user_activity('manual_attendance_creation')
+@log_database_operations('manual_attendance_insert')
+def save_manual_attendance():
+    """
+    Save manually created attendance record
+    Only accessible by admin and accounting roles
+    """
+    try:
+        user_role = session.get('role')
+        
+        # Check authorization
+        if user_role not in ['admin', 'accounting']:
+            return jsonify({
+                'success': False,
+                'message': 'You do not have permission to manually add attendance records.'
+            }), 403
+        
+        # Get form data
+        employee_id = request.form.get('employee_id', '').strip()
+        location_id = request.form.get('location_id', '').strip()
+        check_date = request.form.get('check_date', '').strip()
+        check_time = request.form.get('check_time', '').strip()
+        
+        # Validate required fields
+        if not all([employee_id, location_id, check_date, check_time]):
+            flash('All fields are required.', 'error')
+            return redirect(url_for('add_manual_attendance'))
+        
+        # Validate employee exists
+        employee = Employee.query.filter_by(id=int(employee_id)).first()
+        if not employee:
+            flash(f'Employee with ID {employee_id} not found.', 'error')
+            return redirect(url_for('add_manual_attendance'))
+        
+        # Get QR code (location)
+        qr_code = QRCode.query.get(int(location_id))
+        if not qr_code:
+            flash('Selected location not found.', 'error')
+            return redirect(url_for('add_manual_attendance'))
+        
+        # Parse date and time
+        try:
+            check_date_obj = datetime.strptime(check_date, '%Y-%m-%d').date()
+            check_time_obj = datetime.strptime(check_time, '%H:%M').time()
+        except ValueError as e:
+            flash('Invalid date or time format.', 'error')
+            logger_handler.logger.error(f"Date/time parsing error: {e}")
+            return redirect(url_for('add_manual_attendance'))
+        
+        # Check if record already exists for this employee, location, date, and time
+        existing_record = AttendanceData.query.filter_by(
+            employee_id=str(employee_id),
+            qr_code_id=qr_code.id,
+            check_in_date=check_date_obj,
+            check_in_time=check_time_obj
+        ).first()
+        
+        if existing_record:
+            flash('An attendance record already exists for this employee at this location, date, and time.', 'warning')
+            return redirect(url_for('add_manual_attendance'))
+        
+        # Create new attendance record
+        # Use QR code's location address for both QR address and check-in address
+        # Set fixed distance of 0.010 miles
+        new_attendance = AttendanceData(
+            qr_code_id=qr_code.id,
+            employee_id=str(employee_id),
+            check_in_date=check_date_obj,
+            check_in_time=check_time_obj,
+            location_name=qr_code.location,
+            # Use QR code's coordinates
+            latitude=qr_code.address_latitude,
+            longitude=qr_code.address_longitude,
+            # Use QR code's address for both
+            address=qr_code.location_address,
+            # Set fixed distance
+            location_accuracy=0.010,
+            accuracy=0.010,
+            # Mark as manual entry
+            location_source='manual_entry',
+            device_info='Manual Entry by Admin/Accounting',
+            user_agent=f'Manual Entry - User: {session.get("username")}',
+            ip_address=get_client_ip(),
+            status='present',
+            verification_required=False,
+            verification_status='approved',
+            created_timestamp=datetime.utcnow(),
+            updated_timestamp=datetime.utcnow()
+        )
+        
+        db.session.add(new_attendance)
+        db.session.commit()
+        
+        # Log the manual entry
+        logger_handler.logger.info(
+            f"Manual attendance record created by {session.get('username')} ({user_role}): "
+            f"Employee {employee.firstName} {employee.lastName} (ID: {employee_id}), "
+            f"Location: {qr_code.location}, Event: {qr_code.location_event}, "
+            f"Date: {check_date}, Time: {check_time}"
+        )
+        
+        flash(f'Attendance record successfully created for {employee.firstName} {employee.lastName}.', 'success')
+        return redirect(url_for('attendance_report'))
+    
+    except Exception as e:
+        db.session.rollback()
+        logger_handler.logger.error(f"Error saving manual attendance record: {e}")
+        logger_handler.logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Error saving attendance record. Please try again.', 'error')
+        return redirect(url_for('add_manual_attendance'))
+
+
+@app.route('/api/search_employees')
+@login_required
+def search_employees_api():
+    """
+    API endpoint to search employees by name or ID
+    Returns JSON with employee list
+    """
+    try:
+        search_query = request.args.get('q', '').strip()
+        
+        if not search_query or len(search_query) < 2:
+            return jsonify({'employees': []})
+        
+        # Search by ID or name
+        search_pattern = f"%{search_query}%"
+        
+        employees = Employee.query.filter(
+            db.or_(
+                Employee.id.like(search_pattern),
+                Employee.firstName.like(search_pattern),
+                Employee.lastName.like(search_pattern),
+                db.func.concat(Employee.firstName, ' ', Employee.lastName).like(search_pattern)
+            )
+        ).limit(10).all()
+        
+        employee_list = [{
+            'id': emp.id,
+            'firstName': emp.firstName,
+            'lastName': emp.lastName,
+            'full_name': f"{emp.firstName} {emp.lastName}"
+        } for emp in employees]
+        
+        return jsonify({'employees': employee_list})
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error searching employees: {e}")
+        return jsonify({'employees': [], 'error': str(e)}), 500
+
+
+@app.route('/api/get_project_locations')
+@login_required
+def get_project_locations_api():
+    """
+    API endpoint to get locations for a specific project
+    Returns JSON with location list
+    """
+    try:
+        project_id = request.args.get('project_id', '').strip()
+        
+        if not project_id:
+            return jsonify({'success': False, 'locations': [], 'error': 'Project ID required'})
+        
+        # Get active QR codes for this project
+        qr_codes = QRCode.query.filter_by(
+            project_id=int(project_id),
+            active_status=True
+        ).order_by(QRCode.location).all()
+        
+        location_list = [{
+            'id': qr.id,
+            'location': qr.location,
+            'location_address': qr.location_address,
+            'location_event': qr.location_event
+        } for qr in qr_codes]
+        
+        return jsonify({'success': True, 'locations': location_list})
+    
+    except Exception as e:
+        logger_handler.logger.error(f"Error getting project locations: {e}")
+        return jsonify({'success': False, 'locations': [], 'error': str(e)}), 500
+    
 @app.route('/attendance/<int:record_id>/delete', methods=['POST'])
 @login_required
 @log_database_operations('attendance_delete')

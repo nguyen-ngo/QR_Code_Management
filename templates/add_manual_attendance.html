@@ -1,0 +1,466 @@
+{% extends "base_authenticated.html" %}
+
+{% block title %}Add Manual Attendance Record - QR Code Management{% endblock %}
+
+{% block extra_head %}
+<style>
+.manual-attendance-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+}
+
+.form-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 2rem;
+}
+
+.form-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.form-header h1 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    font-size: 1.75rem;
+}
+
+.form-header p {
+    margin: 0;
+    color: #666;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-group label .required {
+    color: #dc3545;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+}
+
+.form-control:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.autocomplete-container {
+    position: relative;
+}
+
+.autocomplete-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.autocomplete-results.show {
+    display: block;
+}
+
+.autocomplete-item {
+    padding: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.autocomplete-item:hover {
+    background-color: #f8f9fa;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.employee-info {
+    display: flex;
+    justify-content: space-between;
+}
+
+.employee-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.employee-id {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+}
+
+.btn i {
+    margin-right: 0.5rem;
+}
+
+.loading-spinner {
+    display: none;
+    text-align: center;
+    padding: 1rem;
+    color: #007bff;
+}
+
+.loading-spinner.show {
+    display: block;
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    color: #0c5460;
+}
+
+.help-text {
+    font-size: 0.875rem;
+    color: #666;
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="manual-attendance-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h1>
+                <i class="fas fa-user-plus"></i>
+                Add Manual Attendance Record
+            </h1>
+            <p>Create a new attendance record manually for employees who couldn't check in via QR code</p>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            The system will automatically use the QR code's location address for both QR Address and Check-in Address, 
+            with a fixed distance of 0.010 miles.
+        </div>
+
+        <form id="manualAttendanceForm" method="POST" action="{{ url_for('save_manual_attendance') }}">
+            <!-- Employee Selection with Autocomplete -->
+            <div class="form-group">
+                <label for="employee_search">
+                    Employee <span class="required">*</span>
+                </label>
+                <div class="autocomplete-container">
+                    <input 
+                        type="text" 
+                        id="employee_search" 
+                        class="form-control" 
+                        placeholder="Search by employee name or ID..."
+                        autocomplete="off"
+                        required
+                    >
+                    <input type="hidden" id="employee_id" name="employee_id" required>
+                    <div id="autocomplete_results" class="autocomplete-results"></div>
+                </div>
+                <div class="help-text">Start typing to search for employees by name or ID</div>
+            </div>
+
+            <!-- Project Selection -->
+            <div class="form-group">
+                <label for="project_id">
+                    Project <span class="required">*</span>
+                </label>
+                <select id="project_id" name="project_id" class="form-control" required>
+                    <option value="">-- Select Project --</option>
+                    {% for project in projects %}
+                    <option value="{{ project.id }}">{{ project.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="help-text">Select the project associated with this attendance record</div>
+            </div>
+
+            <!-- Location Selection -->
+            <div class="form-group">
+                <label for="location_id">
+                    Location <span class="required">*</span>
+                </label>
+                <select id="location_id" name="location_id" class="form-control" required disabled>
+                    <option value="">-- Select Project First --</option>
+                </select>
+                <div class="help-text">Locations will be loaded based on the selected project</div>
+                <div id="location_loading" class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i> Loading locations...
+                </div>
+            </div>
+
+            <!-- Event Type Selection -->
+            <div class="form-group">
+                <label for="event_type">
+                    Event Type <span class="required">*</span>
+                </label>
+                <select id="event_type" name="event_type" class="form-control" required disabled>
+                    <option value="">-- Select Location First --</option>
+                </select>
+                <div class="help-text">Select whether this is a check-in or check-out event</div>
+            </div>
+
+            <!-- Date and Time -->
+            <div class="form-group">
+                <label for="check_date">
+                    Date <span class="required">*</span>
+                </label>
+                <input 
+                    type="date" 
+                    id="check_date" 
+                    name="check_date" 
+                    class="form-control" 
+                    max="{{ today_date }}"
+                    required
+                >
+                <div class="help-text">The date of the attendance record</div>
+            </div>
+
+            <div class="form-group">
+                <label for="check_time">
+                    Time <span class="required">*</span>
+                </label>
+                <input 
+                    type="time" 
+                    id="check_time" 
+                    name="check_time" 
+                    class="form-control" 
+                    required
+                >
+                <div class="help-text">The time of the attendance record</div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <a href="{{ url_for('attendance_report') }}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                    Cancel
+                </a>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <i class="fas fa-save"></i>
+                    Save Record
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Employee autocomplete functionality
+const employeeSearch = document.getElementById('employee_search');
+const employeeIdHidden = document.getElementById('employee_id');
+const autocompleteResults = document.getElementById('autocomplete_results');
+let searchTimeout;
+
+employeeSearch.addEventListener('input', function() {
+    const searchTerm = this.value.trim();
+    
+    if (searchTerm.length < 2) {
+        autocompleteResults.classList.remove('show');
+        return;
+    }
+    
+    // Debounce search
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/search_employees?q=${encodeURIComponent(searchTerm)}`)
+            .then(response => response.json())
+            .then(data => {
+                displayAutocompleteResults(data.employees);
+            })
+            .catch(error => {
+                console.error('Error searching employees:', error);
+            });
+    }, 300);
+});
+
+function displayAutocompleteResults(employees) {
+    if (employees.length === 0) {
+        autocompleteResults.innerHTML = '<div class="autocomplete-item">No employees found</div>';
+        autocompleteResults.classList.add('show');
+        return;
+    }
+    
+    const html = employees.map(emp => `
+        <div class="autocomplete-item" onclick="selectEmployee(${emp.id}, '${emp.firstName} ${emp.lastName}')">
+            <div class="employee-info">
+                <span class="employee-name">${emp.lastName}, ${emp.firstName}</span>
+                <span class="employee-id">ID: ${emp.id}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    autocompleteResults.innerHTML = html;
+    autocompleteResults.classList.add('show');
+}
+
+function selectEmployee(id, name) {
+    employeeIdHidden.value = id;
+    employeeSearch.value = name;
+    autocompleteResults.classList.remove('show');
+}
+
+// Close autocomplete when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.autocomplete-container')) {
+        autocompleteResults.classList.remove('show');
+    }
+});
+
+// Project selection - load locations
+const projectSelect = document.getElementById('project_id');
+const locationSelect = document.getElementById('location_id');
+const eventTypeSelect = document.getElementById('event_type');
+const locationLoading = document.getElementById('location_loading');
+
+projectSelect.addEventListener('change', function() {
+    const projectId = this.value;
+    
+    // Reset location and event type
+    locationSelect.innerHTML = '<option value="">-- Select Location --</option>';
+    locationSelect.disabled = true;
+    eventTypeSelect.innerHTML = '<option value="">-- Select Location First --</option>';
+    eventTypeSelect.disabled = true;
+    
+    if (!projectId) {
+        locationSelect.innerHTML = '<option value="">-- Select Project First --</option>';
+        return;
+    }
+    
+    // Load locations for the selected project
+    locationLoading.classList.add('show');
+    
+    fetch(`/api/get_project_locations?project_id=${projectId}`)
+        .then(response => response.json())
+        .then(data => {
+            locationLoading.classList.remove('show');
+            
+            if (data.success && data.locations.length > 0) {
+                locationSelect.disabled = false;
+                
+                data.locations.forEach(loc => {
+                    const option = document.createElement('option');
+                    option.value = loc.id;
+                    option.textContent = `${loc.location} - ${loc.location_address}`;
+                    option.dataset.event = loc.location_event;
+                    locationSelect.appendChild(option);
+                });
+            } else {
+                locationSelect.innerHTML = '<option value="">No active locations found for this project</option>';
+            }
+        })
+        .catch(error => {
+            locationLoading.classList.remove('show');
+            console.error('Error loading locations:', error);
+            alert('Error loading locations. Please try again.');
+        });
+});
+
+// Location selection - set event type
+locationSelect.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const eventType = selectedOption.dataset.event;
+    
+    eventTypeSelect.innerHTML = '';
+    eventTypeSelect.disabled = false;
+    
+    if (eventType) {
+        const option = document.createElement('option');
+        option.value = eventType;
+        option.textContent = eventType;
+        option.selected = true;
+        eventTypeSelect.appendChild(option);
+    } else {
+        eventTypeSelect.innerHTML = '<option value="">Event type not available</option>';
+    }
+});
+
+// Set default date to today
+document.getElementById('check_date').valueAsDate = new Date();
+
+// Set default time to current time
+const now = new Date();
+const hours = String(now.getHours()).padStart(2, '0');
+const minutes = String(now.getMinutes()).padStart(2, '0');
+document.getElementById('check_time').value = `${hours}:${minutes}`;
+
+// Form submission
+document.getElementById('manualAttendanceForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+});
+</script>
+{% endblock %}
