@@ -1025,7 +1025,7 @@ function exportAttendance() {
   console.log("Template - session.role:", '{{ session.role }}');
   console.log("Template - window.userRole set to:", window.userRole);
 
-  if (!['admin', 'payroll'].includes(userRole)) {
+  if (!['admin', 'payroll', 'accounting'].includes(userRole)) {
     console.log("Export access denied - insufficient privileges");
     alert("Access denied. Only administrators and payroll staff can export data.");
     return;
@@ -1072,7 +1072,7 @@ function exportAttendanceCSV() {
   // Check user role before proceeding
   const userRole = window.userRole;
   
-  if (!['admin', 'payroll'].includes(userRole)) {
+  if (!['admin', 'payroll', 'accounting'].includes(userRole)) {
     console.log("CSV export access denied - insufficient privileges");
     alert("Access denied. Only administrators and payroll staff can export data.");
     return;
