@@ -32,7 +32,7 @@
         </div>
         
         <div class="header-actions">
-            {% if session.role in ['admin', 'payroll'] %}
+            {% if session.role in ['admin', 'payroll', 'accounting'] %}
             <button onclick="exportAttendance()" class="btn btn-success">
                 <i class="fas fa-download"></i>
                 Export Data
