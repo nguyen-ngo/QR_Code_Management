@@ -4390,7 +4390,7 @@ def qr_checkin(qr_url):
                             attendance.verification_photo = verification_photo_data
                             attendance.verification_required = True
                             attendance.verification_status = 'pending'
-                            attendance.verification_timestamp = datetime.utcnow()
+                            attendance.verification_timestamp = datetime.now()
                             print(f"✅ Photo verification set to PENDING status")
                         else:
                             print(f"⚠️ Invalid photo format provided")
