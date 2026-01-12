@@ -6202,6 +6202,7 @@ def create_excel_export(selected_columns, column_names, filters):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill
+            from openpyxl.utils import get_column_letter
         except ImportError as e:
             print(f"❌ openpyxl import error: {e}")
             print("💡 Install openpyxl: pip install openpyxl")
@@ -6386,18 +6387,63 @@ def create_excel_export(selected_columns, column_names, filters):
                     print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
 
-        # Auto-adjust column widths
-        for column in ws.columns:
+        # Auto-adjust column widths based on content and header
+        for col_idx, column_key in enumerate(selected_columns, 1):
+            column_letter = get_column_letter(col_idx)
             max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
+            
+            # Get header name length
+            header_name = column_names.get(column_key, column_key)
+            max_length = len(str(header_name))
+            
+            # Check content in all rows (sample first 100 rows for performance)
+            for row_idx in range(2, min(102, ws.max_row + 1)):
+                cell = ws.cell(row=row_idx, column=col_idx)
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    cell_value = str(cell.value) if cell.value else ''
+                    # For HYPERLINK formulas, extract the display text
+                    if cell_value.startswith('=HYPERLINK'):
+                        # Extract text between last quotes: HYPERLINK("url","display_text")
+                        import re
+                        match = re.search(r',"([^"]+)"\)$', cell_value)
+                        if match:
+                            cell_value = match.group(1)
+                    
+                    if len(cell_value) > max_length:
+                        max_length = len(cell_value)
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
+            
+            # Set width based on column type with reasonable limits
+            # Define optimal widths for specific column types
+            column_width_rules = {
+                'employee_id': {'min': 8, 'max': 15},
+                'employee_name': {'min': 20, 'max': 30},
+                'location_name': {'min': 15, 'max': 35},
+                'status': {'min': 12, 'max': 20},
+                'check_in_date': {'min': 12, 'max': 15},
+                'check_in_time': {'min': 10, 'max': 12},
+                'qr_address': {'min': 20, 'max': 40},
+                'address': {'min': 20, 'max': 45},
+                'device_info': {'min': 12, 'max': 20},
+                'ip_address': {'min': 14, 'max': 18},
+                'user_agent': {'min': 15, 'max': 30},
+                'latitude': {'min': 12, 'max': 15},
+                'longitude': {'min': 12, 'max': 15},
+                'accuracy': {'min': 10, 'max': 15},
+                'location_accuracy': {'min': 10, 'max': 15}
+            }
+            
+            # Get rules for this column or use defaults
+            rules = column_width_rules.get(column_key, {'min': 10, 'max': 40})
+            
+            # Calculate adjusted width: add 2 for padding, respect min/max
+            adjusted_width = max_length + 2
+            adjusted_width = max(rules['min'], min(adjusted_width, rules['max']))
+            
             ws.column_dimensions[column_letter].width = adjusted_width
+            
+            print(f"📏 Column {column_letter} ({column_key}): set width to {adjusted_width} (content: {max_length} chars)")
 
         # Save to BytesIO
         excel_buffer = io.BytesIO()
@@ -6448,6 +6494,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font, Alignment, PatternFill
+            from openpyxl.utils import get_column_letter
         except ImportError as e:
             print(f"❌ openpyxl import error: {e}")
             print("💡 Install openpyxl: pip install openpyxl")
@@ -6647,18 +6694,63 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
 
-        # Auto-adjust column widths
-        for column in ws.columns:
+        # Auto-adjust column widths based on content and header
+        for col_idx, column_key in enumerate(selected_columns, 1):
+            column_letter = get_column_letter(col_idx)
             max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
+            
+            # Get header name length
+            header_name = column_names.get(column_key, column_key)
+            max_length = len(str(header_name))
+            
+            # Check content in all rows (sample first 100 rows for performance)
+            for row_idx in range(2, min(102, ws.max_row + 1)):
+                cell = ws.cell(row=row_idx, column=col_idx)
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    cell_value = str(cell.value) if cell.value else ''
+                    # For HYPERLINK formulas, extract the display text
+                    if cell_value.startswith('=HYPERLINK'):
+                        # Extract text between last quotes: HYPERLINK("url","display_text")
+                        import re
+                        match = re.search(r',"([^"]+)"\)$', cell_value)
+                        if match:
+                            cell_value = match.group(1)
+                    
+                    if len(cell_value) > max_length:
+                        max_length = len(cell_value)
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
+            
+            # Set width based on column type with reasonable limits
+            # Define optimal widths for specific column types
+            column_width_rules = {
+                'employee_id': {'min': 8, 'max': 15},
+                'employee_name': {'min': 20, 'max': 30},
+                'location_name': {'min': 15, 'max': 35},
+                'status': {'min': 12, 'max': 20},
+                'check_in_date': {'min': 12, 'max': 15},
+                'check_in_time': {'min': 10, 'max': 12},
+                'qr_address': {'min': 20, 'max': 40},
+                'address': {'min': 20, 'max': 45},
+                'device_info': {'min': 12, 'max': 20},
+                'ip_address': {'min': 14, 'max': 18},
+                'user_agent': {'min': 15, 'max': 30},
+                'latitude': {'min': 12, 'max': 15},
+                'longitude': {'min': 12, 'max': 15},
+                'accuracy': {'min': 10, 'max': 15},
+                'location_accuracy': {'min': 10, 'max': 15}
+            }
+            
+            # Get rules for this column or use defaults
+            rules = column_width_rules.get(column_key, {'min': 10, 'max': 40})
+            
+            # Calculate adjusted width: add 2 for padding, respect min/max
+            adjusted_width = max_length + 2
+            adjusted_width = max(rules['min'], min(adjusted_width, rules['max']))
+            
             ws.column_dimensions[column_letter].width = adjusted_width
+            
+            print(f"📏 Column {column_letter} ({column_key}): set width to {adjusted_width} (content: {max_length} chars)")
 
         # Save to BytesIO
         excel_buffer = io.BytesIO()
