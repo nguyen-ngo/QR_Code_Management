@@ -5989,15 +5989,15 @@ def export_configuration():
 
         # Define all available columns with their default settings
         available_columns = [
-            {'key': 'employee_id', 'label': 'Employee ID', 'default_name': 'Employee ID', 'enabled': True},
-            {'key': 'employee_name', 'label': 'Employee Name', 'default_name': 'Employee Name', 'enabled': False},  # NEW COLUMN ADDED
-            {'key': 'location_name', 'label': 'Location', 'default_name': 'Location', 'enabled': True},
-            {'key': 'status', 'label': 'Event', 'default_name': 'Event', 'enabled': True},
+            {'key': 'employee_id', 'label': 'Employee ID', 'default_name': 'ID', 'enabled': True},
+            {'key': 'employee_name', 'label': 'Employee Name', 'default_name': 'Employee Name', 'enabled': False},
+            {'key': 'location_name', 'label': 'Location', 'default_name': 'Location Name', 'enabled': True},
+            {'key': 'status', 'label': 'Event', 'default_name': 'Action Description', 'enabled': True},
             {'key': 'check_in_date', 'label': 'Date', 'default_name': 'Date', 'enabled': True},
             {'key': 'check_in_time', 'label': 'Time', 'default_name': 'Time', 'enabled': True},
-            {'key': 'qr_address', 'label': 'QR Address', 'default_name': 'QR Code Address', 'enabled': False},
-            {'key': 'address', 'label': 'Check-in Address', 'default_name': 'Check-in Address', 'enabled': False},
-            {'key': 'device_info', 'label': 'Device', 'default_name': 'Device Information', 'enabled': False},
+            {'key': 'qr_address', 'label': 'QR Address', 'default_name': 'Event Description', 'enabled': True},
+            {'key': 'address', 'label': 'Check-in Address', 'default_name': 'Recorded Address', 'enabled': True},
+            {'key': 'device_info', 'label': 'Device', 'default_name': 'Platform', 'enabled': True},
             {'key': 'ip_address', 'label': 'IP Address', 'default_name': 'IP Address', 'enabled': False},
             {'key': 'user_agent', 'label': 'User Agent', 'default_name': 'Browser/User Agent', 'enabled': False},
             {'key': 'latitude', 'label': 'Latitude', 'default_name': 'GPS Latitude', 'enabled': False},
@@ -6010,8 +6010,8 @@ def export_configuration():
             available_columns.append({
                 'key': 'location_accuracy',
                 'label': 'Location Accuracy',
-                'default_name': 'Location Accuracy (miles)',
-                'enabled': False
+                'default_name': 'Distance',
+                'enabled': True  # Changed from False to True
             })
 
         print(f"📊 Rendering export configuration with {len(available_columns)} columns")

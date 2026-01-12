@@ -3,6 +3,31 @@
  * Handles column selection, preview updates, drag & drop reordering, and preference management
  */
 
+// Default column configuration
+const DEFAULT_COLUMN_ORDER = [
+    'employee_id',      // ID
+    'device_info',      // Platform
+    'check_in_date',    // Date
+    'check_in_time',    // Time
+    'location_name',    // Location Name
+    'status',           // Action Description
+    'qr_address',       // Event Description
+    'address',          // Recorded Address
+    'location_accuracy' // Distance
+];
+
+const DEFAULT_COLUMNS = {
+    'employee_id': { selected: true, name: 'ID' },
+    'location_name': { selected: true, name: 'Location Name' },
+    'status': { selected: true, name: 'Action Description' },
+    'check_in_date': { selected: true, name: 'Date' },
+    'check_in_time': { selected: true, name: 'Time' },
+    'qr_address': { selected: true, name: 'Event Description' },
+    'address': { selected: true, name: 'Recorded Address' },
+    'device_info': { selected: true, name: 'Platform' },
+    'location_accuracy': { selected: true, name: 'Distance' }
+};
+
 // Global variables
 let availableColumns = [];
 let sortableInstance = null;
@@ -444,43 +469,107 @@ function deselectAllColumns() {
 
 function resetToDefaults() {
     try {
-        // Reset to default selections
-        availableColumns.forEach(column => {
-            const checkbox = document.getElementById('col_' + column.key);
-            const nameInput = document.getElementById('name_' + column.key);
-            const columnItem = checkbox ? checkbox.closest('.column-item') : null;
+        console.log('🔄 Resetting to default settings...');
+        
+        // First, deselect all columns and reset to defaults
+        const allCheckboxes = document.querySelectorAll('input[name="selected_columns"]');
+        allCheckboxes.forEach(checkbox => {
+            const key = checkbox.value;
+            const nameInput = document.getElementById('name_' + key);
+            const columnItem = checkbox.closest('.column-item');
             
-            if (checkbox) {
-                checkbox.checked = column.enabled;
-                if (column.enabled) {
-                    columnItem?.classList.add('selected');
-                } else {
-                    columnItem?.classList.remove('selected');
-                }
-                toggleColumnName(column.key);
+            // Check if this column should be selected by default
+            const isDefaultSelected = DEFAULT_COLUMNS.hasOwnProperty(key) && DEFAULT_COLUMNS[key].selected;
+            
+            // Set checkbox state
+            checkbox.checked = isDefaultSelected;
+            
+            // Update visual state
+            if (isDefaultSelected) {
+                columnItem?.classList.add('selected');
+            } else {
+                columnItem?.classList.remove('selected');
             }
             
+            // Set the export name
             if (nameInput) {
-                nameInput.value = column.defaultName;
+                if (DEFAULT_COLUMNS[key]) {
+                    nameInput.value = DEFAULT_COLUMNS[key].name;
+                } else {
+                    // Use the original default name from availableColumns if not in DEFAULT_COLUMNS
+                    const columnData = availableColumns.find(col => col.key === key);
+                    nameInput.value = columnData ? columnData.defaultName : nameInput.value;
+                }
             }
+            
+            // Toggle visibility
+            toggleColumnName(key);
         });
         
-        // Clear saved order
-        savedColumnOrder = [];
+        // Set the saved order to the default order
+        savedColumnOrder = [...DEFAULT_COLUMN_ORDER];
         
+        // Update the display with the default order
         updateSelectedColumnsList();
+        
+        // Apply the default order to the selected columns list
+        applyDefaultOrder();
+        
+        // Update preview
         updatePreview();
         
-        // Clear saved preferences
+        // Clear saved preferences from localStorage
         try {
             localStorage.removeItem('exportPreferences');
         } catch (storageError) {
             console.warn('Could not clear saved preferences:', storageError);
         }
         
-        console.log('Reset to default settings');
+        console.log('✅ Reset to default settings complete');
     } catch (error) {
-        console.error('Error resetting to defaults:', error);
+        console.error('❌ Error resetting to defaults:', error);
+    }
+}
+
+/**
+ * Apply the default column order to the selected columns list
+ */
+function applyDefaultOrder() {
+    try {
+        const selectedList = document.getElementById('selectedColumnsList');
+        if (!selectedList) return;
+        
+        const items = Array.from(selectedList.children);
+        if (items.length === 0) return;
+        
+        // Sort items based on DEFAULT_COLUMN_ORDER
+        items.sort((a, b) => {
+            const keyA = a.dataset.columnKey;
+            const keyB = b.dataset.columnKey;
+            const indexA = DEFAULT_COLUMN_ORDER.indexOf(keyA);
+            const indexB = DEFAULT_COLUMN_ORDER.indexOf(keyB);
+            
+            // If key not in default order, put it at the end
+            if (indexA === -1 && indexB === -1) return 0;
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            
+            return indexA - indexB;
+        });
+        
+        // Clear and re-append in sorted order
+        selectedList.innerHTML = '';
+        items.forEach(item => selectedList.appendChild(item));
+        
+        // Update order numbers
+        updateColumnOrderNumbers();
+        
+        // Update the hidden column order field
+        updateColumnOrderField();
+        
+        console.log('📋 Applied default column order');
+    } catch (error) {
+        console.error('Error applying default order:', error);
     }
 }
 
