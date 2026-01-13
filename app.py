@@ -5979,6 +5979,18 @@ def export_configuration():
         }
 
         print(f"📊 Filters: {filters}")
+        
+        # Get project name if project filter is applied
+        project_name = None
+        if filters.get('project_filter'):
+            try:
+                from models.project import Project
+                project = Project.query.get(int(filters['project_filter']))
+                if project:
+                    project_name = project.name
+                    print(f"📊 Project filter: ID={filters['project_filter']}, Name={project_name}")
+            except Exception as e:
+                print(f"⚠️ Error fetching project name: {e}")
 
         # Check if location accuracy feature exists
         try:
@@ -6019,6 +6031,7 @@ def export_configuration():
         return render_template('export_configuration.html',
                              available_columns=available_columns,
                              filters=filters,
+                             project_name=project_name,
                              has_location_accuracy_feature=has_location_accuracy)
 
     except Exception as e:

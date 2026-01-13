@@ -67,7 +67,7 @@
                 {% if filters.project_filter %}
                 <span class="filter-tag">
                     <i class="fas fa-project-diagram"></i>
-                    Project: {{ filters.project_filter }}
+                    Project: {% if project_name %}{{ project_name }}{% else %}{{ filters.project_filter }}{% endif %}
                 </span>
                 {% endif %}
             </div>
