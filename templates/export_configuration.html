@@ -144,12 +144,24 @@
                                 
                                 <div class="column-name-input" id="name_group_{{ column.key }}" 
                                     style="{% if not column.enabled %}display: none;{% endif %}">
-                                    <label for="name_{{ column.key }}">Export as:</label>
-                                    <input type="text" 
-                                        id="name_{{ column.key }}" 
-                                        name="name_{{ column.key }}" 
-                                        value="{{ column.default_name }}"
-                                        placeholder="Column name in Excel">
+                                    <div class="export-name-controls">
+                                        <label for="name_{{ column.key }}">Export as:</label>
+                                        <div class="input-with-checkbox">
+                                            <input type="text" 
+                                                id="name_{{ column.key }}" 
+                                                name="name_{{ column.key }}" 
+                                                value="{{ column.default_name }}"
+                                                placeholder="Column name in Excel"
+                                                readonly>
+                                            <label class="edit-checkbox-label" title="Enable editing">
+                                                <input type="checkbox" 
+                                                    id="edit_{{ column.key }}" 
+                                                    class="edit-enable-checkbox"
+                                                    onchange="toggleEditMode('{{ column.key }}', this.checked)">
+                                                <i class="fas fa-edit"></i>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             {% endfor %}

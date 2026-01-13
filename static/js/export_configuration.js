@@ -187,6 +187,38 @@ function toggleColumnName(columnKey) {
     }
 }
 
+/**
+ * Toggle edit mode for column name input
+ * @param {string} columnKey - The column key
+ * @param {boolean} enableEdit - Whether to enable editing
+ */
+function toggleEditMode(columnKey, enableEdit) {
+    try {
+        const nameInput = document.getElementById('name_' + columnKey);
+        
+        if (nameInput) {
+            if (enableEdit) {
+                // Enable editing
+                nameInput.removeAttribute('readonly');
+                nameInput.focus();
+                nameInput.select();
+                console.log(`✏️ Editing enabled for column: ${columnKey}`);
+            } else {
+                // Disable editing
+                nameInput.setAttribute('readonly', 'readonly');
+                console.log(`🔒 Editing disabled for column: ${columnKey}`);
+            }
+            
+            // Update preview when name changes
+            updateSelectedColumnsList();
+            updatePreview();
+        }
+    } catch (error) {
+        console.error('Error toggling edit mode:', error);
+    }
+}
+
+
 function initializeDragDrop() {
     try {
         const selectedColumnsList = document.getElementById('selectedColumnsList');
@@ -476,6 +508,7 @@ function resetToDefaults() {
         allCheckboxes.forEach(checkbox => {
             const key = checkbox.value;
             const nameInput = document.getElementById('name_' + key);
+            const editCheckbox = document.getElementById('edit_' + key);
             const columnItem = checkbox.closest('.column-item');
             
             // Check if this column should be selected by default
@@ -491,7 +524,7 @@ function resetToDefaults() {
                 columnItem?.classList.remove('selected');
             }
             
-            // Set the export name
+            // Set the export name and reset to readonly
             if (nameInput) {
                 if (DEFAULT_COLUMNS[key]) {
                     nameInput.value = DEFAULT_COLUMNS[key].name;
@@ -500,6 +533,14 @@ function resetToDefaults() {
                     const columnData = availableColumns.find(col => col.key === key);
                     nameInput.value = columnData ? columnData.defaultName : nameInput.value;
                 }
+                
+                // Reset to readonly mode
+                nameInput.setAttribute('readonly', 'readonly');
+            }
+            
+            // Uncheck edit checkbox
+            if (editCheckbox) {
+                editCheckbox.checked = false;
             }
             
             // Toggle visibility
@@ -638,10 +679,17 @@ function savePreferences() {
             .map(cb => cb.value);
         
         const columnNames = {};
+        const editStates = {};
         selectedColumns.forEach(col => {
             const input = document.getElementById('name_' + col);
+            const editCheckbox = document.getElementById('edit_' + col);
+            
             if (input) {
                 columnNames[col] = input.value.trim();
+            }
+            
+            if (editCheckbox) {
+                editStates[col] = editCheckbox.checked;
             }
         });
         
@@ -651,12 +699,13 @@ function savePreferences() {
         const prefs = {
             selected_columns: selectedColumns,
             column_names: columnNames,
+            edit_states: editStates,
             column_order: columnOrder,
             timestamp: new Date().toISOString()
         };
         
         localStorage.setItem('exportPreferences', JSON.stringify(prefs));
-        console.log('Preferences saved with column order:', prefs);
+        console.log('💾 Preferences saved with column order and edit states:', prefs);
         
     } catch (e) {
         console.warn('Could not save preferences:', e);
@@ -725,12 +774,29 @@ function loadSavedPreferences() {
             });
         }
         
+        // Apply saved edit states
+        if (prefs.edit_states) {
+            Object.keys(prefs.edit_states).forEach(key => {
+                const editCheckbox = document.getElementById('edit_' + key);
+                const nameInput = document.getElementById('name_' + key);
+                
+                if (editCheckbox && prefs.edit_states[key]) {
+                    editCheckbox.checked = true;
+                    if (nameInput) {
+                        nameInput.removeAttribute('readonly');
+                    }
+                } else if (nameInput) {
+                    nameInput.setAttribute('readonly', 'readonly');
+                }
+            });
+        }
+        
         // Save column order for later use
         if (prefs.column_order) {
             savedColumnOrder = prefs.column_order;
         }
         
-        console.log('Preferences loaded:', prefs);
+        console.log('📋 Preferences loaded:', prefs);
         
         // Update preview after loading preferences
         updateSelectedColumnsList();
@@ -772,6 +838,7 @@ window.selectAllColumns = selectAllColumns;
 window.deselectAllColumns = deselectAllColumns;
 window.resetToDefaults = resetToDefaults;
 window.toggleColumnName = toggleColumnName;
+window.toggleEditMode = toggleEditMode;
 window.updateSelectedColumnsList = updateSelectedColumnsList;
 window.getCurrentColumnOrder = getCurrentColumnOrder;
 window.updateColumnOrderField = updateColumnOrderField;
