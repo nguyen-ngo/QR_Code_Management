@@ -640,11 +640,8 @@ def geocode_address_enhanced(address):
 
 def calculate_distance_miles(lat1, lng1, lat2, lng2):
     """
-    Calculate distance between two points using Google Maps Distance Matrix API for road distance
-    Falls back to Haversine formula for straight-line distance if Google Maps is unavailable
-    
-    COMPLETELY REWRITTEN - TESTED AND VERIFIED
-    
+    Calculate DIRECT straight-line distance between two points using Haversine formula
+        
     Args:
         lat1, lng1: First point coordinates (decimal degrees)
         lat2, lng2: Second point coordinates (decimal degrees)
@@ -680,62 +677,14 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         # Log distance calculation attempt
         try:
             logger_handler.log_user_activity(
-                'distance_calculation', 
-                f'Calculating distance: ({lat1_val:.6f}, {lng1_val:.6f}) to ({lat2_val:.6f}, {lng2_val:.6f})'
-            )
+            'distance_calculation', 
+            f'Calculating direct distance: ({lat1_val:.6f}, {lng1_val:.6f}) to ({lat2_val:.6f}, {lng2_val:.6f})'
+        )
         except:
             pass  # Ignore logging errors
 
-        # PRIMARY: Try Google Maps Distance Matrix API for road distance
-        if gmaps_client:
-            try:
-                print(f"🗺️ Attempting Google Maps Distance Matrix API")
-                
-                origins = [(lat1_val, lng1_val)]
-                destinations = [(lat2_val, lng2_val)]
-                
-                matrix = gmaps_client.distance_matrix(
-                    origins=origins,
-                    destinations=destinations,
-                    mode="driving",
-                    units="imperial",
-                    avoid="tolls"
-                )
-                
-                if (matrix['status'] == 'OK' and 
-                    matrix['rows'][0]['elements'][0]['status'] == 'OK'):
-                    
-                    distance_data = matrix['rows'][0]['elements'][0]['distance']
-                    distance_text = distance_data['text']
-                    distance_value = distance_data['value']  # meters
-                    
-                    # Convert to miles
-                    if 'mi' in distance_text:
-                        distance_miles = float(distance_text.replace(' mi', '').replace(',', ''))
-                    else:
-                        distance_miles = distance_value * 0.000621371
-                    
-                    distance_miles = round(distance_miles, 4)
-                    
-                    print(f"📏 Google Maps road distance: {distance_miles:.4f} miles")
-                    
-                    try:
-                        logger_handler.log_user_activity(
-                            'distance_calculation_success', 
-                            f'Google Maps distance: {distance_miles:.4f} miles'
-                        )
-                    except:
-                        pass
-                    
-                    return distance_miles
-                else:
-                    print(f"⚠️ Google Maps API returned no valid results")
-            
-            except Exception as gmaps_error:
-                print(f"⚠️ Google Maps API error: {gmaps_error}")
-
-        # FALLBACK: Use Haversine formula for straight-line distance
-        print(f"📐 Using Haversine formula for straight-line distance")
+        # Use Haversine formula for straight-line distance
+        print(f"📐 Calculating direct straight-line distance using Haversine formula")
         
         # Step 1: Convert decimal degrees to radians
         # CRITICAL: Only convert ONCE!
@@ -779,7 +728,7 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         distance = round(distance, 4)
         
         # Debug output
-        print(f"📏 Haversine straight-line distance calculation:")
+        print(f"📏 Direct straight-line distance calculation:")
         print(f"   Point 1: ({lat1_val:.10f}, {lng1_val:.10f})")
         print(f"   Point 2: ({lat2_val:.10f}, {lng2_val:.10f})")
         print(f"   Δlat: {abs(lat2_val - lat1_val):.10f}° = {dlat:.12f} radians")
@@ -791,8 +740,8 @@ def calculate_distance_miles(lat1, lng1, lat2, lng2):
         # Log fallback calculation
         try:
             logger_handler.log_user_activity(
-                'distance_calculation_fallback', 
-                f'Haversine distance: {distance:.4f} miles'
+                'distance_calculation_success', 
+                f'Direct distance: {distance:.4f} miles'
             )
         except:
             pass
