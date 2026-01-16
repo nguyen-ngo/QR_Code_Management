@@ -14,17 +14,25 @@
     <!-- Header Section -->
     <div class="export-header">
         <div class="header-content">
-            <h1>
-                <i class="fas fa-file-excel"></i>
-                Export Configuration
-            </h1>
-            <p>Customize your attendance report export with selected columns, custom names, and column ordering</p>
+            <div class="header-title-section">
+                <button onclick="goBackToReport()" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Report
+                </button>
+                <div class="header-title-text">
+                    <h1>
+                        <i class="fas fa-file-excel"></i>
+                        Export Configuration
+                    </h1>
+                    <p>Customize your attendance report export with selected columns, custom names, and column ordering</p>
+                </div>
+            </div>
         </div>
         
         <div class="header-actions">
-            <button onclick="goBackToReport()" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i>
-                Back to Report
+            <button type="submit" form="exportForm" class="btn btn-success btn-lg" id="generateBtn">
+                <i class="fas fa-download"></i>
+                Generate Excel Export
             </button>
         </div>
     </div>
@@ -205,10 +213,6 @@
             <!-- Submit Section -->
             <div class="submit-section">
                 <div class="submit-actions">
-                    <button type="submit" class="btn btn-success btn-lg" id="generateBtn">
-                        <i class="fas fa-download"></i>
-                        Generate Excel Export
-                    </button>
                     <p class="submit-note">
                         <i class="fas fa-info-circle"></i>
                         Your column preferences and order will be saved for next time
