@@ -139,7 +139,12 @@
         <i class="fas fa-cloud-upload-alt"></i>
         Importing Data
       </h1>
+      {% if filename is string and ',' in filename %}
+      <p>Files: <strong>{{ filename.split(', ')|length }} files</strong></p>
+      <p style="font-size: 0.875rem; color: #718096; margin-top: 0.25rem;">{{ filename }}</p>
+      {% else %}
       <p>File: <strong>{{ filename }}</strong></p>
+      {% endif %}
     </div>
 
     <!-- Progress Circle -->

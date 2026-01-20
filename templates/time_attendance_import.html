@@ -364,19 +364,21 @@
             <i class="fas fa-cloud-upload-alt"></i>
           </div>
           <div class="upload-text">
-            <h3>Drag & Drop Excel File</h3>
-            <p>Or click to browse and select an Excel file (.xlsx, .xls)</p>
+            <h3>Drag & Drop Excel Files</h3>
+            <p>Or click to browse and select Excel files (.xlsx, .xls). Multiple files supported.</p>
             <div class="file-info" id="fileInfo" style="display: none;">
               <i class="fas fa-file-excel"></i>
               <span class="file-name"></span>
               <span class="file-size"></span>
+              <span class="file-count"></span>
             </div>
           </div>
           <input type="file" 
                  id="fileInput" 
-                 name="file" 
+                 name="files" 
                  accept=".xlsx,.xls" 
                  class="file-input" 
+                 multiple
                  required>
         </div>
 
@@ -721,30 +723,56 @@ fileUploadArea.addEventListener('click', () => {
 fileInput.addEventListener('change', handleFileSelect);
 
 function handleFileSelect() {
-  const file = fileInput.files[0];
-  if (file) {
-    const fileName = file.name;
-    const fileSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-    
-    fileInfo.querySelector('.file-name').textContent = fileName;
-    fileInfo.querySelector('.file-size').textContent = fileSize;
-    fileInfo.style.display = 'flex';
-    
-    submitBtn.disabled = false;
-    
-    // Validate file extension
-    if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
-      alert('Please select an Excel file (.xlsx or .xls)');
-      resetForm();
+  const files = fileInput.files;
+  if (files.length > 0) {
+    // Validate all files
+    let invalidFiles = [];
+    for (let i = 0; i < files.length; i++) {
+      const fileName = files[i].name;
+      if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
+        invalidFiles.push(fileName);
+      }
     }
+    
+    if (invalidFiles.length > 0) {
+      alert('Invalid file format detected:\n' + invalidFiles.join('\n') + '\n\nPlease select only Excel files (.xlsx or .xls)');
+      resetForm();
+      return;
+    }
+    
+    // Calculate total size
+    let totalSize = 0;
+    for (let i = 0; i < files.length; i++) {
+      totalSize += files[i].size;
+    }
+    
+    // Display file info
+    if (files.length === 1) {
+      fileInfo.querySelector('.file-name').textContent = files[0].name;
+      fileInfo.querySelector('.file-size').textContent = (totalSize / 1024 / 1024).toFixed(2) + ' MB';
+      fileInfo.querySelector('.file-count').textContent = '';
+    } else {
+      fileInfo.querySelector('.file-name').textContent = files.length + ' files selected';
+      fileInfo.querySelector('.file-size').textContent = (totalSize / 1024 / 1024).toFixed(2) + ' MB total';
+      const fileNames = Array.from(files).map(f => f.name).join(', ');
+      fileInfo.querySelector('.file-count').textContent = '(' + fileNames + ')';
+      fileInfo.querySelector('.file-count').style.fontSize = '0.75rem';
+      fileInfo.querySelector('.file-count').style.color = '#718096';
+      fileInfo.querySelector('.file-count').style.display = 'block';
+      fileInfo.querySelector('.file-count').style.marginTop = '0.5rem';
+    }
+    
+    fileInfo.style.display = 'flex';
+    fileInfo.style.flexDirection = 'column';
+    submitBtn.disabled = false;
   }
 }
 
 // Form submission
 importForm.addEventListener('submit', (e) => {
-  if (!fileInput.files[0]) {
+  if (fileInput.files.length === 0) {
     e.preventDefault();
-    alert('Please select a file to import');
+    alert('Please select at least one file to import');
     return;
   }
 
@@ -761,7 +789,9 @@ importForm.addEventListener('submit', (e) => {
   // Show progress indicator
   progressIndicator.classList.add('active');
   submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  const fileCount = fileInput.files.length;
+  const fileText = fileCount === 1 ? 'file' : 'files';
+  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing ' + fileCount + ' ' + fileText + '...';
 });
 
 // Reset border color when project is selected

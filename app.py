@@ -8177,35 +8177,76 @@ def import_time_attendance():
                 print(f"✅ Temp path exists: {os.path.exists(temp_path)}")
                 
             else:
-                # Normal file upload flow
-                if 'file' not in request.files:
-                    flash('No file uploaded.', 'error')
+                # Normal file upload flow - now supports multiple files
+                if 'files' not in request.files:
+                    flash('No files uploaded.', 'error')
                     return redirect(request.url)
                 
-                file = request.files['file']
-                if file.filename == '':
-                    flash('No file selected.', 'error')
+                files = request.files.getlist('files')
+                if not files or len(files) == 0:
+                    flash('No files selected.', 'error')
                     return redirect(request.url)
                 
-                # Validate file extension
-                if not file.filename.lower().endswith(('.xlsx', '.xls')):
-                    flash('Please upload an Excel file (.xlsx or .xls).', 'error')
+                # Validate all files and save them temporarily
+                temp_paths = []
+                filenames = []
+                
+                for file in files:
+                    if file.filename == '':
+                        continue
+                    
+                    # Validate file extension
+                    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+                        flash(f'Invalid file format: {file.filename}. Please upload only Excel files (.xlsx or .xls).', 'error')
+                        # Clean up already saved files
+                        for saved_path in temp_paths:
+                            if os.path.exists(saved_path):
+                                os.remove(saved_path)
+                        return redirect(request.url)
+                    
+                    # Save uploaded file temporarily
+                    filename = secure_filename(file.filename)
+                    temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
+                                           f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+                    
+                    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+                    file.save(temp_path)
+                    
+                    temp_paths.append(temp_path)
+                    filenames.append(filename)
+                    
+                    print(f"✅ Uploaded file {len(temp_paths)}: {filename}")
+                    print(f"✅ Saved to: {temp_path}")
+                
+                if len(temp_paths) == 0:
+                    flash('No valid files selected.', 'error')
                     return redirect(request.url)
                 
-                # Save uploaded file temporarily
-                filename = secure_filename(file.filename)
-                temp_path = os.path.join(app.config.get('UPLOAD_FOLDER', '/tmp'), 
-                                       f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{filename}")
+                # Store file paths in session for duplicate/invalid review
+                session['pending_import_file'] = temp_paths[0] if len(temp_paths) == 1 else temp_paths
+                session['pending_import_filename'] = filenames[0] if len(filenames) == 1 else filenames
+                session['pending_import_files_multiple'] = len(temp_paths) > 1
                 
-                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-                file.save(temp_path)
+                temp_path = temp_paths[0] if len(temp_paths) == 1 else temp_paths
+                filename = filenames[0] if len(filenames) == 1 else ', '.join(filenames)
                 
-                # Store file path in session for duplicate/invalid review
-                session['pending_import_file'] = temp_path
-                session['pending_import_filename'] = filename
-                
-                print(f"✅ Uploaded new file: {filename}")
-                print(f"✅ Saved to: {temp_path}")
+                print(f"✅ Total files uploaded: {len(temp_paths)}")
+
+            # Determine if we're processing multiple files
+            is_multiple_files = session.get('pending_import_files_multiple', False)
+            files_to_process = []
+            
+            if is_multiple_files:
+                # Multiple files mode
+                if isinstance(temp_path, list):
+                    files_to_process = list(zip(temp_path, filename.split(', ') if isinstance(filename, str) else filename))
+                else:
+                    files_to_process = [(temp_path, filename)]
+            else:
+                # Single file mode (existing behavior)
+                files_to_process = [(temp_path, filename)]
+            
+            print(f"📁 Processing {len(files_to_process)} file(s)")
             
             try:
                 import_service = TimeAttendanceImportService(db, logger_handler)
@@ -8223,6 +8264,141 @@ def import_time_attendance():
                 print(f"   Analyze invalid: {analyze_invalid}")
                 print(f"   Coming from invalid review: {coming_from_invalid_review}")
                 
+                # Store combined results for multiple files
+                all_results = {
+                    'total_files': len(files_to_process),
+                    'successful_files': 0,
+                    'failed_files': 0,
+                    'total_imported': 0,
+                    'total_duplicates': 0,
+                    'total_failed': 0,
+                    'file_results': [],
+                    'errors': [],
+                    'warnings': []
+                }
+                
+                # Process each file
+                for file_index, (current_temp_path, current_filename) in enumerate(files_to_process, 1):
+                    print(f"\n📄 Processing file {file_index}/{len(files_to_process)}: {current_filename}")
+                    
+                    import_result = None  # Initialize to prevent reference errors
+                    
+                    try:
+                        # For multiple files, skip review screens and import directly
+                        if is_multiple_files:
+                            print(f"   📦 Batch mode: processing directly without review screens")
+                            
+                            # Validate the file first
+                            validation_result = import_service.validate_excel_file(current_temp_path)
+                            
+                            if not validation_result['valid']:
+                                raise Exception(f"Validation failed: {'; '.join(validation_result['errors'])}")
+                            
+                            # Get import settings
+                            project_id = request.form.get('project_id')
+                            project_id = int(project_id) if project_id and project_id != '' else None
+                            import_source = request.form.get('import_source', f"Batch Import - {current_filename}")
+                            
+                            # Import the file (always skip duplicates in batch mode)
+                            import_result = import_service.import_from_excel(
+                                current_temp_path,
+                                created_by=session['user_id'],
+                                import_source=import_source,
+                                skip_duplicates=True,  # Always skip duplicates in batch mode
+                                force_import_hashes=set(),
+                                project_id=project_id
+                            )
+                            
+                        else:
+                            # Single file - use existing review workflow logic below
+                            # This continues to the existing code after the loop
+                            pass
+                        
+                        # Accumulate results if import was performed
+                        if import_result and import_result.get('success'):
+                            all_results['successful_files'] += 1
+                            all_results['total_imported'] += import_result.get('imported_records', 0)
+                            all_results['total_duplicates'] += import_result.get('duplicate_records', 0)
+                            all_results['file_results'].append({
+                                'filename': current_filename,
+                                'status': 'success',
+                                'imported': import_result.get('imported_records', 0),
+                                'batch_id': import_result.get('batch_id', '')
+                            })
+                            print(f"   ✅ Imported {import_result.get('imported_records', 0)} records")
+                        elif import_result:
+                            # Import ran but failed
+                            all_results['failed_files'] += 1
+                            all_results['total_failed'] += import_result.get('failed_records', 0)
+                            all_results['errors'].append(f"{current_filename}: Import failed")
+                            all_results['file_results'].append({
+                                'filename': current_filename,
+                                'status': 'failed',
+                                'error': 'Import returned unsuccessful status'
+                            })
+                        
+                    except Exception as file_error:
+                        print(f"❌ Error processing file {current_filename}: {file_error}")
+                        logger_handler.logger.error(f"Error processing file {current_filename}: {file_error}")
+                        all_results['failed_files'] += 1
+                        all_results['errors'].append(f"{current_filename}: {str(file_error)}")
+                        all_results['file_results'].append({
+                            'filename': current_filename,
+                            'status': 'failed',
+                            'error': str(file_error)
+                        })
+                        continue
+                    
+                    finally:
+                        # Cleanup individual file (only for multiple file mode, single file cleanup happens later)
+                        if is_multiple_files and os.path.exists(current_temp_path):
+                            try:
+                                os.remove(current_temp_path)
+                                print(f"   🗑️ Cleaned up temp file")
+                            except Exception as cleanup_error:
+                                print(f"   ⚠️ Failed to cleanup temp file: {cleanup_error}")
+                
+                # After processing all files
+                if is_multiple_files:
+                    # Log the batch import activity
+                    logger_handler.logger.info(
+                        f"Batch Import: User {session.get('username', 'unknown')} imported time attendance data from {len(files_to_process)} files - "
+                        f"Successful: {all_results['successful_files']}/{all_results['total_files']}, "
+                        f"Total imported: {all_results['total_imported']}, "
+                        f"Duplicates: {all_results['total_duplicates']}"
+                    )
+                    
+                    # Show combined results
+                    if all_results['successful_files'] > 0:
+                        flash(f"✅ Successfully imported {all_results['total_imported']} records from {all_results['successful_files']}/{all_results['total_files']} files.", 'success')
+                        
+                        if all_results['total_duplicates'] > 0:
+                            flash(f"ℹ️ Skipped {all_results['total_duplicates']} duplicate records across all files.", 'info')
+                    
+                    if all_results['failed_files'] > 0:
+                        flash(f"❌ {all_results['failed_files']} file(s) failed to import.", 'error')
+                        
+                        # Show first few error details
+                        for error in all_results['errors'][:3]:
+                            flash(f"Error: {error}", 'error')
+                        
+                        if len(all_results['errors']) > 3:
+                            flash(f"...and {len(all_results['errors']) - 3} more errors", 'error')
+                    
+                    # Clear session
+                    session.pop('pending_import_file', None)
+                    session.pop('pending_import_filename', None)
+                    session.pop('pending_import_files_multiple', None)
+                    
+                    print(f"\n📊 Batch Import Summary:")
+                    print(f"   Total files: {all_results['total_files']}")
+                    print(f"   Successful: {all_results['successful_files']}")
+                    print(f"   Failed: {all_results['failed_files']}")
+                    print(f"   Total imported: {all_results['total_imported']}")
+                    print(f"   Total duplicates: {all_results['total_duplicates']}")
+                    
+                    return redirect(url_for('time_attendance_dashboard'))
+
                 # Check if this is coming from duplicate review
                 force_import_hashes = request.form.getlist('force_import_hashes[]')
                 
