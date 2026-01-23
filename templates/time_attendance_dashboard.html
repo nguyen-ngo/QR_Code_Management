@@ -18,7 +18,7 @@
     </div>
     
     <div class="header-actions">
-      {% if session.role in ['admin', 'payroll'] %}
+      {% if session.role in ['admin', 'payroll', 'accounting'] %}
       <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
         <i class="fas fa-upload"></i>
         Import Excel Data

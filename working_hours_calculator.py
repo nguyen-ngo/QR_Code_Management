@@ -34,8 +34,14 @@ def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
     """
     Parse employee ID to extract base ID and work type (supports SP, PW, PT)
     
+    Handles multiple formats:
+    - Suffix with space: "1234 SP", "1234 PW", "1234 PT"
+    - Suffix without space: "1234SP", "1234PW", "1234PT"
+    - Prefix with space: "SP 1234", "PW 1234", "PT 1234"
+    - Prefix without space: "SP1234", "PW1234", "PT1234"
+    
     Args:
-        employee_id: Employee ID string (e.g., "1234", "1234 SP", "1234 PW", "1234 PT")
+        employee_id: Employee ID string in any of the above formats
         
     Returns:
         Tuple of (base_employee_id, work_type)
@@ -46,23 +52,21 @@ def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
     
     employee_id_clean = str(employee_id).strip().upper()
     
-    # Check for SP (Special Project)
-    sp_pattern = r'^(\d+)\s*SP$'
-    sp_match = re.match(sp_pattern, employee_id_clean)
-    if sp_match:
-        return sp_match.group(1), 'SP'
+    # Define work type codes
+    work_type_codes = ['SP', 'PW', 'PT']
     
-    # Check for PW (Periodic Work)
-    pw_pattern = r'^(\d+)\s*PW$'
-    pw_match = re.match(pw_pattern, employee_id_clean)
-    if pw_match:
-        return pw_match.group(1), 'PW'
-    
-    # Check for PT (Part-Time)
-    pt_pattern = r'^(\d+)\s*PT$'
-    pt_match = re.match(pt_pattern, employee_id_clean)
-    if pt_match:
-        return pt_match.group(1), 'PT'
+    for work_type in work_type_codes:
+        # Pattern 1: Suffix with optional space - "1234 SP" or "1234SP"
+        suffix_pattern = rf'^(\d+)\s*{work_type}$'
+        suffix_match = re.match(suffix_pattern, employee_id_clean)
+        if suffix_match:
+            return suffix_match.group(1), work_type
+        
+        # Pattern 2: Prefix with optional space - "SP 1234" or "SP1234"
+        prefix_pattern = rf'^{work_type}\s*(\d+)$'
+        prefix_match = re.match(prefix_pattern, employee_id_clean)
+        if prefix_match:
+            return prefix_match.group(1), work_type
     
     # Default to regular work
     return employee_id_clean, 'regular'
