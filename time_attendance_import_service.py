@@ -197,57 +197,129 @@ class TimeAttendanceImportService:
                 # Already a number
                 distance_float = float(distance_value)
             
-            # Validate reasonable range (0 to 100 miles)
-            if distance_float < 0:
+            # Validate the distance is reasonable (0 to 1000 miles)
+            if 0 <= distance_float <= 1000:
+                return distance_float
+            else:
                 if self.logger:
-                    self.logger.logger.warning(f"Negative distance value {distance_float} converted to positive")
-                distance_float = abs(distance_float)
-            
-            if distance_float > 100:
-                if self.logger:
-                    self.logger.logger.warning(f"Distance value {distance_float} exceeds 100 miles, may be invalid")
-            
-            return round(distance_float, 4)  # Round to 4 decimal places
-            
+                    self.logger.logger.warning(f"Distance value {distance_float} is out of reasonable range")
+                return None
+                
         except (ValueError, TypeError) as e:
             if self.logger:
-                self.logger.logger.debug(f"Could not parse distance value '{distance_value}': {e}")
+                self.logger.logger.warning(f"Could not parse distance value '{distance_value}': {e}")
             return None
     
-    def _process_recorded_address(self, row):
+    def _process_recorded_address(self, row) -> Optional[str]:
         """
-        Process recorded address field, handling Excel HYPERLINK formulas
+        Process Recorded Address field from Excel - handles HYPERLINK formulas
         
         Args:
             row: DataFrame row containing the 'Recorded Address' column
             
         Returns:
-            Parsed address string or None
+            Cleaned address text, or None if not present/invalid
         """
-        recorded_address_value = row.get('Recorded Address')
+        # Check if Recorded Address column exists
+        if 'Recorded Address' not in row.index:
+            return None
+        
+        address_value = row.get('Recorded Address')
         
         # Check if value exists and is not NaN
-        if pd.notna(recorded_address_value):
-            # Convert to string
-            address_str = str(recorded_address_value).strip()
-            
-            # Skip if empty or the string "nan"
-            if not address_str or address_str.lower() == 'nan':
-                return None
-            
-            # Parse the value (handles both formulas and plain text)
-            parsed_address = self._parse_excel_hyperlink(address_str)
-            
-            if parsed_address and parsed_address.strip():
-                if self.logger:
-                    self.logger.logger.debug(f"Processed Recorded Address: '{address_str[:60]}...' -> '{parsed_address}'")
-                return parsed_address.strip()
-            else:
-                if self.logger:
-                    self.logger.logger.warning(f"Empty result after parsing Recorded Address: '{address_str[:60]}...'")
-                return None
+        if pd.isna(address_value):
+            return None
         
-        return None
+        # Parse HYPERLINK formula if present, or return raw value
+        parsed_address = self._parse_excel_hyperlink(address_value)
+        
+        # Clean and return
+        if parsed_address:
+            return str(parsed_address).strip()
+        else:
+            return None
+    
+    def _generate_record_hash(self, record_data: Dict[str, Any]) -> str:
+        """
+        Generate unique hash for a time attendance record
+        
+        Args:
+            record_data: Dictionary containing record data
+            
+        Returns:
+            SHA-256 hash string
+        """
+        hash_string = (
+            f"{record_data['employee_id']}-"
+            f"{record_data['attendance_date']}-"
+            f"{record_data['attendance_time']}-"
+            f"{record_data['location_name']}-"
+            f"{record_data['action_description']}"
+        )
+        
+        return hashlib.sha256(hash_string.encode()).hexdigest()
+    
+    def _get_existing_record_hashes(self) -> set:
+        """
+        Get hashes of all existing time attendance records
+        
+        Returns:
+            Set of hash strings
+        """
+        try:
+            from models.time_attendance import TimeAttendance
+            
+            records = TimeAttendance.query.all()
+            hashes = set()
+            
+            for record in records:
+                record_data = {
+                    'employee_id': record.employee_id,
+                    'attendance_date': record.attendance_date,
+                    'attendance_time': record.attendance_time,
+                    'location_name': record.location_name,
+                    'action_description': record.action_description
+                }
+                hashes.add(self._generate_record_hash(record_data))
+            
+            return hashes
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.logger.error(f"Failed to get existing record hashes: {e}")
+            return set()
+    
+    def _get_existing_record_hashes_with_data(self) -> Dict[str, Dict]:
+        """
+        Get hashes with corresponding record data for duplicate comparison
+        
+        Returns:
+            Dictionary mapping hash to record data
+        """
+        try:
+            from models.time_attendance import TimeAttendance
+            
+            records = TimeAttendance.query.all()
+            hash_map = {}
+            
+            for record in records:
+                record_data = {
+                    'employee_id': record.employee_id,
+                    'employee_name': record.employee_name,
+                    'attendance_date': record.attendance_date,
+                    'attendance_time': record.attendance_time,
+                    'location_name': record.location_name,
+                    'action_description': record.action_description
+                }
+                record_hash = self._generate_record_hash(record_data)
+                hash_map[record_hash] = record_data
+            
+            return hash_map
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.logger.error(f"Failed to get existing record hashes with data: {e}")
+            return {}
     
     def analyze_for_duplicates(self, file_path: str) -> Dict[str, Any]:
         """
@@ -349,9 +421,10 @@ class TimeAttendanceImportService:
                         })
                     else:
                         new_records_count += 1
-                
+                        
                 except Exception as e:
-                    analysis_result['errors'].append(f"Row {index + 2}: {str(e)}")
+                    if self.logger:
+                        self.logger.logger.warning(f"Error analyzing row {index + 2}: {e}")
                     continue
             
             analysis_result['success'] = True
@@ -407,34 +480,27 @@ class TimeAttendanceImportService:
             df = df.dropna(how='all')
             analysis_result['total_rows'] = len(df)
             
-            # Process each row and collect invalid ones
+            # Analyze each row
             invalid_list = []
             valid_count = 0
             
             for index, row in df.iterrows():
                 row_errors = []
                 row_data = {
-                    'employee_id': None,
-                    'employee_name': None,
-                    'attendance_date': None,
-                    'attendance_time': None,
-                    'location_name': None,
-                    'action_description': None
+                    'row_number': index + 2,
+                    'employee_id': self._clean_employee_id(row['ID']) if pd.notna(row['ID']) else None,
                 }
                 
-                # Validate ID (required)
+                # Check ID
                 if pd.isna(row['ID']):
-                    row_errors.append('Missing ID')
+                    row_errors.append("Missing ID")
                 else:
-                    # Clean the employee ID (handles float issues)
                     row_data['employee_id'] = self._clean_employee_id(row['ID'])
-                
-                # Get Name (optional - lookup if not provided)
-                if 'Name' in df.columns and pd.notna(row.get('Name')):
-                    row_data['employee_name'] = str(row['Name']).strip()
-                elif row_data['employee_id']:
-                    # Lookup employee name from employee table using cleaned ID
-                    row_data['employee_name'] = self._get_employee_name(row_data['employee_id'])
+                    # Get employee name
+                    if 'Name' in df.columns and pd.notna(row.get('Name')):
+                        row_data['employee_name'] = str(row['Name']).strip()
+                    else:
+                        row_data['employee_name'] = self._get_employee_name(row_data['employee_id'])
                 
                 # Check and parse Date
                 if pd.isna(row['Date']):
@@ -718,36 +784,64 @@ class TimeAttendanceImportService:
         return import_results
     
     def _parse_time_field(self, time_value) -> time:
-        """Parse time field with multiple format support"""
+        """
+        Parse various time formats from Excel
+        
+        Handles:
+        - datetime.time objects
+        - datetime.datetime objects
+        - String formats (HH:MM, HH:MM:SS, HH:MM AM/PM)
+        
+        Args:
+            time_value: Time value from Excel
+            
+        Returns:
+            time object
+        """
         if pd.isna(time_value):
             raise ValueError("Time value is empty")
         
+        # If already a time object
         if isinstance(time_value, time):
             return time_value
         
-        time_str = str(time_value).strip()
+        # If datetime object, extract time
+        if isinstance(time_value, datetime):
+            return time_value.time()
         
-        time_formats = [
-            '%H:%M:%S',
-            '%H:%M',
-            '%I:%M:%S %p',
-            '%I:%M %p',
-        ]
-        
-        for fmt in time_formats:
+        # If string, parse it
+        if isinstance(time_value, str):
+            time_str = time_value.strip()
+            
+            # Try parsing with pandas
             try:
-                return datetime.strptime(time_str, fmt).time()
-            except ValueError:
-                continue
+                dt = pd.to_datetime(time_str)
+                return dt.time()
+            except:
+                # Try manual parsing for common formats
+                try:
+                    # Format: HH:MM or HH:MM:SS
+                    parts = time_str.split(':')
+                    if len(parts) >= 2:
+                        hour = int(parts[0])
+                        minute = int(parts[1])
+                        second = int(parts[2]) if len(parts) > 2 else 0
+                        return time(hour, minute, second)
+                except:
+                    pass
         
-        try:
-            return pd.to_datetime(time_value).time()
-        except:
-            pass
-        
-        raise ValueError(f"Unable to parse time value: {time_value}")
+        raise ValueError(f"Could not parse time value: {time_value}")
     
     def _get_employee_name(self, employee_id: str) -> str:
+        """
+        Get employee name from database, formatted as 'lastname, firstname'
+        
+        Args:
+            employee_id: Employee ID to lookup
+            
+        Returns:
+            Employee name in 'lastname, firstname' format
+        """
         try:
             from models.employee import Employee
             
@@ -766,7 +860,8 @@ class TimeAttendanceImportService:
             # Now lookup the employee
             employee = Employee.get_by_employee_id(int(cleaned_id))
             if employee:
-                return employee.full_name
+                # Format name as "lastname, firstname"
+                return f"{employee.lastName}, {employee.firstName}"
             else:
                 if self.logger:
                     self.logger.logger.warning(f"Employee ID {cleaned_id} not found in employee table")
@@ -782,6 +877,15 @@ class TimeAttendanceImportService:
                 return f"Employee {employee_id}"
             
     def _clean_employee_id(self, employee_id) -> str:
+        """
+        Clean employee ID to handle various formats
+        
+        Args:
+            employee_id: Raw employee ID value
+            
+        Returns:
+            Cleaned employee ID string
+        """
         try:
             # Convert to string first
             id_str = str(employee_id).strip()
@@ -799,175 +903,92 @@ class TimeAttendanceImportService:
                 self.logger.logger.warning(f"Could not clean employee ID '{employee_id}': {e}")
             return str(employee_id).strip()
     
-    def _generate_record_hash(self, record_data: Dict) -> str:
-        """Generate unique hash for a record to detect duplicates"""
-        hash_string = (
-            f"{record_data['employee_id']}_"
-            f"{record_data['attendance_date']}_"
-            f"{record_data['attendance_time']}_"
-            f"{record_data['location_name']}_"
-            f"{record_data['action_description']}"
-        )
-        return hashlib.md5(hash_string.encode()).hexdigest()
-    
-    def _get_existing_record_hashes(self) -> set:
-        """Get hashes of existing records (hash only)"""
-        try:
-            from models.time_attendance import TimeAttendance
-            
-            existing_records = TimeAttendance.query.all()
-            hashes = set()
-            
-            for record in existing_records:
-                record_data = {
-                    'employee_id': record.employee_id,
-                    'attendance_date': record.attendance_date,
-                    'attendance_time': record.attendance_time,
-                    'location_name': record.location_name,
-                    'action_description': record.action_description
-                }
-                hashes.add(self._generate_record_hash(record_data))
-            
-            return hashes
-        except Exception as e:
-            if self.logger:
-                self.logger.logger.warning(f"Failed to get existing record hashes: {e}")
-            return set()
-    
-    def _get_existing_record_hashes_with_data(self) -> Dict[str, Dict]:
-        """Get hashes with full existing record data for comparison"""
-        try:
-            from models.time_attendance import TimeAttendance
-            
-            existing_records = TimeAttendance.query.all()
-            hash_map = {}
-            
-            for record in existing_records:
-                record_data = {
-                    'employee_id': record.employee_id,
-                    'attendance_date': record.attendance_date,
-                    'attendance_time': record.attendance_time,
-                    'location_name': record.location_name,
-                    'action_description': record.action_description
-                }
-                record_hash = self._generate_record_hash(record_data)
-                
-                hash_map[record_hash] = {
-                    'id': record.id,
-                    'employee_id': record.employee_id,
-                    'employee_name': record.employee_name,
-                    'platform': record.platform,
-                    'attendance_date': record.attendance_date,
-                    'attendance_time': record.attendance_time,
-                    'location_name': record.location_name,
-                    'action_description': record.action_description,
-                    'event_description': record.event_description,
-                    'recorded_address': record.recorded_address,
-                    'distance': getattr(record, 'distance', None),
-                    'import_batch_id': record.import_batch_id,
-                    'import_date': record.import_date,
-                    'import_source': record.import_source
-                }
-            
-            return hash_map
-        except Exception as e:
-            if self.logger:
-                self.logger.logger.warning(f"Failed to get existing records with data: {e}")
-            return {}
-    
     def validate_excel_file(self, file_path: str) -> Dict[str, Any]:
-        """Enhanced Excel file validation with detailed analysis"""
+        """
+        Validate Excel file structure and content before import
+        
+        Args:
+            file_path: Path to the Excel file
+            
+        Returns:
+            Dictionary containing validation results
+        """
         validation_results = {
             'valid': False,
-            'total_rows': 0,
-            'valid_rows': 0,
-            'invalid_rows': 0,
-            'columns': [],
-            'sample_data': [],
             'errors': [],
             'warnings': [],
-            'file_info': {}
+            'total_rows': 0,
+            'valid_rows': 0,
+            'invalid_rows': 0
         }
         
         try:
-            import os
-            file_stats = os.stat(file_path)
-            validation_results['file_info'] = {
-                'size': file_stats.st_size,
-                'size_mb': round(file_stats.st_size / (1024 * 1024), 2)
-            }
-            
-            excel_file = pd.ExcelFile(file_path)
-            sheet_name = excel_file.sheet_names[0]
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
-            
-            original_row_count = len(df)
-            df = df.dropna(how='all')
-            
+            # Try to read the Excel file
+            df = pd.read_excel(file_path)
             validation_results['total_rows'] = len(df)
-            validation_results['columns'] = df.columns.tolist()
             
-            if original_row_count > len(df):
-                validation_results['warnings'].append(
-                    f"Removed {original_row_count - len(df)} completely empty rows"
-                )
-            
-            sample_rows = df.head(5).to_dict('records')
-            validation_results['sample_data'] = sample_rows
-
-            # Define ONLY truly required columns (ID, Name, Date, Time, Location Name, Action Description)
+            # Check required columns
             required_columns = ['ID', 'Date', 'Time', 'Location Name', 'Action Description']
             missing_columns = [col for col in required_columns if col not in df.columns]
-
+            
             if missing_columns:
                 validation_results['errors'].append(
                     f"Missing required columns: {', '.join(missing_columns)}"
                 )
-
-            # Count valid rows by checking if ALL required fields have values
-            valid_row_count = 0
-            invalid_row_details = []
-
-            for index, row in df.iterrows():
-                is_valid = True
-                missing_fields = []
-                
-                # Check each required column
-                for col in required_columns:
-                    if col in df.columns:
-                        if pd.isna(row[col]):
-                            is_valid = False
-                            missing_fields.append(col)
-                    else:
-                        # Column doesn't exist in file
-                        is_valid = False
-                        missing_fields.append(f"{col} (column not found)")
-                
-                if is_valid:
-                    valid_row_count += 1
-                else:
-                    # Track invalid row for detailed reporting
-                    invalid_row_details.append({
-                        'row': index + 2,  # +2 for header and 0-based index
-                        'missing': missing_fields
-                    })
-
-            validation_results['valid_rows'] = valid_row_count
-            validation_results['invalid_rows'] = len(df) - valid_row_count
-
-            if validation_results['invalid_rows'] > 0:
-                # Provide detailed warning about invalid rows
+            
+            # Check optional columns
+            optional_columns = ['Name', 'Platform', 'Event Description', 'Recorded Address', 'Distance']
+            present_optional = [col for col in optional_columns if col in df.columns]
+            
+            if present_optional:
                 validation_results['warnings'].append(
-                    f"{validation_results['invalid_rows']} rows have missing required data"
+                    f"Optional columns found: {', '.join(present_optional)}"
                 )
+            
+            # Validate data in rows
+            if not missing_columns:
+                valid_row_count = 0
+                invalid_row_details = []
                 
-                # Add details about first few invalid rows for debugging
-                if invalid_row_details:
-                    sample_invalid = invalid_row_details[:3]  # Show first 3 invalid rows
-                    details_msg = "Examples: "
-                    for detail in sample_invalid:
-                        details_msg += f"Row {detail['row']} (missing: {', '.join(detail['missing'])}); "
-                    validation_results['warnings'].append(details_msg.rstrip('; '))
+                for index, row in df.iterrows():
+                    is_valid = True
+                    missing_fields = []
+                    
+                    for col in required_columns:
+                        if col in df.columns:
+                            if pd.isna(row[col]):
+                                is_valid = False
+                                missing_fields.append(col)
+                        else:
+                            # Column doesn't exist in file
+                            is_valid = False
+                            missing_fields.append(f"{col} (column not found)")
+                    
+                    if is_valid:
+                        valid_row_count += 1
+                    else:
+                        # Track invalid row for detailed reporting
+                        invalid_row_details.append({
+                            'row': index + 2,  # +2 for header and 0-based index
+                            'missing': missing_fields
+                        })
+
+                validation_results['valid_rows'] = valid_row_count
+                validation_results['invalid_rows'] = len(df) - valid_row_count
+
+                if validation_results['invalid_rows'] > 0:
+                    # Provide detailed warning about invalid rows
+                    validation_results['warnings'].append(
+                        f"{validation_results['invalid_rows']} rows have missing required data"
+                    )
+                    
+                    # Add details about first few invalid rows for debugging
+                    if invalid_row_details:
+                        sample_invalid = invalid_row_details[:3]  # Show first 3 invalid rows
+                        details_msg = "Examples: "
+                        for detail in sample_invalid:
+                            details_msg += f"Row {detail['row']} (missing: {', '.join(detail['missing'])}); "
+                        validation_results['warnings'].append(details_msg.rstrip('; '))
             
             if 'Date' in df.columns:
                 invalid_dates = 0
@@ -1131,4 +1152,3 @@ class TimeAttendanceImportService:
                 self.logger.logger.error(f"Failed to delete batch {batch_id}: {e}")
         
         return result
-    
