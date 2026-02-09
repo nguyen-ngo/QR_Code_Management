@@ -137,6 +137,11 @@
     <p><strong>Current Date:</strong> {{ attendance_record.check_in_date.strftime('%Y-%m-%d') }}</p>
     <p><strong>Current Time:</strong> {{ attendance_record.check_in_time.strftime('%H:%M') }}</p>
     <p><strong>Current Location:</strong> {{ attendance_record.location_name }}</p>
+    <p><strong>Current Event Type:</strong> 
+      <span style="padding: 0.25rem 0.5rem; background-color: {% if attendance_record.qr_code and attendance_record.qr_code.location_event == 'Check In' %}#d1fae5{% else %}#fef3c7{% endif %}; border-radius: 4px; font-weight: 600;">
+        {{ attendance_record.qr_code.location_event if attendance_record.qr_code else 'Unknown' }}
+      </span>
+    </p>
   </div>
 
   <form method="POST" action="{{ url_for('edit_attendance', record_id=attendance_record.id) }}">
@@ -222,9 +227,48 @@
 
     <!-- Location Information -->
     <div class="form-section">
-      <h3><i class="fas fa-map-marker-alt"></i> Location Information</h3>
+      <h3><i class="fas fa-map-marker-alt"></i> Location & Event Information</h3>
+      
+      <!-- Project Selection -->
       <div class="form-group">
-        <label for="location_name">Location Name *</label>
+        <label for="project_id">Project *</label>
+        <select id="project_id" class="form-control" required>
+          <option value="">-- Select Project --</option>
+          {% for project in projects %}
+          <option value="{{ project.id }}" 
+            {% if attendance_record.qr_code and attendance_record.qr_code.project_id == project.id %}selected{% endif %}>
+            {{ project.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Location Selection -->
+      <div class="form-group">
+        <label for="location_select">Location *</label>
+        <select id="location_select" class="form-control" required disabled>
+          <option value="">-- Select Project First --</option>
+        </select>
+        <div id="location_loading" style="display: none; text-align: center; padding: 0.5rem; color: #007bff;">
+          <i class="fas fa-spinner fa-spin"></i> Loading locations...
+        </div>
+      </div>
+
+      <!-- Event Type Selection -->
+      <div class="form-group">
+        <label for="event_type_select">Event Type *</label>
+        <select id="event_type_select" class="form-control" required disabled>
+          <option value="">-- Select Location First --</option>
+        </select>
+        <small class="form-help">Select whether this is a Check In or Check Out event</small>
+      </div>
+
+      <!-- Hidden field for QR code ID -->
+      <input type="hidden" id="qr_code_id" name="qr_code_id" required>
+      
+      <!-- Location Name (auto-filled, read-only) -->
+      <div class="form-group">
+        <label for="location_name">Location Name (Auto-filled) *</label>
         <input
           type="text"
           id="location_name"
@@ -232,8 +276,10 @@
           value="{{ attendance_record.location_name }}"
           required
           class="form-control"
-          placeholder="Enter location name"
+          readonly
+          style="background-color: #f3f4f6;"
         />
+        <small class="form-help">This field is automatically updated based on your location selection above</small>
       </div>
     </div>
 
@@ -268,6 +314,151 @@
     const userRole = '{{ session.role }}';
     const authorizedRoles = ['admin', 'accounting'];
     
+    // Store location data for the dropdowns
+    let locationData = {};
+    
+    // Get form elements
+    const projectSelect = document.getElementById('project_id');
+    const locationSelect = document.getElementById('location_select');
+    const eventTypeSelect = document.getElementById('event_type_select');
+    const qrCodeIdHidden = document.getElementById('qr_code_id');
+    const locationNameInput = document.getElementById('location_name');
+    const locationLoading = document.getElementById('location_loading');
+    
+    // Current record data
+    const currentQrCodeId = {{ attendance_record.qr_code_id }};
+    const currentLocationName = "{{ attendance_record.location_name }}";
+    const currentProjectId = {{ attendance_record.qr_code.project_id if attendance_record.qr_code and attendance_record.qr_code.project_id else 'null' }};
+    const currentLocationEvent = "{{ attendance_record.qr_code.location_event if attendance_record.qr_code else '' }}";
+    
+    // Project selection handler
+    projectSelect.addEventListener('change', function() {
+      const projectId = this.value;
+      
+      // Reset dependent fields
+      locationSelect.innerHTML = '<option value="">-- Select Location --</option>';
+      locationSelect.disabled = true;
+      eventTypeSelect.innerHTML = '<option value="">-- Select Location First --</option>';
+      eventTypeSelect.disabled = true;
+      qrCodeIdHidden.value = '';
+      locationData = {};
+      
+      if (!projectId) {
+        locationSelect.innerHTML = '<option value="">-- Select Project First --</option>';
+        return;
+      }
+      
+      // Load locations for selected project
+      locationLoading.style.display = 'block';
+      
+      fetch(`/api/get_project_locations?project_id=${projectId}`)
+        .then(response => response.json())
+        .then(data => {
+          locationLoading.style.display = 'none';
+          
+          if (data.success && data.locations.length > 0) {
+            locationSelect.disabled = false;
+            
+            data.locations.forEach((loc, index) => {
+              const locationKey = `loc_${index}`;
+              locationData[locationKey] = {
+                location: loc.location,
+                location_address: loc.location_address,
+                qr_codes: loc.qr_codes
+              };
+              
+              const option = document.createElement('option');
+              option.value = locationKey;
+              option.textContent = `${loc.location} - ${loc.location_address}`;
+              
+              // Pre-select if this matches current location
+              if (loc.location === currentLocationName && currentProjectId == projectId) {
+                option.selected = true;
+              }
+              
+              locationSelect.appendChild(option);
+            });
+            
+            // Trigger change to populate event types if location was pre-selected
+            if (locationSelect.value) {
+              locationSelect.dispatchEvent(new Event('change'));
+            }
+          } else {
+            locationSelect.innerHTML = '<option value="">No active locations found for this project</option>';
+          }
+        })
+        .catch(error => {
+          locationLoading.style.display = 'none';
+          console.error('Error loading locations:', error);
+          alert('Error loading locations. Please try again.');
+        });
+    });
+    
+    // Location selection handler
+    locationSelect.addEventListener('change', function() {
+      const locationKey = this.value;
+      
+      eventTypeSelect.innerHTML = '';
+      eventTypeSelect.disabled = false;
+      qrCodeIdHidden.value = '';
+      
+      if (locationKey && locationData[locationKey]) {
+        const location = locationData[locationKey];
+        const qrCodes = location.qr_codes;
+        
+        // Update location name field
+        locationNameInput.value = location.location;
+        
+        // Add available event types
+        if (qrCodes['Check In']) {
+          const option = document.createElement('option');
+          option.value = qrCodes['Check In'];
+          option.textContent = 'Check In';
+          
+          // Pre-select if this matches current event
+          if (currentLocationEvent === 'Check In' && currentQrCodeId == qrCodes['Check In']) {
+            option.selected = true;
+          }
+          
+          eventTypeSelect.appendChild(option);
+        }
+        
+        if (qrCodes['Check Out']) {
+          const option = document.createElement('option');
+          option.value = qrCodes['Check Out'];
+          option.textContent = 'Check Out';
+          
+          // Pre-select if this matches current event
+          if (currentLocationEvent === 'Check Out' && currentQrCodeId == qrCodes['Check Out']) {
+            option.selected = true;
+          }
+          
+          eventTypeSelect.appendChild(option);
+        }
+        
+        if (eventTypeSelect.options.length === 0) {
+          eventTypeSelect.innerHTML = '<option value="">No event types available</option>';
+          eventTypeSelect.disabled = true;
+        } else {
+          // Set hidden field to selected or first option
+          qrCodeIdHidden.value = eventTypeSelect.value || eventTypeSelect.options[0].value;
+        }
+      } else {
+        eventTypeSelect.innerHTML = '<option value="">-- Select Location First --</option>';
+        eventTypeSelect.disabled = true;
+      }
+    });
+    
+    // Event type selection handler
+    eventTypeSelect.addEventListener('change', function() {
+      qrCodeIdHidden.value = this.value;
+    });
+    
+    // Initialize by triggering project change if project is already selected
+    if (currentProjectId && projectSelect.value) {
+      projectSelect.dispatchEvent(new Event('change'));
+    }
+    
     // Disable all form inputs for non-authorized roles
     if (!authorizedRoles.includes(userRole)) {
       const formInputs = document.querySelectorAll('input, textarea, select, button[type="submit"]');
@@ -294,12 +485,13 @@
     const form = document.querySelector("form");
     form.addEventListener("submit", function (e) {
       const employeeId = document.getElementById("employee_id").value.trim();
-      const locationName = document.getElementById("location_name").value.trim();
+      const locationName = locationNameInput.value.trim();
       const editNote = document.getElementById("edit_note").value.trim();
+      const qrCodeId = qrCodeIdHidden.value.trim();
 
-      if (!employeeId || !locationName || !editNote) {
+      if (!employeeId || !locationName || !editNote || !qrCodeId) {
         e.preventDefault();
-        alert("Please fill in all required fields, including the audit note.");
+        alert("Please fill in all required fields, including selecting the project, location, and event type.");
         return;
       }
 

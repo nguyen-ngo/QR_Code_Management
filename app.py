@@ -5128,8 +5128,10 @@ def edit_attendance(record_id):
             edit_note = request.form.get('edit_note', '').strip()
             if not edit_note:
                 flash('Edit reason is required for audit purposes.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
                 return render_template('edit_attendance.html',
                                      attendance_record=attendance_record,
+                                     projects=projects,
                                      qr_codes=QRCode.query.filter_by(active_status=True).all())
 
             # Track changes for logging
@@ -5138,7 +5140,9 @@ def edit_attendance(record_id):
                 'employee_id': attendance_record.employee_id,
                 'check_in_date': attendance_record.check_in_date,
                 'check_in_time': attendance_record.check_in_time,
-                'location_name': attendance_record.location_name
+                'location_name': attendance_record.location_name,
+                'qr_code_id': attendance_record.qr_code_id,
+                'location_event': attendance_record.qr_code.location_event if attendance_record.qr_code else None
             }
 
             # Update attendance record fields
@@ -5146,6 +5150,26 @@ def edit_attendance(record_id):
             new_check_in_date = datetime.strptime(request.form['check_in_date'], '%Y-%m-%d').date()
             new_check_in_time = datetime.strptime(request.form['check_in_time'], '%H:%M').time()
             new_location_name = request.form['location_name'].strip()
+            
+            # Get the new QR code ID from the form (this determines the location event)
+            new_qr_code_id = request.form.get('qr_code_id', '').strip()
+            if not new_qr_code_id:
+                flash('Location event selection is required.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('edit_attendance.html',
+                                     attendance_record=attendance_record,
+                                     projects=projects,
+                                     qr_codes=QRCode.query.filter_by(active_status=True).all())
+            
+            # Validate the QR code exists
+            new_qr_code = QRCode.query.get(int(new_qr_code_id))
+            if not new_qr_code:
+                flash('Selected location event not found.', 'error')
+                projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                return render_template('edit_attendance.html',
+                                     attendance_record=attendance_record,
+                                     projects=projects,
+                                     qr_codes=QRCode.query.filter_by(active_status=True).all())
 
             # Track what changed
             if attendance_record.employee_id != new_employee_id:
@@ -5156,12 +5180,18 @@ def edit_attendance(record_id):
                 changes['check_in_time'] = f"{attendance_record.check_in_time} → {new_check_in_time}"
             if attendance_record.location_name != new_location_name:
                 changes['location_name'] = f"{attendance_record.location_name} → {new_location_name}"
+            if attendance_record.qr_code_id != int(new_qr_code_id):
+                old_event = attendance_record.qr_code.location_event if attendance_record.qr_code else 'Unknown'
+                new_event = new_qr_code.location_event
+                changes['location_event'] = f"{old_event} → {new_event}"
+                changes['qr_code_id'] = f"{attendance_record.qr_code_id} → {new_qr_code_id}"
 
             # Apply changes
             attendance_record.employee_id = new_employee_id
             attendance_record.check_in_date = new_check_in_date
             attendance_record.check_in_time = new_check_in_time
             attendance_record.location_name = new_location_name
+            attendance_record.qr_code_id = int(new_qr_code_id)
             attendance_record.updated_timestamp = datetime.utcnow()
             
             # Store the audit note with timestamp and user info
@@ -5216,11 +5246,15 @@ def edit_attendance(record_id):
             return redirect(url_for('attendance_report'))
 
         # GET request - show edit form
-        # Get available QR codes for location dropdown
+        # Get available projects for the dropdown
+        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+        
+        # Get available QR codes for location dropdown (for backward compatibility)
         qr_codes = QRCode.query.filter_by(active_status=True).all()
 
         return render_template('edit_attendance.html',
                              attendance_record=attendance_record,
+                             projects=projects,
                              qr_codes=qr_codes)
 
     except Exception as e:
