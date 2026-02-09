@@ -1040,17 +1040,6 @@
     <div class="destination-container">
       <!-- Header Section with Dynamic Styling and Color-Coded Languages -->
       <div class="destination-header fade-transition active">
-        <div class="header-icon">
-          <!-- Company Logo -->
-          <img
-            src="{{ url_for('static', filename='images/logo.png') }}"
-            alt="Company Logo"
-            class="company-logo"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-          />
-          <!-- Fallback QR Icon (hidden by default, shown if logo fails to load) -->
-          <i class="fas fa-qrcode fallback-icon" style="display: none"></i>
-        </div>
         {% if qr_code.location_event == 'Check In' %}
         <h1>
           <span class="english-text">{{ qr_code.location_event }}</span>
