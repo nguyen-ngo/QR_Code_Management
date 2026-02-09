@@ -249,13 +249,13 @@
 
             <!-- Location Selection -->
             <div class="form-group">
-                <label for="location_id">
+                <label for="location_select">
                     Location <span class="required">*</span>
                 </label>
-                <select id="location_id" name="location_id" class="form-control" required disabled>
+                <select id="location_select" class="form-control" required disabled>
                     <option value="">-- Select Project First --</option>
                 </select>
-                <div class="help-text">Locations will be loaded based on the selected project</div>
+                <div class="help-text">Locations will be loaded based on the selected project (each location shown once)</div>
                 <div id="location_loading" class="loading-spinner">
                     <i class="fas fa-spinner fa-spin"></i> Loading locations...
                 </div>
@@ -263,14 +263,17 @@
 
             <!-- Event Type Selection -->
             <div class="form-group">
-                <label for="event_type">
+                <label for="event_type_select">
                     Event Type <span class="required">*</span>
                 </label>
-                <select id="event_type" name="event_type" class="form-control" required disabled>
+                <select id="event_type_select" class="form-control" required disabled>
                     <option value="">-- Select Location First --</option>
                 </select>
                 <div class="help-text">Select whether this is a check-in or check-out event</div>
             </div>
+            
+            <!-- Hidden field for the actual QR code ID that will be submitted -->
+            <input type="hidden" id="location_id" name="location_id" required>
 
             <!-- Date and Time -->
             <div class="form-group">
@@ -381,9 +384,13 @@ document.addEventListener('click', function(e) {
 
 // Project selection - load locations
 const projectSelect = document.getElementById('project_id');
-const locationSelect = document.getElementById('location_id');
-const eventTypeSelect = document.getElementById('event_type');
+const locationSelect = document.getElementById('location_select');
+const eventTypeSelect = document.getElementById('event_type_select');
+const locationIdHidden = document.getElementById('location_id');
 const locationLoading = document.getElementById('location_loading');
+
+// Store location data for later use
+let locationData = {};
 
 projectSelect.addEventListener('change', function() {
     const projectId = this.value;
@@ -393,6 +400,8 @@ projectSelect.addEventListener('change', function() {
     locationSelect.disabled = true;
     eventTypeSelect.innerHTML = '<option value="">-- Select Location First --</option>';
     eventTypeSelect.disabled = true;
+    locationIdHidden.value = '';
+    locationData = {};
     
     if (!projectId) {
         locationSelect.innerHTML = '<option value="">-- Select Project First --</option>';
@@ -410,11 +419,13 @@ projectSelect.addEventListener('change', function() {
             if (data.success && data.locations.length > 0) {
                 locationSelect.disabled = false;
                 
-                data.locations.forEach(loc => {
+                data.locations.forEach((loc, index) => {
+                    const locationKey = `loc_${index}`;
+                    locationData[locationKey] = loc.qr_codes;
+                    
                     const option = document.createElement('option');
-                    option.value = loc.id;
+                    option.value = locationKey;
                     option.textContent = `${loc.location} - ${loc.location_address}`;
-                    option.dataset.event = loc.location_event;
                     locationSelect.appendChild(option);
                 });
             } else {
@@ -428,23 +439,48 @@ projectSelect.addEventListener('change', function() {
         });
 });
 
-// Location selection - set event type
+// Location selection - populate event type options
 locationSelect.addEventListener('change', function() {
-    const selectedOption = this.options[this.selectedIndex];
-    const eventType = selectedOption.dataset.event;
+    const locationKey = this.value;
     
     eventTypeSelect.innerHTML = '';
     eventTypeSelect.disabled = false;
+    locationIdHidden.value = '';
     
-    if (eventType) {
-        const option = document.createElement('option');
-        option.value = eventType;
-        option.textContent = eventType;
-        option.selected = true;
-        eventTypeSelect.appendChild(option);
+    if (locationKey && locationData[locationKey]) {
+        const qrCodes = locationData[locationKey];
+        
+        // Add available event types
+        if (qrCodes['Check In']) {
+            const option = document.createElement('option');
+            option.value = qrCodes['Check In'];
+            option.textContent = 'Check In';
+            eventTypeSelect.appendChild(option);
+        }
+        
+        if (qrCodes['Check Out']) {
+            const option = document.createElement('option');
+            option.value = qrCodes['Check Out'];
+            option.textContent = 'Check Out';
+            eventTypeSelect.appendChild(option);
+        }
+        
+        if (eventTypeSelect.options.length === 0) {
+            eventTypeSelect.innerHTML = '<option value="">No event types available</option>';
+            eventTypeSelect.disabled = true;
+        } else {
+            // Set the hidden location_id to the first available option
+            locationIdHidden.value = eventTypeSelect.options[0].value;
+        }
     } else {
-        eventTypeSelect.innerHTML = '<option value="">Event type not available</option>';
+        eventTypeSelect.innerHTML = '<option value="">-- Select Location First --</option>';
+        eventTypeSelect.disabled = true;
     }
+});
+
+// Event type selection - update hidden location_id field
+eventTypeSelect.addEventListener('change', function() {
+    locationIdHidden.value = this.value;
 });
 
 // Set default date to today

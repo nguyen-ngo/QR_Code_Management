@@ -5438,12 +5438,27 @@ def get_project_locations_api():
             active_status=True
         ).order_by(QRCode.location).all()
         
+        # Group QR codes by location to get unique locations
+        locations_dict = {}
+        for qr in qr_codes:
+            location_key = f"{qr.location}||{qr.location_address}"
+            
+            if location_key not in locations_dict:
+                locations_dict[location_key] = {
+                    'location': qr.location,
+                    'location_address': qr.location_address,
+                    'qr_codes': {}
+                }
+            
+            # Store QR code ID for each event type
+            locations_dict[location_key]['qr_codes'][qr.location_event] = qr.id
+
+        # Convert to list format
         location_list = [{
-            'id': qr.id,
-            'location': qr.location,
-            'location_address': qr.location_address,
-            'location_event': qr.location_event
-        } for qr in qr_codes]
+            'location': loc_data['location'],
+            'location_address': loc_data['location_address'],
+            'qr_codes': loc_data['qr_codes']
+        } for loc_data in locations_dict.values()]
         
         return jsonify({'success': True, 'locations': location_list})
     
