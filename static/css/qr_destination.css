@@ -348,15 +348,15 @@ body {
 }
 
 .success-icon {
-    display: inline-flex;
+    display: none; /* Change back to 'inline-flex' to display icon */
     align-items: center;
     justify-content: center;
-    width: 100px;
-    height: 100px;
+    width: 50px;
+    height: 50px;
     background: var(--success-color) !important;
     color: var(--white) !important;
     border-radius: 50%;
-    font-size: 3rem;
+    font-size: 1.5rem;
     margin-bottom: 1.5rem;
     animation: successPulse 1s ease-out;
 }

@@ -378,7 +378,15 @@ function handleCheckinSuccess(data) {
     showLocalizedStatusMessage("success", "success");
   }
 
-  // Hide form (PRESERVED FROM ORIGINAL)
+  // Hide the entire checkin-card (includes instruction header and form)
+  const checkinCard = document.querySelector(".checkin-card");
+  if (checkinCard) {
+    checkinCard.style.display = "none";
+    checkinCard.classList.remove("active");
+    checkinCard.classList.add("hidden-after-success");
+  }
+
+  // Also hide form separately for backward compatibility (PRESERVED FROM ORIGINAL)
   const form = document.getElementById("checkinForm");
   if (form) {
     form.style.display = "none";
@@ -465,7 +473,15 @@ function handleCheckinSuccess(data) {
 
 // NEW: Reset form for new check-in
 function resetForNewCheckin() {
-  // Show form again
+  // Show checkin-card again (includes instruction header and form)
+  const checkinCard = document.querySelector(".checkin-card");
+  if (checkinCard) {
+    checkinCard.style.display = "block";
+    checkinCard.classList.add("active");
+    checkinCard.classList.remove("hidden-after-success");
+  }
+
+  // Show form again (PRESERVED FROM ORIGINAL)
   const form = document.getElementById("checkinForm");
   if (form) {
     form.style.display = "block";
