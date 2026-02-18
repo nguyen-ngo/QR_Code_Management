@@ -9194,6 +9194,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             employee_names[base_id] = record.employee_name
     
     # Setup styles
+    # White bold text on black background for column header row (no border)
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
     header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     data_font = Font(name='Arial', size=10)
@@ -9204,53 +9205,35 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
-    # Border for first row of a day (top, left, right - no bottom)
-    border_day_first = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='none')
-    )
-    
-    # Border for middle rows of a day (left, right only - no top or bottom)
-    border_day_middle = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='none'),
-        bottom=Side(style='none')
-    )
-    
-    # Border for last row of a day (bottom, left, right - no top)
+    # CHANGED: Sample format uses ONLY a bottom border on the last row of each day group.
+    # Intermediate rows and first rows have no borders at all (no left/right/top).
+    border_day_middle = Border()  # No borders on intermediate rows
+
     border_day_last = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='none'),
-        bottom=Side(style='thin')
+        bottom=Side(style='thin')  # Only bottom border on the last row of a day group
     )
-    
-    # Border for single row day (all sides)
+
     border_day_single = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
+        bottom=Side(style='thin')  # Single-row days also get only bottom border
     )
+
+    # border_day_first is same as middle (no borders) — kept for compatibility
+    border_day_first = Border()
 
     def get_day_border(row_position, total_rows):
         """
-        Get appropriate border style based on row position within a day
-        
+        Get appropriate border style based on row position within a day.
+        Matches sample.xlsx: only the LAST row of each day group has a bottom border.
+
         Args:
             row_position: Current row number (0-indexed) within the day
             total_rows: Total number of rows for this day
-        
+
         Returns:
             Border object
         """
         if total_rows == 1:
             return border_day_single
-        elif row_position == 0:
-            return border_day_first
         elif row_position == total_rows - 1:
             return border_day_last
         else:
@@ -9322,9 +9305,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
+            # White bold text on black background; no border (matching sample.xlsx)
             cell.font = header_font
             cell.fill = header_fill
-            cell.border = border
             cell.alignment = Alignment(horizontal='center', vertical='center')
         current_row += 1
         
@@ -11059,4 +11042,3 @@ if __name__ == '__main__':
             host=os.environ.get('FLASK_HOST'),
             port=os.environ.get('FLASK_PORT'),
             threaded=os.environ.get ('THREADED'))
-    
