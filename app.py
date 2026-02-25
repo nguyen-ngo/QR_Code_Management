@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
-from single_checkin_calculator import SingleCheckInCalculator
-from working_hours_calculator import WorkingHoursCalculator
+from working_hours_calculator import (WorkingHoursCalculator,
+                                      round_time_to_quarter_hour)
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 from time_attendance_import_service import TimeAttendanceImportService
@@ -9667,14 +9667,16 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         
                         first_datetime = datetime.combine(date_obj, first_time)
                         last_datetime = datetime.combine(date_obj, last_time)
-                        calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
-                        calculated_hours = round(calculated_hours, 2)
+                        _raw_min = (last_datetime - first_datetime).total_seconds() / 60.0
+                        calculated_hours = round_time_to_quarter_hour(_raw_min) / 60.0
                         
                         weekly_total_hours += calculated_hours
                         total_hours = calculated_hours
             
             # Daily total display (only shown on last location's last row)
-            daily_total_display = round(total_hours, 2) if total_hours > 0 else ''
+            # Daily Total: quarter-hour rounding → decimal hours
+            _dt_min = total_hours * 60.0
+            daily_total_display = round_time_to_quarter_hour(_dt_min) / 60.0 if total_hours > 0 else ''
             
             # FIXED: Get all records for the day and sort by time FIRST, then group by location
             all_day_records = []
@@ -10481,15 +10483,15 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     
                     i += 1
                 
-                # Calculate daily hours
-                daily_hours = 0
+                # Calculate daily hours (Daily Total = quarter-hour rounding)
+                _raw_day_min = 0
                 for pair in pairs:
                     if pair['check_in'] and pair['check_out'] and not pair['is_miss_punch']:
                         pair_in = datetime.combine(date_obj, pair['check_in'].check_in_time)
                         pair_out = datetime.combine(date_obj, pair['check_out'].check_in_time)
-                        daily_hours += (pair_out - pair_in).total_seconds() / 3600.0
+                        _raw_day_min += (pair_out - pair_in).total_seconds() / 60.0
                 
-                daily_hours = round(daily_hours, 2)
+                daily_hours = round_time_to_quarter_hour(_raw_day_min) / 60.0
                 weekly_total_hours += daily_hours
                 
                 # Write pairs

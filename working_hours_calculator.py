@@ -30,6 +30,95 @@ RECORD_GROUPING_MAX_MINUTES = 60 * 6  # 6 hours
 MAX_REGULAR_TIME_MINUTES = 60 * 40    # 40 hours per week
 
 
+# ---------------------------------------------------------------------------
+# Time rounding utilities (ported from SingleCheckInCalculator)
+# ---------------------------------------------------------------------------
+
+def round_time_to_quarter_hour(minutes: float) -> float:
+    """
+    Round a duration in minutes to the nearest quarter hour using
+    7.5-minute boundary increments.
+
+    Rules:
+        0:00 – 0:07  →  0:00
+        0:08 – 0:22  →  0:15
+        0:23 – 0:37  →  0:30
+        0:38 – 0:52  →  0:45
+        0:53 – 1:07  →  1:00
+    """
+    if minutes < 0:
+        return 0.0
+
+    hours = int(minutes // 60)
+    minutes_in_hour = minutes % 60
+
+    if minutes_in_hour <= 7:
+        rounded_in_hour = 0
+    elif minutes_in_hour <= 22:
+        rounded_in_hour = 15
+    elif minutes_in_hour <= 37:
+        rounded_in_hour = 30
+    elif minutes_in_hour <= 52:
+        rounded_in_hour = 45
+    else:  # 53 – 59
+        hours += 1
+        rounded_in_hour = 0
+
+    return hours * 60 + rounded_in_hour
+
+
+def convert_minutes_to_base100(minutes: float) -> float:
+    """
+    Convert a duration in minutes to base-100 hours
+    (each fractional hour expressed as hundredths, not sixtieths).
+
+    Example: 90 min → 1.50 base-100 hours
+    """
+    if minutes < 0:
+        return 0.0
+
+    decimal_hours = minutes / 60.0
+    whole_hours = int(decimal_hours)
+    fractional_hours = decimal_hours - whole_hours
+    base100_fraction = fractional_hours * 100
+
+    return whole_hours + (base100_fraction / 100)
+
+
+def round_base100_hours(base100_hours: float) -> float:
+    """
+    Round base-100 hours to the nearest quarter (.00 / .25 / .50 / .75)
+    using 12.5-unit thresholds.
+
+    Examples:
+        4.12  →  4.00
+        4.18  →  4.25
+        8.02  →  8.00
+        8.87  →  9.00
+    """
+    if base100_hours < 0:
+        return 0.0
+
+    whole_hours = int(base100_hours)
+    fractional_part = (base100_hours - whole_hours) * 100
+
+    if fractional_part < 12.5:
+        rounded_fraction = 0
+    elif fractional_part < 37.5:
+        rounded_fraction = 25
+    elif fractional_part < 62.5:
+        rounded_fraction = 50
+    elif fractional_part < 87.5:
+        rounded_fraction = 75
+    else:
+        whole_hours += 1
+        rounded_fraction = 0
+
+    return round(whole_hours + (rounded_fraction / 100), 2)
+
+
+# ---------------------------------------------------------------------------
+
 def parse_employee_id_for_work_type(employee_id: str) -> Tuple[str, str]:
     """
     Parse employee ID to extract base ID and work type (supports SP, PW, PT)
@@ -140,17 +229,33 @@ class DailyTimeCalculator(TimeCalculator):
         """Add a record pair to the daily calculation"""
         self.record_pairs.append(pair)
     
-    def get_minutes_total_exclude_travel_time(self) -> int:
-        """Calculate total minutes excluding travel time"""
+    def get_minutes_total_exclude_travel_time(self) -> float:
+        """
+        Calculate total minutes excluding travel time.
+        Returns -1 for miss punches, otherwise returns the quarter-hour-
+        rounded total minutes (using the 7.5-minute boundary rule).
+        """
         minute_total = 0
-        
+
         for pair in self.record_pairs:
             if not pair.is_miss_punch:
                 minute_total += pair.duration_minutes
             else:
                 return -1  # Miss punch detected
-        
-        return self.round_time_to_nearest_quarter_hour(minute_total)
+
+        # Use the 7.5-minute boundary rounding (matches SingleCheckInCalculator)
+        return round_time_to_quarter_hour(minute_total)
+
+    def get_base100_hours(self) -> float:
+        """
+        Return daily total as base-100 rounded hours.
+        Returns 0.0 for miss punches.
+        """
+        rounded_minutes = self.get_minutes_total_exclude_travel_time()
+        if rounded_minutes < 0:
+            return 0.0
+        base100 = convert_minutes_to_base100(rounded_minutes)
+        return round_base100_hours(base100)
 
 
 class WeeklyTimeCalculator(TimeCalculator):
@@ -402,14 +507,19 @@ class WorkingHoursCalculator:
                         pairs = RecordPairBuilder.build_pairs_from_records(day_records)
                         for pair in pairs:
                             daily_calc.add_record_pair(pair)
-                        
+
                         total_minutes = daily_calc.get_minutes_total_exclude_travel_time()
-                        
+
                         if total_minutes < 0:
                             hours_by_type[work_type] = 0.0
                             is_miss_punch_by_type[work_type] = True
                         else:
-                            hours_by_type[work_type] = total_minutes / 60.0
+                            # Apply full rounding pipeline:
+                            # 1. round_time_to_quarter_hour (already done inside get_minutes_total)
+                            # 2. convert to base-100
+                            # 3. round_base100_hours
+                            base100 = convert_minutes_to_base100(total_minutes)
+                            hours_by_type[work_type] = round_base100_hours(base100)
                             is_miss_punch_by_type[work_type] = False
                     else:
                         hours_by_type[work_type] = 0.0
@@ -451,38 +561,46 @@ class WorkingHoursCalculator:
                     week_pw_total = current_week_hours['PW']
                     week_pt_total = current_week_hours['PT']
                     week_total = week_regular_total + week_sp_total + week_pw_total + week_pt_total
-                    
+
                     # Only regular hours count toward overtime (40 hour rule)
                     week_regular_hours = min(week_regular_total, 40.0)
                     week_overtime_hours = max(0, week_regular_total - 40.0)
-                    
+
+                    # Apply round_base100_hours to all weekly totals
+                    week_total_r    = round_base100_hours(week_total)
+                    week_regular_r  = round_base100_hours(week_regular_hours)
+                    week_overtime_r = round_base100_hours(week_overtime_hours)
+                    week_sp_r       = round_base100_hours(week_sp_total)
+                    week_pw_r       = round_base100_hours(week_pw_total)
+                    week_pt_r       = round_base100_hours(week_pt_total)
+
                     weekly_hours.append({
-                        'total_hours': round(week_total, 2),
-                        'regular_hours': round(week_regular_hours, 2),
-                        'overtime_hours': round(week_overtime_hours, 2),
-                        'sp_hours': round(week_sp_total, 2),
-                        'pw_hours': round(week_pw_total, 2),
-                        'pt_hours': round(week_pt_total, 2),
-                        'total_minutes': int(week_total * 60),
-                        'regular_minutes': int(week_regular_hours * 60),
-                        'overtime_minutes': int(week_overtime_hours * 60),
-                        'sp_minutes': int(week_sp_total * 60),
-                        'pw_minutes': int(week_pw_total * 60),
-                        'pt_minutes': int(week_pt_total * 60)
+                        'total_hours':      week_total_r,
+                        'regular_hours':    week_regular_r,
+                        'overtime_hours':   week_overtime_r,
+                        'sp_hours':         week_sp_r,
+                        'pw_hours':         week_pw_r,
+                        'pt_hours':         week_pt_r,
+                        'total_minutes':    int(week_total_r * 60),
+                        'regular_minutes':  int(week_regular_r * 60),
+                        'overtime_minutes': int(week_overtime_r * 60),
+                        'sp_minutes':       int(week_sp_r * 60),
+                        'pw_minutes':       int(week_pw_r * 60),
+                        'pt_minutes':       int(week_pt_r * 60),
                     })
-                    
+
                     # Reset for next week
                     current_week_hours = {'regular': 0, 'SP': 0, 'PW': 0, 'PT': 0}
                 
                 current_date += timedelta(days=1)
             
-            # Calculate grand totals
-            grand_total_hours = sum(week['total_hours'] for week in weekly_hours)
-            grand_regular_hours = sum(week['regular_hours'] for week in weekly_hours)
-            grand_overtime_hours = sum(week['overtime_hours'] for week in weekly_hours)
-            grand_sp_hours = sum(week['sp_hours'] for week in weekly_hours)
-            grand_pw_hours = sum(week['pw_hours'] for week in weekly_hours)
-            grand_pt_hours = sum(week.get('pt_hours', 0) for week in weekly_hours)
+            # Calculate grand totals — apply round_base100_hours to each sum
+            grand_total_hours    = round_base100_hours(sum(week['total_hours']    for week in weekly_hours))
+            grand_regular_hours  = round_base100_hours(sum(week['regular_hours']  for week in weekly_hours))
+            grand_overtime_hours = round_base100_hours(sum(week['overtime_hours'] for week in weekly_hours))
+            grand_sp_hours       = round_base100_hours(sum(week['sp_hours']       for week in weekly_hours))
+            grand_pw_hours       = round_base100_hours(sum(week['pw_hours']       for week in weekly_hours))
+            grand_pt_hours       = round_base100_hours(sum(week.get('pt_hours', 0) for week in weekly_hours))
             
             print(f"✅ Employee {employee_id}: Total: {grand_total_hours:.2f}h (Regular: {grand_regular_hours:.2f}h, OT: {grand_overtime_hours:.2f}h, SP: {grand_sp_hours:.2f}h, PW: {grand_pw_hours:.2f}h, PT: {grand_pt_hours:.2f}h)")
             
@@ -494,18 +612,18 @@ class WorkingHoursCalculator:
                 'daily_hours': daily_hours,
                 'weekly_hours': weekly_hours,
                 'grand_totals': {
-                    'total_hours': round(grand_total_hours, 2),
-                    'regular_hours': round(grand_regular_hours, 2),
-                    'overtime_hours': round(grand_overtime_hours, 2),
-                    'sp_hours': round(grand_sp_hours, 2),
-                    'pw_hours': round(grand_pw_hours, 2),
-                    'pt_hours': round(grand_pt_hours, 2),
-                    'total_minutes': int(grand_total_hours * 60),
-                    'regular_minutes': int(grand_regular_hours * 60),
+                    'total_hours':      grand_total_hours,
+                    'regular_hours':    grand_regular_hours,
+                    'overtime_hours':   grand_overtime_hours,
+                    'sp_hours':         grand_sp_hours,
+                    'pw_hours':         grand_pw_hours,
+                    'pt_hours':         grand_pt_hours,
+                    'total_minutes':    int(grand_total_hours * 60),
+                    'regular_minutes':  int(grand_regular_hours * 60),
                     'overtime_minutes': int(grand_overtime_hours * 60),
-                    'sp_minutes': int(grand_sp_hours * 60),
-                    'pw_minutes': int(grand_pw_hours * 60),
-                    'pt_minutes': int(grand_pt_hours * 60)
+                    'sp_minutes':       int(grand_sp_hours * 60),
+                    'pw_minutes':       int(grand_pw_hours * 60),
+                    'pt_minutes':       int(grand_pt_hours * 60),
                 }
             }
             
