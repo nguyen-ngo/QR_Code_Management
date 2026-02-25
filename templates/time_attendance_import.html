@@ -333,6 +333,140 @@
     </div>
   </div>
 
+  <!-- File Upload Form -->
+  <div class="import-section">
+    <div class="import-header">
+      <h2>
+        <i class="fas fa-upload"></i>
+        Upload Excel File
+      </h2>
+    </div>
+    <div class="import-body">
+      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('import_time_attendance') }}">
+
+        <!-- Project Selection - REQUIRED (moved to top) -->
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <h3 style="margin-bottom: 0.75rem;">
+            <i class="fas fa-project-diagram"></i>
+            Select Project <span style="color: #ef4444;">*</span>
+          </h3>
+          <select name="project_id" id="project_id" class="form-select" required style="
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 0.9375rem;
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+          ">
+            <option value="">-- Select Project (Required) --</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+            {% endfor %}
+          </select>
+          <p style="
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+          ">
+            <i class="fas fa-info-circle"></i>
+            <strong>Required:</strong> Select which project this import data belongs to for filtering and reporting
+          </p>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="file-upload-area" id="fileUploadArea">
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <div class="upload-text">
+            <h3>Drag &amp; Drop Excel Files</h3>
+            <p>Or click to browse and select Excel files (.xlsx, .xls). Multiple files supported.</p>
+            <div class="file-info" id="fileInfo" style="display: none;">
+              <i class="fas fa-file-excel"></i>
+              <span class="file-name"></span>
+              <span class="file-size"></span>
+              <span class="file-count"></span>
+            </div>
+          </div>
+          <input type="file" 
+                 id="fileInput" 
+                 name="files" 
+                 accept=".xlsx,.xls" 
+                 class="file-input" 
+                 multiple
+                 required>
+        </div>
+
+        <!-- Import Options (hidden — defaults preserved in DOM for form submission) -->
+        <div class="import-options" style="display: none;" aria-hidden="true">
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="analyze_duplicates" name="analyze_duplicates" value="true" checked>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="analyze_invalid" name="analyze_invalid" value="true" checked>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true">
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="validate_only" name="validate_only" value="true">
+            </div>
+          </div>
+        </div>
+
+        <!-- Import Source -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="import_source" class="form-label">
+              <i class="fas fa-tag"></i>
+              Import Source Description
+            </label>
+            <input type="text" 
+                   id="import_source" 
+                   name="import_source" 
+                   class="form-input"
+                   placeholder="e.g., Monthly Attendance Report - October 2025"
+                   value="Excel Import - {{ current_date }}">
+            <small class="form-help">Optional description for this import batch</small>
+          </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div id="progressIndicator" class="progress-indicator">
+          <div class="progress-header">
+            <div class="spinner" id="progressSpinner"></div>
+            <span id="progressTitle">Uploading &amp; preparing import...</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressBarFill">
+              <span class="pct-label" id="progressPctLabel">0%</span>
+            </div>
+          </div>
+          <div class="progress-counters">
+            <span id="progressCounter">0 of 0 records processed</span>
+            <span id="progressPct">0%</span>
+          </div>
+          <div class="progress-message" id="progressMessage">Starting...</div>
+          <div class="progress-done-message" id="progressDoneMsg"></div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="resetForm()">
+            <i class="fas fa-undo"></i>
+            Reset Form
+          </button>
+          <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+            <i class="fas fa-upload"></i>
+            <span class="btn-text">Import Data</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Import Instructions -->
   <div class="import-section">
     <div class="import-header">
@@ -426,162 +560,6 @@
           </table>
         </div>
       </div>
-    </div>
-  </div>
-
-  <!-- File Upload Form -->
-  <div class="import-section">
-    <div class="import-header">
-      <h2>
-        <i class="fas fa-upload"></i>
-        Upload Excel File
-      </h2>
-    </div>
-    <div class="import-body">
-      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('import_time_attendance') }}">
-        <!-- File Upload Area -->
-        <div class="file-upload-area" id="fileUploadArea">
-          <div class="upload-icon">
-            <i class="fas fa-cloud-upload-alt"></i>
-          </div>
-          <div class="upload-text">
-            <h3>Drag & Drop Excel Files</h3>
-            <p>Or click to browse and select Excel files (.xlsx, .xls). Multiple files supported.</p>
-            <div class="file-info" id="fileInfo" style="display: none;">
-              <i class="fas fa-file-excel"></i>
-              <span class="file-name"></span>
-              <span class="file-size"></span>
-              <span class="file-count"></span>
-            </div>
-          </div>
-          <input type="file" 
-                 id="fileInput" 
-                 name="files" 
-                 accept=".xlsx,.xls" 
-                 class="file-input" 
-                 multiple
-                 required>
-        </div>
-
-        <!-- Import Options -->
-        <div class="import-options">
-          <h3>
-            <i class="fas fa-cog"></i>
-            Import Options
-          </h3>
-          <div class="checkbox-group">
-            <div class="checkbox-item">
-              <input type="checkbox" id="analyze_duplicates" name="analyze_duplicates" value="true" checked>
-              <label for="analyze_duplicates" class="checkbox-label">
-                <strong>Review Duplicates Before Import</strong>
-                <span>Show potential duplicate records for review and allow selective import</span>
-              </label>
-            </div>
-
-            <div class="checkbox-item">
-              <input type="checkbox" id="analyze_invalid" name="analyze_invalid" value="true" checked>
-              <label for="analyze_invalid" class="checkbox-label">
-                <strong>Review Invalid Rows Before Import</strong>
-                <span>Show all invalid rows with error details for review before importing valid records</span>
-              </label>
-            </div>
-            
-            <div class="checkbox-item">
-              <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="true">
-              <label for="skip_duplicates" class="checkbox-label">
-                <strong>Skip Duplicate Records</strong>
-                <span>Automatically detect and skip records that already exist in the system</span>
-              </label>
-            </div>
-            
-            <div class="checkbox-item">
-              <input type="checkbox" id="validate_only" name="validate_only" value="true">
-              <label for="validate_only" class="checkbox-label">
-                <strong>Validate Only (Don't Import)</strong>
-                <span>Check file for errors without actually importing the data</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Project Selection - REQUIRED -->
-        <div class="form-group" style="margin-bottom: 1.5rem;">
-          <h3 style="margin-bottom: 0.75rem;">
-            <i class="fas fa-project-diagram"></i>
-            Select Project <span style="color: #ef4444;">*</span>
-          </h3>
-          <select name="project_id" id="project_id" class="form-select" required style="
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 0.5rem;
-            font-size: 0.9375rem;
-            background-color: #ffffff;
-            transition: all 0.2s ease;
-          ">
-            <option value="">-- Select Project (Required) --</option>
-            {% for project in projects %}
-            <option value="{{ project.id }}">{{ project.name }}</option>
-            {% endfor %}
-          </select>
-          <p style="
-            margin-top: 0.5rem;
-            font-size: 0.875rem;
-            color: #64748b;
-          ">
-            <i class="fas fa-info-circle"></i>
-            <strong>Required:</strong> Select which project this import data belongs to for filtering and reporting
-          </p>
-        </div>
-
-        <!-- Import Source -->
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="import_source" class="form-label">
-              <i class="fas fa-tag"></i>
-              Import Source Description
-            </label>
-            <input type="text" 
-                   id="import_source" 
-                   name="import_source" 
-                   class="form-input"
-                   placeholder="e.g., Monthly Attendance Report - October 2025"
-                   value="Excel Import - {{ current_date }}">
-            <small class="form-help">Optional description for this import batch</small>
-          </div>
-        </div>
-
-        <!-- Progress Indicator -->
-        <div id="progressIndicator" class="progress-indicator">
-          <div class="progress-header">
-            <div class="spinner" id="progressSpinner"></div>
-            <span id="progressTitle">Uploading &amp; preparing import...</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" id="progressBarFill">
-              <span class="pct-label" id="progressPctLabel">0%</span>
-            </div>
-          </div>
-          <div class="progress-counters">
-            <span id="progressCounter">0 of 0 records processed</span>
-            <span id="progressPct">0%</span>
-          </div>
-          <div class="progress-message" id="progressMessage">Starting...</div>
-          <div class="progress-done-message" id="progressDoneMsg"></div>
-        </div>
-
-        <!-- Form Actions -->
-        <div class="form-actions">
-          <button type="button" class="btn btn-outline" onclick="resetForm()">
-            <i class="fas fa-undo"></i>
-            Reset Form
-          </button>
-          <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-            <i class="fas fa-upload"></i>
-            <span class="btn-text">Import Data</span>
-          </button>
-        </div>
-      </form>
     </div>
   </div>
 
@@ -858,11 +836,19 @@ function setProgress(current, total, message) {
   if (message) progressMessage.textContent = message;
 }
 
-function showDone(success, message) {
+function showDone(success, message, errors) {
   document.getElementById('progressSpinner').style.display = 'none';
   progressDoneMsg.className = 'progress-done-message ' + (success ? 'success' : 'error');
-  progressDoneMsg.textContent = message;
   progressTitle.textContent = success ? 'Import complete!' : 'Import failed';
+  let html = '<strong>' + message + '</strong>';
+  if (errors && errors.length > 0) {
+    html += '<ul style="margin: 0.5rem 0 0 1.25rem; padding: 0; text-align: left;">';
+    errors.forEach(function(err) {
+      html += '<li style="margin-bottom: 0.25rem;">' + err + '</li>';
+    });
+    html += '</ul>';
+  }
+  progressDoneMsg.innerHTML = html;
 }
 
 // ─── Form submit → SSE import flow ────────────────────────────────────────
@@ -947,7 +933,10 @@ importForm.addEventListener('submit', async (e) => {
       if (result.failed_records > 0)
         summary += '  ⚠️ ' + result.failed_records + ' records failed.';
 
-      showDone(result.success, summary);
+      const errors = (!result.success && result.errors && result.errors.length > 0)
+        ? result.errors
+        : [];
+      showDone(result.success, summary, errors);
       submitBtn.innerHTML = '<i class="fas fa-check"></i> Done';
 
       // Redirect to records view after a short delay

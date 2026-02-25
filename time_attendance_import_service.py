@@ -647,11 +647,68 @@ class TimeAttendanceImportService:
                 import_results['errors'].append(error_msg)
                 return import_results
             
+            # ── Project-location validation ──────────────────────────────────────
+            # If a project_id is provided, verify that every unique Location Name
+            # in the file belongs to that project.  Return immediately on the first
+            # mismatch so the user can correct the file or project selection.
+            if project_id:
+                try:
+                    from models.qrcode import QRCode
+                    from models.project import Project
+
+                    # Collect all unique, non-empty location names from the file
+                    file_locations = set(
+                        str(loc).strip()
+                        for loc in df['Location Name'].dropna().unique()
+                        if str(loc).strip()
+                    )
+
+                    # Fetch all location names that belong to the selected project
+                    project_locations = set(
+                        qr.location
+                        for qr in QRCode.query.filter_by(project_id=project_id)
+                                              .with_entities(QRCode.location).all()
+                    )
+
+                    # Find the first location in the file that is not in the project
+                    unmatched = next(
+                        (loc for loc in sorted(file_locations) if loc not in project_locations),
+                        None
+                    )
+
+                    if unmatched:
+                        project_obj = Project.query.get(project_id)
+                        project_name = project_obj.name if project_obj else f'ID {project_id}'
+                        error_msg = (
+                            f"Location '{unmatched}' in the file does not belong to "
+                            f"project '{project_name}'. "
+                            f"Please verify the selected project or correct the file."
+                        )
+                        import_results['errors'].append(error_msg)
+                        if self.logger:
+                            self.logger.logger.warning(
+                                f"Project-location mismatch: {error_msg}"
+                            )
+                        return import_results
+
+                    if self.logger:
+                        self.logger.logger.info(
+                            f"Project-location validation passed: all {len(file_locations)} "
+                            f"location(s) belong to project ID {project_id}."
+                        )
+
+                except Exception as e:
+                    if self.logger:
+                        self.logger.logger.warning(
+                            f"Could not perform project-location validation: {e}"
+                        )
+            # ── End project-location validation ──────────────────────────────────
+
             # Track duplicates using hash
             duplicate_hashes = set()
             if skip_duplicates:
                 duplicate_hashes = self._get_existing_record_hashes()
-            
+
             # Process each row with enhanced validation
             for index, row in df.iterrows():
                 try:
