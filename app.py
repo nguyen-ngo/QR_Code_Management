@@ -8716,6 +8716,244 @@ def analyze_import_invalid():
             'message': f'Analysis failed: {str(e)}'
         }), 500
 
+
+# ---------------------------------------------------------------------------
+# Time Attendance Import — SSE progress streaming (disk-based, multi-worker safe)
+#
+# Design: progress state is written to a small JSON file on disk so that any
+# gunicorn worker process can read it.  No shared in-memory state is required.
+# The /stream endpoint runs the import itself (synchronously inside the SSE
+# generator) while writing progress to the file and yielding events to the
+# browser — compatible with gunicorn gevent workers.
+# ---------------------------------------------------------------------------
+
+def _progress_file_path(job_id: str) -> str:
+    """Return the path for the on-disk progress file for a given job_id."""
+    upload_dir = app.config.get('UPLOAD_FOLDER', '/tmp')
+    os.makedirs(upload_dir, exist_ok=True)
+    return os.path.join(upload_dir, f"import_progress_{job_id}.json")
+
+
+def _write_progress(job_id: str, event: dict) -> None:
+    """Atomically write the latest progress event to disk."""
+    path = _progress_file_path(job_id)
+    try:
+        tmp = path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(event, f)
+        os.replace(tmp, path)
+    except Exception:
+        pass  # Best-effort; import will continue regardless
+
+
+@app.route('/time-attendance/import/start', methods=['POST'])
+@login_required
+def start_import_job():
+    """
+    Validates the uploaded file, saves it to disk, stores import options in a
+    progress file, then returns a job_id.  The actual import runs inside the
+    SSE stream endpoint so no background thread or shared memory is needed.
+    """
+    try:
+        if 'files' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded.'}), 400
+
+        files = request.files.getlist('files')
+        if not files or files[0].filename == '':
+            return jsonify({'success': False, 'error': 'No file selected.'}), 400
+
+        file = files[0]
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'Invalid file format.'}), 400
+
+        filename = secure_filename(file.filename)
+        upload_dir = app.config.get('UPLOAD_FOLDER', '/tmp')
+        os.makedirs(upload_dir, exist_ok=True)
+        job_id = str(uuid.uuid4())
+        temp_path = os.path.join(upload_dir,
+                                 f"stream_{job_id}_{filename}")
+        file.save(temp_path)
+
+        # Store import options alongside the file so the stream endpoint can
+        # read them without depending on session or shared memory.
+        job_meta = {
+            'type': 'pending',
+            'temp_path': temp_path,
+            'filename': filename,
+            'skip_duplicates': request.form.get('skip_duplicates', 'true').lower() == 'true',
+            'project_id': int(request.form.get('project_id')) if request.form.get('project_id') else None,
+            'import_source': request.form.get('import_source', f"Manual Import - {filename}"),
+            'created_by': session['user_id'],
+            'username': session.get('username', 'unknown'),
+        }
+        _write_progress(job_id, job_meta)
+
+        logger_handler.logger.info(
+            f"User {job_meta['username']} queued time attendance import job {job_id} for file {filename}"
+        )
+        return jsonify({'success': True, 'job_id': job_id})
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error queuing import job: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/time-attendance/import/stream/<job_id>')
+@login_required
+def stream_import_progress(job_id):
+    """
+    SSE endpoint — runs the import synchronously while streaming progress to
+    the browser.  Works across multiple gunicorn workers because all state is
+    stored on disk (no in-memory job store).
+    """
+    progress_path = _progress_file_path(job_id)
+
+    def generate():
+        import time as _time
+
+        # ── Read the job metadata written by /start ────────────────────────
+        deadline = _time.time() + 15  # Wait up to 15 s for the file to appear
+        meta = None
+        while _time.time() < deadline:
+            if os.path.exists(progress_path):
+                try:
+                    with open(progress_path) as f:
+                        meta = json.load(f)
+                    break
+                except Exception:
+                    pass
+            yield "data: " + json.dumps({'type': 'heartbeat'}) + "\n\n"
+            _time.sleep(0.3)
+
+        if not meta or meta.get('type') != 'pending':
+            yield "data: " + json.dumps({
+                'type': 'error',
+                'message': 'Job metadata not found. Please try importing again.'
+            }) + "\n\n"
+            return
+
+        temp_path    = meta['temp_path']
+        skip_dupes   = meta['skip_duplicates']
+        project_id   = meta['project_id']
+        import_source= meta['import_source']
+        created_by   = meta['created_by']
+        username     = meta['username']
+
+        if not os.path.exists(temp_path):
+            yield "data: " + json.dumps({
+                'type': 'error',
+                'message': 'Uploaded file not found. Please try importing again.'
+            }) + "\n\n"
+            return
+
+        yield "data: " + json.dumps({'type': 'status', 'message': 'Reading and validating file...'}) + "\n\n"
+
+        # ── Run the import with a progress callback ────────────────────────
+        try:
+            svc = TimeAttendanceImportService(db, logger_handler)
+
+            # progress_callback writes to disk AND yields an SSE event.
+            # We collect events in a list so the generator can yield them.
+            _pending_events = []
+
+            def on_progress(current, total, message):
+                pct = int(current / total * 100) if total else 0
+                event = {
+                    'type': 'progress',
+                    'current': current,
+                    'total': total,
+                    'percent': pct,
+                    'message': message,
+                }
+                _write_progress(job_id, event)
+                _pending_events.append(event)
+
+            # We need to interleave yielding with the synchronous import loop.
+            # Strategy: run import_from_excel; the callback appends to
+            # _pending_events; after every DB commit batch (50 records) we
+            # flush pending events to the SSE stream.
+            import threading as _threading
+            result_holder = [None]
+            error_holder  = [None]
+            done_event    = _threading.Event()
+
+            def _run():
+                # Push an application context so the thread can access
+                # Flask-SQLAlchemy, Employee.query, etc.
+                with app.app_context():
+                    try:
+                        result_holder[0] = svc.import_from_excel(
+                            temp_path,
+                            created_by=created_by,
+                            import_source=import_source,
+                            skip_duplicates=skip_dupes,
+                            force_import_hashes=[],
+                            project_id=project_id,
+                            progress_callback=on_progress,
+                        )
+                    except Exception as exc:
+                        error_holder[0] = exc
+                    finally:
+                        done_event.set()
+
+            t = _threading.Thread(target=_run, daemon=True)
+            t.start()
+
+            # Yield progress events as they arrive while the import thread runs
+            while not done_event.is_set():
+                while _pending_events:
+                    yield "data: " + json.dumps(_pending_events.pop(0)) + "\n\n"
+                yield "data: " + json.dumps({'type': 'heartbeat'}) + "\n\n"
+                _time.sleep(0.4)
+
+            # Drain any remaining events after the thread finishes
+            while _pending_events:
+                yield "data: " + json.dumps(_pending_events.pop(0)) + "\n\n"
+
+            if error_holder[0]:
+                raise error_holder[0]
+
+            result = result_holder[0]
+
+            if result and result['success']:
+                logger_handler.logger.info(
+                    f"User {username} imported {result['imported_records']} time attendance records "
+                    f"via stream (batch: {result['batch_id']})"
+                )
+
+            # Sanitize result dict for JSON serialization — convert any
+            # datetime objects (e.g. import_date) to ISO-format strings.
+            if result and isinstance(result.get('import_date'), datetime):
+                result['import_date'] = result['import_date'].isoformat()
+            done_event_data = {'type': 'done', 'result': result}
+            _write_progress(job_id, done_event_data)
+            yield "data: " + json.dumps(done_event_data) + "\n\n"
+
+        except Exception as e:
+            logger_handler.logger.error(f"Import stream error for job {job_id}: {e}")
+            error_event = {'type': 'error', 'message': str(e)}
+            _write_progress(job_id, error_event)
+            yield "data: " + json.dumps(error_event) + "\n\n"
+
+        finally:
+            # Clean up temp files
+            for path in (temp_path, progress_path):
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',   # Disable nginx buffering for SSE
+        }
+    )
+
+
 @app.route('/time-attendance/import/cancel-pending')
 @login_required
 def cancel_pending_import():

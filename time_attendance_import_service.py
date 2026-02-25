@@ -571,19 +571,21 @@ class TimeAttendanceImportService:
         
         return analysis_result
     
-    def import_from_excel(self, file_path: str, created_by: int = None, 
+    def import_from_excel(self, file_path: str, created_by: int = None,
                          import_source: str = None, skip_duplicates: bool = True,
-                         force_import_hashes: List[str] = None, project_id: int = None) -> Dict[str, Any]:
+                         force_import_hashes: List[str] = None, project_id: int = None,
+                         progress_callback=None) -> Dict[str, Any]:
         """
-        Import time attendance data from Excel file with enhanced duplicate handling
-        
+        Import time attendance data from Excel file with enhanced duplicate handling.
+
         Args:
             file_path: Path to the Excel file
             created_by: User ID who initiated the import
             import_source: Description of import source
             skip_duplicates: Whether to skip duplicate records
             force_import_hashes: List of hashes to force import (user confirmed duplicates)
-            
+            progress_callback: Optional callable(current, total, message) for real-time progress
+
         Returns:
             Dictionary containing import results
         """
@@ -732,10 +734,22 @@ class TimeAttendanceImportService:
                     
                     self.db.session.add(time_attendance_record)
                     import_results['imported_records'] += 1
-                    
-                    # Commit in batches for better performance
-                    if import_results['imported_records'] % 100 == 0:
-                        self.db.session.flush()
+
+                    # Commit in batches of 50 to prevent memory buildup on large files
+                    if import_results['imported_records'] % 50 == 0:
+                        self.db.session.commit()
+
+                    # Report progress via callback if provided
+                    if progress_callback:
+                        processed = (import_results['imported_records'] +
+                                     import_results['failed_records'] +
+                                     import_results['duplicate_records'] +
+                                     import_results['skipped_records'])
+                        progress_callback(
+                            processed,
+                            import_results['total_records'],
+                            f"Importing record {processed} of {import_results['total_records']}..."
+                        )
                     
                 except Exception as e:
                     import_results['failed_records'] += 1
