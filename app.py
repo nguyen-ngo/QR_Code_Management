@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
-from working_hours_calculator import (WorkingHoursCalculator,
-                                      round_time_to_quarter_hour)
+from single_checkin_calculator import SingleCheckInCalculator
+from working_hours_calculator import WorkingHoursCalculator
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 from time_attendance_import_service import TimeAttendanceImportService
@@ -9446,10 +9446,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     
     # Setup styles
     # White bold text on black background for column header row (no border)
-    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_font = Font(name='Aptos Narrow', size=11, bold=True, color='FFFFFF')
     header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
-    data_font = Font(name='Arial', size=10)
-    bold_font = Font(name='Arial', size=10, bold=True)
+    data_font = Font(name='Aptos Narrow', size=11)
+    bold_font = Font(name='Aptos Narrow', size=11, bold=True)
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -9499,21 +9499,21 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     # Row 1: Company name
     ws.merge_cells(f'A{current_row}:N{current_row}')
     title_cell = ws.cell(row=current_row, column=1, value=os.environ.get('COMPANY_NAME', 'Your Company'))
-    title_cell.font = Font(name='Arial', size=14, bold=True)
+    title_cell.font = Font(name='Aptos Narrow', size=14, bold=True)
     title_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
     # Row 2: Summary title
     ws.merge_cells(f'A{current_row}:N{current_row}')
     summary_cell = ws.cell(row=current_row, column=1, value='Summary report of Hours worked')
-    summary_cell.font = Font(name='Arial', size=12, bold=True)
+    summary_cell.font = Font(name='Aptos Narrow', size=12, bold=True)
     summary_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
     # Row 3: Project name
     project_display = project_name_for_filename.replace('_', ' ').strip() if project_name_for_filename else "[Project Name]"
     project_cell = ws.cell(row=current_row, column=1, value=project_display)
-    project_cell.font = Font(name='Arial', size=11, bold=True)
+    project_cell.font = Font(name='Aptos Narrow', size=11, bold=True)
     project_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
@@ -9521,7 +9521,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     date_range_text = f"Date range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
     ws.merge_cells(f'A{current_row}:N{current_row}')
     date_cell = ws.cell(row=current_row, column=1, value=date_range_text)
-    date_cell.font = Font(name='Arial', size=11)
+    date_cell.font = Font(name='Aptos Narrow', size=11)
     date_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
@@ -9545,7 +9545,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         ws.merge_cells(f'A{current_row}:O{current_row}')
         emp_header = ws.cell(row=current_row, column=1, 
                             value=f'Employee ID {employee_id}: {employee_name}')
-        emp_header.font = Font(name='Arial', size=11, bold=True)
+        emp_header.font = Font(name='Aptos Narrow', size=11, bold=True)
         emp_header.alignment = Alignment(horizontal='left')
         current_row += 1
         
@@ -9667,16 +9667,14 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         
                         first_datetime = datetime.combine(date_obj, first_time)
                         last_datetime = datetime.combine(date_obj, last_time)
-                        _raw_min = (last_datetime - first_datetime).total_seconds() / 60.0
-                        calculated_hours = round_time_to_quarter_hour(_raw_min) / 60.0
+                        calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
+                        calculated_hours = round(calculated_hours, 2)
                         
                         weekly_total_hours += calculated_hours
                         total_hours = calculated_hours
             
             # Daily total display (only shown on last location's last row)
-            # Daily Total: quarter-hour rounding → decimal hours
-            _dt_min = total_hours * 60.0
-            daily_total_display = round_time_to_quarter_hour(_dt_min) / 60.0 if total_hours > 0 else ''
+            daily_total_display = round(total_hours, 2) if total_hours > 0 else ''
             
             # FIXED: Get all records for the day and sort by time FIRST, then group by location
             all_day_records = []
@@ -9964,32 +9962,32 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         
         # Write SP row if hours > 0
         if sp_hours > 0:
-            ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = Font(name='Arial', size=10, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
             # Log SP hours export
             logger_handler.logger.info(f"Export: Employee {employee_id} SP hours: {sp_hours:.2f}")
             current_row += 1
         
         # Write PW row if hours > 0
         if pw_hours > 0:
-            ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = Font(name='Arial', size=10, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
             # Log PW hours export
             logger_handler.logger.info(f"Export: Employee {employee_id} PW hours: {pw_hours:.2f}")
             current_row += 1
         
         # Write PT row if hours > 0
         if pt_hours > 0:
-            ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = Font(name='Arial', size=10, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = Font(name='Arial', size=10, bold=True, italic=True)
+            ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
+            ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
             # Log PT hours export
             logger_handler.logger.info(f"Export: Employee {employee_id} PT hours: {pt_hours:.2f}")
             current_row += 1
         
         # Write GRAND TOTAL row
-        ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Arial', size=10, bold=True)
-        ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Arial', size=10, bold=True)
-        ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+        ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
+        ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
+        ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
         current_row += 1
         
         # Empty row after each employee
@@ -10274,11 +10272,11 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 logger_handler.logger.warning(f"Could not lookup employee name for ID {base_id} during export (by-building): {e}")
     
     # Setup styles
-    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    header_font = Font(name='Aptos Narrow', size=11, bold=True, color='FFFFFF')
     header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
-    data_font = Font(name='Arial', size=10)
-    bold_font = Font(name='Arial', size=10, bold=True)
-    italic_bold_font = Font(name='Arial', size=10, bold=True, italic=True)
+    data_font = Font(name='Aptos Narrow', size=11)
+    bold_font = Font(name='Aptos Narrow', size=11, bold=True)
+    italic_bold_font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -10293,21 +10291,21 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
     # Row 1: Company name
     ws.merge_cells(f'A{current_row}:N{current_row}')
     title_cell = ws.cell(row=current_row, column=1, value=os.environ.get('COMPANY_NAME', 'Your Company'))
-    title_cell.font = Font(name='Arial', size=14, bold=True)
+    title_cell.font = Font(name='Aptos Narrow', size=14, bold=True)
     title_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
     # Row 2: Summary title
     ws.merge_cells(f'A{current_row}:N{current_row}')
     summary_cell = ws.cell(row=current_row, column=1, value='Summary report of Hours worked')
-    summary_cell.font = Font(name='Arial', size=12, bold=True)
+    summary_cell.font = Font(name='Aptos Narrow', size=12, bold=True)
     summary_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
     # Row 3: Project name
     project_display = project_name_for_filename.replace('_', ' ').strip() if project_name_for_filename else "[Project Name]"
     project_cell = ws.cell(row=current_row, column=1, value=project_display)
-    project_cell.font = Font(name='Arial', size=11, bold=True)
+    project_cell.font = Font(name='Aptos Narrow', size=11, bold=True)
     project_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
@@ -10315,7 +10313,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
     date_range_text = f"Date range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
     ws.merge_cells(f'A{current_row}:N{current_row}')
     date_cell = ws.cell(row=current_row, column=1, value=date_range_text)
-    date_cell.font = Font(name='Arial', size=11)
+    date_cell.font = Font(name='Aptos Narrow', size=11)
     date_cell.alignment = Alignment(horizontal='left')
     current_row += 1
     
@@ -10339,7 +10337,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
         building_header = f"{location_index}) {location_name} - Zone {zone_info}"
         ws.merge_cells(f'A{current_row}:O{current_row}')
         building_cell = ws.cell(row=current_row, column=1, value=building_header)
-        building_cell.font = Font(name='Arial', size=11, bold=True)
+        building_cell.font = Font(name='Aptos Narrow', size=11, bold=True)
         building_cell.alignment = Alignment(horizontal='left')
         current_row += 1
         
@@ -10373,7 +10371,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             ws.merge_cells(f'A{current_row}:O{current_row}')
             emp_header = ws.cell(row=current_row, column=1, 
                                 value=f'Employee ID {employee_id}: {emp_name}')
-            emp_header.font = Font(name='Arial', size=11, bold=True)
+            emp_header.font = Font(name='Aptos Narrow', size=11, bold=True)
             emp_header.alignment = Alignment(horizontal='left')
             current_row += 1
             
@@ -10483,15 +10481,15 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     
                     i += 1
                 
-                # Calculate daily hours (Daily Total = quarter-hour rounding)
-                _raw_day_min = 0
+                # Calculate daily hours
+                daily_hours = 0
                 for pair in pairs:
                     if pair['check_in'] and pair['check_out'] and not pair['is_miss_punch']:
                         pair_in = datetime.combine(date_obj, pair['check_in'].check_in_time)
                         pair_out = datetime.combine(date_obj, pair['check_out'].check_in_time)
-                        _raw_day_min += (pair_out - pair_in).total_seconds() / 60.0
+                        daily_hours += (pair_out - pair_in).total_seconds() / 3600.0
                 
-                daily_hours = round_time_to_quarter_hour(_raw_day_min) / 60.0
+                daily_hours = round(daily_hours, 2)
                 weekly_total_hours += daily_hours
                 
                 # Write pairs
@@ -10606,9 +10604,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             # ================================================================
             
             # Write GRAND TOTAL row
-            ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Arial', size=10, bold=True)
-            ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Arial', size=10, bold=True)
-            ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Arial', size=10, bold=True)
+            ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
+            ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
+            ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
             current_row += 1
             
             # Empty row after each employee
