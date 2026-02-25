@@ -680,8 +680,7 @@ class TimeAttendanceImportService:
                         project_obj = Project.query.get(project_id)
                         project_name = project_obj.name if project_obj else f'ID {project_id}'
                         error_msg = (
-                            f"Location '{unmatched}' in the file does not belong to "
-                            f"project '{project_name}'. "
+                            f"The data in the file does not belong to the project '{project_name}'. "
                             f"Please verify the selected project or correct the file."
                         )
                         import_results['errors'].append(error_msg)
