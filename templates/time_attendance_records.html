@@ -164,7 +164,7 @@
             <!-- 2. Name -->
             <td>
               <div class="employee-name-cell">
-                <span>{{ record.employee_name }}</span>
+                <span>{{ record.resolved_employee_name }}</span>
               </div>
             </td>
             
@@ -231,7 +231,7 @@
                 </a>
                 {% if session.role == 'admin' %}
                 <button class="action-btn delete" 
-                        onclick="confirmDelete({{ record.id }}, '{{ record.employee_name }}', '{{ record.attendance_date }}')">
+                        onclick="confirmDelete({{ record.id }}, '{{ record.resolved_employee_name }}', '{{ record.attendance_date }}')">
                   <i class="fas fa-trash"></i>
                   Delete
                 </button>

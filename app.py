@@ -9186,12 +9186,25 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     )
     
     # Get employee names - map BASE employee IDs to names for consolidated display
+    # Look up from Employee table using the numeric base_id to get the correct name,
+    # regardless of what is stored in the employee_name column (which may contain
+    # work type characters such as 'Employee 3937SP' if imported with a decorated ID).
     from working_hours_calculator import parse_employee_id_for_work_type
     employee_names = {}
     for record in records:
         base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
         if base_id not in employee_names:
-            employee_names[base_id] = record.employee_name
+            try:
+                emp = Employee.query.filter_by(id=int(base_id)).first()
+                if emp:
+                    employee_names[base_id] = f"{emp.lastName}, {emp.firstName}"
+                else:
+                    # Fallback: use stored name if Employee table lookup fails
+                    employee_names[base_id] = record.employee_name
+                    logger_handler.logger.warning(f"Employee ID {base_id} not found in employee table during export; using stored name.")
+            except Exception as e:
+                employee_names[base_id] = record.employee_name
+                logger_handler.logger.warning(f"Could not lookup employee name for ID {base_id} during export: {e}")
     
     # Setup styles
     # White bold text on black background for column header row (no border)
@@ -10001,11 +10014,24 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
     )
     
     # Get employee names map
+    # Look up from Employee table using the numeric base_id to get the correct name,
+    # regardless of what is stored in the employee_name column (which may contain
+    # work type characters such as 'Employee 3937SP' if imported with a decorated ID).
     employee_names = {}
     for record in records:
         base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
         if base_id not in employee_names:
-            employee_names[base_id] = record.employee_name
+            try:
+                emp = Employee.query.filter_by(id=int(base_id)).first()
+                if emp:
+                    employee_names[base_id] = f"{emp.lastName}, {emp.firstName}"
+                else:
+                    # Fallback: use stored name if Employee table lookup fails
+                    employee_names[base_id] = record.employee_name
+                    logger_handler.logger.warning(f"Employee ID {base_id} not found in employee table during export (by-building); using stored name.")
+            except Exception as e:
+                employee_names[base_id] = record.employee_name
+                logger_handler.logger.warning(f"Could not lookup employee name for ID {base_id} during export (by-building): {e}")
     
     # Setup styles
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
@@ -10474,6 +10500,21 @@ def time_attendance_records():
             else:
                 record.qr_address = None
                 record.location_accuracy = None
+
+            # Resolve employee name by stripping work type prefix/suffix (SP, PW, PT)
+            # from employee_id ONLY for the lookup. The original employee_id is kept intact.
+            # e.g. '3937SP', 'SP3937', 'PW3937' -> lookup by numeric '3937'
+            try:
+                import re as _re
+                numeric_only = _re.search(r'\d+', str(record.employee_id or ''))
+                if numeric_only:
+                    emp = Employee.query.filter_by(id=int(numeric_only.group(0))).first()
+                    record.resolved_employee_name = f"{emp.lastName}, {emp.firstName}" if emp else record.employee_name
+                else:
+                    record.resolved_employee_name = record.employee_name
+            except Exception as e:
+                logger_handler.logger.warning(f"Could not resolve employee name for ID {record.employee_id}: {e}")
+                record.resolved_employee_name = record.employee_name
         
         # Get unique employees and locations for filters
         unique_employees = TimeAttendance.get_unique_employees()
