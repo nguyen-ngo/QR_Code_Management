@@ -9717,8 +9717,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             day_data = emp_data['daily_hours'][date_str]
             
-            # Check for week boundary (week starts on Monday)
-            week_start = date_obj - timedelta(days=date_obj.weekday())
+            # Check for week boundary anchored to start_date_filter (not calendar Monday)
+            _report_start = start_date if start_date_filter else date_obj.date()
+            week_start = (_report_start + timedelta(days=((date_obj.date() - _report_start).days // 7) * 7))
             if current_week_start is not None and week_start != current_week_start:
                 # Write weekly total row
                 week_regular = min(weekly_total_hours, 40.0)
@@ -10574,8 +10575,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 day_records = sorted(daily_records[date_str], key=lambda x: x.check_in_time)
                 
-                # Check for week boundary
-                week_start = date_obj - timedelta(days=date_obj.weekday())
+                # Check for week boundary anchored to start_date_filter (not calendar Monday)
+                _report_start = start_date if start_date_filter else date_obj.date()
+                week_start = (_report_start + timedelta(days=((date_obj.date() - _report_start).days // 7) * 7))
                 if current_week_start is not None and week_start != current_week_start:
                     # Write weekly total row
                     week_regular = min(weekly_total_hours, 40.0)
