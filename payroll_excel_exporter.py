@@ -736,7 +736,61 @@ class PayrollExcelExporter:
                     'building_address': ''
                 }
             daily_location_data[date_key]['records'].append(record)
-        
+
+        # ---------------------------------------------------------------
+        # OVERNIGHT SHIFT DETECTION (display layer)
+        # Mirror the same logic used in working_hours_calculator so that
+        # the In/Out times rendered in the Excel rows are consistent with
+        # the computed hours: late check-in (>= 18:00) on Day N paired with
+        # early check-out (<= 06:00) on Day N+1 → move check-out to Day N.
+        # ---------------------------------------------------------------
+        from datetime import time as time_type
+        OVERNIGHT_CHECKIN_HOUR  = 18
+        OVERNIGHT_CHECKOUT_HOUR = 6
+
+        sorted_dates = sorted(daily_location_data.keys())
+        for idx, date_key in enumerate(sorted_dates):
+            day_records  = daily_location_data[date_key]['records']
+            check_ins    = [r for r in day_records if getattr(r, 'record_type', 'check_in') == 'check_in']
+            check_outs   = [r for r in day_records if getattr(r, 'record_type', 'check_in') == 'check_out']
+
+            unmatched_late_ins = []
+            for ci in check_ins:
+                ci_hour = ci.check_in_time.hour if isinstance(ci.check_in_time, time_type) else 0
+                if ci_hour >= OVERNIGHT_CHECKIN_HOUR and len(check_outs) < len(check_ins):
+                    unmatched_late_ins.append(ci)
+
+            if not unmatched_late_ins or idx + 1 >= len(sorted_dates):
+                continue
+
+            next_date_key   = sorted_dates[idx + 1]
+            day_n           = datetime.strptime(date_key,      '%Y-%m-%d').date()
+            day_n1          = datetime.strptime(next_date_key, '%Y-%m-%d').date()
+            if (day_n1 - day_n).days != 1:
+                continue
+
+            next_day_records = daily_location_data[next_date_key]['records']
+            next_check_ins   = [r for r in next_day_records if getattr(r, 'record_type', 'check_in') == 'check_in']
+            next_check_outs  = [r for r in next_day_records if getattr(r, 'record_type', 'check_in') == 'check_out']
+
+            orphaned_early_outs = []
+            for co in next_check_outs:
+                co_hour = co.check_in_time.hour if isinstance(co.check_in_time, time_type) else 0
+                if co_hour <= OVERNIGHT_CHECKOUT_HOUR and len(next_check_ins) < len(next_check_outs):
+                    orphaned_early_outs.append(co)
+
+            for co in orphaned_early_outs[:len(unmatched_late_ins)]:
+                print(f"🌙 [Exporter] Overnight shift: moving check-out {co.check_in_time} "
+                      f"from {next_date_key} → {date_key} for employee {employee_id}")
+                daily_location_data[date_key]['records'].append(co)
+                daily_location_data[next_date_key]['records'].remove(co)
+
+            if not daily_location_data[next_date_key]['records']:
+                del daily_location_data[next_date_key]
+        # ---------------------------------------------------------------
+        # END OVERNIGHT SHIFT DETECTION (display layer)
+        # ---------------------------------------------------------------
+
         # Get location info for each day
         for date_str, day_info in daily_location_data.items():
             sorted_records = sorted(day_info['records'], key=lambda x: x.check_in_time)

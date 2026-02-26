@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
 from single_checkin_calculator import SingleCheckInCalculator
-from working_hours_calculator import WorkingHoursCalculator
+from working_hours_calculator import WorkingHoursCalculator, round_time_to_quarter_hour, convert_minutes_to_base100, round_base100_hours
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 from time_attendance_import_service import TimeAttendanceImportService
@@ -9318,7 +9318,43 @@ def calculate_possible_violation(distance_value):
         return 'Yes' if distance_float > 0.3 else 'No'
     except (ValueError, TypeError):
         return 'No'
-    
+
+def _overnight_aware_sort_key(record):
+    """
+    Sort key for attendance records within a single calendar-date bucket.
+
+    Problem: when an overnight shift spans midnight, the check-out record's
+    check_in_time (e.g. 00:01 AM) sorts numerically BEFORE the check-in time
+    (e.g. 20:00 PM), producing an orphaned OUT followed by an orphaned IN.
+
+    Fix: if a record is a check-out AND its time is in the early-morning window
+    (<= 06:00), treat it as belonging to the *next* logical day by adding 24 h
+    worth of minutes so it sorts after any same-day evening check-ins.
+    """
+    from datetime import time as _time
+    t = record.check_in_time
+    minutes = t.hour * 60 + t.minute if isinstance(t, _time) else 0
+    action = (record.action_description or '').lower()
+    is_out = 'out' in action or 'checkout' in action
+    # Push early-morning check-outs past midnight to end of day order
+    if is_out and t.hour <= 6:
+        minutes += 24 * 60
+    return minutes
+
+def _qtr(decimal_hours: float) -> float:
+    """
+    Round a decimal-hours value to the nearest quarter hour (.00/.25/.50/.75).
+    Pipeline: decimal hours → minutes → quarter-hour rounding → base-100 → quarter rounding.
+    Examples: 4.03 → 4.0, 4.08 → 4.25, 3.87 → 4.0, 4.16 → 4.25
+    Returns 0.0 for negative or zero input.
+    """
+    if decimal_hours <= 0:
+        return 0.0
+    minutes = decimal_hours * 60.0
+    rounded_minutes = round_time_to_quarter_hour(minutes)
+    base100 = convert_minutes_to_base100(rounded_minutes)
+    return round_base100_hours(base100)
+
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
@@ -9589,7 +9625,81 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                 }
             
             daily_location_data[date_key][location_key]['records'].append(record)
-        
+
+        # -------------------------------------------------------------------
+        # OVERNIGHT SHIFT DETECTION
+        # The midnight check-out record is stored in the DB with the next
+        # calendar day's date (e.g. checkout at 12:01 AM on Wednesday is
+        # stored as check_in_date = 2026-02-11).  We need to move it into
+        # Tuesday's bucket so it pairs with the 8 PM check-in.
+        #
+        # Condition to move an early-morning checkout from Day N+1 → Day N:
+        #   Day N:   more check-ins than check-outs  (unmatched late IN)
+        #   Day N+1: more check-outs than check-ins  (orphaned early OUT)
+        # -------------------------------------------------------------------
+        def _is_out(r):
+            a = (r.action_description or '').lower()
+            return 'out' in a or 'checkout' in a
+
+        sorted_dk = sorted(daily_location_data.keys())
+        for _di, _dk in enumerate(sorted_dk):
+            if _di + 1 >= len(sorted_dk):
+                continue
+
+            _ndk = sorted_dk[_di + 1]
+            # Must be consecutive calendar days
+            _dn  = datetime.strptime(_dk,  '%Y-%m-%d').date()
+            _dn1 = datetime.strptime(_ndk, '%Y-%m-%d').date()
+            if (_dn1 - _dn).days != 1:
+                continue
+
+            # Flatten all records for Day N and Day N+1 across locations
+            _day_recs  = [r for loc in daily_location_data[_dk].values()  for r in loc['records']]
+            _next_recs = [r for loc in daily_location_data[_ndk].values() for r in loc['records']]
+
+            _day_ins  = [r for r in _day_recs  if not _is_out(r)]
+            _day_outs = [r for r in _day_recs  if     _is_out(r)]
+            _nxt_ins  = [r for r in _next_recs if not _is_out(r)]
+            _nxt_outs = [r for r in _next_recs if     _is_out(r)]
+
+            # Day N must have an unmatched late check-in
+            if len(_day_ins) <= len(_day_outs):
+                continue
+            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 18]
+            if not _late_ins:
+                continue
+
+            # Day N+1 must have an orphaned early check-out
+            if len(_nxt_outs) <= len(_nxt_ins):
+                continue
+            _early_outs = [r for r in _nxt_outs if r.check_in_time.hour <= 6]
+            if not _early_outs:
+                continue
+
+            # Move up to as many early OUTs as there are unmatched late INs
+            _to_move = _early_outs[:len(_late_ins)]
+            for _co in _to_move:
+                _co_loc = _co.location_name or 'Unknown Location'
+                # Add to Day N bucket
+                if _co_loc not in daily_location_data[_dk]:
+                    daily_location_data[_dk][_co_loc] = {'records': [], 'location_name': _co_loc}
+                daily_location_data[_dk][_co_loc]['records'].append(_co)
+                # Remove from Day N+1 bucket
+                if _ndk in daily_location_data and _co_loc in daily_location_data[_ndk]:
+                    try:
+                        daily_location_data[_ndk][_co_loc]['records'].remove(_co)
+                    except ValueError:
+                        pass
+                    if not daily_location_data[_ndk][_co_loc]['records']:
+                        del daily_location_data[_ndk][_co_loc]
+                if _ndk in daily_location_data and not daily_location_data[_ndk]:
+                    del daily_location_data[_ndk]
+                print(f"🌙 [TA Export] Overnight: moved checkout {_co.check_in_time} "
+                      f"from {_ndk} → {_dk} for employee {employee_id}")
+        # -------------------------------------------------------------------
+        # END OVERNIGHT SHIFT DETECTION
+        # -------------------------------------------------------------------
+
         # Track weekly hours for overtime calculation
         weekly_total_hours = 0
         current_week_start = None
@@ -9615,9 +9725,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                 week_overtime = max(0, weekly_total_hours - 40.0)
                 
                 ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
-                ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
-                ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
-                ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                ws.cell(row=current_row, column=8, value=_qtr(weekly_total_hours)).font = bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(week_regular)).font = bold_font
+                ws.cell(row=current_row, column=10, value=_qtr(week_overtime)).font = bold_font
                 
                 grand_regular_hours += week_regular
                 grand_ot_hours += week_overtime
@@ -9633,56 +9743,85 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             
             total_hours = day_data['total_hours']
             is_miss_punch = day_data.get('is_miss_punch', False)
-            
-            # Calculate total hours for the day (even if miss punch)
+
+            # Re-evaluate is_miss_punch from actual records in daily_location_data.
+            # The overnight detection may have moved a checkout into this day's bucket
+            # AFTER working_hours_calculator ran, so emp_data may still say
+            # is_miss_punch=True even though the records now form a valid IN/OUT pair.
+            if is_miss_punch and total_locations > 0:
+                _all_recs_check = [r for loc in date_locations.values() for r in loc['records']]
+                _ins_c  = sum(1 for r in _all_recs_check if not _is_out(r))
+                _outs_c = sum(1 for r in _all_recs_check if     _is_out(r))
+                if _ins_c > 0 and _outs_c > 0 and _ins_c == _outs_c:
+                    # Balanced pairs — overnight fix resolved the miss punch
+                    is_miss_punch = False
+                    total_hours = 0.0  # will be recalculated below
+
+            # Calculate total hours for the day
             if not is_miss_punch and total_hours > 0:
                 weekly_total_hours += total_hours
+            elif not is_miss_punch and total_hours == 0 and total_locations > 0:
+                # is_miss_punch cleared above but total_hours not yet computed;
+                # recalculate from the (now-corrected) records in daily_location_data.
+                _all_recs = []
+                for loc_data in date_locations.values():
+                    _all_recs.extend(loc_data['records'])
+                _sorted = sorted(_all_recs, key=_overnight_aware_sort_key)
+                _ins  = [r for r in _sorted if not _is_out(r)]
+                _outs = [r for r in _sorted if     _is_out(r)]
+                if _ins and _outs:
+                    _day_total = 0.0
+                    for _ir, _or in zip(_ins, _outs):
+                        _dt_in  = datetime.combine(date_obj, _ir.check_in_time)
+                        _dt_out = datetime.combine(date_obj, _or.check_in_time)
+                        if _dt_out < _dt_in:
+                            _dt_out += timedelta(days=1)
+                        _day_total += (_dt_out - _dt_in).total_seconds() / 3600.0
+                    total_hours = _qtr(_day_total)
+                    weekly_total_hours += total_hours
             elif is_miss_punch and total_locations > 0:
-                # Calculate hours even for miss punch (different locations)
+                # Genuine miss punch day — sum only matched IN/OUT pairs,
+                # ignoring orphaned records (which correctly contribute 0 hours).
                 all_records_for_day = []
                 for loc_data in date_locations.values():
                     all_records_for_day.extend(loc_data['records'])
 
                 if len(all_records_for_day) >= 2:
-                    sorted_all_records = sorted(all_records_for_day, key=lambda x: x.check_in_time)
-                    
-                    # NEW: Check if all records are IN or all OUT
-                    record_types = []
-                    for record in sorted_all_records:
-                        action_desc = record.action_description.lower() if record.action_description else ''
-                        if 'out' in action_desc or 'checkout' in action_desc:
-                            record_types.append('OUT')
-                        else:
-                            record_types.append('IN')
-                    
-                    # If all same type (all IN or all OUT), hours = 0
-                    if len(set(record_types)) == 1:
-                        print(f"⚠️ {date_str}: All {len(sorted_all_records)} records are {record_types[0]} - 0 working hours")
-                        calculated_hours = 0.0
-                        total_hours = 0.0
-                    else:
-                        # Mixed IN/OUT - calculate from first to last
-                        first_time = sorted_all_records[0].check_in_time
-                        last_time = sorted_all_records[-1].check_in_time
-                        
-                        first_datetime = datetime.combine(date_obj, first_time)
-                        last_datetime = datetime.combine(date_obj, last_time)
-                        calculated_hours = (last_datetime - first_datetime).total_seconds() / 3600.0
-                        calculated_hours = round(calculated_hours, 2)
-                        
-                        weekly_total_hours += calculated_hours
-                        total_hours = calculated_hours
-            
+                    sorted_all_records = sorted(all_records_for_day, key=_overnight_aware_sort_key)
+
+                    # Walk through records pairing each IN with the next available OUT
+                    _used = [False] * len(sorted_all_records)
+                    _day_total = 0.0
+                    for _ii, _ri in enumerate(sorted_all_records):
+                        if _used[_ii] or _is_out(_ri):
+                            continue
+                        # Find the next unused OUT
+                        for _oi, _ro in enumerate(sorted_all_records):
+                            if _oi <= _ii or _used[_oi] or not _is_out(_ro):
+                                continue
+                            _dt_in  = datetime.combine(date_obj, _ri.check_in_time)
+                            _dt_out = datetime.combine(date_obj, _ro.check_in_time)
+                            if _dt_out < _dt_in:
+                                _dt_out += timedelta(days=1)
+                            _day_total += (_dt_out - _dt_in).total_seconds() / 3600.0
+                            _used[_ii] = True
+                            _used[_oi] = True
+                            break
+
+                    calculated_hours = _qtr(_day_total)
+                    weekly_total_hours += calculated_hours
+                    total_hours = calculated_hours
+
             # Daily total display (only shown on last location's last row)
-            daily_total_display = round(total_hours, 2) if total_hours > 0 else ''
-            
+            daily_total_display = _qtr(total_hours) if total_hours > 0 else ''
+
             # FIXED: Get all records for the day and sort by time FIRST, then group by location
             all_day_records = []
             for loc_data in date_locations.values():
                 all_day_records.extend(loc_data['records'])
             
-            # Sort all records by time chronologically
-            all_day_records_sorted = sorted(all_day_records, key=lambda x: x.check_in_time)
+            # Sort all records by time chronologically, overnight-aware
+            all_day_records_sorted = sorted(all_day_records, key=_overnight_aware_sort_key)
             
             # Group consecutive records by location while maintaining time order
             location_groups = []
@@ -9824,10 +9963,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 if record_info[j]['used']:
                                     continue
                                 if record_info[j]['is_out']:  # Found an OUT
+                                    # Missed punch only if an unused OUT exists between i and j
+                                    intervening_out = any(
+                                        record_info[k]['is_out'] and not record_info[k]['used']
+                                        for k in range(i + 1, j)
+                                    )
                                     pairs_to_write.append({
                                         'check_in': record_info[i]['record'],
                                         'check_out': record_info[j]['record'],
-                                        'is_miss_punch': (j > i + 1)  # Missed punch if not consecutive
+                                        'is_miss_punch': intervening_out
                                     })
                                     record_info[i]['used'] = True
                                     record_info[j]['used'] = True
@@ -9865,16 +10009,37 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         
                         # Calculate hours if complete pair
                         if check_in_record and check_out_record and not is_miss_punch:
-                            pair_datetime_in = datetime.combine(date_obj, check_in_record.check_in_time)
-                            pair_datetime_out = datetime.combine(date_obj, check_out_record.check_in_time)
+                            pair_datetime_in  = datetime.combine(check_in_record.check_in_date,  check_in_record.check_in_time)
+                            pair_datetime_out = datetime.combine(check_out_record.check_in_date, check_out_record.check_in_time)
+                            # If check-out time is before check-in time (overnight shift, both on same date),
+                            # add one day to the check-out datetime so the duration is positive and correct.
+                            if pair_datetime_out < pair_datetime_in:
+                                pair_datetime_out += timedelta(days=1)
                             pair_hours = (pair_datetime_out - pair_datetime_in).total_seconds() / 3600.0
                             pair_hours = round(pair_hours, 2)
                         else:
                             pair_hours = 'Missed Punch'
                         
+                        # Determine whether this is an overnight pair:
+                        # check-in is late evening (>= 18:00) AND check-out is early morning (<= 06:00)
+                        # Both records share the same check_in_date in the DB for this scenario.
+                        _is_overnight_pair = (
+                            check_in_record and check_out_record and
+                            check_in_record.check_in_time.hour >= 18 and
+                            check_out_record.check_in_time.hour <= 6
+                        )
+
                         # Show daily total on last pair of last location
                         is_last_pair = (pair_idx == len(pairs_to_write) - 1) and is_last_location
                         current_daily_total = daily_total_display if is_last_pair else ''
+                        
+                        # Build Out-time string (plain time only)
+                        _out_time_str = check_out_record.check_in_time.strftime('%I:%M:%S %p') if check_out_record else ''
+
+                        # Build Location string; append label for overnight pairs
+                        _location_str = check_in_record.location_name if check_in_record else ''
+                        if _is_overnight_pair:
+                            _location_str = f"{_location_str} (midnight shift)"
                         
                         # Build row data
                         if check_in_record and check_out_record:
@@ -9882,8 +10047,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 day_display,
                                 date_display,
                                 check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
-                                check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
-                                check_in_record.location_name,
+                                _out_time_str,  # Out
+                                _location_str,  # Location (includes "(midnight shift)" label if overnight)
                                 '',
                                 pair_hours,
                                 current_daily_total,
@@ -9945,9 +10110,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             week_overtime = max(0, weekly_total_hours - 40.0)
             
             ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
-            ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
-            ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
-            ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+            ws.cell(row=current_row, column=8, value=_qtr(weekly_total_hours)).font = bold_font
+            ws.cell(row=current_row, column=9, value=_qtr(week_regular)).font = bold_font
+            ws.cell(row=current_row, column=10, value=_qtr(week_overtime)).font = bold_font
             
             grand_regular_hours += week_regular
             grand_ot_hours += week_overtime
@@ -9986,8 +10151,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         
         # Write GRAND TOTAL row
         ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
-        ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
-        ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
+        ws.cell(row=current_row, column=9, value=_qtr(grand_regular_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
+        ws.cell(row=current_row, column=10, value=_qtr(grand_ot_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
         current_row += 1
         
         # Empty row after each employee
@@ -10417,9 +10582,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     week_overtime = max(0, weekly_total_hours - 40.0)
                     
                     ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
-                    ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
-                    ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
-                    ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                    ws.cell(row=current_row, column=8, value=_qtr(weekly_total_hours)).font = bold_font
+                    ws.cell(row=current_row, column=9, value=_qtr(week_regular)).font = bold_font
+                    ws.cell(row=current_row, column=10, value=_qtr(week_overtime)).font = bold_font
                     
                     grand_regular_hours += week_regular
                     grand_ot_hours += week_overtime
@@ -10562,9 +10727,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 week_overtime = max(0, weekly_total_hours - 40.0)
                 
                 ws.cell(row=current_row, column=7, value='Weekly Total: ').font = bold_font
-                ws.cell(row=current_row, column=8, value=round(weekly_total_hours, 2)).font = bold_font
-                ws.cell(row=current_row, column=9, value=round(week_regular, 2)).font = bold_font
-                ws.cell(row=current_row, column=10, value=round(week_overtime, 2)).font = bold_font
+                ws.cell(row=current_row, column=8, value=_qtr(weekly_total_hours)).font = bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(week_regular)).font = bold_font
+                ws.cell(row=current_row, column=10, value=_qtr(week_overtime)).font = bold_font
                 
                 grand_regular_hours += week_regular
                 grand_ot_hours += week_overtime
@@ -10605,8 +10770,8 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             
             # Write GRAND TOTAL row
             ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
-            ws.cell(row=current_row, column=9, value=round(grand_regular_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
-            ws.cell(row=current_row, column=10, value=round(grand_ot_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True)
+            ws.cell(row=current_row, column=9, value=_qtr(grand_regular_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
+            ws.cell(row=current_row, column=10, value=_qtr(grand_ot_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
             current_row += 1
             
             # Empty row after each employee

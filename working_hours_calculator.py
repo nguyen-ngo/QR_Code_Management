@@ -475,7 +475,78 @@ class WorkingHoursCalculator:
                     if date_key not in daily_records_by_type[work_type]:
                         daily_records_by_type[work_type][date_key] = []
                     daily_records_by_type[work_type][date_key].append(record)
-            
+
+            # ---------------------------------------------------------------
+            # OVERNIGHT SHIFT DETECTION
+            # If a late-evening check-in (>= 18:00) on Day N has no matching
+            # check-out on the same day, AND there is an early-morning check-out
+            # (<= 06:00) on Day N+1 that is itself unpaired, re-assign that
+            # check-out record to Day N so the pair resolves correctly.
+            # Hours are attributed to the earlier day (Day N).
+            # ---------------------------------------------------------------
+            OVERNIGHT_CHECKIN_HOUR  = 18   # Check-in must be at or after 6 PM
+            OVERNIGHT_CHECKOUT_HOUR = 6    # Check-out must be at or before 6 AM
+
+            for work_type in ['regular', 'SP', 'PW', 'PT']:
+                all_dates = sorted(daily_records_by_type[work_type].keys())
+                for i, date_key in enumerate(all_dates):
+                    day_records = daily_records_by_type[work_type][date_key]
+
+                    # Count unpaired check-ins (late evening)
+                    check_ins  = [r for r in day_records if r.record_type == 'check_in']
+                    check_outs = [r for r in day_records if r.record_type == 'check_out']
+
+                    # Any unmatched check-ins that started late in the evening?
+                    unmatched_late_ins = []
+                    for ci in check_ins:
+                        ci_hour = ci.check_in_time.hour if isinstance(ci.check_in_time, time) else ci.timestamp.hour
+                        if ci_hour >= OVERNIGHT_CHECKIN_HOUR:
+                            # Check that there is no check-out already on the same day for this in
+                            if len(check_outs) < len(check_ins):
+                                unmatched_late_ins.append(ci)
+
+                    if not unmatched_late_ins:
+                        continue
+
+                    # Look at the next calendar day
+                    if i + 1 >= len(all_dates):
+                        continue
+
+                    next_date_key = all_dates[i + 1]
+                    # Verify it is truly the next day
+                    from datetime import date as date_type
+                    day_n   = datetime.strptime(date_key,      '%Y-%m-%d').date()
+                    day_n1  = datetime.strptime(next_date_key, '%Y-%m-%d').date()
+                    if (day_n1 - day_n).days != 1:
+                        continue
+
+                    next_day_records  = daily_records_by_type[work_type][next_date_key]
+                    next_check_outs   = [r for r in next_day_records if r.record_type == 'check_out']
+                    next_check_ins    = [r for r in next_day_records if r.record_type == 'check_in']
+
+                    # Identify early-morning check-outs on Day N+1 that are orphaned
+                    orphaned_early_outs = []
+                    for co in next_check_outs:
+                        co_hour = co.check_in_time.hour if isinstance(co.check_in_time, time) else co.timestamp.hour
+                        if co_hour <= OVERNIGHT_CHECKOUT_HOUR:
+                            # Considered orphaned if there are fewer or equal check-ins to cover it
+                            if len(next_check_ins) < len(next_check_outs):
+                                orphaned_early_outs.append(co)
+
+                    # Move orphaned early check-outs from Day N+1 → Day N
+                    for co in orphaned_early_outs[:len(unmatched_late_ins)]:
+                        print(f"🌙 Overnight shift detected for {work_type} on {date_key}: "
+                              f"moving check-out {co.check_in_time} from {next_date_key} → {date_key}")
+                        daily_records_by_type[work_type][date_key].append(co)
+                        daily_records_by_type[work_type][next_date_key].remove(co)
+
+                    # Clean up empty buckets on Day N+1
+                    if not daily_records_by_type[work_type][next_date_key]:
+                        del daily_records_by_type[work_type][next_date_key]
+            # ---------------------------------------------------------------
+            # END OVERNIGHT SHIFT DETECTION
+            # ---------------------------------------------------------------
+
             # Calculate daily hours for each work type
             daily_hours = {}
             weekly_hours = []
