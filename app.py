@@ -9629,13 +9629,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         # -------------------------------------------------------------------
         # OVERNIGHT SHIFT DETECTION
         # The midnight check-out record is stored in the DB with the next
-        # calendar day's date (e.g. checkout at 12:01 AM on Wednesday is
-        # stored as check_in_date = 2026-02-11).  We need to move it into
-        # Tuesday's bucket so it pairs with the 8 PM check-in.
+        # calendar day's date (e.g. checkout at 12:18 AM on Thursday is
+        # stored as check_in_date = 2026-02-26).  We need to move it into
+        # Wednesday's bucket so it pairs with the 8:18 PM check-in.
         #
-        # Condition to move an early-morning checkout from Day N+1 → Day N:
-        #   Day N:   more check-ins than check-outs  (unmatched late IN)
-        #   Day N+1: more check-outs than check-ins  (orphaned early OUT)
+        # Condition to move an early-morning checkout from Day N+1 -> Day N:
+        #   Day N:   has an unmatched late check-in (>= 18:00)
+        #   Day N+1: has an early check-out (<= 06:00) that belongs to Day N,
+        #            detected by the absence of a non-evening IN on Day N+1
+        #            that could own the early OUT (or raw count imbalance).
         # -------------------------------------------------------------------
         def _is_out(r):
             a = (r.action_description or '').lower()
@@ -9662,21 +9664,32 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             _nxt_ins  = [r for r in _next_recs if not _is_out(r)]
             _nxt_outs = [r for r in _next_recs if     _is_out(r)]
 
-            # Day N must have an unmatched late check-in
+            # Day N must have an unmatched late check-in (more INs than OUTs,
+            # with at least one IN at or after 18:00)
             if len(_day_ins) <= len(_day_outs):
                 continue
             _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 18]
             if not _late_ins:
                 continue
 
-            # Day N+1 must have an orphaned early check-out
-            if len(_nxt_outs) <= len(_nxt_ins):
-                continue
+            # Find early-morning OUTs (<=06:00) on Day N+1
             _early_outs = [r for r in _nxt_outs if r.check_in_time.hour <= 6]
             if not _early_outs:
                 continue
 
-            # Move up to as many early OUTs as there are unmatched late INs
+            # Determine whether the early OUT belongs to Day N or Day N+1.
+            # It belongs to Day N when Day N+1 has no non-evening (< 18:00) check-in
+            # that could own it, OR when OUTs outnumber INs on Day N+1.
+            # This handles both cases:
+            #   Case A: Day N+1 has only evening INs (all >= 18:00) -> early OUT is Day N's
+            #   Case B: Day N+1 has more OUTs than INs overall -> early OUT is unmatched
+            _nxt_non_evening_ins = [r for r in _nxt_ins if r.check_in_time.hour < 18]
+            if _nxt_non_evening_ins and len(_nxt_outs) <= len(_nxt_ins):
+                # Day N+1 has a non-evening IN that can own the early OUT, and counts
+                # are balanced -> do NOT move
+                continue
+
+            # Move up to as many early OUTs as there are unmatched late INs on Day N
             _to_move = _early_outs[:len(_late_ins)]
             for _co in _to_move:
                 _co_loc = _co.location_name or 'Unknown Location'
@@ -9694,11 +9707,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         del daily_location_data[_ndk][_co_loc]
                 if _ndk in daily_location_data and not daily_location_data[_ndk]:
                     del daily_location_data[_ndk]
-                print(f"🌙 [TA Export] Overnight: moved checkout {_co.check_in_time} "
-                      f"from {_ndk} → {_dk} for employee {employee_id}")
+                print(f"\U0001f319 [TA Export] Overnight: moved checkout {_co.check_in_time} "
+                      f"from {_ndk} to {_dk} for employee {employee_id}")
         # -------------------------------------------------------------------
         # END OVERNIGHT SHIFT DETECTION
         # -------------------------------------------------------------------
+
 
         # Track weekly hours for overtime calculation
         weekly_total_hours = 0
