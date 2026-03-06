@@ -9613,7 +9613,16 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             if _di + 1 >= len(sorted_dk):
                 continue
 
+            # Guard: _dk or _ndk may have been deleted by a prior iteration
+            # when all its records were moved to the previous day's bucket.
+            # Without this check, iterating the stale sorted_dk snapshot raises KeyError.
+            if _dk not in daily_location_data:
+                continue
+
             _ndk = sorted_dk[_di + 1]
+            if _ndk not in daily_location_data:
+                continue
+
             # Must be consecutive calendar days
             _dn  = datetime.strptime(_dk,  '%Y-%m-%d').date()
             _dn1 = datetime.strptime(_ndk, '%Y-%m-%d').date()

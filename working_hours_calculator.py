@@ -490,6 +490,14 @@ class WorkingHoursCalculator:
             for work_type in ['regular', 'SP', 'PW', 'PT']:
                 all_dates = sorted(daily_records_by_type[work_type].keys())
                 for i, date_key in enumerate(all_dates):
+                    # Guard: date_key may have been deleted by a prior iteration when all
+                    # its records were moved to the previous day's bucket.
+                    # Without this check, iterating the stale all_dates snapshot raises KeyError,
+                    # which is silently caught by the outer try/except and returns an empty
+                    # daily_hours dict — causing the employee to show zero rows in the export.
+                    if date_key not in daily_records_by_type[work_type]:
+                        continue
+
                     day_records = daily_records_by_type[work_type][date_key]
 
                     # Count unpaired check-ins (late evening)
@@ -513,6 +521,10 @@ class WorkingHoursCalculator:
                         continue
 
                     next_date_key = all_dates[i + 1]
+                    # Guard: next_date_key may also have been deleted by a prior iteration
+                    if next_date_key not in daily_records_by_type[work_type]:
+                        continue
+
                     # Verify it is truly the next day
                     from datetime import date as date_type
                     day_n   = datetime.strptime(date_key,      '%Y-%m-%d').date()
