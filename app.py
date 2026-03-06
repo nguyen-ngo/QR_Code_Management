@@ -10948,13 +10948,32 @@ def time_attendance_records():
         unique_employees = TimeAttendance.get_unique_employees()
         unique_locations = TimeAttendance.get_unique_locations()
         projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
-        
+
+        # Resolve display name for the employee filter input
+        employee_display_name = ''
+        if employee_filter:
+            try:
+                import re as _re
+                numeric_only = _re.search(r'\d+', str(employee_filter))
+                if numeric_only:
+                    emp = Employee.query.filter_by(id=int(numeric_only.group(0))).first()
+                    if emp:
+                        employee_display_name = f"{emp.lastName}, {emp.firstName}"
+                    else:
+                        employee_display_name = f"ID: {employee_filter}"
+                else:
+                    employee_display_name = f"ID: {employee_filter}"
+            except (ValueError, TypeError):
+                employee_display_name = employee_filter
+
         return render_template(
             'time_attendance_records.html',
             records=records,
             unique_employees=unique_employees,
             unique_locations=unique_locations,
-            projects=projects
+            projects=projects,
+            employee_display_name=employee_display_name,
+            employee_filter=employee_filter or ''
         )
         
     except Exception as e:

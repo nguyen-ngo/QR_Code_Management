@@ -3,6 +3,53 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
+<style>
+/* ── Employee autocomplete for time-attendance records filter ── */
+.ta-autocomplete-container {
+  position: relative;
+}
+.ta-autocomplete-results {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ta-autocomplete-results.show { display: block; }
+.ta-autocomplete-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.ta-autocomplete-item:last-child { border-bottom: none; }
+.ta-autocomplete-item:hover { background: #f8fafc; }
+.ta-emp-name { font-weight: 500; color: #0f172a; font-size: .875rem; }
+.ta-emp-id   { font-size: .75rem; color: #64748b; white-space: nowrap; }
+.ta-clear-btn {
+  display: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 2px 6px;
+  font-size: .85rem;
+  line-height: 1;
+}
+.ta-autocomplete-container:hover .ta-clear-btn,
+.ta-clear-btn:focus { display: block; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -55,15 +102,28 @@
     <div class="filter-body" id="filterBody">
       <form method="GET" action="{{ url_for('time_attendance_records') }}" class="filter-form">
         <div class="form-group">
-          <label for="employee_id" class="form-label">Employee</label>
-          <select id="employee_id" name="employee_id" class="form-select">
-            <option value="">All Employees</option>
-            {% for employee in unique_employees %}
-            <option value="{{ employee.employee_id }}" {% if request.args.get('employee_id') == employee.employee_id %}selected{% endif %}>
-              {{ employee.employee_name }} ({{ employee.employee_id }})
-            </option>
-            {% endfor %}
-          </select>
+          <label for="ta_employee_search" class="form-label">Employee</label>
+          <div class="ta-autocomplete-container">
+            <input type="text"
+                   id="ta_employee_search"
+                   class="form-input"
+                   placeholder="Search by ID or Name..."
+                   value="{{ employee_display_name }}"
+                   autocomplete="off">
+            <input type="hidden"
+                   id="employee_id"
+                   name="employee_id"
+                   value="{{ employee_filter }}">
+            <div id="ta_autocomplete_results" class="ta-autocomplete-results"></div>
+            {% if employee_filter %}
+            <button type="button"
+                    class="ta-clear-btn"
+                    onclick="taClearEmployee()"
+                    title="Clear employee filter">
+              <i class="fas fa-times"></i>
+            </button>
+            {% endif %}
+          </div>
         </div>
 
         <div class="form-group">
@@ -346,8 +406,8 @@ function confirmDelete(recordId, employeeName, date) {
 }
 
 function exportRecords(format) {
-  // Get current filter values
-  const employeeId = document.querySelector('select[name="employee_id"]')?.value || '';
+  // Get current filter values — employee_id is now a hidden field (autocomplete widget)
+  const employeeId = document.getElementById('employee_id')?.value || '';
   const locationName = document.querySelector('select[name="location_name"]')?.value || '';
   const projectId = document.querySelector('select[name="project_id"]')?.value || '';
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
@@ -367,8 +427,8 @@ function exportRecords(format) {
 }
 
 function exportByBuilding() {
-  // Get current filter values
-  const employeeId = document.querySelector('select[name="employee_id"]')?.value || '';
+  // Get current filter values — employee_id is now a hidden field (autocomplete widget)
+  const employeeId = document.getElementById('employee_id')?.value || '';
   const locationName = document.querySelector('select[name="location_name"]')?.value || '';
   const projectId = document.querySelector('select[name="project_id"]')?.value || '';
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
@@ -412,6 +472,102 @@ document.addEventListener('DOMContentLoaded', function() {
   // Always ensure the filter section is visible
   filterBody.style.display = 'block';
 });
+
+// ── Employee autocomplete ──────────────────────────────────────────────────
+(function () {
+  const searchInput   = document.getElementById('ta_employee_search');
+  const hiddenInput   = document.getElementById('employee_id');
+  const dropdown      = document.getElementById('ta_autocomplete_results');
+  let   debounceTimer;
+
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', function () {
+    const term = this.value.trim();
+
+    // Keep hidden field in sync when typing a plain numeric ID so the user
+    // can submit without selecting from the dropdown (handles IDs not in Employee table).
+    if (/^\d+$/.test(term)) {
+      hiddenInput.value = term;
+    } else {
+      hiddenInput.value = '';
+    }
+
+    if (term.length === 0) {
+      hiddenInput.value = '';
+      dropdown.classList.remove('show');
+      return;
+    }
+
+    if (term.length < 2) {
+      dropdown.classList.remove('show');
+      return;
+    }
+
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () {
+      fetch('/api/search_employees?q=' + encodeURIComponent(term))
+        .then(function (r) { return r.json(); })
+        .then(function (data) { renderDropdown(data.employees || []); })
+        .catch(function (err) { console.error('Employee search error:', err); });
+    }, 300);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.ta-autocomplete-container')) {
+      dropdown.classList.remove('show');
+    }
+  });
+
+  function renderDropdown(employees) {
+    if (employees.length === 0) {
+      dropdown.innerHTML = '<div class="ta-autocomplete-item" style="cursor:default;color:#999;">No employees found</div>';
+    } else {
+      dropdown.innerHTML = employees.map(function (emp) {
+        const label = (emp.lastName === '(no record)')
+          ? 'ID: ' + emp.id + ' <em style="color:#94a3b8">(no record)</em>'
+          : emp.lastName + ', ' + emp.firstName;
+        const safeLabel = (emp.lastName === '(no record)')
+          ? 'ID: ' + emp.id
+          : emp.lastName + ', ' + emp.firstName;
+        return '<div class="ta-autocomplete-item" onclick="taSelectEmployee('' +
+          emp.id + '', '' + safeLabel.replace(/'/g, "\\'") + '')">' +
+          '<span class="ta-emp-name">' + label + '</span>' +
+          '<span class="ta-emp-id">ID: ' + emp.id + '</span>' +
+          '</div>';
+      }).join('');
+    }
+    positionDropdown();
+    dropdown.classList.add('show');
+  }
+
+  function positionDropdown() {
+    const rect = searchInput.getBoundingClientRect();
+    dropdown.style.top   = (rect.bottom + window.scrollY) + 'px';
+    dropdown.style.left  = rect.left + 'px';
+    dropdown.style.width = rect.width + 'px';
+  }
+
+  window.taSelectEmployee = function (id, displayName) {
+    hiddenInput.value   = id;
+    searchInput.value   = displayName;
+    dropdown.classList.remove('show');
+  };
+
+  window.taClearEmployee = function () {
+    searchInput.value = '';
+    hiddenInput.value = '';
+    searchInput.closest('form').submit();
+  };
+
+  window.addEventListener('scroll', function () {
+    if (dropdown.classList.contains('show')) positionDropdown();
+  }, true);
+
+  window.addEventListener('resize', function () {
+    if (dropdown.classList.contains('show')) positionDropdown();
+  });
+}());
 </script>
 
 <style>
