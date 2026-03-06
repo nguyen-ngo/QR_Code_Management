@@ -4,51 +4,154 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
 <style>
-/* ── Employee autocomplete for time-attendance records filter ── */
-.ta-autocomplete-container {
-  position: relative;
+/* ── Autocomplete widget styles (mirrors attendance.css — not loaded on this page) ── */
+.autocomplete-container-filter { position: relative; }
+
+.autocomplete-results-filter {
+    position: fixed;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 9999;
+    display: none;
+    box-shadow: 0 4px 8px rgba(0,0,0,.15);
+    margin-top: 0;
 }
-.ta-autocomplete-results {
-  display: none;
-  position: fixed;
-  z-index: 9999;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.12);
-  max-height: 240px;
-  overflow-y: auto;
+.autocomplete-results-filter.show { display: block; }
+
+.autocomplete-item-filter {
+    padding: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
 }
-.ta-autocomplete-results.show { display: block; }
-.ta-autocomplete-item {
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid #f1f5f9;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+.autocomplete-item-filter:last-child { border-bottom: none; }
+.autocomplete-item-filter:hover { background-color: #f8f9fa; }
+
+.employee-info-filter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
-.ta-autocomplete-item:last-child { border-bottom: none; }
-.ta-autocomplete-item:hover { background: #f8fafc; }
-.ta-emp-name { font-weight: 500; color: #0f172a; font-size: .875rem; }
-.ta-emp-id   { font-size: .75rem; color: #64748b; white-space: nowrap; }
-.ta-clear-btn {
-  display: none;
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #94a3b8;
-  padding: 2px 6px;
-  font-size: .85rem;
-  line-height: 1;
+.employee-name-filter { font-weight: 600; color: #333; }
+.employee-id-filter   { color: #666; font-size: 0.9rem; }
+
+.clear-employee-filter {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
 }
-.ta-autocomplete-container:hover .ta-clear-btn,
-.ta-clear-btn:focus { display: block; }
+.clear-employee-filter:hover { background: #c82333; }
+.clear-employee-filter i { font-size: 0.75rem; }
+
+.filter-input { padding-right: 35px !important; }
+
+/* ── Mirror attendance.css filter layout on this page ── */
+.filters-section { margin-bottom: 2rem; }
+
+.filters-card {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    overflow: hidden;
+}
+
+.filters-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.filters-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filters-header h3 i { color: #2563eb; }
+
+.filters-form { padding: 1.5rem; }
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    align-items: end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.filter-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-group label i { color: #2563eb; font-size: 0.75rem; }
+
+.filter-group input,
+.filter-group select {
+    padding: 0.625rem 0.875rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background-color: #ffffff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+.filter-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-start;
+    align-items: end;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 1200px) {
+    .filter-row { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .filter-row { grid-template-columns: 1fr 1fr; }
+    .filter-actions { grid-column: 1 / -1; }
+}
 </style>
 {% endblock %}
 
@@ -92,87 +195,112 @@
   </div>
 
   <!-- Filters Section -->
-  <div class="filter-section">
-    <div class="filter-header">
-      <h3>
-        <i class="fas fa-filter"></i>
-        Filter Records
-      </h3>
-    </div>  
-    <div class="filter-body" id="filterBody">
-      <form method="GET" action="{{ url_for('time_attendance_records') }}" class="filter-form">
-        <div class="form-group">
-          <label for="ta_employee_search" class="form-label">Employee</label>
-          <div class="ta-autocomplete-container">
-            <input type="text"
-                   id="ta_employee_search"
-                   class="form-input"
-                   placeholder="Search by ID or Name..."
-                   value="{{ employee_display_name }}"
-                   autocomplete="off">
-            <input type="hidden"
-                   id="employee_id"
-                   name="employee_id"
-                   value="{{ employee_filter }}">
-            <div id="ta_autocomplete_results" class="ta-autocomplete-results"></div>
-            {% if employee_filter %}
-            <button type="button"
-                    class="ta-clear-btn"
-                    onclick="taClearEmployee()"
-                    title="Clear employee filter">
-              <i class="fas fa-times"></i>
-            </button>
-            {% endif %}
-          </div>
-        </div>
+  <div class="filters-section">
+    <div class="filters-card">
+      <div class="filters-header">
+        <h3>
+          <i class="fas fa-filter"></i>
+          Filter Records
+        </h3>
+      </div>
+      <div class="filters-form">
+        <form method="GET" action="{{ url_for('time_attendance_records') }}">
+          <div class="filter-row">
 
-        <div class="form-group">
-          <label for="project_id" class="form-label">Project</label>
-          <select id="project_id" name="project_id" class="form-select">
-            <option value="">All Projects</option>
-            {% for project in projects %}
-            <option value="{{ project.id }}" {% if request.args.get('project_id') == project.id|string %}selected{% endif %}>
-              {{ project.name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="location_name" class="form-label">Location</label>
-          <select id="location_name" name="location_name" class="form-select">
-            <option value="">All Locations</option>
-            {% for location in unique_locations %}
-            <option value="{{ location[0] }}" {% if request.args.get('location_name') == location[0] %}selected{% endif %}>
-              {{ location[0] }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="start_date" class="form-label">Start Date</label>
-          <input type="date" id="start_date" name="start_date" class="form-input" 
-                 value="{{ request.args.get('start_date', '') }}">
-        </div>
-        
-        <div class="form-group">
-          <label for="end_date" class="form-label">End Date</label>
-          <input type="date" id="end_date" name="end_date" class="form-input" 
-                 value="{{ request.args.get('end_date', '') }}">
-        </div>
-        
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-search"></i>
-            Apply Filters
-          </button>
-          <a href="{{ url_for('time_attendance_records') }}" class="btn btn-secondary">
-            <i class="fas fa-times"></i>
-            Clear
-          </a>
-        </div>
-      </form>
+            <div class="filter-group">
+              <label for="start_date">
+                <i class="fas fa-calendar-alt"></i>
+                Start Date
+              </label>
+              <input type="date"
+                     id="start_date"
+                     name="start_date"
+                     value="{{ request.args.get('start_date', '') }}">
+            </div>
+
+            <div class="filter-group">
+              <label for="end_date">
+                <i class="fas fa-calendar-alt"></i>
+                End Date
+              </label>
+              <input type="date"
+                     id="end_date"
+                     name="end_date"
+                     value="{{ request.args.get('end_date', '') }}">
+            </div>
+
+            <div class="filter-group">
+              <label for="project_id">
+                <i class="fas fa-project-diagram"></i>
+                Project
+              </label>
+              <select id="project_id" name="project_id">
+                <option value="">All Projects</option>
+                {% for project in projects %}
+                <option value="{{ project.id }}" {% if request.args.get('project_id') == project.id|string %}selected{% endif %}>
+                  {{ project.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="location_name">
+                <i class="fas fa-map-marker-alt"></i>
+                Location
+              </label>
+              <select id="location_name" name="location_name">
+                <option value="">All Locations</option>
+                {% for location in unique_locations %}
+                <option value="{{ location[0] }}" {% if request.args.get('location_name') == location[0] %}selected{% endif %}>
+                  {{ location[0] }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="ta_employee_search">
+                <i class="fas fa-user-search"></i>
+                Employee
+              </label>
+              <div class="autocomplete-container-filter">
+                <input type="text"
+                       id="ta_employee_search"
+                       class="filter-input"
+                       placeholder="Search by ID or Name..."
+                       value="{{ employee_display_name }}"
+                       autocomplete="off">
+                <input type="hidden"
+                       id="employee_id"
+                       name="employee_id"
+                       value="{{ employee_filter }}">
+                <div id="ta_autocomplete_results" class="autocomplete-results-filter"></div>
+                {% if employee_filter %}
+                <button type="button"
+                        class="clear-employee-filter"
+                        onclick="taClearEmployee()"
+                        title="Clear employee filter">
+                  <i class="fas fa-times"></i>
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="filter-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i>
+                Apply Filters
+              </button>
+              <button type="button" onclick="taClearAllFilters()" class="btn btn-outline">
+                <i class="fas fa-times"></i>
+                Clear
+              </button>
+            </div>
+
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -466,18 +594,13 @@ document.addEventListener('keydown', function(event) {
   }
 });
 
-// Initialize filters state - Always visible
-document.addEventListener('DOMContentLoaded', function() {
-  const filterBody = document.getElementById('filterBody');
-  // Always ensure the filter section is visible
-  filterBody.style.display = 'block';
-});
+// Filters are always visible — no toggle needed
 
 // ── Employee autocomplete ──────────────────────────────────────────────────
 (function () {
-  const searchInput   = document.getElementById('ta_employee_search');
-  const hiddenInput   = document.getElementById('employee_id');
-  const dropdown      = document.getElementById('ta_autocomplete_results');
+  const searchInput = document.getElementById('ta_employee_search');
+  const hiddenInput = document.getElementById('employee_id');
+  const dropdown    = document.getElementById('ta_autocomplete_results');
   let   debounceTimer;
 
   if (!searchInput) return;
@@ -514,19 +637,18 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.addEventListener('click', function (e) {
-    if (!e.target.closest('.ta-autocomplete-container')) {
+    if (!e.target.closest('.autocomplete-container-filter')) {
       dropdown.classList.remove('show');
     }
   });
 
   function renderDropdown(employees) {
-    // Clear and rebuild — use createElement + addEventListener to avoid
-    // any quoting/escaping issues with names that contain apostrophes.
+    // Use createElement + addEventListener — safe with apostrophes in names
     dropdown.innerHTML = '';
 
     if (employees.length === 0) {
       const noResult = document.createElement('div');
-      noResult.className = 'ta-autocomplete-item';
+      noResult.className = 'autocomplete-item-filter';
       noResult.style.cssText = 'cursor:default;color:#999;';
       noResult.textContent = 'No employees found';
       dropdown.appendChild(noResult);
@@ -538,10 +660,13 @@ document.addEventListener('DOMContentLoaded', function() {
           : emp.lastName + ', ' + emp.firstName;
 
         const item = document.createElement('div');
-        item.className = 'ta-autocomplete-item';
+        item.className = 'autocomplete-item-filter';
+
+        const info = document.createElement('div');
+        info.className = 'employee-info-filter';
 
         const nameSpan = document.createElement('span');
-        nameSpan.className = 'ta-emp-name';
+        nameSpan.className = 'employee-name-filter';
         if (isUnregistered) {
           nameSpan.textContent = 'ID: ' + emp.id + ' ';
           const em = document.createElement('em');
@@ -553,13 +678,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const idSpan = document.createElement('span');
-        idSpan.className = 'ta-emp-id';
+        idSpan.className = 'employee-id-filter';
         idSpan.textContent = 'ID: ' + emp.id;
 
-        item.appendChild(nameSpan);
-        item.appendChild(idSpan);
+        info.appendChild(nameSpan);
+        info.appendChild(idSpan);
+        item.appendChild(info);
 
-        // Capture values in closure — safe regardless of special characters
+        // Closure captures values safely regardless of special characters
         item.addEventListener('click', (function (id, name) {
           return function () { taSelectEmployee(id, name); };
         }(String(emp.id), displayName)));
@@ -579,8 +705,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   window.taSelectEmployee = function (id, displayName) {
-    hiddenInput.value   = id;
-    searchInput.value   = displayName;
+    hiddenInput.value = id;
+    searchInput.value = displayName;
     dropdown.classList.remove('show');
   };
 
@@ -588,6 +714,10 @@ document.addEventListener('DOMContentLoaded', function() {
     searchInput.value = '';
     hiddenInput.value = '';
     searchInput.closest('form').submit();
+  };
+
+  window.taClearAllFilters = function () {
+    window.location.href = '{{ url_for("time_attendance_records") }}';
   };
 
   window.addEventListener('scroll', function () {
