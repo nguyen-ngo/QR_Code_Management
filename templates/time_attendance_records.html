@@ -520,22 +520,52 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   function renderDropdown(employees) {
+    // Clear and rebuild — use createElement + addEventListener to avoid
+    // any quoting/escaping issues with names that contain apostrophes.
+    dropdown.innerHTML = '';
+
     if (employees.length === 0) {
-      dropdown.innerHTML = '<div class="ta-autocomplete-item" style="cursor:default;color:#999;">No employees found</div>';
+      const noResult = document.createElement('div');
+      noResult.className = 'ta-autocomplete-item';
+      noResult.style.cssText = 'cursor:default;color:#999;';
+      noResult.textContent = 'No employees found';
+      dropdown.appendChild(noResult);
     } else {
-      dropdown.innerHTML = employees.map(function (emp) {
-        const label = (emp.lastName === '(no record)')
-          ? 'ID: ' + emp.id + ' <em style="color:#94a3b8">(no record)</em>'
-          : emp.lastName + ', ' + emp.firstName;
-        const safeLabel = (emp.lastName === '(no record)')
+      employees.forEach(function (emp) {
+        const isUnregistered = (emp.lastName === '(no record)');
+        const displayName = isUnregistered
           ? 'ID: ' + emp.id
           : emp.lastName + ', ' + emp.firstName;
-        return '<div class="ta-autocomplete-item" onclick="taSelectEmployee('' +
-          emp.id + '', '' + safeLabel.replace(/'/g, "\\'") + '')">' +
-          '<span class="ta-emp-name">' + label + '</span>' +
-          '<span class="ta-emp-id">ID: ' + emp.id + '</span>' +
-          '</div>';
-      }).join('');
+
+        const item = document.createElement('div');
+        item.className = 'ta-autocomplete-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'ta-emp-name';
+        if (isUnregistered) {
+          nameSpan.textContent = 'ID: ' + emp.id + ' ';
+          const em = document.createElement('em');
+          em.style.color = '#94a3b8';
+          em.textContent = '(no record)';
+          nameSpan.appendChild(em);
+        } else {
+          nameSpan.textContent = displayName;
+        }
+
+        const idSpan = document.createElement('span');
+        idSpan.className = 'ta-emp-id';
+        idSpan.textContent = 'ID: ' + emp.id;
+
+        item.appendChild(nameSpan);
+        item.appendChild(idSpan);
+
+        // Capture values in closure — safe regardless of special characters
+        item.addEventListener('click', (function (id, name) {
+          return function () { taSelectEmployee(id, name); };
+        }(String(emp.id), displayName)));
+
+        dropdown.appendChild(item);
+      });
     }
     positionDropdown();
     dropdown.classList.add('show');
