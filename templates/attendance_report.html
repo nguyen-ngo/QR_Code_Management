@@ -765,19 +765,29 @@ document.addEventListener('DOMContentLoaded', function() {
     if (employeeSearchFilter) {
         employeeSearchFilter.addEventListener('input', function() {
             const searchTerm = this.value.trim();
-            
+
             // Clear hidden field if input is cleared
             if (searchTerm.length === 0) {
                 employeeHiddenFilter.value = '';
                 autocompleteResultsFilter.classList.remove('show');
                 return;
             }
-            
+
+            // If the visible input is a plain numeric ID, keep the hidden field
+            // in sync immediately so the user can just type an ID and submit
+            // without having to pick from the dropdown (handles IDs not in Employee table).
+            if (/^\d+$/.test(searchTerm)) {
+                employeeHiddenFilter.value = searchTerm;
+            } else {
+                // Non-numeric input — clear hidden field until a suggestion is picked
+                employeeHiddenFilter.value = '';
+            }
+
             if (searchTerm.length < 2) {
                 autocompleteResultsFilter.classList.remove('show');
                 return;
             }
-            
+
             // Debounce search
             clearTimeout(searchFilterTimeout);
             searchFilterTimeout = setTimeout(() => {

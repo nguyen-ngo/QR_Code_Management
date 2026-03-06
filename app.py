@@ -5384,18 +5384,20 @@ def save_manual_attendance():
 @login_required
 def search_employees_api():
     """
-    API endpoint to search employees by name or ID
-    Returns JSON with employee list
+    API endpoint to search employees by name or ID.
+    Returns matches from the Employee table first, then appends any IDs found
+    in attendance_data that have no Employee record — so unregistered IDs
+    that have attendance records can still be filtered on the attendance page.
     """
     try:
         search_query = request.args.get('q', '').strip()
-        
+
         if not search_query or len(search_query) < 2:
             return jsonify({'employees': []})
-        
-        # Search by ID or name
+
         search_pattern = f"%{search_query}%"
-        
+
+        # 1. Registered employees — search by ID or name
         employees = Employee.query.filter(
             db.or_(
                 Employee.id.like(search_pattern),
@@ -5404,16 +5406,49 @@ def search_employees_api():
                 db.func.concat(Employee.firstName, ' ', Employee.lastName).like(search_pattern)
             )
         ).limit(10).all()
-        
+
         employee_list = [{
             'id': emp.id,
             'firstName': emp.firstName,
             'lastName': emp.lastName,
             'full_name': f"{emp.firstName} {emp.lastName}"
         } for emp in employees]
-        
+
+        registered_ids = {str(emp.id) for emp in employees}
+
+        # 2. Unregistered IDs — present in attendance_data but not in Employee table.
+        #    Only add when the search term looks like (part of) a numeric ID and we
+        #    still have room in the result list.
+        if len(employee_list) < 10:
+            remaining_slots = 10 - len(employee_list)
+            try:
+                unregistered_rows = db.session.execute(
+                    text("""
+                        SELECT DISTINCT ad.employee_id
+                        FROM attendance_data ad
+                        LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
+                        WHERE e.id IS NULL
+                          AND ad.employee_id LIKE :pattern
+                        ORDER BY ad.employee_id
+                        LIMIT :lim
+                    """),
+                    {'pattern': search_pattern, 'lim': remaining_slots}
+                ).fetchall()
+
+                for row in unregistered_rows:
+                    emp_id = str(row[0])
+                    if emp_id not in registered_ids:
+                        employee_list.append({
+                            'id': emp_id,
+                            'firstName': f'ID: {emp_id}',
+                            'lastName': '(no record)',
+                            'full_name': f'ID: {emp_id} (no record)'
+                        })
+            except Exception as unreg_err:
+                logger_handler.logger.warning(f"Could not search unregistered employee IDs: {unreg_err}")
+
         return jsonify({'employees': employee_list})
-    
+
     except Exception as e:
         logger_handler.logger.error(f"Error searching employees: {e}")
         return jsonify({'employees': [], 'error': str(e)}), 500
