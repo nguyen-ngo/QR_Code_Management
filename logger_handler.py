@@ -25,7 +25,7 @@ import os
 import traceback
 from datetime import datetime, date, timedelta
 from functools import wraps
-from flask import request, session, g
+from flask import request, session, g, render_template
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 import uuid
@@ -187,17 +187,7 @@ class AppLogger:
             if self.app.debug:
                 return None  # Let Flask handle debug errors
             
-            return '''
-            <!DOCTYPE html>
-            <html>
-            <head><title>Server Error</title></head>
-            <body style="font-family: Arial; text-align: center; margin-top: 100px;">
-                <h1>🔧 Something went wrong</h1>
-                <p>We're working to fix this issue. Please try again later.</p>
-                <a href="/" style="color: #2563eb;">← Back to Home</a>
-            </body>
-            </html>
-            ''', 500
+            return render_template('errors/500.html'), 500
         
         @self.app.errorhandler(404)
         def handle_not_found(error):
@@ -208,17 +198,7 @@ class AppLogger:
                 severity="LOW"
             )
             
-            return '''
-            <!DOCTYPE html>
-            <html>
-            <head><title>Page Not Found</title></head>
-            <body style="font-family: Arial; text-align: center; margin-top: 100px;">
-                <h1>🔍 Page Not Found</h1>
-                <p>The page you're looking for doesn't exist.</p>
-                <a href="/" style="color: #2563eb;">← Back to Home</a>
-            </body>
-            </html>
-            ''', 404
+            return render_template('errors/404.html'), 404
     
     def _get_request_context(self):
         """Get current request context information"""
@@ -773,69 +753,109 @@ class AppLogger:
             self.log_database_error('cleanup_old_logs', e)
             return 0
 
-def get_recent_logs(self, days=7, limit=100, category_filter=None, severity_filter=None, search_term=None):
-    """Enhanced method to get recent logs with filtering options"""
-    try:
-        cutoff_date = datetime.now() - timedelta(days=days)
-        
-        # Build the base query
-        base_sql = """
-        SELECT 
-            event_id,
-            event_type, 
-            event_category, 
-            event_description, 
-            severity_level, 
-            created_timestamp, 
-            username, 
-            ip_address,
-            user_id
-        FROM log_events 
-        WHERE created_timestamp >= :cutoff_date
-        """
-        
-        # Add filters
-        params = {'cutoff_date': cutoff_date}
-        
-        if category_filter:
-            base_sql += " AND event_category = :category_filter"
-            params['category_filter'] = category_filter
-        
-        if severity_filter:
-            base_sql += " AND severity_level = :severity_filter" 
-            params['severity_filter'] = severity_filter
-        
-        if search_term:
-            base_sql += " AND (event_description LIKE :search_term OR event_type LIKE :search_term OR username LIKE :search_term)"
-            params['search_term'] = f"%{search_term}%"
-        
-        # Add ordering and limit
-        base_sql += " ORDER BY created_timestamp DESC LIMIT :limit"
-        params['limit'] = limit
-        
-        result = self.db.session.execute(text(base_sql), params).fetchall()
-        
-        logs = []
-        for row in result:
-            logs.append({
-                'event_id': row.event_id,
-                'event_type': row.event_type,
-                'event_category': row.event_category,
-                'description': row.event_description,
-                'severity': row.severity_level,
-                'timestamp': row.created_timestamp.isoformat(),
-                'username': row.username or 'System',
-                'ip_address': row.ip_address or '-',
-                'user_id': row.user_id
-            })
-        
-        return logs
-        
-    except Exception as e:
-        self.log_database_error('get_recent_logs', e)
-        print(f"Error in get_recent_logs: {e}")
-        return []
-    
+    def get_recent_logs(self, days=7, limit=100, category_filter=None, severity_filter=None, search_term=None):
+        """Enhanced method to get recent logs with filtering options"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days)
+            
+            # Build the base query
+            base_sql = """
+            SELECT 
+                event_id,
+                event_type, 
+                event_category, 
+                event_description, 
+                severity_level, 
+                created_timestamp, 
+                username, 
+                ip_address,
+                user_id
+            FROM log_events 
+            WHERE created_timestamp >= :cutoff_date
+            """
+            
+            # Add filters
+            params = {'cutoff_date': cutoff_date}
+            
+            if category_filter:
+                base_sql += " AND event_category = :category_filter"
+                params['category_filter'] = category_filter
+            
+            if severity_filter:
+                base_sql += " AND severity_level = :severity_filter" 
+                params['severity_filter'] = severity_filter
+            
+            if search_term:
+                base_sql += " AND (event_description LIKE :search_term OR event_type LIKE :search_term OR username LIKE :search_term)"
+                params['search_term'] = f"%{search_term}%"
+            
+            # Add ordering and limit
+            base_sql += " ORDER BY created_timestamp DESC LIMIT :limit"
+            params['limit'] = limit
+            
+            result = self.db.session.execute(text(base_sql), params).fetchall()
+            
+            logs = []
+            for row in result:
+                logs.append({
+                    'event_id': row.event_id,
+                    'event_type': row.event_type,
+                    'event_category': row.event_category,
+                    'description': row.event_description,
+                    'severity': row.severity_level,
+                    'timestamp': row.created_timestamp.isoformat(),
+                    'username': row.username or 'System',
+                    'ip_address': row.ip_address or '-',
+                    'user_id': row.user_id
+                })
+            
+            return logs
+            
+        except Exception as e:
+            self.log_database_error('get_recent_logs', e)
+            print(f"Error in get_recent_logs: {e}")
+            return []
+
+    def log_system_event(self, event_type, description, severity='INFO', additional_data=None):
+        """Log system-level events such as startup, optimization, and slow queries"""
+        event_data = {
+            'system_event_type': event_type,
+            'severity': severity,
+            'event_timestamp': datetime.now().isoformat()
+        }
+        if additional_data:
+            event_data['additional_data'] = additional_data
+        message = f"System event: {event_type} - {description}"
+        self.logger.info(json.dumps({'event': 'system_event', 'data': event_data}))
+        self._log_to_database(
+            event_type=event_type,
+            event_category='system',
+            description=message,
+            event_data=event_data,
+            severity=severity
+        )
+
+    def log_user_activity(self, activity_type, description='', additional_data=None):
+        """Log user activity events called directly from route handlers"""
+        context = self._get_request_context()
+        event_data = {
+            'activity_type': activity_type,
+            'event_timestamp': datetime.now().isoformat(),
+            'user_id': context.get('user_id'),
+            'username': context.get('username')
+        }
+        if additional_data:
+            event_data['additional_data'] = additional_data
+        message = f"User activity: {activity_type} - {description}" if description else f"User activity: {activity_type}"
+        self.logger.info(json.dumps({'event': 'user_activity', 'data': event_data}))
+        self._log_to_database(
+            event_type=f'user_activity_{activity_type}',
+            event_category='activity',
+            description=message,
+            event_data=event_data,
+            severity='INFO'
+        )
+
 # DECORATOR FUNCTIONS FOR AUTOMATIC LOGGING
 
 def log_user_activity(activity_type):
@@ -897,62 +917,62 @@ def log_database_operations(operation_name):
         return decorated_function
     return decorator
 
-def verify_log_table_exists(self):
-    """Verify that the log_events table exists and has the correct structure"""
-    try:
-        # Check if table exists
-        check_table_sql = """
-        SELECT COUNT(*) as table_exists 
-        FROM information_schema.tables 
-        WHERE table_schema = DATABASE() 
-        AND table_name = 'log_events'
-        """
-        
-        result = self.db.session.execute(text(check_table_sql)).fetchone()
-        
-        if result.table_exists == 0:
-            print("⚠️ log_events table does not exist. Creating it now...")
-            self._create_log_table()
+    def verify_log_table_exists(self):
+        """Verify that the log_events table exists and has the correct structure"""
+        try:
+            # Check if table exists
+            check_table_sql = """
+            SELECT COUNT(*) as table_exists 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'log_events'
+            """
+            
+            result = self.db.session.execute(text(check_table_sql)).fetchone()
+            
+            if result.table_exists == 0:
+                print("⚠️ log_events table does not exist. Creating it now...")
+                self._create_log_table()
+                return True
+            
+            # Check if table has records
+            count_sql = "SELECT COUNT(*) as record_count FROM log_events"
+            count_result = self.db.session.execute(text(count_sql)).fetchone()
+            
+            print(f"✅ log_events table exists with {count_result.record_count} records")
             return True
-        
-        # Check if table has records
-        count_sql = "SELECT COUNT(*) as record_count FROM log_events"
-        count_result = self.db.session.execute(text(count_sql)).fetchone()
-        
-        print(f"✅ log_events table exists with {count_result.record_count} records")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error verifying log table: {e}")
-        return False
+            
+        except Exception as e:
+            print(f"❌ Error verifying log table: {e}")
+            return False
     
-def log_modal_interaction(self, event_type, description, additional_data=None):
-    """Log modal interactions for debugging"""
-    try:
-        context = self._get_request_context()
-        
-        event_data = {
-            'interaction_type': event_type,
-            'event_timestamp': datetime.now().isoformat(),
-            'request_context': context
-        }
-        
-        if additional_data:
-            event_data['additional_data'] = additional_data
-        
-        message = f"Modal interaction: {event_type} - {description}"
-        
-        # Log to database
-        self._log_to_database(
-            event_type='modal_interaction',
-            event_category='ui',
-            description=message,
-            event_data=event_data,
-            severity='INFO'
-        )
-        
-    except Exception as e:
-        print(f"Error logging modal interaction: {e}")
+    def log_modal_interaction(self, event_type, description, additional_data=None):
+        """Log modal interactions for debugging"""
+        try:
+            context = self._get_request_context()
+            
+            event_data = {
+                'interaction_type': event_type,
+                'event_timestamp': datetime.now().isoformat(),
+                'request_context': context
+            }
+            
+            if additional_data:
+                event_data['additional_data'] = additional_data
+            
+            message = f"Modal interaction: {event_type} - {description}"
+            
+            # Log to database
+            self._log_to_database(
+                event_type='modal_interaction',
+                event_category='ui',
+                description=message,
+                event_data=event_data,
+                severity='INFO'
+            )
+            
+        except Exception as e:
+            print(f"Error logging modal interaction: {e}")
     
 # INITIALIZATION FUNCTION
 def init_logging(app, db):

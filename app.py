@@ -37,8 +37,8 @@ app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
 
 # Session configuration for "Remember Me" functionality
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE')   # Set to True if using HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY')
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'   # Set to True if using HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', 'true').lower() == 'true'
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE')
 
 # Photo Verification Configuration
@@ -110,8 +110,8 @@ def create_performance_indexes():
         print(f"❌ Error creating performance indexes: {e}")
         db.session.rollback()
         logger_handler.log_database_error(
-            error_type="index_creation_error",
-            error_message=str(e),
+            'index_creation_error',
+            e,
             query="CREATE INDEX statements"
         )
 
@@ -4596,40 +4596,6 @@ def deactivate_qr_code(qr_id):
             'message': 'Error deactivating QR code. Please try again.'
         }), 500
 
-@app.route('/qr-codes/<int:qr_id>/toggle-status', methods=['POST'])
-@admin_required
-def toggle_qr_status_api(qr_id):
-    """Toggle QR code active/inactive status - Enhanced JSON API"""
-    try:
-        qr_code = QRCode.query.get_or_404(qr_id)
-        qr_code.active_status = not qr_code.active_status
-        db.session.commit()
-
-        status_text = "activated" if qr_code.active_status else "deactivated"
-
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'success': True,
-                'new_status': qr_code.active_status,
-                'status_text': 'Active' if qr_code.active_status else 'Inactive',
-                'message': f'QR code "{qr_code.name}" has been {status_text} successfully!'
-            })
-        else:
-            flash(f'QR code "{qr_code.name}" has been {status_text} successfully!', 'success')
-            return redirect(url_for('dashboard'))
-
-    except Exception as e:
-        db.session.rollback()
-
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'success': False,
-                'message': 'Error updating QR code status. Please try again.'
-            }), 500
-        else:
-            flash('Error updating QR code status. Please try again.', 'error')
-            return redirect(url_for('dashboard'))
-
 @app.route('/attendance')
 @login_required
 def attendance_report():
@@ -6039,8 +6005,8 @@ def export_configuration():
         # Use your existing logger error method with correct parameters
         try:
             logger_handler.log_flask_error(
-                error_type="export_configuration_error",
-                error_message=str(e),
+                'export_configuration_error',
+                str(e),
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
@@ -6194,8 +6160,8 @@ def generate_excel_export():
         # Use your existing logger error method with correct parameters
         try:
             logger_handler.log_flask_error(
-                error_type="excel_export_error",
-                error_message=str(e),
+                'excel_export_error',
+                str(e),
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
@@ -6478,8 +6444,8 @@ def create_excel_export(selected_columns, column_names, filters):
         # Log error
         try:
             logger_handler.log_flask_error(
-                error_type="excel_export_error",
-                error_message=str(e),
+                'excel_export_error',
+                str(e),
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
@@ -6785,8 +6751,8 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         # Log error
         try:
             logger_handler.log_flask_error(
-                error_type="excel_export_ordered_error",
-                error_message=str(e),
+                'excel_export_ordered_error',
+                str(e),
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
@@ -6932,8 +6898,8 @@ def payroll_dashboard():
         print(f"❌ Traceback: {traceback.format_exc()}")
 
         logger_handler.log_flask_error(
-            error_type="payroll_dashboard_error",
-            error_message=str(e),
+            'payroll_dashboard_error',
+            str(e),
             stack_trace=traceback.format_exc()
         )
 
@@ -7173,8 +7139,8 @@ def export_payroll_excel():
         print(f"❌ Traceback: {traceback.format_exc()}")
 
         logger_handler.log_flask_error(
-            error_type="payroll_excel_export_error",
-            error_message=str(e),
+            'payroll_excel_export_error',
+            str(e),
             stack_trace=traceback.format_exc()
         )
 
@@ -7231,8 +7197,8 @@ def calculate_working_hours_api():
 
         attendance_records = query.all()
 
-        # Calculate working hours using single check-in calculator
-        calculator = SingleCheckInCalculator()
+        # Calculate working hours using WorkingHoursCalculator
+        calculator = WorkingHoursCalculator()
         hours_data = calculator.calculate_employee_hours(
             str(employee_id), start_date, end_date, attendance_records
         )
@@ -7248,8 +7214,8 @@ def calculate_working_hours_api():
     except Exception as e:
         print(f"❌ Error in calculate_working_hours_api: {e}")
         logger_handler.log_flask_error(
-            error_type="working_hours_api_error",
-            error_message=str(e),
+            'working_hours_api_error',
+            str(e),
             stack_trace=traceback.format_exc()
         )
 
@@ -7355,7 +7321,6 @@ def get_miss_punch_details(employee_id):
             converted_records.append(converted_record)
 
         # Calculate working hours using the same calculator as the dashboard
-        #calculator = SingleCheckInCalculator()
 
         # Calculate hours for this employee
         hours_data = calculator.calculate_employee_hours(
@@ -7415,8 +7380,8 @@ def get_miss_punch_details(employee_id):
         print(f"❌ Traceback: {traceback.format_exc()}")
 
         logger_handler.log_flask_error(
-            error_type="miss_punch_details_api_error",
-            error_message=str(e),
+            'miss_punch_details_api_error',
+            str(e),
             stack_trace=traceback.format_exc()
         )
 
@@ -9451,7 +9416,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             f"SP: {work_type_counts['SP']}, PW: {work_type_counts['PW']}"
         )
     
-    # Calculate working hours using SingleCheckInCalculator
+    # Calculate working hours using WorkingHoursCalculator
     calculator = WorkingHoursCalculator()
     hours_data = calculator.calculate_all_employees_hours(
         datetime.combine(start_date, datetime.min.time()),
@@ -11217,8 +11182,8 @@ def update_existing_qr_codes():
 
                 except Exception as e:
                     logger_handler.log_flask_error(
-                        error_type="qr_code_update_error",
-                        error_message=f"Failed to update QR code {qr_code.id}: {str(e)}"
+                        'qr_code_update_error',
+                        f"Failed to update QR code {qr_code.id}: {str(e)}"
                     )
                     continue
 
@@ -11437,8 +11402,8 @@ def get_optimized_statistics(date_from=None, date_to=None, project_filter=None):
         
     except Exception as e:
         logger_handler.log_database_error(
-            error_type="statistics_query_error",
-            error_message=str(e),
+            'statistics_query_error',
+            e,
             query="get_optimized_statistics"
         )
         raise
@@ -11493,8 +11458,8 @@ if __name__ == '__main__':
             print(f"❌ Application startup failed: {e}")
             if hasattr(app, 'logger_handler'):
                 logger_handler.log_flask_error(
-                    error_type="application_startup_error",
-                    error_message=str(e)
+                    'application_startup_error',
+                    str(e)
                 )
             raise
 
