@@ -811,23 +811,57 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function displayEmployeeAutocompleteResults(employees) {
+        // Clear previous results safely
+        autocompleteResultsFilter.innerHTML = '';
+
         if (employees.length === 0) {
-            autocompleteResultsFilter.innerHTML = '<div class="autocomplete-item-filter" style="cursor: default; color: #999;">No employees found</div>';
-            positionDropdown();
-            autocompleteResultsFilter.classList.add('show');
-            return;
+            const noResult = document.createElement('div');
+            noResult.className = 'autocomplete-item-filter';
+            noResult.style.cssText = 'cursor:default;color:#999;';
+            noResult.textContent = 'No employees found';
+            autocompleteResultsFilter.appendChild(noResult);
+        } else {
+            employees.forEach(function(emp) {
+                const isUnregistered = (emp.lastName === '(no record)');
+                const displayName = isUnregistered
+                    ? 'ID: ' + emp.id
+                    : emp.lastName + ', ' + emp.firstName;
+
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item-filter';
+
+                const info = document.createElement('div');
+                info.className = 'employee-info-filter';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'employee-name-filter';
+                if (isUnregistered) {
+                    nameSpan.textContent = 'ID: ' + emp.id + ' ';
+                    const em = document.createElement('em');
+                    em.style.color = '#94a3b8';
+                    em.textContent = '(no record)';
+                    nameSpan.appendChild(em);
+                } else {
+                    nameSpan.textContent = displayName;
+                }
+
+                const idSpan = document.createElement('span');
+                idSpan.className = 'employee-id-filter';
+                idSpan.textContent = 'ID: ' + emp.id;
+
+                info.appendChild(nameSpan);
+                info.appendChild(idSpan);
+                item.appendChild(info);
+
+                // Closure captures values safely regardless of special characters in names
+                item.addEventListener('click', (function(id, name) {
+                    return function() { selectEmployeeFilter(id, name); };
+                }(emp.id, displayName)));
+
+                autocompleteResultsFilter.appendChild(item);
+            });
         }
-        
-        const html = employees.map(emp => `
-            <div class="autocomplete-item-filter" onclick="selectEmployeeFilter(${emp.id}, '${emp.lastName}, ${emp.firstName}')">
-                <div class="employee-info-filter">
-                    <span class="employee-name-filter">${emp.lastName}, ${emp.firstName}</span>
-                    <span class="employee-id-filter">ID: ${emp.id}</span>
-                </div>
-            </div>
-        `).join('');
-        
-        autocompleteResultsFilter.innerHTML = html;
+
         positionDropdown();
         autocompleteResultsFilter.classList.add('show');
     }
@@ -853,19 +887,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Submit the form to refresh with cleared filter
         employeeSearchFilter.closest('form').submit();
     };
+
+    // Reposition dropdown on scroll or resize
+    window.addEventListener('scroll', function() {
+        if (autocompleteResultsFilter.classList.contains('show')) {
+            positionDropdown();
+        }
+    }, true);
+
+    window.addEventListener('resize', function() {
+        if (autocompleteResultsFilter.classList.contains('show')) {
+            positionDropdown();
+        }
+    });
 })();
-
-// Reposition dropdown on scroll or resize
-window.addEventListener('scroll', function() {
-    if (autocompleteResultsFilter.classList.contains('show')) {
-        positionDropdown();
-    }
-}, true);
-
-window.addEventListener('resize', function() {
-    if (autocompleteResultsFilter.classList.contains('show')) {
-        positionDropdown();
-    }
-});
 </script>
 {% endblock %}

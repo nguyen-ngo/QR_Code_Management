@@ -856,6 +856,50 @@ class AppLogger:
             severity='INFO'
         )
 
+    def verify_log_table_exists(self):
+        """Verify that the log_events table exists and has the correct structure"""
+        try:
+            check_table_sql = """
+            SELECT COUNT(*) as table_exists
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+            AND table_name = 'log_events'
+            """
+            result = self.db.session.execute(text(check_table_sql)).fetchone()
+            if result.table_exists == 0:
+                print("⚠️ log_events table does not exist. Creating it now...")
+                self._create_log_table()
+                return True
+            count_sql = "SELECT COUNT(*) as record_count FROM log_events"
+            count_result = self.db.session.execute(text(count_sql)).fetchone()
+            print(f"✅ log_events table exists with {count_result.record_count} records")
+            return True
+        except Exception as e:
+            print(f"❌ Error verifying log table: {e}")
+            return False
+
+    def log_modal_interaction(self, event_type, description, additional_data=None):
+        """Log modal interactions for debugging"""
+        try:
+            context = self._get_request_context()
+            event_data = {
+                'interaction_type': event_type,
+                'event_timestamp': datetime.now().isoformat(),
+                'request_context': context
+            }
+            if additional_data:
+                event_data['additional_data'] = additional_data
+            message = f"Modal interaction: {event_type} - {description}"
+            self._log_to_database(
+                event_type='modal_interaction',
+                event_category='ui',
+                description=message,
+                event_data=event_data,
+                severity='INFO'
+            )
+        except Exception as e:
+            print(f"Error logging modal interaction: {e}")
+
 # DECORATOR FUNCTIONS FOR AUTOMATIC LOGGING
 
 def log_user_activity(activity_type):
@@ -917,63 +961,6 @@ def log_database_operations(operation_name):
         return decorated_function
     return decorator
 
-    def verify_log_table_exists(self):
-        """Verify that the log_events table exists and has the correct structure"""
-        try:
-            # Check if table exists
-            check_table_sql = """
-            SELECT COUNT(*) as table_exists 
-            FROM information_schema.tables 
-            WHERE table_schema = DATABASE() 
-            AND table_name = 'log_events'
-            """
-            
-            result = self.db.session.execute(text(check_table_sql)).fetchone()
-            
-            if result.table_exists == 0:
-                print("⚠️ log_events table does not exist. Creating it now...")
-                self._create_log_table()
-                return True
-            
-            # Check if table has records
-            count_sql = "SELECT COUNT(*) as record_count FROM log_events"
-            count_result = self.db.session.execute(text(count_sql)).fetchone()
-            
-            print(f"✅ log_events table exists with {count_result.record_count} records")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error verifying log table: {e}")
-            return False
-    
-    def log_modal_interaction(self, event_type, description, additional_data=None):
-        """Log modal interactions for debugging"""
-        try:
-            context = self._get_request_context()
-            
-            event_data = {
-                'interaction_type': event_type,
-                'event_timestamp': datetime.now().isoformat(),
-                'request_context': context
-            }
-            
-            if additional_data:
-                event_data['additional_data'] = additional_data
-            
-            message = f"Modal interaction: {event_type} - {description}"
-            
-            # Log to database
-            self._log_to_database(
-                event_type='modal_interaction',
-                event_category='ui',
-                description=message,
-                event_data=event_data,
-                severity='INFO'
-            )
-            
-        except Exception as e:
-            print(f"Error logging modal interaction: {e}")
-    
 # INITIALIZATION FUNCTION
 def init_logging(app, db):
     """Initialize the logging system with the Flask app"""

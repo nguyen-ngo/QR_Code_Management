@@ -7,6 +7,7 @@ from datetime import datetime, date, time, timedelta
 from sqlalchemy import text
 from user_agents import parse
 import io, os, base64, re, uuid, requests, json, qrcode, math, traceback, googlemaps
+import time as _time  # Separate from datetime.time — used for performance timing (time.time())
 import openpyxl.cell.cell
 from PIL import Image, ImageDraw
 from math import radians, sin, cos, asin, sqrt
@@ -14,7 +15,6 @@ from dotenv import load_dotenv
 # Import the logging handler
 from logger_handler import AppLogger, log_user_activity, log_database_operations
 
-from single_checkin_calculator import SingleCheckInCalculator
 from working_hours_calculator import WorkingHoursCalculator, round_time_to_quarter_hour, convert_minutes_to_base100, round_base100_hours
 from payroll_excel_exporter import PayrollExcelExporter
 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
@@ -11193,18 +11193,27 @@ def create_tables():
         # Create default admin user if not exists
         admin = User.query.filter_by(username='admin').first()
         if not admin:
+            default_password = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'admin123')
             admin = User(
                 full_name='System Administrator',
                 email='admin@example.com',
                 username='admin',
                 role='admin'
             )
-            admin.set_password('admin123')  # Change this in production
+            admin.set_password(default_password)
             db.session.add(admin)
             db.session.commit()
 
-            # Log admin user creation
-            logger_handler.logger.info("Default admin user created during initialization")
+            # Warn if the insecure default password is still in use
+            if default_password == 'admin123':
+                print("⚠️  WARNING: Default admin password 'admin123' is in use. "
+                      "Set DEFAULT_ADMIN_PASSWORD in your .env file before going to production.")
+                logger_handler.logger.warning(
+                    "Default admin user created with insecure default password. "
+                    "Set DEFAULT_ADMIN_PASSWORD environment variable."
+                )
+            else:
+                logger_handler.logger.info("Default admin user created during initialization")
 
         # Initialize logging table
         logger_handler._create_log_table()
@@ -11401,7 +11410,7 @@ def log_response_info(response):
 
     # Log slow requests (over 5 seconds)
     if hasattr(request, 'start_time'):
-        duration = time.time() - request.start_time
+        duration = _time.time() - request.start_time
         if duration > 5.0:
             logger_handler.logger.warning(f"Slow request: {request.path} took {duration:.2f} seconds")
 
@@ -11475,12 +11484,12 @@ def log_slow_query_performance():
     """Monitor and log slow query performance"""
     @app.before_request
     def before_request():
-        g.start_time = time.time()
+        g.start_time = _time.time()
         
     @app.after_request
     def after_request(response):
         if hasattr(g, 'start_time'):
-            duration = time.time() - g.start_time
+            duration = _time.time() - g.start_time
             
             # Log slow requests (over 2 seconds)
             if duration > 2.0:
@@ -11503,6 +11512,9 @@ if __name__ == '__main__':
         try:
             # Initialize database and logging
             create_tables()
+
+            # Register slow query performance monitoring hooks
+            log_slow_query_performance()
             
             # Initialize performance optimizations
             print("🚀 Initializing performance optimizations...")
