@@ -9337,7 +9337,7 @@ def _overnight_aware_sort_key(record):
     action = (record.action_description or '').lower()
     is_out = 'out' in action or 'checkout' in action
     # Push early-morning check-outs past midnight to end of day order
-    if is_out and t.hour <= 6:
+    if is_out and t.hour <= 3:
         minutes += 24 * 60
     return minutes
 
@@ -9674,15 +9674,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             _nxt_outs = [r for r in _next_recs if     _is_out(r)]
 
             # Day N must have an unmatched late check-in (more INs than OUTs,
-            # with at least one IN at or after 18:00)
+            # with at least one IN at or after 20:00)
             if len(_day_ins) <= len(_day_outs):
                 continue
-            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 18]
+            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 20]
             if not _late_ins:
                 continue
 
-            # Find early-morning OUTs (<=06:00) on Day N+1
-            _early_outs = [r for r in _nxt_outs if r.check_in_time.hour <= 6]
+            # Find early-morning OUTs (<=03:00) on Day N+1
+            _early_outs = [r for r in _nxt_outs if r.check_in_time.hour <= 3]
             if not _early_outs:
                 continue
 
@@ -10045,12 +10045,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             pair_hours = 'Missed Punch'
                         
                         # Determine whether this is an overnight pair:
-                        # check-in is late evening (>= 18:00) AND check-out is early morning (<= 06:00)
+                        # check-in is late evening (>= 20:00) AND check-out is early morning (<= 03:00)
                         # Both records share the same check_in_date in the DB for this scenario.
                         _is_overnight_pair = (
                             check_in_record and check_out_record and
-                            check_in_record.check_in_time.hour >= 18 and
-                            check_out_record.check_in_time.hour <= 6
+                            check_in_record.check_in_time.hour >= 20 and
+                            check_out_record.check_in_time.hour <= 3
                         )
 
                         # Show daily total on last pair of last location

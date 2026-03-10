@@ -484,8 +484,8 @@ class WorkingHoursCalculator:
             # check-out record to Day N so the pair resolves correctly.
             # Hours are attributed to the earlier day (Day N).
             # ---------------------------------------------------------------
-            OVERNIGHT_CHECKIN_HOUR  = 18   # Check-in must be at or after 6 PM
-            OVERNIGHT_CHECKOUT_HOUR = 6    # Check-out must be at or before 6 AM
+            OVERNIGHT_CHECKIN_HOUR  = 20   # Check-in must be at or after 8 PM
+            OVERNIGHT_CHECKOUT_HOUR = 3    # Check-out must be at or before 3 AM
 
             for work_type in ['regular', 'SP', 'PW', 'PT']:
                 all_dates = sorted(daily_records_by_type[work_type].keys())
