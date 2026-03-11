@@ -9385,7 +9385,20 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         end_date = max(r.attendance_date for r in records)
     else:
         return None
-    
+
+    # Enforce maximum 2-week (14-day) export window.
+    # If the selected range exceeds 14 days, cap end_date to start_date + 13 days.
+    MAX_EXPORT_DAYS = 14
+    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
+        capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
+        logger_handler.logger.info(
+            f"TA Excel export: date range [{start_date} – {end_date}] exceeds {MAX_EXPORT_DAYS} days; "
+            f"capping end_date to {capped_end_date}."
+        )
+        end_date = capped_end_date
+        # Drop records that fall outside the capped window
+        records = [r for r in records if r.attendance_date <= end_date]
+
     # Import parse function at the beginning for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
     
@@ -9976,54 +9989,97 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         })
                         print(f"  Record at {record.check_in_time}: action='{record.action_description}', is_out={is_out}")
 
-                    # Create pairs based on IN -> OUT logic
+                    # Odd-IN rule: if there are more INs than OUTs in this building group,
+                    # discard all but the LATEST IN — those earlier INs become Missed Punch rows.
+                    # The latest IN is then paired with the earliest OUT.
+                    ins  = [ri for ri in record_info if not ri['is_out']]
+                    outs = [ri for ri in record_info if     ri['is_out']]
+
                     pairs_to_write = []
-                    i = 0
-                    while i < len(record_info):
-                        if record_info[i]['used']:
-                            i += 1
-                            continue
-                        
-                        current_is_out = record_info[i]['is_out']
-                        
-                        if not current_is_out:  # This is an IN
-                            # Look for next OUT
-                            out_found = False
-                            for j in range(i + 1, len(record_info)):
-                                if record_info[j]['used']:
-                                    continue
-                                if record_info[j]['is_out']:  # Found an OUT
-                                    # Missed punch only if an unused OUT exists between i and j
-                                    intervening_out = any(
-                                        record_info[k]['is_out'] and not record_info[k]['used']
-                                        for k in range(i + 1, j)
-                                    )
+
+                    if len(ins) > len(outs) and len(outs) > 0:
+                        # Sort INs by time ascending; keep only the last one for pairing
+                        ins_sorted = sorted(ins, key=lambda ri: ri['record'].check_in_time)
+                        latest_in  = ins_sorted[-1]
+                        excess_ins = ins_sorted[:-1]  # all earlier INs become Missed Punch
+
+                        # Mark excess INs as used and emit Missed Punch rows
+                        for ri in excess_ins:
+                            ri['used'] = True
+                            pairs_to_write.append({
+                                'check_in':     ri['record'],
+                                'check_out':    None,
+                                'is_miss_punch': True
+                            })
+
+                        # Pair latest IN with earliest OUT
+                        outs_sorted = sorted(outs, key=lambda ri: ri['record'].check_in_time)
+                        earliest_out = outs_sorted[0]
+                        latest_in['used']    = True
+                        earliest_out['used'] = True
+                        pairs_to_write.append({
+                            'check_in':     latest_in['record'],
+                            'check_out':    earliest_out['record'],
+                            'is_miss_punch': False
+                        })
+
+                        # Any remaining unused OUTs after the first become Missed Punch
+                        for ri in outs_sorted[1:]:
+                            ri['used'] = True
+                            pairs_to_write.append({
+                                'check_in':     None,
+                                'check_out':    ri['record'],
+                                'is_miss_punch': True
+                            })
+
+                    else:
+                        # Standard pairing: each IN finds the next available OUT
+                        i = 0
+                        while i < len(record_info):
+                            if record_info[i]['used']:
+                                i += 1
+                                continue
+
+                            current_is_out = record_info[i]['is_out']
+
+                            if not current_is_out:  # This is an IN
+                                # Look for next OUT
+                                out_found = False
+                                for j in range(i + 1, len(record_info)):
+                                    if record_info[j]['used']:
+                                        continue
+                                    if record_info[j]['is_out']:  # Found an OUT
+                                        # Missed punch only if an unused OUT exists between i and j
+                                        intervening_out = any(
+                                            record_info[k]['is_out'] and not record_info[k]['used']
+                                            for k in range(i + 1, j)
+                                        )
+                                        pairs_to_write.append({
+                                            'check_in': record_info[i]['record'],
+                                            'check_out': record_info[j]['record'],
+                                            'is_miss_punch': intervening_out
+                                        })
+                                        record_info[i]['used'] = True
+                                        record_info[j]['used'] = True
+                                        out_found = True
+                                        break
+
+                                if not out_found:  # No OUT found for this IN
                                     pairs_to_write.append({
                                         'check_in': record_info[i]['record'],
-                                        'check_out': record_info[j]['record'],
-                                        'is_miss_punch': intervening_out
+                                        'check_out': None,
+                                        'is_miss_punch': True
                                     })
                                     record_info[i]['used'] = True
-                                    record_info[j]['used'] = True
-                                    out_found = True
-                                    break
-                            
-                            if not out_found:  # No OUT found for this IN
+                            else:  # This is an orphaned OUT
                                 pairs_to_write.append({
-                                    'check_in': record_info[i]['record'],
-                                    'check_out': None,
+                                    'check_in': None,
+                                    'check_out': record_info[i]['record'],
                                     'is_miss_punch': True
                                 })
                                 record_info[i]['used'] = True
-                        else:  # This is an orphaned OUT
-                            pairs_to_write.append({
-                                'check_in': None,
-                                'check_out': record_info[i]['record'],
-                                'is_miss_punch': True
-                            })
-                            record_info[i]['used'] = True
-                        
-                        i += 1
+
+                            i += 1
 
                     print(f"  Created {len(pairs_to_write)} pairs")
 
@@ -10375,7 +10431,18 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
         end_date = max(r.attendance_date for r in records)
     else:
         return None
-    
+
+    # Enforce maximum 2-week (14-day) export window.
+    MAX_EXPORT_DAYS = 14
+    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
+        capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
+        logger_handler.logger.info(
+            f"TA by-building Excel export: date range [{start_date} – {end_date}] exceeds {MAX_EXPORT_DAYS} days; "
+            f"capping end_date to {capped_end_date}."
+        )
+        end_date = capped_end_date
+        records = [r for r in records if r.attendance_date <= end_date]
+
     # Import parse function for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
     
@@ -10635,47 +10702,73 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                         'is_out': is_out,
                         'used': False
                     })
-                
+
                 # Create pairs
                 pairs = []
-                i = 0
-                while i < len(record_info):
-                    if record_info[i]['used']:
-                        i += 1
-                        continue
-                    
-                    if not record_info[i]['is_out']:  # IN
-                        out_found = False
-                        for j in range(i + 1, len(record_info)):
-                            if record_info[j]['used']:
-                                continue
-                            if record_info[j]['is_out']:
+                ins  = [ri for ri in record_info if not ri['is_out']]
+                outs = [ri for ri in record_info if     ri['is_out']]
+
+                if len(ins) > len(outs) and len(outs) > 0:
+                    # Odd-IN rule: discard all but the LATEST IN; pair it with the earliest OUT
+                    ins_sorted  = sorted(ins,  key=lambda ri: ri['record'].check_in_time)
+                    outs_sorted = sorted(outs, key=lambda ri: ri['record'].check_in_time)
+
+                    latest_in   = ins_sorted[-1]
+                    excess_ins  = ins_sorted[:-1]
+                    earliest_out = outs_sorted[0]
+
+                    for ri in excess_ins:
+                        ri['used'] = True
+                        pairs.append({'check_in': ri['record'], 'check_out': None, 'is_miss_punch': True})
+
+                    latest_in['used']    = True
+                    earliest_out['used'] = True
+                    pairs.append({'check_in': latest_in['record'], 'check_out': earliest_out['record'], 'is_miss_punch': False})
+
+                    for ri in outs_sorted[1:]:
+                        ri['used'] = True
+                        pairs.append({'check_in': None, 'check_out': ri['record'], 'is_miss_punch': True})
+
+                else:
+                    # Standard pairing
+                    i = 0
+                    while i < len(record_info):
+                        if record_info[i]['used']:
+                            i += 1
+                            continue
+
+                        if not record_info[i]['is_out']:  # IN
+                            out_found = False
+                            for j in range(i + 1, len(record_info)):
+                                if record_info[j]['used']:
+                                    continue
+                                if record_info[j]['is_out']:
+                                    pairs.append({
+                                        'check_in': record_info[i]['record'],
+                                        'check_out': record_info[j]['record'],
+                                        'is_miss_punch': False
+                                    })
+                                    record_info[i]['used'] = True
+                                    record_info[j]['used'] = True
+                                    out_found = True
+                                    break
+
+                            if not out_found:
                                 pairs.append({
                                     'check_in': record_info[i]['record'],
-                                    'check_out': record_info[j]['record'],
-                                    'is_miss_punch': False
+                                    'check_out': None,
+                                    'is_miss_punch': True
                                 })
                                 record_info[i]['used'] = True
-                                record_info[j]['used'] = True
-                                out_found = True
-                                break
-                        
-                        if not out_found:
+                        else:  # Orphaned OUT
                             pairs.append({
-                                'check_in': record_info[i]['record'],
-                                'check_out': None,
+                                'check_in': None,
+                                'check_out': record_info[i]['record'],
                                 'is_miss_punch': True
                             })
                             record_info[i]['used'] = True
-                    else:  # Orphaned OUT
-                        pairs.append({
-                            'check_in': None,
-                            'check_out': record_info[i]['record'],
-                            'is_miss_punch': True
-                        })
-                        record_info[i]['used'] = True
-                    
-                    i += 1
+
+                        i += 1
                 
                 # Calculate daily hours
                 daily_hours = 0
