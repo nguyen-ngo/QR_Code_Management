@@ -504,13 +504,25 @@ class WorkingHoursCalculator:
                     check_ins  = [r for r in day_records if r.record_type == 'check_in']
                     check_outs = [r for r in day_records if r.record_type == 'check_out']
 
+                    # Early-morning OUTs on Day N (hour <= OVERNIGHT_CHECKOUT_HOUR) are
+                    # themselves overnight orphans from Day N-1.  Counting them as regular
+                    # Day N outs inflates the out-count and makes the day appear balanced,
+                    # suppressing overnight detection for the late IN that actually needs
+                    # a next-day OUT.  Exclude them from the balance comparison.
+                    check_outs_non_early = [
+                        r for r in check_outs
+                        if (r.check_in_time.hour if isinstance(r.check_in_time, time) else r.timestamp.hour)
+                        > OVERNIGHT_CHECKOUT_HOUR
+                    ]
+
                     # Any unmatched check-ins that started late in the evening?
                     unmatched_late_ins = []
                     for ci in check_ins:
                         ci_hour = ci.check_in_time.hour if isinstance(ci.check_in_time, time) else ci.timestamp.hour
                         if ci_hour >= OVERNIGHT_CHECKIN_HOUR:
-                            # Check that there is no check-out already on the same day for this in
-                            if len(check_outs) < len(check_ins):
+                            # Use non-early outs so orphaned early-morning OUTs from
+                            # the prior night do not mask an unmatched late IN.
+                            if len(check_outs_non_early) < len(check_ins):
                                 unmatched_late_ins.append(ci)
 
                     if not unmatched_late_ins:

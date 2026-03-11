@@ -9673,9 +9673,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             _nxt_ins  = [r for r in _next_recs if not _is_out(r)]
             _nxt_outs = [r for r in _next_recs if     _is_out(r)]
 
-            # Day N must have an unmatched late check-in (more INs than OUTs,
+            # Early-morning OUTs on Day N (hour <= 3) are overnight orphans from
+            # Day N-1.  Counting them as regular Day N outs inflates the out-count
+            # and makes the day appear balanced, which suppresses detection of an
+            # unmatched late IN that needs a next-day OUT.  Exclude them.
+            _day_outs_non_early = [r for r in _day_outs if r.check_in_time.hour > 3]
+
+            # Day N must have an unmatched late check-in (more INs than non-early OUTs,
             # with at least one IN at or after 20:00)
-            if len(_day_ins) <= len(_day_outs):
+            if len(_day_ins) <= len(_day_outs_non_early):
                 continue
             _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 20]
             if not _late_ins:
