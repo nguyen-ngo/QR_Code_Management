@@ -9416,10 +9416,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         )
         end_date = capped_end_date
         # Drop records that fall outside the capped window
-        # Preserve one extra calendar day so early-morning check-out records
-        # stored on Day N+1 (overnight shifts ending after midnight on the
-        # last report day) remain available for overnight pairing detection.
-        # The display range is still controlled by dates_with_records (capped to end_date).
+                # Preserve one extra calendar day so early-morning check-out records
+        # stored on Day N+1 remain available for overnight pairing detection.
+        # Display range is still controlled by dates_with_records (capped to end_date).
         records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
 
     # Import parse function at the beginning for work type detection
@@ -9850,22 +9849,21 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     for _oi2, _out_r in enumerate(_loc_outs):
                         if _out_used[_oi2]:
                             continue
-                        # Time-only pairing guard (mirrors Step 1/2 pairing logic):
-                        # an early-morning OUT (hour<=3) is only valid for an evening IN (hour>=18).
+                        # Time-only pairing guard (mirrors Step 1/2 pairing logic).
                         _in_t_d  = _in_r.check_in_time
                         _out_t_d = _out_r.check_in_time
                         if _out_t_d.hour <= 3:
                             if _in_t_d.hour < 18:
-                                continue  # early-morning OUT cannot pair with non-evening IN
+                                continue
                         elif _out_t_d <= _in_t_d:
-                            continue  # same-day OUT must be strictly after IN
+                            continue
                         _in_ts  = datetime.combine(_in_r.check_in_date,  _in_r.check_in_time)
                         _out_ts = datetime.combine(_out_r.check_in_date, _out_r.check_in_time)
                         if _out_ts < _in_ts:
-                            _out_ts += timedelta(days=1)  # overnight: normalise to positive duration
+                            _out_ts += timedelta(days=1)
                         _duration = (_out_ts - _in_ts).total_seconds() / 3600.0
                         if _duration > 24:
-                            continue  # Sanity guard: skip implausible durations
+                            continue
                         _day_total_hours += _duration
                         _out_used[_oi2] = True
                         break
@@ -10033,13 +10031,11 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         for out_ri in outs_sorted:
                             if out_ri['used']:
                                 continue
-                            # Guard: validate the IN→OUT pairing using time-only logic.
-                            # After overnight detection, a moved OUT record retains its
-                            # original check_in_date (a later date), so datetime-based
-                            # comparison would incorrectly accept any IN as valid.
-                            # Rule: an early-morning OUT (hour<=3) is only valid for an
-                            # evening IN (hour>=18); for all other INs, reject it.
-                            # For non-early-morning OUTs, the OUT time must be after the IN time.
+                            # Guard: time-only pairing rule.
+                            # An early-morning OUT (hour<=3) is only valid for an evening IN (hour>=18).
+                            # For all other OUTs, the OUT time must be strictly after the IN time.
+                            # Using time-only (not datetime) avoids false positives from moved overnight
+                            # OUT records whose check_in_date is still a later date.
                             _in_t  = in_ri['record'].check_in_time
                             _out_t = out_ri['record'].check_in_time
                             if _out_t.hour <= 3:
@@ -10076,7 +10072,6 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             if out_ri['used']:
                                 continue
                             # Guard: same time-only rule as Step 1.
-                            # An early-morning OUT (hour<=3) only pairs with an evening IN (hour>=18).
                             _in_t2  = in_ri['record'].check_in_time
                             _out_t2 = out_ri['record'].check_in_time
                             if _out_t2.hour <= 3:
@@ -10093,7 +10088,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 'check_in':      in_ri['record'],
                                 'check_out':     out_ri['record'],
                                 'is_miss_punch': False,
-                                'effective_work_type': effective_wt
+                                'effective_work_type': effective_wt,
+                                'is_cross_type': True
                             })
                             break
 
@@ -10140,7 +10136,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         if check_in_record and check_out_record and not is_miss_punch:
                             pair_datetime_in  = datetime.combine(check_in_record.check_in_date,  check_in_record.check_in_time)
                             pair_datetime_out = datetime.combine(check_out_record.check_in_date, check_out_record.check_in_time)
-                            # If check-out time is before check-in time (overnight shift, both on same date),
+                            # If check-out time is before check-in time (overnight shift),
                             # add one day to the check-out datetime so the duration is positive and correct.
                             if pair_datetime_out < pair_datetime_in:
                                 pair_datetime_out += timedelta(days=1)
@@ -10149,11 +10145,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         else:
                             pair_hours = 'Missed Punch'
                         
-                        # Accumulate SP/PW/PT hours for cross-type pairs.
-                        # The calculator only saw orphaned records on each work-type stream,
-                        # so grand_totals misses these hours.  Track them here so the
-                        # summary rows below the weekly total are correct.
-                        if not is_miss_punch and isinstance(pair_hours, (int, float)):
+                        # Accumulate SP/PW/PT hours for CROSS-TYPE pairs only.
+                        # Same-type SP/PW/PT pairs are already captured in grand_totals
+                        # by WorkingHoursCalculator; adding them again here would double-count.
+                        if not is_miss_punch and isinstance(pair_hours, (int, float)) and pair_data.get('is_cross_type', False):
                             _ewt = pair_data.get('effective_work_type')
                             if _ewt == 'SP':
                                 cross_type_sp_hours += pair_hours
@@ -10531,10 +10526,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             f"capping end_date to {capped_end_date}."
         )
         end_date = capped_end_date
-        # Preserve one extra calendar day so early-morning check-out records
-        # stored on Day N+1 (overnight shifts ending after midnight on the
-        # last report day) remain available for overnight pairing detection.
-        # The display range is still controlled by dates_with_records (capped to end_date).
+                # Preserve one extra calendar day so early-morning check-out records
+        # stored on Day N+1 remain available for overnight pairing detection.
+        # Display range is still controlled by dates_with_records (capped to end_date).
         records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
 
     # Import parse function for work type detection
