@@ -484,7 +484,7 @@ class WorkingHoursCalculator:
             # check-out record to Day N so the pair resolves correctly.
             # Hours are attributed to the earlier day (Day N).
             # ---------------------------------------------------------------
-            OVERNIGHT_CHECKIN_HOUR  = 20   # Check-in must be at or after 8 PM
+            OVERNIGHT_CHECKIN_HOUR  = 19   # Check-in must be at or after 7 PM
             OVERNIGHT_CHECKOUT_HOUR = 3    # Check-out must be at or before 3 AM
 
             for work_type in ['regular', 'SP', 'PW', 'PT']:

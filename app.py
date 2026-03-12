@@ -9200,7 +9200,20 @@ def export_time_attendance():
         
         # Apply filters
         if employee_filter:
-            query = query.filter(TimeAttendance.employee_id == employee_filter)
+            # Include all SP/PW/PT work-type variants of the base employee ID so that
+            # cross-type pairing (e.g. regular IN + SP OUT) works correctly in the export.
+            from working_hours_calculator import parse_employee_id_for_work_type as _parse_wt
+            _base_emp_id, _ = _parse_wt(str(employee_filter))
+            _emp_id_variants = [
+                _base_emp_id,
+                f"{_base_emp_id} SP", f"{_base_emp_id}SP",
+                f"SP {_base_emp_id}", f"SP{_base_emp_id}",
+                f"{_base_emp_id} PW", f"{_base_emp_id}PW",
+                f"PW {_base_emp_id}", f"PW{_base_emp_id}",
+                f"{_base_emp_id} PT", f"{_base_emp_id}PT",
+                f"PT {_base_emp_id}", f"PT{_base_emp_id}",
+            ]
+            query = query.filter(TimeAttendance.employee_id.in_(_emp_id_variants))
         
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
@@ -9216,7 +9229,13 @@ def export_time_attendance():
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-                query = query.filter(TimeAttendance.attendance_date <= end_date_obj)
+                # Fetch one extra calendar day beyond the requested end date so that
+                # early-morning check-out records stored on Day N+1 (overnight shifts
+                # ending after midnight on the last report day) are available for the
+                # overnight pairing detection inside export_time_attendance_excel.
+                # The displayed date range is controlled by start_date_filter /
+                # end_date_filter inside that function and is not affected.
+                query = query.filter(TimeAttendance.attendance_date <= end_date_obj + timedelta(days=1))
             except ValueError:
                 flash('Invalid end date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
@@ -9397,7 +9416,11 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         )
         end_date = capped_end_date
         # Drop records that fall outside the capped window
-        records = [r for r in records if r.attendance_date <= end_date]
+        # Preserve one extra calendar day so early-morning check-out records
+        # stored on Day N+1 (overnight shifts ending after midnight on the
+        # last report day) remain available for overnight pairing detection.
+        # The display range is still controlled by dates_with_records (capped to end_date).
+        records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
 
     # Import parse function at the beginning for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
@@ -9696,7 +9719,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             # with at least one IN at or after 20:00)
             if len(_day_ins) <= len(_day_outs_non_early):
                 continue
-            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 20]
+            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 19]
             if not _late_ins:
                 continue
 
@@ -9711,7 +9734,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             # This handles both cases:
             #   Case A: Day N+1 has only evening INs (all >= 18:00) -> early OUT is Day N's
             #   Case B: Day N+1 has more OUTs than INs overall -> early OUT is unmatched
-            _nxt_non_evening_ins = [r for r in _nxt_ins if r.check_in_time.hour < 18]
+            # A non-evening IN on Day N+1 can only own an early OUT when that IN
+            # occurs STRICTLY BEFORE the early OUT's time (IN → OUT is time-ordered).
+            # An IN that starts AFTER the early OUT cannot own it and must NOT block
+            # the overnight move (e.g. 01:55 AM IN cannot own a 01:00 AM OUT).
+            _nxt_non_evening_ins = [
+                r for r in _nxt_ins
+                if r.check_in_time.hour < 18
+                and any(r.check_in_time < eo.check_in_time for eo in _early_outs)
+            ]
             if _nxt_non_evening_ins and len(_nxt_outs) <= len(_nxt_ins):
                 # Day N+1 has a non-evening IN that can own the early OUT, and counts
                 # are balanced -> do NOT move
@@ -9747,6 +9778,11 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         current_week_start = None
         grand_regular_hours = 0
         grand_ot_hours = 0
+        # Accumulate SP/PW/PT hours from cross-type pairs (where the calculator
+        # could not detect them because it processes each work-type stream independently).
+        cross_type_sp_hours = 0.0
+        cross_type_pw_hours = 0.0
+        cross_type_pt_hours = 0.0
         
         # Get all dates that have records (not all weekdays)
         dates_with_records = sorted([
@@ -9800,96 +9836,83 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     is_miss_punch = False
                     total_hours = 0.0  # will be recalculated below
 
-            # Calculate total hours for the day
-            if not is_miss_punch and total_hours > 0:
-                weekly_total_hours += total_hours
-            elif not is_miss_punch and total_hours == 0 and total_locations > 0:
-                # is_miss_punch cleared above but total_hours not yet computed;
-                # recalculate from the (now-corrected) records in daily_location_data.
-                _all_recs = []
-                for loc_data in date_locations.values():
-                    _all_recs.extend(loc_data['records'])
-                _sorted = sorted(_all_recs, key=_overnight_aware_sort_key)
-                _ins  = [r for r in _sorted if not _is_out(r)]
-                _outs = [r for r in _sorted if     _is_out(r)]
-                if _ins and _outs:
-                    _day_total = 0.0
-                    for _ir, _or in zip(_ins, _outs):
-                        _dt_in  = datetime.combine(date_obj, _ir.check_in_time)
-                        _dt_out = datetime.combine(date_obj, _or.check_in_time)
-                        if _dt_out < _dt_in:
-                            _dt_out += timedelta(days=1)
-                        _day_total += (_dt_out - _dt_in).total_seconds() / 3600.0
-                    total_hours = _qtr(_day_total)
-                    weekly_total_hours += total_hours
-            elif is_miss_punch and total_locations > 0:
-                # Genuine miss punch day — sum only matched IN/OUT pairs,
-                # ignoring orphaned records (which correctly contribute 0 hours).
-                all_records_for_day = []
-                for loc_data in date_locations.values():
-                    all_records_for_day.extend(loc_data['records'])
-
-                if len(all_records_for_day) >= 2:
-                    sorted_all_records = sorted(all_records_for_day, key=_overnight_aware_sort_key)
-
-                    # Walk through records pairing each IN with the next available OUT
-                    _used = [False] * len(sorted_all_records)
-                    _day_total = 0.0
-                    for _ii, _ri in enumerate(sorted_all_records):
-                        if _used[_ii] or _is_out(_ri):
+            # Calculate total hours for the day by mirroring the display pairing logic:
+            # group records by base location, apply the OUT-after-IN guard within each
+            # group, and sum only complete pairs.  This ensures the daily total in
+            # column H matches exactly the pairs rendered in the export rows.
+            _day_total_hours = 0.0
+            for _loc_data in date_locations.values():
+                _loc_recs = sorted(_loc_data['records'], key=_overnight_aware_sort_key)
+                _loc_ins  = [r for r in _loc_recs if not _is_out(r)]
+                _loc_outs = [r for r in _loc_recs if     _is_out(r)]
+                _out_used = [False] * len(_loc_outs)
+                for _in_r in _loc_ins:
+                    for _oi2, _out_r in enumerate(_loc_outs):
+                        if _out_used[_oi2]:
                             continue
-                        # Find the next unused OUT
-                        for _oi, _ro in enumerate(sorted_all_records):
-                            if _oi <= _ii or _used[_oi] or not _is_out(_ro):
-                                continue
-                            _dt_in  = datetime.combine(date_obj, _ri.check_in_time)
-                            _dt_out = datetime.combine(date_obj, _ro.check_in_time)
-                            if _dt_out < _dt_in:
-                                _dt_out += timedelta(days=1)
-                            _day_total += (_dt_out - _dt_in).total_seconds() / 3600.0
-                            _used[_ii] = True
-                            _used[_oi] = True
-                            break
-
-                    calculated_hours = _qtr(_day_total)
-                    weekly_total_hours += calculated_hours
-                    total_hours = calculated_hours
+                        # Time-only pairing guard (mirrors Step 1/2 pairing logic):
+                        # an early-morning OUT (hour<=3) is only valid for an evening IN (hour>=18).
+                        _in_t_d  = _in_r.check_in_time
+                        _out_t_d = _out_r.check_in_time
+                        if _out_t_d.hour <= 3:
+                            if _in_t_d.hour < 18:
+                                continue  # early-morning OUT cannot pair with non-evening IN
+                        elif _out_t_d <= _in_t_d:
+                            continue  # same-day OUT must be strictly after IN
+                        _in_ts  = datetime.combine(_in_r.check_in_date,  _in_r.check_in_time)
+                        _out_ts = datetime.combine(_out_r.check_in_date, _out_r.check_in_time)
+                        if _out_ts < _in_ts:
+                            _out_ts += timedelta(days=1)  # overnight: normalise to positive duration
+                        _duration = (_out_ts - _in_ts).total_seconds() / 3600.0
+                        if _duration > 24:
+                            continue  # Sanity guard: skip implausible durations
+                        _day_total_hours += _duration
+                        _out_used[_oi2] = True
+                        break
+            total_hours = _qtr(_day_total_hours)
+            weekly_total_hours += total_hours
 
             # Daily total display (only shown on last location's last row)
             daily_total_display = _qtr(total_hours) if total_hours > 0 else ''
 
-            # FIXED: Get all records for the day and sort by time FIRST, then group by location
+            # Get all records for the day and sort by time FIRST, then group by BASE location.
+            # Grouping by base location (original_location_name) ensures that records from the
+            # same building but different work types (e.g. regular IN + SP OUT) land in the
+            # same group so the cross-type pairing rule can resolve them.
             all_day_records = []
             for loc_data in date_locations.values():
                 all_day_records.extend(loc_data['records'])
-            
+
             # Sort all records by time chronologically, overnight-aware
             all_day_records_sorted = sorted(all_day_records, key=_overnight_aware_sort_key)
-            
-            # Group consecutive records by location while maintaining time order
+
+            # Group consecutive records by BASE location (original_location_name without work-type
+            # suffix) while maintaining time order.
+            def _base_loc(r):
+                return getattr(r, 'original_location_name', None) or r.location_name or 'Unknown Location'
+
             location_groups = []
-            current_location = None
+            current_base_location = None
             current_group = []
-            
+
             for record in all_day_records_sorted:
-                if current_location is None or record.location_name == current_location:
-                    # Same location or first record
-                    current_location = record.location_name
+                bloc = _base_loc(record)
+                if current_base_location is None or bloc == current_base_location:
+                    current_base_location = bloc
                     current_group.append(record)
                 else:
-                    # Different location - save current group and start new one
                     if current_group:
                         location_groups.append({
-                            'location': current_location,
+                            'location': current_base_location,
                             'records': current_group
                         })
-                    current_location = record.location_name
+                    current_base_location = bloc
                     current_group = [record]
-            
+
             # Add the last group
             if current_group:
                 location_groups.append({
-                    'location': current_location,
+                    'location': current_base_location,
                     'records': current_group
                 })
             
@@ -9976,112 +9999,132 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     current_row += 1
                     
                 else:
-                    # Multiple records for this location - use action_description for pairing
-                    # Determine record types based on action_description
+                    # Multiple records for this location group.
+                    # Build record_info with work_type included.
                     record_info = []
                     for record in sorted_records:
                         action_desc = record.action_description.lower() if record.action_description else ''
                         is_out = 'out' in action_desc or 'checkout' in action_desc
+                        wt = getattr(record, 'work_type', None)  # None = regular
                         record_info.append({
                             'record': record,
                             'is_out': is_out,
+                            'work_type': wt,   # None means regular
                             'used': False
                         })
-                        print(f"  Record at {record.check_in_time}: action='{record.action_description}', is_out={is_out}")
+                        print(f"  Record at {record.check_in_time}: action='{record.action_description}', is_out={is_out}, work_type={wt}")
 
-                    # Odd-IN rule: if there are more INs than OUTs in this building group,
-                    # discard all but the LATEST IN — those earlier INs become Missed Punch rows.
-                    # The latest IN is then paired with the earliest OUT.
                     ins  = [ri for ri in record_info if not ri['is_out']]
                     outs = [ri for ri in record_info if     ri['is_out']]
 
                     pairs_to_write = []
 
-                    if len(ins) > len(outs) and len(outs) > 0:
-                        # Sort INs by time ascending; keep only the last one for pairing
-                        ins_sorted = sorted(ins, key=lambda ri: ri['record'].check_in_time)
-                        latest_in  = ins_sorted[-1]
-                        excess_ins = ins_sorted[:-1]  # all earlier INs become Missed Punch
+                    # ── STEP 1: same-type pairing ──────────────────────────────────────
+                    # Pair each IN with an OUT of the same work type first.
+                    # Sort INs chronologically and OUTs with overnight-aware key so that
+                    # an early-morning OUT (e.g. 00:30 moved in by overnight detection)
+                    # sorts AFTER same-day evening OUTs and does not steal a daytime IN.
+                    ins_sorted  = sorted(ins,  key=lambda ri: _overnight_aware_sort_key(ri['record']))
+                    outs_sorted = sorted(outs, key=lambda ri: _overnight_aware_sort_key(ri['record']))
 
-                        # Mark excess INs as used and emit Missed Punch rows
-                        for ri in excess_ins:
-                            ri['used'] = True
-                            pairs_to_write.append({
-                                'check_in':     ri['record'],
-                                'check_out':    None,
-                                'is_miss_punch': True
-                            })
-
-                        # Pair latest IN with earliest OUT
-                        outs_sorted = sorted(outs, key=lambda ri: ri['record'].check_in_time)
-                        earliest_out = outs_sorted[0]
-                        latest_in['used']    = True
-                        earliest_out['used'] = True
-                        pairs_to_write.append({
-                            'check_in':     latest_in['record'],
-                            'check_out':    earliest_out['record'],
-                            'is_miss_punch': False
-                        })
-
-                        # Any remaining unused OUTs after the first become Missed Punch
-                        for ri in outs_sorted[1:]:
-                            ri['used'] = True
-                            pairs_to_write.append({
-                                'check_in':     None,
-                                'check_out':    ri['record'],
-                                'is_miss_punch': True
-                            })
-
-                    else:
-                        # Standard pairing: each IN finds the next available OUT
-                        i = 0
-                        while i < len(record_info):
-                            if record_info[i]['used']:
-                                i += 1
+                    for in_ri in ins_sorted:
+                        if in_ri['used']:
+                            continue
+                        for out_ri in outs_sorted:
+                            if out_ri['used']:
                                 continue
-
-                            current_is_out = record_info[i]['is_out']
-
-                            if not current_is_out:  # This is an IN
-                                # Look for next OUT
-                                out_found = False
-                                for j in range(i + 1, len(record_info)):
-                                    if record_info[j]['used']:
-                                        continue
-                                    if record_info[j]['is_out']:  # Found an OUT
-                                        # Missed punch only if an unused OUT exists between i and j
-                                        intervening_out = any(
-                                            record_info[k]['is_out'] and not record_info[k]['used']
-                                            for k in range(i + 1, j)
-                                        )
-                                        pairs_to_write.append({
-                                            'check_in': record_info[i]['record'],
-                                            'check_out': record_info[j]['record'],
-                                            'is_miss_punch': intervening_out
-                                        })
-                                        record_info[i]['used'] = True
-                                        record_info[j]['used'] = True
-                                        out_found = True
-                                        break
-
-                                if not out_found:  # No OUT found for this IN
-                                    pairs_to_write.append({
-                                        'check_in': record_info[i]['record'],
-                                        'check_out': None,
-                                        'is_miss_punch': True
-                                    })
-                                    record_info[i]['used'] = True
-                            else:  # This is an orphaned OUT
+                            # Guard: validate the IN→OUT pairing using time-only logic.
+                            # After overnight detection, a moved OUT record retains its
+                            # original check_in_date (a later date), so datetime-based
+                            # comparison would incorrectly accept any IN as valid.
+                            # Rule: an early-morning OUT (hour<=3) is only valid for an
+                            # evening IN (hour>=18); for all other INs, reject it.
+                            # For non-early-morning OUTs, the OUT time must be after the IN time.
+                            _in_t  = in_ri['record'].check_in_time
+                            _out_t = out_ri['record'].check_in_time
+                            if _out_t.hour <= 3:
+                                if _in_t.hour < 18:
+                                    continue  # early-morning OUT cannot pair with non-evening IN
+                            elif _out_t <= _in_t:
+                                continue  # same-day OUT must be strictly after IN
+                            if out_ri['work_type'] == in_ri['work_type']:
+                                # Matched same work type — standard pair
+                                in_ri['used']  = True
+                                out_ri['used'] = True
                                 pairs_to_write.append({
-                                    'check_in': None,
-                                    'check_out': record_info[i]['record'],
-                                    'is_miss_punch': True
+                                    'check_in':      in_ri['record'],
+                                    'check_out':     out_ri['record'],
+                                    'is_miss_punch': False,
+                                    'effective_work_type': in_ri['work_type']
                                 })
-                                record_info[i]['used'] = True
+                                break
 
-                            i += 1
+                    # ── STEP 2: cross-type pairing (forgot the work code) ──────────────
+                    # If any INs or OUTs remain unmatched after same-type pairing,
+                    # attempt to pair an unmatched IN with an unmatched OUT of a
+                    # *different* work type.  Hours count as the special type's hours
+                    # (if either side is special, the pair is treated as special;
+                    # if both are different special types, use the OUT's type as
+                    # the authoritative code — it's the scan that carries the code).
+                    unmatched_ins  = [ri for ri in ins_sorted  if not ri['used']]
+                    unmatched_outs = [ri for ri in outs_sorted if not ri['used']]
+
+                    for in_ri in unmatched_ins:
+                        if in_ri['used']:
+                            continue
+                        for out_ri in unmatched_outs:
+                            if out_ri['used']:
+                                continue
+                            # Guard: same time-only rule as Step 1.
+                            # An early-morning OUT (hour<=3) only pairs with an evening IN (hour>=18).
+                            _in_t2  = in_ri['record'].check_in_time
+                            _out_t2 = out_ri['record'].check_in_time
+                            if _out_t2.hour <= 3:
+                                if _in_t2.hour < 18:
+                                    continue
+                            elif _out_t2 <= _in_t2:
+                                continue
+                            # Cross-type pair: one side is regular, other is special
+                            # (or both special but different codes — treat OUT's type as definitive)
+                            effective_wt = out_ri['work_type'] if out_ri['work_type'] else in_ri['work_type']
+                            in_ri['used']  = True
+                            out_ri['used'] = True
+                            pairs_to_write.append({
+                                'check_in':      in_ri['record'],
+                                'check_out':     out_ri['record'],
+                                'is_miss_punch': False,
+                                'effective_work_type': effective_wt
+                            })
+                            break
+
+                    # ── STEP 3: remaining unmatched records → Missed Punch ─────────────
+                    for ri in record_info:
+                        if not ri['used']:
+                            ri['used'] = True
+                            if ri['is_out']:
+                                pairs_to_write.append({
+                                    'check_in':      None,
+                                    'check_out':     ri['record'],
+                                    'is_miss_punch': True,
+                                    'effective_work_type': ri['work_type']
+                                })
+                            else:
+                                pairs_to_write.append({
+                                    'check_in':      ri['record'],
+                                    'check_out':     None,
+                                    'is_miss_punch': True,
+                                    'effective_work_type': ri['work_type']
+                                })
 
                     print(f"  Created {len(pairs_to_write)} pairs")
+
+                    # Sort pairs chronologically by the anchor record's time so that
+                    # orphaned records (assembled last in Steps 2-3) appear in the
+                    # correct time-order position relative to complete pairs.
+                    def _pair_sort_key(pd):
+                        anchor = pd['check_in'] or pd['check_out']
+                        return _overnight_aware_sort_key(anchor) if anchor else 0
+                    pairs_to_write.sort(key=_pair_sort_key)
 
                     # Write all pairs
                     for pair_idx, pair_data in enumerate(pairs_to_write):
@@ -10106,6 +10149,19 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         else:
                             pair_hours = 'Missed Punch'
                         
+                        # Accumulate SP/PW/PT hours for cross-type pairs.
+                        # The calculator only saw orphaned records on each work-type stream,
+                        # so grand_totals misses these hours.  Track them here so the
+                        # summary rows below the weekly total are correct.
+                        if not is_miss_punch and isinstance(pair_hours, (int, float)):
+                            _ewt = pair_data.get('effective_work_type')
+                            if _ewt == 'SP':
+                                cross_type_sp_hours += pair_hours
+                            elif _ewt == 'PW':
+                                cross_type_pw_hours += pair_hours
+                            elif _ewt == 'PT':
+                                cross_type_pt_hours += pair_hours
+
                         # Determine whether this is an overnight pair:
                         # check-in is late evening (>= 20:00) AND check-out is early morning (<= 03:00)
                         # Both records share the same check_in_date in the DB for this scenario.
@@ -10122,8 +10178,24 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         # Build Out-time string (plain time only)
                         _out_time_str = check_out_record.check_in_time.strftime('%I:%M:%S %p') if check_out_record else ''
 
-                        # Build Location string; append label for overnight pairs
-                        _location_str = check_in_record.location_name if check_in_record else ''
+                        # Build Location string.
+                        # For a complete pair, derive the display name from effective_work_type:
+                        #   - regular pair   → base location name (no suffix)
+                        #   - SP/PW/PT pair  → base location name + " (SP/PW/PT)"
+                        # 'regular' is treated identically to None — no suffix is shown.
+                        # For orphaned records keep their own location_name.
+                        _effective_wt = pair_data.get('effective_work_type')
+                        _is_special_wt = _effective_wt in ('SP', 'PW', 'PT')
+                        _ref_record   = check_in_record or check_out_record
+                        if check_in_record and check_out_record:
+                            _base = _base_loc(check_in_record)
+                            if _is_special_wt:
+                                _location_str = f"{_base} ({_effective_wt})"
+                            else:
+                                _location_str = _base
+                        else:
+                            _location_str = _ref_record.location_name if _ref_record else ''
+
                         if _is_overnight_pair:
                             _location_str = f"{_location_str} (midnight shift)"
                         
@@ -10134,7 +10206,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 date_display,
                                 check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
                                 _out_time_str,  # Out
-                                _location_str,  # Location (includes "(midnight shift)" label if overnight)
+                                _location_str,  # Location (effective work type + optional midnight label)
                                 '',
                                 pair_hours,
                                 current_daily_total,
@@ -10151,7 +10223,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 date_display,
                                 check_in_record.check_in_time.strftime('%I:%M:%S %p'),  # In
                                 '',  # No OUT
-                                check_in_record.location_name,
+                                _location_str,
                                 '',
                                 'Missed Punch',
                                 current_daily_total,
@@ -10168,7 +10240,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                 date_display,
                                 '',  # No IN
                                 check_out_record.check_in_time.strftime('%I:%M:%S %p'),  # Out
-                                check_out_record.location_name,
+                                _location_str,
                                 '',
                                 'Missed Punch',
                                 current_daily_total,
@@ -10205,11 +10277,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             current_row += 1
         
         # Write extra working hours rows (SP/PW/PT) if employee has any
-        # Get extra hours from emp_data grand_totals
+        # Get extra hours from emp_data grand_totals, then add any cross-type hours
+        # accumulated during rendering (pairs the calculator could not detect).
         grand_totals = emp_data.get('grand_totals', {})
-        sp_hours = grand_totals.get('sp_hours', 0.0)
-        pw_hours = grand_totals.get('pw_hours', 0.0)
-        pt_hours = grand_totals.get('pt_hours', 0.0)
+        sp_hours = grand_totals.get('sp_hours', 0.0) + cross_type_sp_hours
+        pw_hours = grand_totals.get('pw_hours', 0.0) + cross_type_pw_hours
+        pt_hours = grand_totals.get('pt_hours', 0.0) + cross_type_pt_hours
         
         # Write SP row if hours > 0
         if sp_hours > 0:
@@ -10313,7 +10386,19 @@ def export_time_attendance_by_building():
         
         # Apply filters
         if employee_filter:
-            query = query.filter(TimeAttendance.employee_id == employee_filter)
+            # Include all SP/PW/PT work-type variants of the base employee ID.
+            from working_hours_calculator import parse_employee_id_for_work_type as _parse_wt
+            _base_emp_id, _ = _parse_wt(str(employee_filter))
+            _emp_id_variants = [
+                _base_emp_id,
+                f"{_base_emp_id} SP", f"{_base_emp_id}SP",
+                f"SP {_base_emp_id}", f"SP{_base_emp_id}",
+                f"{_base_emp_id} PW", f"{_base_emp_id}PW",
+                f"PW {_base_emp_id}", f"PW{_base_emp_id}",
+                f"{_base_emp_id} PT", f"{_base_emp_id}PT",
+                f"PT {_base_emp_id}", f"PT{_base_emp_id}",
+            ]
+            query = query.filter(TimeAttendance.employee_id.in_(_emp_id_variants))
         
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
@@ -10329,7 +10414,12 @@ def export_time_attendance_by_building():
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-                query = query.filter(TimeAttendance.attendance_date <= end_date_obj)
+                # Fetch one extra calendar day so that early-morning check-out records
+                # stored on Day N+1 (overnight shifts ending after midnight on the last
+                # report day) are included for overnight pairing detection.
+                # The display range remains controlled by start_date_filter/end_date_filter
+                # inside export_time_attendance_by_building_excel and is not affected.
+                query = query.filter(TimeAttendance.attendance_date <= end_date_obj + timedelta(days=1))
             except ValueError:
                 flash('Invalid end date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
@@ -10441,7 +10531,11 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             f"capping end_date to {capped_end_date}."
         )
         end_date = capped_end_date
-        records = [r for r in records if r.attendance_date <= end_date]
+        # Preserve one extra calendar day so early-morning check-out records
+        # stored on Day N+1 (overnight shifts ending after midnight on the
+        # last report day) remain available for overnight pairing detection.
+        # The display range is still controlled by dates_with_records (capped to end_date).
+        records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
 
     # Import parse function for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
@@ -10669,7 +10763,9 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             
             for date_str in sorted_dates:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                day_records = sorted(daily_records[date_str], key=lambda x: x.check_in_time)
+                # Sort records overnight-aware: early-morning OUTs (<=03:00) sort after
+                # evening records so they pair with the correct evening check-in.
+                day_records = sorted(daily_records[date_str], key=_overnight_aware_sort_key)
                 
                 # Check for week boundary anchored to start_date_filter (not calendar Monday)
                 _report_start = start_date if start_date_filter else date_obj.date()
@@ -10709,9 +10805,10 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 outs = [ri for ri in record_info if     ri['is_out']]
 
                 if len(ins) > len(outs) and len(outs) > 0:
-                    # Odd-IN rule: discard all but the LATEST IN; pair it with the earliest OUT
-                    ins_sorted  = sorted(ins,  key=lambda ri: ri['record'].check_in_time)
-                    outs_sorted = sorted(outs, key=lambda ri: ri['record'].check_in_time)
+                    # Odd-IN rule: discard all but the LATEST IN; pair it with the earliest OUT.
+                    # Use overnight-aware sort so early-morning OUTs sort after evening OUTs.
+                    ins_sorted  = sorted(ins,  key=lambda ri: _overnight_aware_sort_key(ri['record']))
+                    outs_sorted = sorted(outs, key=lambda ri: _overnight_aware_sort_key(ri['record']))
 
                     latest_in   = ins_sorted[-1]
                     excess_ins  = ins_sorted[:-1]
