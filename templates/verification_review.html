@@ -713,6 +713,73 @@
   .empty-state p {
     color: #9ca3af;
   }
+
+  /* ── Photo Lightbox ── */
+  .photo-lightbox {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .photo-lightbox.active {
+    display: flex;
+  }
+  .photo-lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    text-align: center;
+  }
+  .photo-lightbox-image {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 0.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    background: #fff;
+    padding: 0.5rem;
+    cursor: default;
+  }
+  .photo-lightbox-close {
+    position: absolute;
+    top: -48px;
+    right: 0;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    color: #374151;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .photo-lightbox-close:hover {
+    background: #fff;
+    color: #111827;
+  }
+  .photo-lightbox-info {
+    color: #fff;
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .photo-lightbox-hint {
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .verification-photo {
+    cursor: zoom-in;
+  }
 </style>
 
 <script>
@@ -773,15 +840,37 @@
     });
   }
   
-  // Click photo to view full size
+  // Click photo to view full size — lightbox (mirrors dashboard behaviour)
   document.addEventListener('DOMContentLoaded', function() {
     const photos = document.querySelectorAll('.verification-photo');
     photos.forEach(photo => {
       photo.addEventListener('click', function() {
-        window.open(this.src, '_blank');
+        openPhotoLightbox(this.src, this.alt || 'Verification Photo');
       });
     });
   });
+
+  function openPhotoLightbox(src, caption) {
+    const lightbox = document.getElementById('photoLightbox');
+    const img      = document.getElementById('photoLightboxImage');
+    const info     = document.getElementById('photoLightboxInfo');
+    img.src        = src;
+    img.alt        = caption;
+    info.textContent = caption;
+    lightbox.classList.add('active');
+    document.addEventListener('keydown', _photoLightboxKeydown);
+  }
+
+  function closePhotoLightbox() {
+    const lightbox = document.getElementById('photoLightbox');
+    lightbox.classList.remove('active');
+    document.getElementById('photoLightboxImage').src = '';
+    document.removeEventListener('keydown', _photoLightboxKeydown);
+  }
+
+  function _photoLightboxKeydown(e) {
+    if (e.key === 'Escape') closePhotoLightbox();
+  }
 
   // Download verification photo
   function downloadPhoto(recordId, employeeId, checkInDate) {
@@ -868,4 +957,14 @@
       console.log('[LOG] Email client opened for verification record:', recordId);
   }
 </script>
+
+<!-- Photo Lightbox Overlay -->
+<div id="photoLightbox" class="photo-lightbox" onclick="closePhotoLightbox()">
+  <div class="photo-lightbox-content" onclick="event.stopPropagation()">
+    <button class="photo-lightbox-close" onclick="closePhotoLightbox()" title="Close">&times;</button>
+    <img id="photoLightboxImage" src="" alt="" class="photo-lightbox-image" />
+    <div class="photo-lightbox-info" id="photoLightboxInfo"></div>
+    <div class="photo-lightbox-hint">Click anywhere outside the image to close &nbsp;·&nbsp; ESC to dismiss</div>
+  </div>
+</div>
 {% endblock %}
