@@ -9342,23 +9342,35 @@ def _overnight_aware_sort_key(record):
     """
     Sort key for attendance records within a single calendar-date bucket.
 
-    Problem: when an overnight shift spans midnight, the check-out record's
+    Problem 1: when an overnight shift spans midnight, the check-out record's
     check_in_time (e.g. 00:01 AM) sorts numerically BEFORE the check-in time
     (e.g. 20:00 PM), producing an orphaned OUT followed by an orphaned IN.
+    Fix: push early-morning check-outs (hour <= 3) past midnight by adding
+    24 h worth of seconds so they sort after same-day evening check-ins.
 
-    Fix: if a record is a check-out AND its time is in the early-morning window
-    (<= 06:00), treat it as belonging to the *next* logical day by adding 24 h
-    worth of minutes so it sorts after any same-day evening check-ins.
+    Problem 2: two records in the same minute (e.g. IN 06:22:04, OUT 06:22:52)
+    had identical sort keys because seconds were not included, leaving the
+    database-delivery order intact (DESC → OUT first).  The pairing loop then
+    encountered the OUT before the IN, emitting an orphaned-OUT row followed
+    by an orphaned-IN row — reversed from chronological order.
+    Fix: include seconds in the key so true chronological order is preserved.
     """
     from datetime import time as _time
     t = record.check_in_time
-    minutes = t.hour * 60 + t.minute if isinstance(t, _time) else 0
+    if isinstance(t, _time):
+        # Use fractional minutes (hours*60 + minutes + seconds/60) so that
+        # records sharing the same HH:MM still sort by their seconds component.
+        seconds_total = t.hour * 3600 + t.minute * 60 + t.second
+    else:
+        seconds_total = 0
     action = (record.action_description or '').lower()
     is_out = 'out' in action or 'checkout' in action
-    # Push early-morning check-outs past midnight to end of day order
+    # Push early-morning check-outs past midnight to end of day order.
+    # Use seconds-based offset (24 h = 86400 s) to remain consistent with
+    # the seconds-granularity key above.
     if is_out and t.hour <= 3:
-        minutes += 24 * 60
-    return minutes
+        seconds_total += 24 * 3600
+    return seconds_total
 
 def _qtr(decimal_hours: float) -> float:
     """
@@ -10786,6 +10798,10 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
         bottom=Side(style='thin')
     )
     missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
+    # Bottom-only border on the last row of each day group (matches normal TA export).
+    # Intermediate rows within a day have no borders.
+    border_day_middle = Border()  # No borders on intermediate rows
+    border_day_last   = Border(bottom=Side(style='thin'))  # Bottom border on last row of day
     
     # Write main headers
     current_row = 1
@@ -10862,12 +10878,50 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             emp_records = employees_at_location[employee_id]
             emp_name = employee_names.get(employee_id, f'Employee {employee_id}')
             
-            # Get SP/PT/PW hours from the calculator's hours_data for this employee
-            emp_hours_data = hours_data.get('employees', {}).get(employee_id, {})
-            grand_totals = emp_hours_data.get('grand_totals', {})
-            sp_hours = grand_totals.get('sp_hours', 0.0)
-            pw_hours = grand_totals.get('pw_hours', 0.0)
-            pt_hours = grand_totals.get('pt_hours', 0.0)
+            # Compute SP/PW/PT hours from the records already scoped to this
+            # building and employee (emp_records).  Using the calculator's
+            # grand_totals here would be incorrect: those totals are GLOBAL
+            # (across all buildings), so an employee with SP hours at Building A
+            # would incorrectly show an SP row at Building B where they have none.
+            #
+            # Strategy: pair same-building SP/PW/PT records the same way the
+            # main loop pairs regular records, and sum the durations.
+            def _building_special_hours(emp_recs, work_type_code):
+                """Sum paired hours for a given work-type code at this building."""
+                from datetime import datetime as _dt, timedelta as _td
+                wt_recs = [r for r in emp_recs if getattr(r, 'work_type', None) == work_type_code]
+                if not wt_recs:
+                    return 0.0
+                # Group by date
+                by_date = {}
+                for r in wt_recs:
+                    dk = r.check_in_date.strftime('%Y-%m-%d') if hasattr(r.check_in_date, 'strftime') else str(r.check_in_date)
+                    by_date.setdefault(dk, []).append(r)
+                total = 0.0
+                for dk, day_recs in by_date.items():
+                    day_recs_s = sorted(day_recs, key=_overnight_aware_sort_key)
+                    ins_r  = [r for r in day_recs_s if not ('out' in (r.action_description or '').lower() or 'checkout' in (r.action_description or '').lower())]
+                    outs_r = [r for r in day_recs_s if     ('out' in (r.action_description or '').lower() or 'checkout' in (r.action_description or '').lower())]
+                    used = [False] * len(outs_r)
+                    d_obj = _dt.strptime(dk, '%Y-%m-%d')
+                    for in_r in ins_r:
+                        for oi, out_r in enumerate(outs_r):
+                            if used[oi]:
+                                continue
+                            in_dt  = _dt.combine(d_obj, in_r.check_in_time)
+                            out_dt = _dt.combine(d_obj, out_r.check_in_time)
+                            if out_dt < in_dt:
+                                out_dt += _td(days=1)
+                            dur = (out_dt - in_dt).total_seconds() / 3600.0
+                            if 0 < dur < 24:
+                                total += dur
+                                used[oi] = True
+                                break
+                return total
+
+            sp_hours = _building_special_hours(emp_records, 'SP')
+            pw_hours = _building_special_hours(emp_records, 'PW')
+            pt_hours = _building_special_hours(emp_records, 'PT')
             
             # Employee header row
             ws.merge_cells(f'A{current_row}:O{current_row}')
@@ -10898,14 +10952,94 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     daily_records[date_key] = []
                 daily_records[date_key].append(record)
             
+            # -----------------------------------------------------------
+            # OVERNIGHT SHIFT DETECTION (by-building export)
+            # The midnight check-out record is stored in the DB on the
+            # next calendar day's date (e.g. checkout at 01:00 AM on
+            # Thursday is stored as check_in_date = Thursday).  Move it
+            # into Wednesday's bucket so it pairs with the 8 PM check-in.
+            #
+            # Mirrors the identical logic in export_time_attendance_excel.
+            # -----------------------------------------------------------
+            def _bb_is_out(r):
+                a = (r.action_description or '').lower()
+                return 'out' in a or 'checkout' in a
+
+            _bb_sorted_dk = sorted(daily_records.keys())
+            for _bb_di, _bb_dk in enumerate(_bb_sorted_dk):
+                if _bb_di + 1 >= len(_bb_sorted_dk):
+                    continue
+                # Guard: bucket may have been emptied by a prior iteration
+                if _bb_dk not in daily_records:
+                    continue
+                _bb_ndk = _bb_sorted_dk[_bb_di + 1]
+                if _bb_ndk not in daily_records:
+                    continue
+                # Must be consecutive calendar days
+                _bb_dn  = datetime.strptime(_bb_dk,  '%Y-%m-%d').date()
+                _bb_dn1 = datetime.strptime(_bb_ndk, '%Y-%m-%d').date()
+                if (_bb_dn1 - _bb_dn).days != 1:
+                    continue
+                # Collect INs/OUTs for Day N and Day N+1
+                _bb_day_recs  = daily_records[_bb_dk]
+                _bb_next_recs = daily_records[_bb_ndk]
+                _bb_day_ins   = [r for r in _bb_day_recs  if not _bb_is_out(r)]
+                _bb_day_outs  = [r for r in _bb_day_recs  if     _bb_is_out(r)]
+                _bb_nxt_ins   = [r for r in _bb_next_recs if not _bb_is_out(r)]
+                _bb_nxt_outs  = [r for r in _bb_next_recs if     _bb_is_out(r)]
+                # Exclude early-morning OUTs on Day N from the balance check:
+                # they are overnight orphans from Day N-1, not Day N regulars.
+                _bb_day_outs_non_early = [r for r in _bb_day_outs if r.check_in_time.hour > 3]
+                # Day N must have an unmatched late check-in (>= 19:00)
+                if len(_bb_day_ins) <= len(_bb_day_outs_non_early):
+                    continue
+                _bb_late_ins = [r for r in _bb_day_ins if r.check_in_time.hour >= 19]
+                if not _bb_late_ins:
+                    continue
+                # Find early-morning OUTs (<= 03:00) on Day N+1
+                _bb_early_outs = [r for r in _bb_nxt_outs if r.check_in_time.hour <= 3]
+                if not _bb_early_outs:
+                    continue
+                # Non-evening INs guard: do NOT move if Day N+1 has a non-evening
+                # IN that precedes the early OUT (i.e. it can own the early OUT)
+                # and the counts are balanced.
+                _bb_nxt_non_evening_ins = [
+                    r for r in _bb_nxt_ins
+                    if r.check_in_time.hour < 18
+                    and any(r.check_in_time < eo.check_in_time for eo in _bb_early_outs)
+                ]
+                if _bb_nxt_non_evening_ins and len(_bb_nxt_outs) <= len(_bb_nxt_ins):
+                    continue
+                # Move up to as many early OUTs as there are unmatched late INs
+                _bb_to_move = _bb_early_outs[:len(_bb_late_ins)]
+                for _bb_co in _bb_to_move:
+                    daily_records[_bb_dk].append(_bb_co)
+                    daily_records[_bb_ndk].remove(_bb_co)
+                    if not daily_records[_bb_ndk]:
+                        del daily_records[_bb_ndk]
+                    logger_handler.logger.info(
+                        f"[TA by-building Export] Overnight: moved checkout "
+                        f"{_bb_co.check_in_time} from {_bb_ndk} to {_bb_dk} "
+                        f"for employee {employee_id} at {location_name}"
+                    )
+            # -----------------------------------------------------------
+            # END OVERNIGHT SHIFT DETECTION
+            # -----------------------------------------------------------
+
             # Track weekly hours for overtime calculation
             weekly_total_hours = 0
             current_week_start = None
             grand_regular_hours = 0
             grand_ot_hours = 0
             
-            # Sort dates
-            sorted_dates = sorted(daily_records.keys())
+            # Sort dates (re-sort after overnight detection may have removed buckets).
+            # CRITICAL: cap to end_date — daily_records may contain the +1 buffer day
+            # (fetched so overnight checkout records are available for pairing) but
+            # that extra day must never be rendered, or it creates a spurious 3rd week.
+            sorted_dates = sorted(
+                dk for dk in daily_records.keys()
+                if datetime.strptime(dk, '%Y-%m-%d').date() <= end_date
+            )
             
             for date_str in sorted_dates:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -10934,6 +11068,15 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 
                 current_week_start = week_start
                 
+                # Re-evaluate miss-punch status after overnight detection may
+                # have moved a next-day checkout into this day's bucket.
+                # If INs and OUTs are now balanced, this day is no longer a
+                # miss punch (mirrors logic in export_time_attendance_excel).
+                _bb_all_day = day_records
+                _bb_ins_count  = sum(1 for r in _bb_all_day if not _bb_is_out(r))
+                _bb_outs_count = sum(1 for r in _bb_all_day if     _bb_is_out(r))
+                _bb_day_is_miss_punch = (_bb_ins_count != _bb_outs_count)
+
                 # Process day records - create IN/OUT pairs
                 record_info = []
                 for record in day_records:
@@ -11017,9 +11160,17 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 daily_hours = 0
                 for pair in pairs:
                     if pair['check_in'] and pair['check_out'] and not pair['is_miss_punch']:
-                        pair_in = datetime.combine(date_obj, pair['check_in'].check_in_time)
+                        pair_in  = datetime.combine(date_obj, pair['check_in'].check_in_time)
                         pair_out = datetime.combine(date_obj, pair['check_out'].check_in_time)
-                        daily_hours += (pair_out - pair_in).total_seconds() / 3600.0
+                        # Overnight shift correction: if OUT is before IN on the same
+                        # calendar date, the employee worked past midnight — advance
+                        # pair_out by one day so the duration is always positive.
+                        if pair_out < pair_in:
+                            pair_out += timedelta(days=1)
+                        _bb_dur = (pair_out - pair_in).total_seconds() / 3600.0
+                        # 24h guard: reject implausible durations (data errors)
+                        if _bb_dur <= 24:
+                            daily_hours += _bb_dur
                 
                 daily_hours = round(daily_hours, 2)
                 weekly_total_hours += daily_hours
@@ -11036,8 +11187,13 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     
                     # Calculate hours for this pair
                     if check_in and check_out and not is_miss_punch:
-                        pair_hours = round((datetime.combine(date_obj, check_out.check_in_time) - 
-                                           datetime.combine(date_obj, check_in.check_in_time)).total_seconds() / 3600.0, 2)
+                        _pair_in_dt  = datetime.combine(date_obj, check_in.check_in_time)
+                        _pair_out_dt = datetime.combine(date_obj, check_out.check_in_time)
+                        # Overnight shift correction: advance OUT by one day when it
+                        # falls before IN (employee crossed midnight).
+                        if _pair_out_dt < _pair_in_dt:
+                            _pair_out_dt += timedelta(days=1)
+                        pair_hours = round((_pair_out_dt - _pair_in_dt).total_seconds() / 3600.0, 2)
                     else:
                         pair_hours = 'Missed Punch'
                     
@@ -11065,10 +11221,14 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                         calculate_possible_violation(getattr(ref_record, 'distance', None)) if ref_record else ''
                     ]
                     
+                    # Use bottom-only border on the last pair row of the day;
+                    # no borders on intermediate rows (matches normal TA export).
+                    _bb_is_last_pair = (pair_idx == len(pairs) - 1)
+                    _bb_row_border   = border_day_last if _bb_is_last_pair else border_day_middle
                     for col, value in enumerate(row_data, 1):
                         cell = ws.cell(row=current_row, column=col, value=value)
                         cell.font = data_font
-                        cell.border = border
+                        cell.border = _bb_row_border
                         if col == 7 and value == 'Missed Punch':
                             cell.fill = missed_punch_fill
                     
