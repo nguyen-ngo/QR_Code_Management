@@ -9870,6 +9870,16 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         if _out_t_d.hour <= 3:
                             if _in_t_d.hour < 18:
                                 continue
+                            # Orphan guard: an early-morning OUT whose check_in_date
+                            # matches the current day is an orphan from the PREVIOUS
+                            # overnight shift — it must NOT steal an evening IN.
+                            # Only OUTs moved in by overnight detection (check_in_date
+                            # is later than the current day) are valid partners.
+                            _out_orig_date = _out_r.check_in_date
+                            if hasattr(_out_orig_date, 'date'):
+                                _out_orig_date = _out_orig_date.date()
+                            if _out_orig_date <= date_obj.date():
+                                continue
                         elif _out_t_d <= _in_t_d:
                             continue
                         _in_ts  = datetime.combine(_in_r.check_in_date,  _in_r.check_in_time)
@@ -9919,6 +9929,14 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     _cb_out_t = _cb_out.check_in_time
                     if _cb_out_t.hour <= 3:
                         if _cb_in_t.hour < 18:
+                            continue
+                        # Orphan guard: same-day early-morning OUT is from previous
+                        # overnight shift — skip it.  Only moved OUTs (check_in_date
+                        # later than current day) are valid overnight partners.
+                        _cb_out_orig = _cb_out.check_in_date
+                        if hasattr(_cb_out_orig, 'date'):
+                            _cb_out_orig = _cb_out_orig.date()
+                        if _cb_out_orig <= date_obj.date():
                             continue
                     elif _cb_out_t <= _cb_in_t:
                         continue
@@ -10134,6 +10152,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             if _out_t.hour <= 3:
                                 if _in_t.hour < 18:
                                     continue  # early-morning OUT cannot pair with non-evening IN
+                                # Orphan guard: same-day early-morning OUT is from a
+                                # previous overnight shift — not a valid partner for
+                                # this evening IN.  Only moved OUTs (check_in_date
+                                # later than current day) should pair.
+                                _out_orig_d = out_ri['record'].check_in_date
+                                if hasattr(_out_orig_d, 'date'):
+                                    _out_orig_d = _out_orig_d.date()
+                                if _out_orig_d <= date_obj.date():
+                                    continue
                             elif _out_t <= _in_t:
                                 continue  # same-day OUT must be strictly after IN
                             if out_ri['work_type'] == in_ri['work_type']:
@@ -10169,6 +10196,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             _out_t2 = out_ri['record'].check_in_time
                             if _out_t2.hour <= 3:
                                 if _in_t2.hour < 18:
+                                    continue
+                                # Orphan guard: same-day early-morning OUT is from a
+                                # previous overnight shift — not a valid partner for
+                                # this evening IN.  Only moved OUTs (check_in_date
+                                # later than current day) should pair.
+                                _out_orig_d2 = out_ri['record'].check_in_date
+                                if hasattr(_out_orig_d2, 'date'):
+                                    _out_orig_d2 = _out_orig_d2.date()
+                                if _out_orig_d2 <= date_obj.date():
                                     continue
                             elif _out_t2 <= _in_t2:
                                 continue
@@ -11101,17 +11137,45 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
 
                     latest_in   = ins_sorted[-1]
                     excess_ins  = ins_sorted[:-1]
-                    earliest_out = outs_sorted[0]
+
+                    # Orphan guard: when the latest IN is evening (>=18h), skip
+                    # early-morning OUTs (<=3h) whose check_in_date matches the
+                    # current day — they are orphans from a previous overnight shift.
+                    _oi_in_hour = latest_in['record'].check_in_time.hour
+                    earliest_out = None
+                    _oi_skip = []
+                    for _oi_ri in outs_sorted:
+                        if (earliest_out is None
+                                and _oi_in_hour >= 18
+                                and _oi_ri['record'].check_in_time.hour <= 3):
+                            _oi_out_d = _oi_ri['record'].check_in_date
+                            if hasattr(_oi_out_d, 'date'):
+                                _oi_out_d = _oi_out_d.date()
+                            if _oi_out_d <= date_obj.date():
+                                _oi_skip.append(_oi_ri)
+                                continue
+                        if earliest_out is None:
+                            earliest_out = _oi_ri
+                            break
 
                     for ri in excess_ins:
                         ri['used'] = True
                         pairs.append({'check_in': ri['record'], 'check_out': None, 'is_miss_punch': True})
 
-                    latest_in['used']    = True
-                    earliest_out['used'] = True
-                    pairs.append({'check_in': latest_in['record'], 'check_out': earliest_out['record'], 'is_miss_punch': False})
+                    if earliest_out is not None:
+                        latest_in['used']    = True
+                        earliest_out['used'] = True
+                        pairs.append({'check_in': latest_in['record'], 'check_out': earliest_out['record'], 'is_miss_punch': False})
+                    else:
+                        latest_in['used'] = True
+                        pairs.append({'check_in': latest_in['record'], 'check_out': None, 'is_miss_punch': True})
 
-                    for ri in outs_sorted[1:]:
+                    for ri in outs_sorted:
+                        if not ri['used'] and ri not in _oi_skip:
+                            ri['used'] = True
+                            pairs.append({'check_in': None, 'check_out': ri['record'], 'is_miss_punch': True})
+                    # Orphan OUTs that were skipped
+                    for ri in _oi_skip:
                         ri['used'] = True
                         pairs.append({'check_in': None, 'check_out': ri['record'], 'is_miss_punch': True})
 
@@ -11129,6 +11193,22 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                                 if record_info[j]['used']:
                                     continue
                                 if record_info[j]['is_out']:
+                                    # Orphan guard: when this IN is an evening
+                                    # check-in (>=18h) and the candidate OUT is
+                                    # early-morning (<=3h), the OUT is only a
+                                    # valid partner if it was moved in by overnight
+                                    # detection (check_in_date > current day).
+                                    # Same-day early-morning OUTs are orphans from
+                                    # a previous overnight shift.
+                                    _in_rec  = record_info[i]['record']
+                                    _out_rec = record_info[j]['record']
+                                    if (_in_rec.check_in_time.hour >= 18
+                                            and _out_rec.check_in_time.hour <= 3):
+                                        _out_bb_date = _out_rec.check_in_date
+                                        if hasattr(_out_bb_date, 'date'):
+                                            _out_bb_date = _out_bb_date.date()
+                                        if _out_bb_date <= date_obj.date():
+                                            continue  # orphan — skip
                                     pairs.append({
                                         'check_in': record_info[i]['record'],
                                         'check_out': record_info[j]['record'],
