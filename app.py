@@ -9840,6 +9840,9 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             # group, and sum only complete pairs.  This ensures the daily total in
             # column H matches exactly the pairs rendered in the export rows.
             _day_total_hours = 0.0
+            # Track which records are consumed by same-building pairing so the
+            # cross-building pass only considers true orphans.
+            _same_building_used_ids = set()
             for _loc_data in date_locations.values():
                 _loc_recs = sorted(_loc_data['records'], key=_overnight_aware_sort_key)
                 _loc_ins  = [r for r in _loc_recs if not _is_out(r)]
@@ -9866,7 +9869,79 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             continue
                         _day_total_hours += _duration
                         _out_used[_oi2] = True
+                        _same_building_used_ids.add(id(_in_r))
+                        _same_building_used_ids.add(id(_out_r))
                         break
+
+            # -------------------------------------------------------------------
+            # CROSS-BUILDING PAIRING
+            # After same-building pairing, collect all orphaned INs and OUTs
+            # across every location group for this day.  Pair them chronologically
+            # (earliest available OUT that is strictly after the IN).  This handles
+            # employees who check in at one building and check out at another.
+            # -------------------------------------------------------------------
+            _all_day_recs_flat = []
+            for _loc_data in date_locations.values():
+                _all_day_recs_flat.extend(_loc_data['records'])
+
+            _orphan_ins  = sorted(
+                [r for r in _all_day_recs_flat if not _is_out(r) and id(r) not in _same_building_used_ids],
+                key=_overnight_aware_sort_key
+            )
+            _orphan_outs = sorted(
+                [r for r in _all_day_recs_flat if     _is_out(r) and id(r) not in _same_building_used_ids],
+                key=_overnight_aware_sort_key
+            )
+
+            # Pre-compute cross-building pairs for this day (used both for totals
+            # and for row writing after the location_groups loop).
+            cross_building_pairs = []   # list of {'check_in': r, 'check_out': r, 'hours': float}
+            _cb_out_used = [False] * len(_orphan_outs)
+
+            for _cb_in in _orphan_ins:
+                for _cb_oi, _cb_out in enumerate(_orphan_outs):
+                    if _cb_out_used[_cb_oi]:
+                        continue
+                    # Same time-only guard as Steps 1–3
+                    _cb_in_t  = _cb_in.check_in_time
+                    _cb_out_t = _cb_out.check_in_time
+                    if _cb_out_t.hour <= 3:
+                        if _cb_in_t.hour < 18:
+                            continue
+                    elif _cb_out_t <= _cb_in_t:
+                        continue
+                    _cb_in_ts  = datetime.combine(_cb_in.check_in_date,  _cb_in.check_in_time)
+                    _cb_out_ts = datetime.combine(_cb_out.check_in_date, _cb_out.check_in_time)
+                    if _cb_out_ts < _cb_in_ts:
+                        _cb_out_ts += timedelta(days=1)
+                    _cb_dur = (_cb_out_ts - _cb_in_ts).total_seconds() / 3600.0
+                    if _cb_dur > 24:
+                        continue
+                    _cb_out_used[_cb_oi] = True
+                    cross_building_pairs.append({
+                        'check_in':  _cb_in,
+                        'check_out': _cb_out,
+                        'hours':     _cb_dur,
+                    })
+                    _day_total_hours += _cb_dur
+                    logger_handler.logger.info(
+                        f"[TA Export] Cross-building pair for employee {employee_id} on {date_str}: "
+                        f"IN {_cb_in.location_name} @ {_cb_in.check_in_time} → "
+                        f"OUT {_cb_out.location_name} @ {_cb_out.check_in_time} "
+                        f"({_cb_dur:.2f} h)"
+                    )
+                    break
+
+            # Build a set of record ids that are part of a cross-building pair so
+            # the single-record group path can suppress its Missed Punch row.
+            _cross_building_record_ids = set()
+            for _cbp in cross_building_pairs:
+                _cross_building_record_ids.add(id(_cbp['check_in']))
+                _cross_building_record_ids.add(id(_cbp['check_out']))
+            # -------------------------------------------------------------------
+            # END CROSS-BUILDING PAIRING PRE-COMPUTATION
+            # -------------------------------------------------------------------
+
             total_hours = _qtr(_day_total_hours)
             weekly_total_hours += total_hours
 
@@ -9926,6 +10001,12 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                 if len(sorted_records) == 1:
                     # Single record for this location
                     single_record = sorted_records[0]
+
+                    # If this record has been resolved by cross-building pairing,
+                    # suppress the Missed Punch row here — it will be written after
+                    # all location groups have been processed (Touch Point 3).
+                    if id(single_record) in _cross_building_record_ids:
+                        continue
                     
                     # Get the original TimeAttendance record to check action_description
                     original_record = None
@@ -10256,7 +10337,78 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             if col == 7 and value == 'Missed Punch':
                                 cell.fill = missed_punch_fill
                         current_row += 1
-                            
+
+            # -------------------------------------------------------------------
+            # CROSS-BUILDING PAIR ROW WRITING (Touch Point 3)
+            # Write one row per cross-building pair identified during pre-computation.
+            # The day-name and date columns are only shown for the very first row
+            # of this day that is actually rendered; we track that with a flag.
+            # -------------------------------------------------------------------
+            if cross_building_pairs:
+                # Determine whether any non-cross-building rows were already written
+                # for this day.  We look at how many rows were consumed since the
+                # start of this date's block.  The simplest proxy: check whether
+                # the first location group had at least one real (non-skipped) record.
+                # We use a dedicated flag instead to keep this clean.
+                _cb_first_row_of_day = not any(
+                    id(r) not in _cross_building_record_ids
+                    for loc_data in date_locations.values()
+                    for r in loc_data['records']
+                )
+
+                for _cb_idx, _cbp in enumerate(cross_building_pairs):
+                    _cb_in_rec  = _cbp['check_in']
+                    _cb_out_rec = _cbp['check_out']
+                    _cb_hours   = _cbp['hours']
+                    _cb_pair_hours = round(_cb_hours, 2)
+
+                    _is_last_cb = (_cb_idx == len(cross_building_pairs) - 1)
+
+                    # Show day/date only on the very first row written for this date
+                    # (either this is the first row overall, or prior groups had records)
+                    if _cb_idx == 0 and _cb_first_row_of_day:
+                        _cb_day_display  = date_obj.strftime('%A').upper()
+                        _cb_date_display = date_obj.strftime('%m/%d/%Y')
+                    else:
+                        _cb_day_display  = ''
+                        _cb_date_display = ''
+
+                    # Show daily total on the last cross-building row if it is
+                    # also the last row written for this day.
+                    _cb_daily_total = daily_total_display if _is_last_cb else ''
+
+                    # Location label: clearly identifies both buildings
+                    _cb_in_loc  = _base_loc(_cb_in_rec)
+                    _cb_out_loc = _base_loc(_cb_out_rec)
+                    _cb_loc_str = f"IN: {_cb_in_loc} → OUT: {_cb_out_loc}"
+
+                    row_data = [
+                        _cb_day_display,
+                        _cb_date_display,
+                        _cb_in_rec.check_in_time.strftime('%I:%M:%S %p'),   # In
+                        _cb_out_rec.check_in_time.strftime('%I:%M:%S %p'),  # Out
+                        _cb_loc_str,
+                        '',
+                        _cb_pair_hours,
+                        _cb_daily_total,
+                        '',
+                        '',
+                        _cb_in_rec.event_description or '',
+                        _cb_in_rec.recorded_address or '',
+                        getattr(_cb_in_rec, 'distance', None) or '',
+                        calculate_possible_violation(getattr(_cb_in_rec, 'distance', None))
+                    ]
+
+                    _cb_border = border_day_last if _is_last_cb else border_day_middle
+                    for col, value in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col, value=value)
+                        cell.font = data_font
+                        cell.border = _cb_border
+                    current_row += 1
+            # -------------------------------------------------------------------
+            # END CROSS-BUILDING PAIR ROW WRITING
+            # -------------------------------------------------------------------
+
         # Write final weekly total for this employee
         if weekly_total_hours > 0:
             week_regular = min(weekly_total_hours, 40.0)
