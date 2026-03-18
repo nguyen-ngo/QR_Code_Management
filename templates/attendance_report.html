@@ -1003,4 +1003,83 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 }());
 </script>
+<script>
+// ─── Dynamic Location Dropdown (scoped by selected project) ───────────────
+(function () {
+    const projectSelect  = document.getElementById('project');
+    const locationSelect = document.getElementById('location');
+
+    if (!projectSelect || !locationSelect) return;
+
+    // Capture the full server-rendered location list on page load so we can
+    // restore it when the project filter is cleared.
+    const allLocationOptions = Array.from(locationSelect.options).map(function (opt) {
+        return { value: opt.value, text: opt.text };
+    });
+
+    // The location value that was active when the page loaded (from URL param).
+    const initialLocationValue = locationSelect.value;
+
+    function rebuildLocationDropdown(locations, preserveValue) {
+        // Remove all options except the first "All Locations" placeholder
+        while (locationSelect.options.length > 1) {
+            locationSelect.remove(1);
+        }
+
+        locations.forEach(function (locName) {
+            const opt = document.createElement('option');
+            opt.value = locName;
+            opt.textContent = locName;
+            if (locName === preserveValue) {
+                opt.selected = true;
+            }
+            locationSelect.appendChild(opt);
+        });
+    }
+
+    function loadLocationsForProject(projectId) {
+        const url = '/api/attendance/locations?project_id=' + encodeURIComponent(projectId);
+        fetch(url)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    // Only preserve current location selection if it exists in the new list
+                    const currentLoc = locationSelect.value;
+                    const validLoc = data.locations.includes(currentLoc) ? currentLoc : '';
+                    rebuildLocationDropdown(data.locations, validLoc);
+                } else {
+                    console.error('Failed to load locations:', data.error);
+                }
+            })
+            .catch(function (err) {
+                console.error('Error fetching locations:', err);
+            });
+    }
+
+    function restoreAllLocations() {
+        while (locationSelect.options.length > 1) {
+            locationSelect.remove(1);
+        }
+        // Re-add all server-rendered options (skip index 0, the "All Locations" option)
+        for (let i = 1; i < allLocationOptions.length; i++) {
+            const opt = document.createElement('option');
+            opt.value = allLocationOptions[i].value;
+            opt.textContent = allLocationOptions[i].text;
+            if (allLocationOptions[i].value === initialLocationValue) {
+                opt.selected = true;
+            }
+            locationSelect.appendChild(opt);
+        }
+    }
+
+    projectSelect.addEventListener('change', function () {
+        const projectId = this.value;
+        if (projectId) {
+            loadLocationsForProject(projectId);
+        } else {
+            restoreAllLocations();
+        }
+    });
+}());
+</script>
 {% endblock %}

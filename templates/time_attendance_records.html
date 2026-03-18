@@ -62,6 +62,90 @@
 
 .filter-input { padding-right: 35px !important; }
 
+/* ── Multi-Employee Chip Filter ── */
+.employee-chips-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 4px 36px 4px 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #fff;
+    cursor: text;
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.employee-chips-wrapper:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+.employee-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    border-radius: 4px;
+    padding: 2px 6px 2px 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.employee-chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6366f1;
+    padding: 0;
+    line-height: 1;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    border-radius: 2px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+.employee-chip-remove:hover { color: #dc2626; }
+.employee-chip-input {
+    border: none;
+    outline: none;
+    font-size: 0.875rem;
+    background: transparent;
+    flex: 1;
+    min-width: 120px;
+    padding: 2px 0;
+    color: #1f2937;
+}
+.employee-chip-input::placeholder { color: #9ca3af; }
+.employee-chips-clear-all {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
+}
+.employee-chips-clear-all:hover { background: #c82333; }
+.employee-chips-clear-all i { font-size: 0.7rem; }
+
 /* ── Mirror attendance.css filter layout on this page ── */
 .filters-section { margin-bottom: 2rem; }
 
@@ -260,30 +344,33 @@
             </div>
 
             <div class="filter-group">
-              <label for="ta_employee_search">
+              <label for="ta_employee_chip_input">
                 <i class="fas fa-user-search"></i>
                 Employee
               </label>
               <div class="autocomplete-container-filter">
-                <input type="text"
-                       id="ta_employee_search"
-                       class="filter-input"
-                       placeholder="Search by ID or Name..."
-                       value="{{ employee_display_name }}"
-                       autocomplete="off">
-                <input type="hidden"
-                       id="employee_id"
-                       name="employee_id"
-                       value="{{ employee_filter }}">
+                <input type="hidden" id="employee_id" name="employee_id" value="{{ employee_filter }}">
+                <div class="employee-chips-wrapper" id="taEmployeeChipsWrapper">
+                  {% for emp in employee_display_names %}
+                  <span class="employee-chip" data-id="{{ emp.id }}">
+                    <span title="{{ emp.name }}">{{ emp.name }}</span>
+                    <button type="button" class="employee-chip-remove" title="Remove">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </span>
+                  {% endfor %}
+                  <input type="text"
+                         id="ta_employee_chip_input"
+                         class="employee-chip-input"
+                         placeholder="{% if employee_display_names %}Add more...{% else %}Search by ID or Name...{% endif %}"
+                         autocomplete="off">
+                  {% if employee_filter %}
+                  <button type="button" class="employee-chips-clear-all" id="taClearAllEmployees" title="Clear all">
+                    <i class="fas fa-times"></i>
+                  </button>
+                  {% endif %}
+                </div>
                 <div id="ta_autocomplete_results" class="autocomplete-results-filter"></div>
-                {% if employee_filter %}
-                <button type="button"
-                        class="clear-employee-filter"
-                        onclick="taClearEmployee()"
-                        title="Clear employee filter">
-                  <i class="fas fa-times"></i>
-                </button>
-                {% endif %}
               </div>
             </div>
 
@@ -596,72 +683,158 @@ document.addEventListener('keydown', function(event) {
 
 // Filters are always visible — no toggle needed
 
-// ── Employee autocomplete ──────────────────────────────────────────────────
+// ── Multi-Employee Chip Filter Autocomplete ───────────────────────────────
 (function () {
-  const searchInput = document.getElementById('ta_employee_search');
-  const hiddenInput = document.getElementById('employee_id');
-  const dropdown    = document.getElementById('ta_autocomplete_results');
-  let   debounceTimer;
+  const chipInput      = document.getElementById('ta_employee_chip_input');
+  const employeeHidden = document.getElementById('employee_id');
+  const autocomplete   = document.getElementById('ta_autocomplete_results');
+  const chipsWrapper   = document.getElementById('taEmployeeChipsWrapper');
+  let searchTimeout;
 
-  if (!searchInput) return;
+  // State: map of id -> displayName for currently selected employees
+  const selected = {};
+  {% for emp in employee_display_names %}
+  selected['{{ emp.id }}'] = '{{ emp.name | e }}';
+  {% endfor %}
 
-  searchInput.addEventListener('input', function () {
-    const term = this.value.trim();
-
-    // Keep hidden field in sync when typing a plain numeric ID so the user
-    // can submit without selecting from the dropdown (handles IDs not in Employee table).
-    if (/^\d+$/.test(term)) {
-      hiddenInput.value = term;
-    } else {
-      hiddenInput.value = '';
+  function syncHiddenField() {
+    employeeHidden.value = Object.keys(selected).join(',');
+    const hasChips = Object.keys(selected).length > 0;
+    let btn = document.getElementById('taClearAllEmployees');
+    if (hasChips && !btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'taClearAllEmployees';
+      btn.className = 'employee-chips-clear-all';
+      btn.title = 'Clear all';
+      btn.innerHTML = '<i class="fas fa-times"></i>';
+      btn.addEventListener('click', clearAll);
+      chipsWrapper.appendChild(btn);
+    } else if (!hasChips && btn) {
+      btn.remove();
     }
+  }
 
-    if (term.length === 0) {
-      hiddenInput.value = '';
-      dropdown.classList.remove('show');
-      return;
+  function addChip(id, name) {
+    id = String(id);
+    if (selected[id]) return;
+    selected[id] = name;
+
+    const chip = document.createElement('span');
+    chip.className = 'employee-chip';
+    chip.dataset.id = id;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.title = name;
+    nameSpan.textContent = name;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'employee-chip-remove';
+    removeBtn.title = 'Remove';
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.addEventListener('click', function () {
+      delete selected[chip.dataset.id];
+      chip.remove();
+      syncHiddenField();
+      updatePlaceholder();
+    });
+
+    chip.appendChild(nameSpan);
+    chip.appendChild(removeBtn);
+    chipsWrapper.insertBefore(chip, chipInput);
+    syncHiddenField();
+    updatePlaceholder();
+  }
+
+  function updatePlaceholder() {
+    chipInput.placeholder = Object.keys(selected).length > 0
+      ? 'Add more...'
+      : 'Search by ID or Name...';
+  }
+
+  function clearAll() {
+    Object.keys(selected).forEach(function(k) { delete selected[k]; });
+    chipsWrapper.querySelectorAll('.employee-chip').forEach(function(c) { c.remove(); });
+    syncHiddenField();
+    updatePlaceholder();
+  }
+
+  // Wire remove buttons for server-rendered chips on page load
+  chipsWrapper.querySelectorAll('.employee-chip-remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const chip = btn.closest('.employee-chip');
+      delete selected[chip.dataset.id];
+      chip.remove();
+      syncHiddenField();
+      updatePlaceholder();
+    });
+  });
+
+  const clearAllBtn = document.getElementById('taClearAllEmployees');
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', clearAll);
+  }
+
+  chipsWrapper.addEventListener('click', function (e) {
+    if (!e.target.closest('.employee-chip') && !e.target.closest('.employee-chips-clear-all')) {
+      chipInput.focus();
     }
+  });
 
-    if (term.length < 2) {
-      dropdown.classList.remove('show');
-      return;
-    }
+  chipInput.addEventListener('input', function () {
+    const q = this.value.trim();
+    if (q.length === 0) { autocomplete.classList.remove('show'); return; }
+    if (q.length < 2)   { autocomplete.classList.remove('show'); return; }
 
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(function () {
-      fetch('/api/search_employees?q=' + encodeURIComponent(term))
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(function () {
+      fetch('/api/search_employees?q=' + encodeURIComponent(q))
         .then(function (r) { return r.json(); })
         .then(function (data) { renderDropdown(data.employees || []); })
         .catch(function (err) { console.error('Employee search error:', err); });
     }, 300);
   });
 
-  document.addEventListener('click', function (e) {
-    if (!e.target.closest('.autocomplete-container-filter')) {
-      dropdown.classList.remove('show');
+  chipInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = chipInput.value.trim();
+      if (/^\d+$/.test(q) && !selected[q]) {
+        addChip(q, 'ID: ' + q);
+        chipInput.value = '';
+        autocomplete.classList.remove('show');
+      }
+    }
+    if (e.key === 'Backspace' && chipInput.value === '') {
+      const chips = chipsWrapper.querySelectorAll('.employee-chip');
+      if (chips.length > 0) {
+        const last = chips[chips.length - 1];
+        delete selected[last.dataset.id];
+        last.remove();
+        syncHiddenField();
+        updatePlaceholder();
+      }
     }
   });
 
   function renderDropdown(employees) {
-    // Use createElement + addEventListener — safe with apostrophes in names
-    dropdown.innerHTML = '';
+    autocomplete.innerHTML = '';
+    const unselected = employees.filter(function(emp) { return !selected[String(emp.id)]; });
 
-    if (employees.length === 0) {
+    if (unselected.length === 0) {
       const noResult = document.createElement('div');
       noResult.className = 'autocomplete-item-filter';
       noResult.style.cssText = 'cursor:default;color:#999;';
-      noResult.textContent = 'No employees found';
-      dropdown.appendChild(noResult);
+      noResult.textContent = employees.length === 0 ? 'No employees found' : 'All matching employees already selected';
+      autocomplete.appendChild(noResult);
     } else {
-      employees.forEach(function (emp) {
+      unselected.forEach(function (emp) {
         const isUnregistered = (emp.lastName === '(no record)');
-        const displayName = isUnregistered
-          ? 'ID: ' + emp.id
-          : emp.lastName + ', ' + emp.firstName;
+        const displayName = isUnregistered ? 'ID: ' + emp.id : emp.lastName + ', ' + emp.firstName;
 
         const item = document.createElement('div');
         item.className = 'autocomplete-item-filter';
-
         const info = document.createElement('div');
         info.className = 'employee-info-filter';
 
@@ -685,47 +858,113 @@ document.addEventListener('keydown', function(event) {
         info.appendChild(idSpan);
         item.appendChild(info);
 
-        // Closure captures values safely regardless of special characters
         item.addEventListener('click', (function (id, name) {
-          return function () { taSelectEmployee(id, name); };
+          return function () {
+            addChip(id, name);
+            chipInput.value = '';
+            autocomplete.classList.remove('show');
+          };
         }(String(emp.id), displayName)));
 
-        dropdown.appendChild(item);
+        autocomplete.appendChild(item);
       });
     }
     positionDropdown();
-    dropdown.classList.add('show');
+    autocomplete.classList.add('show');
   }
 
   function positionDropdown() {
-    const rect = searchInput.getBoundingClientRect();
-    dropdown.style.top   = (rect.bottom + window.scrollY) + 'px';
-    dropdown.style.left  = rect.left + 'px';
-    dropdown.style.width = rect.width + 'px';
+    const wrapperRect = chipsWrapper.getBoundingClientRect();
+    autocomplete.style.top   = (wrapperRect.bottom + window.scrollY) + 'px';
+    autocomplete.style.left  = wrapperRect.left + 'px';
+    autocomplete.style.width = wrapperRect.width + 'px';
   }
 
-  window.taSelectEmployee = function (id, displayName) {
-    hiddenInput.value = id;
-    searchInput.value = displayName;
-    dropdown.classList.remove('show');
-  };
-
-  window.taClearEmployee = function () {
-    searchInput.value = '';
-    hiddenInput.value = '';
-    searchInput.closest('form').submit();
-  };
-
-  window.taClearAllFilters = function () {
-    window.location.href = '{{ url_for("time_attendance_records") }}';
-  };
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.autocomplete-container-filter')) {
+      autocomplete.classList.remove('show');
+    }
+  });
 
   window.addEventListener('scroll', function () {
-    if (dropdown.classList.contains('show')) positionDropdown();
+    if (autocomplete.classList.contains('show')) positionDropdown();
   }, true);
 
   window.addEventListener('resize', function () {
-    if (dropdown.classList.contains('show')) positionDropdown();
+    if (autocomplete.classList.contains('show')) positionDropdown();
+  });
+
+  // Legacy globals
+  window.taSelectEmployee = function (id, name) {
+    addChip(String(id), name);
+    chipInput.value = '';
+    autocomplete.classList.remove('show');
+  };
+  window.taClearEmployee = function () {
+    clearAll();
+    chipsWrapper.closest('form').submit();
+  };
+  window.taClearAllFilters = function () {
+    window.location.href = '{{ url_for("time_attendance_records") }}';
+  };
+}());
+
+// ── Dynamic Location Dropdown (scoped by selected project) ────────────────
+(function () {
+  const projectSelect  = document.getElementById('project_id');
+  const locationSelect = document.getElementById('location_name');
+
+  if (!projectSelect || !locationSelect) return;
+
+  // Capture full server-rendered location list on page load for restoration
+  const allLocationOptions = Array.from(locationSelect.options).map(function (opt) {
+    return { value: opt.value, text: opt.text };
+  });
+  const initialLocationValue = locationSelect.value;
+
+  function rebuildLocationDropdown(locations, preserveValue) {
+    while (locationSelect.options.length > 1) { locationSelect.remove(1); }
+    locations.forEach(function (locName) {
+      const opt = document.createElement('option');
+      opt.value = locName;
+      opt.textContent = locName;
+      if (locName === preserveValue) opt.selected = true;
+      locationSelect.appendChild(opt);
+    });
+  }
+
+  function loadLocationsForProject(projectId) {
+    fetch('/api/time-attendance/locations?project_id=' + encodeURIComponent(projectId))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          const currentLoc = locationSelect.value;
+          const validLoc = data.locations.includes(currentLoc) ? currentLoc : '';
+          rebuildLocationDropdown(data.locations, validLoc);
+        } else {
+          console.error('Failed to load locations:', data.error);
+        }
+      })
+      .catch(function (err) { console.error('Error fetching locations:', err); });
+  }
+
+  function restoreAllLocations() {
+    while (locationSelect.options.length > 1) { locationSelect.remove(1); }
+    for (let i = 1; i < allLocationOptions.length; i++) {
+      const opt = document.createElement('option');
+      opt.value = allLocationOptions[i].value;
+      opt.textContent = allLocationOptions[i].text;
+      if (allLocationOptions[i].value === initialLocationValue) opt.selected = true;
+      locationSelect.appendChild(opt);
+    }
+  }
+
+  projectSelect.addEventListener('change', function () {
+    if (this.value) {
+      loadLocationsForProject(this.value);
+    } else {
+      restoreAllLocations();
+    }
   });
 }());
 </script>

@@ -5404,6 +5404,89 @@ def save_manual_attendance():
         return redirect(url_for('add_manual_attendance'))
 
 
+@app.route('/api/time-attendance/locations')
+@login_required
+def time_attendance_locations_api():
+    """Return distinct location_name values from time_attendance, optionally filtered by project_id.
+    Used by the time attendance records page to dynamically scope the location dropdown."""
+    try:
+        project_id = request.args.get('project_id', '').strip()
+
+        if project_id:
+            try:
+                project_id_int = int(project_id)
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid project_id'}), 400
+
+            result = db.session.execute(text("""
+                SELECT DISTINCT location_name
+                FROM time_attendance
+                WHERE project_id = :project_id
+                  AND location_name IS NOT NULL
+                ORDER BY location_name
+            """), {'project_id': project_id_int})
+        else:
+            result = db.session.execute(text("""
+                SELECT DISTINCT location_name
+                FROM time_attendance
+                WHERE location_name IS NOT NULL
+                ORDER BY location_name
+            """))
+
+        locations = [row[0] for row in result.fetchall()]
+        logger_handler.logger.info(
+            f"User {session.get('username', 'unknown')} fetched time attendance locations"
+            + (f" for project_id={project_id}" if project_id else " (all projects)")
+        )
+        return jsonify({'success': True, 'locations': locations})
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error in time_attendance_locations_api: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/attendance/locations')
+@login_required
+def attendance_locations_api():
+    """Return distinct location_name values from attendance_data, optionally filtered by project_id.
+    Used by the attendance report page to dynamically scope the location dropdown when a project is selected."""
+    try:
+        project_id = request.args.get('project_id', '').strip()
+
+        if project_id:
+            try:
+                project_id_int = int(project_id)
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid project_id'}), 400
+
+            result = db.session.execute(text("""
+                SELECT DISTINCT ad.location_name
+                FROM attendance_data ad
+                INNER JOIN qr_codes qc ON ad.qr_code_id = qc.id
+                WHERE qc.project_id = :project_id
+                  AND ad.location_name IS NOT NULL
+                ORDER BY ad.location_name
+            """), {'project_id': project_id_int})
+        else:
+            result = db.session.execute(text("""
+                SELECT DISTINCT location_name
+                FROM attendance_data
+                WHERE location_name IS NOT NULL
+                ORDER BY location_name
+            """))
+
+        locations = [row[0] for row in result.fetchall()]
+        logger_handler.logger.info(
+            f"User {session.get('username', 'unknown')} fetched attendance locations"
+            + (f" for project_id={project_id}" if project_id else " (all projects)")
+        )
+        return jsonify({'success': True, 'locations': locations})
+
+    except Exception as e:
+        logger_handler.logger.error(f"Error in attendance_locations_api: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/search_employees')
 @login_required
 def search_employees_api():
@@ -9230,26 +9313,27 @@ def export_time_attendance():
         from models.time_attendance import TimeAttendance
         query = TimeAttendance.query
         
-        # Apply filters
+        # Apply filters — employee_id supports comma-separated multi-employee values
         if employee_filter:
-            # Include all SP/PW/PT work-type variants of the base employee ID so that
-            # cross-type pairing (e.g. regular IN + SP OUT) works correctly in the export.
+            employee_ids_export = [e.strip() for e in employee_filter.split(',') if e.strip()]
             from working_hours_calculator import parse_employee_id_for_work_type as _parse_wt
-            _base_emp_id, _ = _parse_wt(str(employee_filter))
-            _emp_id_variants = [
-                _base_emp_id,
-                f"{_base_emp_id} SP", f"{_base_emp_id}SP",
-                f"SP {_base_emp_id}", f"SP{_base_emp_id}",
-                f"{_base_emp_id} PW", f"{_base_emp_id}PW",
-                f"PW {_base_emp_id}", f"PW{_base_emp_id}",
-                f"{_base_emp_id} PT", f"{_base_emp_id}PT",
-                f"PT {_base_emp_id}", f"PT{_base_emp_id}",
-            ]
-            query = query.filter(TimeAttendance.employee_id.in_(_emp_id_variants))
-        
+            all_variants = []
+            for eid in employee_ids_export:
+                _base_emp_id, _ = _parse_wt(str(eid))
+                all_variants += [
+                    _base_emp_id,
+                    f"{_base_emp_id} SP", f"{_base_emp_id}SP",
+                    f"SP {_base_emp_id}", f"SP{_base_emp_id}",
+                    f"{_base_emp_id} PW", f"{_base_emp_id}PW",
+                    f"PW {_base_emp_id}", f"PW{_base_emp_id}",
+                    f"{_base_emp_id} PT", f"{_base_emp_id}PT",
+                    f"PT {_base_emp_id}", f"PT{_base_emp_id}",
+                ]
+            query = query.filter(TimeAttendance.employee_id.in_(all_variants))
+
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
-        
+
         if start_date:
             try:
                 start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -9257,7 +9341,7 @@ def export_time_attendance():
             except ValueError:
                 flash('Invalid start date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
-        
+
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
@@ -9271,23 +9355,23 @@ def export_time_attendance():
             except ValueError:
                 flash('Invalid end date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
-        
+
         if import_batch:
             query = query.filter(TimeAttendance.import_batch_id == import_batch)
-        
+
         if project_filter:
             query = query.filter(TimeAttendance.project_id == project_filter)
-        
+
         # Order by date and time (most recent first)
         records = query.order_by(
             TimeAttendance.attendance_date.desc(),
             TimeAttendance.attendance_time.desc()
         ).all()
-        
+
         if not records:
             flash('No records found to export.', 'warning')
             return redirect(url_for('time_attendance_records'))
-        
+
         # Get project name if project filter exists
         project_name_for_filename = ''
         if project_filter:
@@ -9300,7 +9384,7 @@ def export_time_attendance():
                     project_name_for_filename = f"{project_name_safe}_"
             except Exception as e:
                 print(f"⚠️ Error getting project name for filename: {e}")
-        
+
         # Log export
         logger_handler.logger.info(
             f"User {session['username']} exported {len(records)} time attendance records "
@@ -10611,25 +10695,27 @@ def export_time_attendance_by_building():
         from models.time_attendance import TimeAttendance
         query = TimeAttendance.query
         
-        # Apply filters
+        # Apply filters — employee_id supports comma-separated multi-employee values
         if employee_filter:
-            # Include all SP/PW/PT work-type variants of the base employee ID.
+            employee_ids_export = [e.strip() for e in employee_filter.split(',') if e.strip()]
             from working_hours_calculator import parse_employee_id_for_work_type as _parse_wt
-            _base_emp_id, _ = _parse_wt(str(employee_filter))
-            _emp_id_variants = [
-                _base_emp_id,
-                f"{_base_emp_id} SP", f"{_base_emp_id}SP",
-                f"SP {_base_emp_id}", f"SP{_base_emp_id}",
-                f"{_base_emp_id} PW", f"{_base_emp_id}PW",
-                f"PW {_base_emp_id}", f"PW{_base_emp_id}",
-                f"{_base_emp_id} PT", f"{_base_emp_id}PT",
-                f"PT {_base_emp_id}", f"PT{_base_emp_id}",
-            ]
-            query = query.filter(TimeAttendance.employee_id.in_(_emp_id_variants))
-        
+            all_variants = []
+            for eid in employee_ids_export:
+                _base_emp_id, _ = _parse_wt(str(eid))
+                all_variants += [
+                    _base_emp_id,
+                    f"{_base_emp_id} SP", f"{_base_emp_id}SP",
+                    f"SP {_base_emp_id}", f"SP{_base_emp_id}",
+                    f"{_base_emp_id} PW", f"{_base_emp_id}PW",
+                    f"PW {_base_emp_id}", f"PW{_base_emp_id}",
+                    f"{_base_emp_id} PT", f"{_base_emp_id}PT",
+                    f"PT {_base_emp_id}", f"PT{_base_emp_id}",
+                ]
+            query = query.filter(TimeAttendance.employee_id.in_(all_variants))
+
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
-        
+
         if start_date:
             try:
                 start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -10637,7 +10723,7 @@ def export_time_attendance_by_building():
             except ValueError:
                 flash('Invalid start date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
-        
+
         if end_date:
             try:
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
@@ -10650,24 +10736,24 @@ def export_time_attendance_by_building():
             except ValueError:
                 flash('Invalid end date format.', 'error')
                 return redirect(url_for('time_attendance_records'))
-        
+
         if import_batch:
             query = query.filter(TimeAttendance.import_batch_id == import_batch)
-        
+
         if project_filter:
             query = query.filter(TimeAttendance.project_id == project_filter)
-        
+
         # Order by location, date, and time
         records = query.order_by(
             TimeAttendance.location_name,
             TimeAttendance.attendance_date.desc(),
             TimeAttendance.attendance_time.desc()
         ).all()
-        
+
         if not records:
             flash('No records found to export.', 'warning')
             return redirect(url_for('time_attendance_records'))
-        
+
         # Get project name if project filter exists
         project_name_for_filename = ''
         if project_filter:
@@ -10680,7 +10766,7 @@ def export_time_attendance_by_building():
                     project_name_for_filename = f"{project_name_safe}_"
             except Exception as e:
                 print(f"⚠️ Error getting project name for filename: {e}")
-        
+
         # Log export
         logger_handler.logger.info(
             f"User {session['username']} exported {len(records)} time attendance records "
@@ -11471,20 +11557,61 @@ def time_attendance_records():
     """Display time attendance records with filtering options"""
     try:
         # Get filter parameters
-        employee_filter = request.args.get('employee_id')
+        employee_filter = request.args.get('employee_id', '')
         location_filter = request.args.get('location_name')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         project_filter = request.args.get('project_id')
         page = request.args.get('page', 1, type=int)
         per_page = 50  # Records per page
-        
+
+        # Build list of selected employee IDs (comma-separated multi-employee support)
+        employee_ids = [e.strip() for e in employee_filter.split(',') if e.strip()] if employee_filter else []
+
+        # Build display names for each selected employee
+        import re as _re
+        employee_display_names = []
+        for eid in employee_ids:
+            try:
+                numeric_only = _re.search(r'\d+', str(eid))
+                if numeric_only:
+                    emp = Employee.query.filter_by(id=int(numeric_only.group(0))).first()
+                    if emp:
+                        employee_display_names.append({'id': eid, 'name': f"{emp.lastName}, {emp.firstName}"})
+                    else:
+                        employee_display_names.append({'id': eid, 'name': f"ID: {eid}"})
+                else:
+                    employee_display_names.append({'id': eid, 'name': eid})
+            except (ValueError, TypeError):
+                employee_display_names.append({'id': eid, 'name': eid})
+
+        employee_display_name = ', '.join([e['name'] for e in employee_display_names])
+
         # Build query
         query = TimeAttendance.query
-        
+
         # Apply filters
-        if employee_filter:
-            query = query.filter(TimeAttendance.employee_id == employee_filter)
+        if employee_ids:
+            # Expand each base ID to include all SP/PW/PT work-type variants so that
+            # cross-type pairs are included in results and exports.
+            from working_hours_calculator import parse_employee_id_for_work_type as _parse_wt
+            all_variants = []
+            for eid in employee_ids:
+                _base_emp_id, _ = _parse_wt(str(eid))
+                all_variants += [
+                    _base_emp_id,
+                    f"{_base_emp_id} SP", f"{_base_emp_id}SP",
+                    f"SP {_base_emp_id}", f"SP{_base_emp_id}",
+                    f"{_base_emp_id} PW", f"{_base_emp_id}PW",
+                    f"PW {_base_emp_id}", f"PW{_base_emp_id}",
+                    f"{_base_emp_id} PT", f"{_base_emp_id}PT",
+                    f"PT {_base_emp_id}", f"PT{_base_emp_id}",
+                ]
+            query = query.filter(TimeAttendance.employee_id.in_(all_variants))
+            logger_handler.logger.info(
+                f"Time attendance records filtered by employee IDs: {employee_ids} "
+                f"by user {session.get('username', 'unknown')}"
+            )
         
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
@@ -11563,23 +11690,6 @@ def time_attendance_records():
         unique_locations = TimeAttendance.get_unique_locations()
         projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
 
-        # Resolve display name for the employee filter input
-        employee_display_name = ''
-        if employee_filter:
-            try:
-                import re as _re
-                numeric_only = _re.search(r'\d+', str(employee_filter))
-                if numeric_only:
-                    emp = Employee.query.filter_by(id=int(numeric_only.group(0))).first()
-                    if emp:
-                        employee_display_name = f"{emp.lastName}, {emp.firstName}"
-                    else:
-                        employee_display_name = f"ID: {employee_filter}"
-                else:
-                    employee_display_name = f"ID: {employee_filter}"
-            except (ValueError, TypeError):
-                employee_display_name = employee_filter
-
         return render_template(
             'time_attendance_records.html',
             records=records,
@@ -11587,7 +11697,9 @@ def time_attendance_records():
             unique_locations=unique_locations,
             projects=projects,
             employee_display_name=employee_display_name,
-            employee_filter=employee_filter or ''
+            employee_display_names=employee_display_names,
+            employee_filter=employee_filter,
+            employee_ids=employee_ids
         )
         
     except Exception as e:
