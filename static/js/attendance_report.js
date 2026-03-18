@@ -133,8 +133,12 @@ function applyFilters() {
   const searchTerm =
     document.getElementById("searchInput")?.value.toLowerCase() || "";
   const locationFilter = document.getElementById("location")?.value || "";
-  const employeeFilter =
-    document.getElementById("employee")?.value.toLowerCase() || "";
+  // Support comma-separated multi-employee filter
+  const employeeFilterRaw =
+    document.getElementById("employee")?.value || "";
+  const employeeFilterIds = employeeFilterRaw
+    ? employeeFilterRaw.split(",").map(function(s) { return s.trim().toLowerCase(); }).filter(Boolean)
+    : [];
 
   filteredData = attendanceData.filter((record) => {
     const matchesSearch =
@@ -146,8 +150,10 @@ function applyFilters() {
     const matchesLocation =
       !locationFilter || record.location === locationFilter;
     const matchesEmployee =
-      !employeeFilter ||
-      record.employeeId.toLowerCase().includes(employeeFilter);
+      employeeFilterIds.length === 0 ||
+      employeeFilterIds.some(function(id) {
+        return record.employeeId.toLowerCase() === id;
+      });
 
     return matchesSearch && matchesLocation && matchesEmployee;
   });
