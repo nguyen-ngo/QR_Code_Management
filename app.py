@@ -4618,20 +4618,30 @@ def attendance_report():
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
         location_filter = request.args.get('location', '')
+        # employee param is now a comma-separated list of IDs (multi-employee filter)
         employee_filter = request.args.get('employee', '')
         project_filter = request.args.get('project', '')
 
-        # Get employee display name for filter if employee ID is provided
-        employee_display_name = ''
-        if employee_filter:
+        # Build the list of selected employee IDs (strip blanks)
+        employee_ids = [e.strip() for e in employee_filter.split(',') if e.strip()] if employee_filter else []
+
+        # Build display names for each selected employee
+        employee_display_names = []
+        for eid in employee_ids:
             try:
-                employee = Employee.query.filter_by(id=int(employee_filter)).first()
-                if employee:
-                    employee_display_name = f"{employee.lastName}, {employee.firstName}"
+                emp = Employee.query.filter_by(id=int(eid)).first()
+                if emp:
+                    employee_display_names.append({
+                        'id': eid,
+                        'name': f"{emp.lastName}, {emp.firstName}"
+                    })
                 else:
-                    employee_display_name = f"ID: {employee_filter}"
+                    employee_display_names.append({'id': eid, 'name': f"ID: {eid}"})
             except (ValueError, TypeError):
-                employee_display_name = employee_filter
+                employee_display_names.append({'id': eid, 'name': eid})
+
+        # Legacy single-value display name (kept for backward compat in template)
+        employee_display_name = ', '.join([e['name'] for e in employee_display_names])
 
         # ============================================================
         # PROJECT MANAGER ACCESS CONTROL
@@ -4692,6 +4702,8 @@ def attendance_report():
                                     date_to=date_to,
                                     location_filter=location_filter,
                                     employee_filter=employee_filter,
+                                    employee_ids=employee_ids,
+                                    employee_display_names=employee_display_names,
                                     employee_display_name=employee_display_name,
                                     project_filter=project_filter,
                                     today_date=datetime.now().strftime('%Y-%m-%d'),
@@ -4799,9 +4811,19 @@ def attendance_report():
             filter_conditions.append("ad.location_name = :location")
             query_params['location'] = location_filter
 
-        if employee_filter:
-            filter_conditions.append("ad.employee_id = :employee")
-            query_params['employee'] = employee_filter
+        if employee_ids:
+            if len(employee_ids) == 1:
+                filter_conditions.append("ad.employee_id = :employee_0")
+                query_params['employee_0'] = employee_ids[0]
+            else:
+                placeholders = ', '.join([f':employee_{i}' for i in range(len(employee_ids))])
+                filter_conditions.append(f"ad.employee_id IN ({placeholders})")
+                for i, eid in enumerate(employee_ids):
+                    query_params[f'employee_{i}'] = eid
+            logger_handler.logger.info(
+                f"Attendance report filtered by employee IDs: {employee_ids} "
+                f"by user {session.get('username', 'unknown')}"
+            )
 
         if project_filter:
             filter_conditions.append("qc.project_id = :project")
@@ -5052,6 +5074,8 @@ def attendance_report():
                      date_to=date_to,
                      location_filter=location_filter,
                      employee_filter=employee_filter,
+                     employee_ids=employee_ids,
+                     employee_display_names=employee_display_names,
                      employee_display_name=employee_display_name,
                      project_filter=project_filter,
                      today_date=datetime.now().strftime('%Y-%m-%d'),

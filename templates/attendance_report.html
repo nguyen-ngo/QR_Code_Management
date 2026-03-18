@@ -127,30 +127,33 @@
                         </div>
                         
                         <div class="filter-group">
-                            <label for="employee_search_filter">
+                            <label for="employee_chip_input">
                                 <i class="fas fa-user-search"></i>
                                 Employee
                             </label>
                             <div class="autocomplete-container-filter">
-                                <input type="text" 
-                                    id="employee_search_filter" 
-                                    class="filter-input" 
-                                    placeholder="Search by ID or Name..."
-                                    value="{{ employee_display_name }}"
-                                    autocomplete="off">
-                                <input type="hidden" 
-                                    id="employee" 
-                                    name="employee" 
-                                    value="{{ employee_filter }}">
+                                <input type="hidden" id="employee" name="employee" value="{{ employee_filter }}">
+                                <div class="employee-chips-wrapper" id="employeeChipsWrapper">
+                                    {% for emp in employee_display_names %}
+                                    <span class="employee-chip" data-id="{{ emp.id }}">
+                                        <span title="{{ emp.name }}">{{ emp.name }}</span>
+                                        <button type="button" class="employee-chip-remove" title="Remove">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </span>
+                                    {% endfor %}
+                                    <input type="text"
+                                           id="employee_chip_input"
+                                           class="employee-chip-input"
+                                           placeholder="{% if employee_display_names %}Add more...{% else %}Search by ID or Name...{% endif %}"
+                                           autocomplete="off">
+                                    {% if employee_filter %}
+                                    <button type="button" class="employee-chips-clear-all" id="clearAllEmployees" title="Clear all">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
                                 <div id="employee_autocomplete_results" class="autocomplete-results-filter"></div>
-                                {% if employee_filter %}
-                                <button type="button" 
-                                        class="clear-employee-filter" 
-                                        onclick="clearEmployeeFilter()"
-                                        title="Clear employee filter">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                                {% endif %}
                             </div>
                         </div>
                                                 
@@ -755,73 +758,170 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
-// Employee Filter Autocomplete
-(function() {
-    const employeeSearchFilter = document.getElementById('employee_search_filter');
-    const employeeHiddenFilter = document.getElementById('employee');
-    const autocompleteResultsFilter = document.getElementById('employee_autocomplete_results');
-    let searchFilterTimeout;
+// ─── Multi-Employee Chip Filter Autocomplete ──────────────────────────────
+(function () {
+    const chipInput      = document.getElementById('employee_chip_input');
+    const employeeHidden = document.getElementById('employee');
+    const autocomplete   = document.getElementById('employee_autocomplete_results');
+    const chipsWrapper   = document.getElementById('employeeChipsWrapper');
+    let searchTimeout;
 
-    if (employeeSearchFilter) {
-        employeeSearchFilter.addEventListener('input', function() {
-            const searchTerm = this.value.trim();
+    // ── State: map of id -> displayName for currently selected employees
+    const selected = {};
+    {% for emp in employee_display_names %}
+    selected['{{ emp.id }}'] = '{{ emp.name | e }}';
+    {% endfor %}
 
-            // Clear hidden field if input is cleared
-            if (searchTerm.length === 0) {
-                employeeHiddenFilter.value = '';
-                autocompleteResultsFilter.classList.remove('show');
-                return;
-            }
-
-            // If the visible input is a plain numeric ID, keep the hidden field
-            // in sync immediately so the user can just type an ID and submit
-            // without having to pick from the dropdown (handles IDs not in Employee table).
-            if (/^\d+$/.test(searchTerm)) {
-                employeeHiddenFilter.value = searchTerm;
-            } else {
-                // Non-numeric input — clear hidden field until a suggestion is picked
-                employeeHiddenFilter.value = '';
-            }
-
-            if (searchTerm.length < 2) {
-                autocompleteResultsFilter.classList.remove('show');
-                return;
-            }
-
-            // Debounce search
-            clearTimeout(searchFilterTimeout);
-            searchFilterTimeout = setTimeout(() => {
-                fetch(`/api/search_employees?q=${encodeURIComponent(searchTerm)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        displayEmployeeAutocompleteResults(data.employees);
-                    })
-                    .catch(error => {
-                        console.error('Error searching employees:', error);
-                    });
-            }, 300);
-        });
-
-        // Close autocomplete when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.autocomplete-container-filter')) {
-                autocompleteResultsFilter.classList.remove('show');
-            }
-        });
+    function syncHiddenField() {
+        employeeHidden.value = Object.keys(selected).join(',');
+        // Show/hide the clear-all button dynamically
+        const hasChips = Object.keys(selected).length > 0;
+        let btn = document.getElementById('clearAllEmployees');
+        if (hasChips && !btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = 'clearAllEmployees';
+            btn.className = 'employee-chips-clear-all';
+            btn.title = 'Clear all';
+            btn.innerHTML = '<i class="fas fa-times"></i>';
+            btn.addEventListener('click', clearAll);
+            chipsWrapper.appendChild(btn);
+        } else if (!hasChips && btn) {
+            btn.remove();
+        }
     }
 
-    function displayEmployeeAutocompleteResults(employees) {
-        // Clear previous results safely
-        autocompleteResultsFilter.innerHTML = '';
+    function addChip(id, name) {
+        id = String(id);
+        if (selected[id]) return; // already added
+        selected[id] = name;
 
-        if (employees.length === 0) {
+        const chip = document.createElement('span');
+        chip.className = 'employee-chip';
+        chip.dataset.id = id;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.title = name;
+        nameSpan.textContent = name;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'employee-chip-remove';
+        removeBtn.title = 'Remove';
+        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        removeBtn.addEventListener('click', function () {
+            delete selected[chip.dataset.id];
+            chip.remove();
+            syncHiddenField();
+            updateInputPlaceholder();
+        });
+
+        chip.appendChild(nameSpan);
+        chip.appendChild(removeBtn);
+
+        // Insert chip before the text input
+        chipsWrapper.insertBefore(chip, chipInput);
+        syncHiddenField();
+        updateInputPlaceholder();
+    }
+
+    function updateInputPlaceholder() {
+        chipInput.placeholder = Object.keys(selected).length > 0
+            ? 'Add more...'
+            : 'Search by ID or Name...';
+    }
+
+    function clearAll() {
+        Object.keys(selected).forEach(function(k) { delete selected[k]; });
+        chipsWrapper.querySelectorAll('.employee-chip').forEach(function(c) { c.remove(); });
+        syncHiddenField();
+        updateInputPlaceholder();
+    }
+
+    // Wire remove buttons for server-rendered chips on page load
+    chipsWrapper.querySelectorAll('.employee-chip-remove').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const chip = btn.closest('.employee-chip');
+            delete selected[chip.dataset.id];
+            chip.remove();
+            syncHiddenField();
+            updateInputPlaceholder();
+        });
+    });
+
+    const clearAllBtn = document.getElementById('clearAllEmployees');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', clearAll);
+    }
+
+    // Clicking the wrapper focuses the text input
+    chipsWrapper.addEventListener('click', function (e) {
+        if (!e.target.closest('.employee-chip') && !e.target.closest('.employee-chips-clear-all')) {
+            chipInput.focus();
+        }
+    });
+
+    // ── Autocomplete input handler
+    chipInput.addEventListener('input', function () {
+        const q = this.value.trim();
+
+        if (q.length === 0) {
+            autocomplete.classList.remove('show');
+            return;
+        }
+
+        if (q.length < 2) {
+            autocomplete.classList.remove('show');
+            return;
+        }
+
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function () {
+            fetch('/api/search_employees?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(data) { renderDropdown(data.employees); })
+                .catch(function(err) { console.error('Employee search error:', err); });
+        }, 300);
+    });
+
+    // Keyboard shortcuts: Enter to add numeric ID, Backspace to remove last chip
+    chipInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const q = chipInput.value.trim();
+            if (/^\d+$/.test(q) && !selected[q]) {
+                addChip(q, 'ID: ' + q);
+                chipInput.value = '';
+                autocomplete.classList.remove('show');
+            }
+        }
+        if (e.key === 'Backspace' && chipInput.value === '') {
+            const chips = chipsWrapper.querySelectorAll('.employee-chip');
+            if (chips.length > 0) {
+                const last = chips[chips.length - 1];
+                delete selected[last.dataset.id];
+                last.remove();
+                syncHiddenField();
+                updateInputPlaceholder();
+            }
+        }
+    });
+
+    function renderDropdown(employees) {
+        autocomplete.innerHTML = '';
+
+        const unselected = employees.filter(function(emp) {
+            return !selected[String(emp.id)];
+        });
+
+        if (unselected.length === 0) {
             const noResult = document.createElement('div');
             noResult.className = 'autocomplete-item-filter';
             noResult.style.cssText = 'cursor:default;color:#999;';
-            noResult.textContent = 'No employees found';
-            autocompleteResultsFilter.appendChild(noResult);
+            noResult.textContent = employees.length === 0 ? 'No employees found' : 'All matching employees already selected';
+            autocomplete.appendChild(noResult);
         } else {
-            employees.forEach(function(emp) {
+            unselected.forEach(function (emp) {
                 const isUnregistered = (emp.lastName === '(no record)');
                 const displayName = isUnregistered
                     ? 'ID: ' + emp.id
@@ -853,53 +953,54 @@ document.addEventListener('DOMContentLoaded', function() {
                 info.appendChild(idSpan);
                 item.appendChild(info);
 
-                // Closure captures values safely regardless of special characters in names
-                item.addEventListener('click', (function(id, name) {
-                    return function() { selectEmployeeFilter(id, name); };
-                }(emp.id, displayName)));
+                item.addEventListener('click', (function (id, name) {
+                    return function () {
+                        addChip(id, name);
+                        chipInput.value = '';
+                        autocomplete.classList.remove('show');
+                    };
+                }(String(emp.id), displayName)));
 
-                autocompleteResultsFilter.appendChild(item);
+                autocomplete.appendChild(item);
             });
         }
 
         positionDropdown();
-        autocompleteResultsFilter.classList.add('show');
+        autocomplete.classList.add('show');
     }
 
-    // Helper function to position the dropdown correctly
     function positionDropdown() {
-        const inputRect = employeeSearchFilter.getBoundingClientRect();
-        autocompleteResultsFilter.style.top = (inputRect.bottom + window.scrollY) + 'px';
-        autocompleteResultsFilter.style.left = inputRect.left + 'px';
-        autocompleteResultsFilter.style.width = inputRect.width + 'px';
+        const wrapperRect = chipsWrapper.getBoundingClientRect();
+        autocomplete.style.top   = (wrapperRect.bottom + window.scrollY) + 'px';
+        autocomplete.style.left  = wrapperRect.left + 'px';
+        autocomplete.style.width = wrapperRect.width + 'px';
     }
 
-    // Make this function globally accessible
-    window.selectEmployeeFilter = function(id, name) {
-        employeeHiddenFilter.value = id;
-        employeeSearchFilter.value = name;
-        autocompleteResultsFilter.classList.remove('show');
-    };
-
-    window.clearEmployeeFilter = function() {
-        employeeSearchFilter.value = '';
-        employeeHiddenFilter.value = '';
-        // Submit the form to refresh with cleared filter
-        employeeSearchFilter.closest('form').submit();
-    };
-
-    // Reposition dropdown on scroll or resize
-    window.addEventListener('scroll', function() {
-        if (autocompleteResultsFilter.classList.contains('show')) {
-            positionDropdown();
-        }
-    }, true);
-
-    window.addEventListener('resize', function() {
-        if (autocompleteResultsFilter.classList.contains('show')) {
-            positionDropdown();
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.autocomplete-container-filter')) {
+            autocomplete.classList.remove('show');
         }
     });
-})();
+
+    window.addEventListener('scroll', function () {
+        if (autocomplete.classList.contains('show')) positionDropdown();
+    }, true);
+
+    window.addEventListener('resize', function () {
+        if (autocomplete.classList.contains('show')) positionDropdown();
+    });
+
+    // ── Legacy globals for backward compatibility
+    window.selectEmployeeFilter = function (id, name) {
+        addChip(String(id), name);
+        chipInput.value = '';
+        autocomplete.classList.remove('show');
+    };
+
+    window.clearEmployeeFilter = function () {
+        clearAll();
+        chipsWrapper.closest('form').submit();
+    };
+}());
 </script>
 {% endblock %}

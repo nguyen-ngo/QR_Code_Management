@@ -1648,3 +1648,102 @@ tr.modified-record {
 .filter-input {
     padding-right: 35px !important;
 }
+
+/* ─── Multi-Employee Chip Filter ─────────────────────────────── */
+.employee-chips-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 4px 36px 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    cursor: text;
+    position: relative;
+}
+
+.employee-chips-wrapper:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.employee-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    border-radius: 4px;
+    padding: 2px 6px 2px 8px;
+    font-size: 0.825rem;
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.employee-chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6366f1;
+    padding: 0;
+    line-height: 1;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    border-radius: 2px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+
+.employee-chip-remove:hover {
+    color: #dc2626;
+}
+
+.employee-chip-input {
+    border: none;
+    outline: none;
+    font-size: 0.875rem;
+    background: transparent;
+    flex: 1;
+    min-width: 120px;
+    padding: 2px 0;
+    color: #1f2937;
+}
+
+.employee-chip-input::placeholder {
+    color: #9ca3af;
+}
+
+.employee-chips-clear-all {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
+}
+
+.employee-chips-clear-all:hover {
+    background: #c82333;
+}
+
+.employee-chips-clear-all i {
+    font-size: 0.7rem;
+}
+/* ─── End Multi-Employee Chip Filter ─────────────────────────── */
