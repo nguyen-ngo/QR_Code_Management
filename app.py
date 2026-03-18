@@ -6274,10 +6274,14 @@ def create_excel_export(selected_columns, column_names, filters):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
 
-        # Apply employee filter
+        # Apply employee filter — supports comma-separated multi-employee values
         if filters.get('employee_filter'):
-            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
-            print(f"📊 Applied employee filter: {filters['employee_filter']}")
+            emp_ids = [e.strip() for e in filters['employee_filter'].split(',') if e.strip()]
+            if len(emp_ids) == 1:
+                query = query.filter(AttendanceData.employee_id == emp_ids[0])
+            elif len(emp_ids) > 1:
+                query = query.filter(AttendanceData.employee_id.in_(emp_ids))
+            print(f"📊 Applied employee filter: {emp_ids}")
 
         # Apply project filter
         if filters.get('project_filter'):
@@ -6566,10 +6570,14 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
             print(f"📊 Applied location filter: {filters['location_filter']}")
 
-        # Apply employee filter
+        # Apply employee filter — supports comma-separated multi-employee values
         if filters.get('employee_filter'):
-            query = query.filter(AttendanceData.employee_id.like(f"%{filters['employee_filter']}%"))
-            print(f"📊 Applied employee filter: {filters['employee_filter']}")
+            emp_ids = [e.strip() for e in filters['employee_filter'].split(',') if e.strip()]
+            if len(emp_ids) == 1:
+                query = query.filter(AttendanceData.employee_id == emp_ids[0])
+            elif len(emp_ids) > 1:
+                query = query.filter(AttendanceData.employee_id.in_(emp_ids))
+            print(f"📊 Applied employee filter: {emp_ids}")
 
         # Apply project filter
         if filters.get('project_filter'):
