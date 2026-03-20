@@ -25,7 +25,7 @@ import os
 import traceback
 from datetime import datetime, date, timedelta
 from functools import wraps
-from flask import request, session, g, render_template
+from flask import request, session, g, render_template, has_request_context
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 import uuid
@@ -201,8 +201,14 @@ class AppLogger:
             return render_template('errors/404.html'), 404
     
     def _get_request_context(self):
-        """Get current request context information"""
-        if not request:
+        """Get current request context information.
+        Safe to call from background threads — returns empty dict when no
+        request context is active (e.g. during background import jobs).
+        """
+        try:
+            if not has_request_context():
+                return {}
+        except Exception:
             return {}
         
         return {
