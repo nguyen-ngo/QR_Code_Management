@@ -44,95 +44,95 @@
         <div class="sidebar-menu">
           <div class="menu-section">
             <div class="menu-items">
-              <a href="{{ url_for('dashboard') }}" class="menu-item">
+              <a href="{{ url_for('dashboard.dashboard') }}" class="menu-item">
                 <i class="fas fa-tachometer-alt"></i>
                 <span class="menu-text">Dashboard</span>
               </a>
 
               {% if session.role == 'admin' %}
-              <a href="{{ url_for('create_qr_code') }}" class="menu-item">
+              <a href="{{ url_for('qr_codes.create_qr_code') }}" class="menu-item">
                 <i class="fas fa-plus"></i>
                 <span class="menu-text">Create QR</span>
               </a>
               <a
-                href="{{ url_for('projects') }}"
+                href="{{ url_for('projects.projects') }}"
                 class="menu-item {% if request.endpoint in ['projects', 'create_project', 'edit_project'] %}active{% endif %}"
               >
                 <i class="fas fa-folder"></i>
                 <span class="menu-text">Projects</span>
               </a>
-              <a href="{{ url_for('users') }}" class="menu-item">
+              <a href="{{ url_for('users.users') }}" class="menu-item">
                 <i class="fas fa-user-cog"></i>
                 <span class="menu-text">Users</span>
               </a>
-              <a href="{{ url_for('employees') }}" class="menu-item">
+              <a href="{{ url_for('employees.employees') }}" class="menu-item">
                 <i class="fas fa-user"></i>
                 <span class="menu-text">Employees</span>
               </a>
-              <a href="{{ url_for('attendance_report') }}" class="menu-item">
+              <a href="{{ url_for('attendance.attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
                 <span class="menu-text">Reports</span>
               </a>
-              <a href="{{ url_for('verification_review') }}" 
+              <a href="{{ url_for('attendance.verification_review') }}" 
                 class="menu-item {% if request.endpoint == 'verification_review' %}active{% endif %}">
                 <i class="fas fa-camera-retro"></i>
                 <span class="menu-text">Verification Review</span>
               </a>
-              <a href="{{ url_for('time_attendance_dashboard') }}" 
+              <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" 
                 class="menu-item {% if request.endpoint and (request.endpoint.startswith('time_attendance') or request.endpoint.startswith('import_time_attendance')) %}active{% endif %}">
                 <i class="fas fa-clock"></i>
                 <span class="menu-text">Time Attendance</span>
               </a>
-              <a href="{{ url_for('payroll_dashboard') }}" class="menu-item">
+              <a href="{{ url_for('payroll.payroll_dashboard') }}" class="menu-item">
                 <i class="fas fa-calculator"></i>
                 <span class="menu-text">Payroll</span>
               </a>
               <a
-                href="{{ url_for('qr_statistics') }}"
+                href="{{ url_for('statistics.qr_statistics') }}"
                 class="menu-item {% if request.endpoint == 'qr_statistics' %}active{% endif %}"
               >
                 <i class="fas fa-chart-pie"></i>
                 <span class="menu-text">Statistics</span>
               </a>
               <a
-                href="{{ url_for('admin_logs') }}"
+                href="{{ url_for('admin.admin_logs') }}"
                 class="menu-item {% if request.endpoint == 'admin_logs' %}active{% endif %}"
               >
                 <i class="fas fa-clipboard-list"></i>
                 <span class="menu-text">System Logs</span>
               </a>
               {% elif session.role in ['payroll', 'accounting'] %}
-              <a href="{{ url_for('employees') }}" class="menu-item">
+              <a href="{{ url_for('employees.employees') }}" class="menu-item">
                 <i class="fas fa-user"></i>
                 <span class="menu-text">Employees</span>
               </a>
-              <a href="{{ url_for('attendance_report') }}" class="menu-item">
+              <a href="{{ url_for('attendance.attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
                 <span class="menu-text">Reports</span>
               </a>
-              <a href="{{ url_for('verification_review') }}" 
+              <a href="{{ url_for('attendance.verification_review') }}" 
                 class="menu-item {% if request.endpoint == 'verification_review' %}active{% endif %}">
                 <i class="fas fa-camera-retro"></i>
                 <span class="menu-text">Verification Review</span>
               </a>              
-              <a href="{{ url_for('time_attendance_dashboard') }}" 
+              <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" 
                 class="menu-item {% if request.endpoint and (request.endpoint.startswith('time_attendance') or request.endpoint.startswith('import_time_attendance')) %}active{% endif %}">
                 <i class="fas fa-clock"></i>
                 <span class="menu-text">Time Attendance</span>
               </a>
               <!--
-              <a href="{{ url_for('payroll_dashboard') }}" class="menu-item">
+              <a href="{{ url_for('payroll.payroll_dashboard') }}" class="menu-item">
                 <i class="fas fa-calculator"></i>
                 <span class="menu-text">Payroll</span>
               </a>
               -->
               {% elif session.role in ['project_manager'] %}
-              <a href="{{ url_for('attendance_report') }}" class="menu-item">
+              <a href="{{ url_for('attendance.attendance_report') }}" class="menu-item">
                 <i class="fas fa-chart-line"></i>
                 <span class="menu-text">Reports</span>
               </a>
               {% endif %}
-              <a href="{{ url_for('profile') }}" class="menu-item">
+              <a href="{{ url_for('auth.profile') }}" class="menu-item">
                 <i class="fas fa-user"></i>
                 <span class="menu-text">Profile</span>
               </a>
@@ -142,7 +142,7 @@
           <!-- Bottom Section -->
           <div class="sidebar-bottom">
             <div class="menu-items">
-              <a href="{{ url_for('logout') }}" class="menu-item logout">
+              <a href="{{ url_for('auth.logout') }}" class="menu-item logout">
                 <i class="fas fa-sign-out-alt"></i>
                 <span class="menu-text">Logout</span>
               </a>

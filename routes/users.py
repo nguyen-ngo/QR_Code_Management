@@ -6,14 +6,18 @@ User management routes (admin-only operations).
 Routes: /users/*, /api/users/stats, /api/locations-by-projects,
         /api/roles/permissions, /api/geocode, /api/reverse-geocode
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 from datetime import datetime, timedelta
 import json
 
 from extensions import db, logger_handler
+from models.permissions import UserLocationPermission, UserProjectPermission
+from models.project import Project
+from models.qrcode import QRCode
+from models.user import User
 from sqlalchemy import text
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import (url_for,
+from utils.helpers import (
                            admin_required,
                            generate_qr_code,
                            get_qr_styling,
@@ -34,31 +38,25 @@ from werkzeug.security import generate_password_hash
 
 bp = Blueprint('users', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/users', endpoint='users')
 @admin_required
 def users():
     """Display all users (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         users = User.query.order_by(User.created_date.desc()).all()
         return render_template('users.html', users=users)
     except Exception as e:
         logger_handler.log_database_error('users_list', e)
         flash('Error loading users list.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/users/create', methods=['GET', 'POST'], endpoint='create_user')
 @admin_required
 @log_database_operations('user_creation')
 def create_user():
     """Create new user (Admin only) with Project Manager permissions support"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     if request.method == 'POST':
         try:
             # Get basic form data
@@ -175,7 +173,7 @@ def create_user():
             logger_handler.logger.info(f"Admin user {session['username']} created new user: {username} with role {role}")
 
             flash(f'User "{full_name}" created successfully with role "{role}".', 'success')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         except KeyError as e:
             db.session.rollback()
@@ -201,7 +199,7 @@ def create_user():
     except Exception as e:
         logger_handler.logger.error(f"Error loading create user form: {e}")
         flash('Error loading form. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 def get_all_locations_from_qr_codes():
     """Helper function to get all unique locations from QR codes"""
@@ -222,26 +220,25 @@ def get_all_locations_from_qr_codes():
 @admin_required
 def delete_user(user_id):
     """Deactivate user (Admin only) - Fixed with proper validation"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_delete = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_delete:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Prevent self-deletion
         if user_to_delete.id == current_user.id:
             flash('You cannot deactivate your own account. Ask another admin to do this.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Check if trying to delete the last admin
         if user_to_delete.role == 'admin':
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot deactivate the last admin user. Promote another user to admin first.', 'error')
-                return redirect(url_for('users'))
+                return redirect(url_for('users.users'))
 
         # Deactivate the user instead of deleting
         user_to_delete.active_status = False
@@ -250,26 +247,25 @@ def delete_user(user_id):
         flash(f'User "{user_to_delete.full_name}" has been deactivated successfully.', 'success')
         print(f"Admin {current_user.username} deactivated user: {user_to_delete.username}")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         print(f"Error deactivating user: {e}")
         flash('Error deactivating user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/reactivate', methods=['GET', 'POST'], endpoint='reactivate_user')
 @admin_required
 def reactivate_user(user_id):
     """Reactivate a deactivated user (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_reactivate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_reactivate:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         if user_to_reactivate.active_status:
             flash('User is already active.', 'info')
@@ -279,26 +275,25 @@ def reactivate_user(user_id):
             flash(f'User "{user_to_reactivate.full_name}" has been reactivated successfully.', 'success')
             print(f"Admin {current_user.username} reactivated user: {user_to_reactivate.username}")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         print(f"Error reactivating user: {e}")
         flash('Error reactivating user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/promote', methods=['GET', 'POST'], endpoint='promote_user')
 @admin_required
 def promote_user(user_id):
     """Promote a staff user to admin (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_promote = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_promote:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         if user_to_promote.role == 'admin':
             flash('User is already an admin.', 'info')
@@ -308,37 +303,36 @@ def promote_user(user_id):
             flash(f'"{user_to_promote.full_name}" has been promoted to admin.', 'success')
             print(f"Admin {current_user.username} promoted user {user_to_promote.username} to admin")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         print(f"Error promoting user: {e}")
         flash('Error promoting user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/demote', methods=['GET', 'POST'], endpoint='demote_user')
 @admin_required
 def demote_user(user_id):
     """Demote an admin user to staff (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_demote = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_demote:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Prevent self-demotion
         if user_to_demote.id == current_user.id:
             flash('You cannot demote yourself. Have another admin do this.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Check if this is the last admin
         active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
         if active_admin_count <= 1 and user_to_demote.role == 'admin':
             flash('Cannot demote the last admin user. Promote another user to admin first.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         if has_staff_level_access(user_to_demote.role):
             flash('User already has staff-level permissions.', 'info')
@@ -348,20 +342,19 @@ def demote_user(user_id):
             flash(f'"{user_to_demote.full_name}" has been demoted to staff.', 'success')
             print(f"Admin {current_user.username} demoted user {user_to_demote.username} to staff")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         print(f"Error demoting user: {e}")
         flash('Error demoting user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'], endpoint='edit_user')
 @admin_required
 @log_database_operations('user_edit')
 def edit_user(user_id):
     """Edit existing user with Project Manager permissions support"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_edit = User.query.get_or_404(user_id)
         
@@ -533,7 +526,7 @@ def edit_user(user_id):
                 logger_handler.logger.info(f"Admin user {session['username']} updated user {user_to_edit.username}: {json.dumps(changes, default=str)}")
 
             flash(f'User "{user_to_edit.full_name}" updated successfully.', 'success')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # GET request - load form with current assignments
         try:
@@ -561,20 +554,19 @@ def edit_user(user_id):
         except Exception as e:
             logger_handler.logger.error(f"Error loading edit user form: {e}")
             flash('Error loading edit form. Please try again.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_update', e)
         logger_handler.logger.error(f"User update error details: {str(e)}")
         flash('Error updating user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/toggle-status', methods=['POST'], endpoint='toggle_user_status')
 @admin_required
 def toggle_user_status(user_id):
     """Toggle user active status via AJAX (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_toggle = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
@@ -634,14 +626,13 @@ def toggle_user_status(user_id):
 @admin_required
 def activate_user(user_id):
     """Activate a user (Admin only) - Alternative route"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_activate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_activate:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         if user_to_activate.active_status:
             flash('User is already active.', 'info')
@@ -655,39 +646,38 @@ def activate_user(user_id):
             flash(f'"{user_to_activate.full_name}" has been activated.', 'success')
             print(f"Admin {current_user.username} activated user {user_to_activate.username}")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_activation', e)
         print(f"Error activating user: {e}")
         flash('Error activating user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 @bp.route('/users/<int:user_id>/deactivate', methods=['GET', 'POST'], endpoint='deactivate_user')
 @admin_required
 def deactivate_user(user_id):
     """Deactivate a user (Admin only) - Alternative route"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_deactivate = User.query.get(user_id)
         current_user = User.query.get(session['user_id'])
 
         if not user_to_deactivate:
             flash('User not found.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Prevent self-deactivation
         if user_to_deactivate.id == current_user.id:
             flash('You cannot deactivate yourself.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Check if this is the last admin
         if user_to_deactivate.role == 'admin' and user_to_deactivate.active_status:
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot deactivate the last admin user.', 'error')
-                return redirect(url_for('users'))
+                return redirect(url_for('users.users'))
 
         if not user_to_deactivate.active_status:
             flash('User is already inactive.', 'info')
@@ -701,21 +691,20 @@ def deactivate_user(user_id):
             flash(f'"{user_to_deactivate.full_name}" has been deactivated.', 'success')
             print(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_deactivation', e)
         print(f"Error deactivating user: {e}")
         flash('Error deactivating user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 # ENHANCED USER STATISTICS API
 @bp.route('/api/users/stats', endpoint='user_stats_api')
 @admin_required
 def user_stats_api():
     """API endpoint to get user statistics for dashboard"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         # Get current date for recent activity calculations
         one_week_ago = datetime.now() - timedelta(days=7)
@@ -759,7 +748,6 @@ def user_stats_api():
 @admin_required
 def get_locations_by_projects():
     """Get locations that belong to selected projects"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         data = request.get_json()
         project_ids = data.get('project_ids', [])
@@ -801,7 +789,6 @@ def get_locations_by_projects():
 @admin_required
 def role_permissions_api():
     """API endpoint to get role permissions data"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         permissions_data = {}
         for role in VALID_ROLES:
@@ -822,7 +809,6 @@ def role_permissions_api():
 @login_required
 def geocode_address_api():
     """API endpoint to geocode an address and return coordinates using Google Maps"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         data = request.get_json()
         address = data.get('address', '').strip()
@@ -890,7 +876,6 @@ def geocode_address_api():
 @login_required
 def reverse_geocode_api():
     """API endpoint for reverse geocoding coordinates to address using Google Maps"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         data = request.get_json()
         latitude = data.get('latitude')
@@ -945,7 +930,6 @@ def reverse_geocode_api():
 @admin_required
 def permanently_delete_user(user_id):
     """Permanently delete user but preserve associated QR codes (Admin only)"""
-    User, UserProjectPermission, UserLocationPermission, Project, QRCode = _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"], _get_models()["Project"], _get_models()["QRCode"]
     try:
         user_to_delete = User.query.get_or_404(user_id)
         current_user = User.query.get(session['user_id'])
@@ -953,19 +937,19 @@ def permanently_delete_user(user_id):
         # Security checks
         if user_to_delete.id == current_user.id:
             flash('You cannot delete your own account.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # Only allow deletion of inactive users for safety
         if user_to_delete.active_status:
             flash('User must be deactivated before permanent deletion.', 'error')
-            return redirect(url_for('users'))
+            return redirect(url_for('users.users'))
 
         # If deleting an admin, ensure at least one admin remains
         if user_to_delete.role == 'admin':
             active_admin_count = User.query.filter_by(role='admin', active_status=True).count()
             if active_admin_count <= 1:
                 flash('Cannot delete the last admin user in the system.', 'error')
-                return redirect(url_for('users'))
+                return redirect(url_for('users.users'))
 
         user_name = user_to_delete.full_name
         user_qr_count = user_to_delete.created_qr_codes.count()
@@ -997,13 +981,13 @@ def permanently_delete_user(user_id):
         flash(f'User "{user_name}" has been permanently deleted. {user_qr_count} QR codes created by this user are now orphaned but preserved.', 'success')
         print(f"Admin {current_user.username} permanently deleted user: {username}, preserved {user_qr_count} QR codes")
 
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_permanent_deletion', e)
         print(f"Error permanently deleting user: {e}")
         flash('Error deleting user. Please try again.', 'error')
-        return redirect(url_for('users'))
+        return redirect(url_for('users.users'))
 
 # Admin logging routes

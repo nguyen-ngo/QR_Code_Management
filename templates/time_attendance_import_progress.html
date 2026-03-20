@@ -204,11 +204,11 @@
         Import Completed Successfully!
       </h2>
       <div class="completion-actions">
-        <a href="{{ url_for('time_attendance_dashboard') }}" class="btn btn-primary">
+        <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="btn btn-primary">
           <i class="fas fa-chart-line"></i>
           View Dashboard
         </a>
-        <a href="{{ url_for('time_attendance_records') }}" class="btn btn-secondary">
+        <a href="{{ url_for('time_attendance.time_attendance_records') }}" class="btn btn-secondary">
           <i class="fas fa-list"></i>
           View Records
         </a>
@@ -299,7 +299,7 @@ eventSource.onerror = function(error) {
   
   // Try to check if import completed
   setTimeout(() => {
-    window.location.href = "{{ url_for('time_attendance_dashboard') }}";
+    window.location.href = "{{ url_for('time_attendance.time_attendance_dashboard') }}";
   }, 2000);
 };
 </script>

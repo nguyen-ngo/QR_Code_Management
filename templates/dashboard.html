@@ -1251,7 +1251,7 @@ Management{% endblock %} {% block extra_head %}
   </div>
   <!-- QR Code Search Section -->
   <div class="search-section">
-    <form action="{{ url_for('dashboard') }}" method="GET" class="search-form">
+    <form action="{{ url_for('dashboard.dashboard') }}" method="GET" class="search-form">
       <div class="search-inputs">
         <div class="search-input-group">
           <label for="search_name">
@@ -1298,7 +1298,7 @@ Management{% endblock %} {% block extra_head %}
         {% if search_name %}matching "{{ search_name }}"{% endif %}
         {% if search_status %}with status: {{ search_status }}{% endif %}
       </span>
-      <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-secondary">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-sm btn-secondary">
         <i class="fas fa-times"></i>
         Clear Filters
       </a>
@@ -1442,7 +1442,7 @@ Management{% endblock %} {% block extra_head %}
             </button>
 
             <a
-              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              href="{{ url_for('qr_codes.edit_qr_code', qr_id=qr.id) }}"
               class="qr-action-btn edit"
               onclick="event.stopPropagation()"
               title="Edit QR Code"
@@ -1583,7 +1583,7 @@ Management{% endblock %} {% block extra_head %}
           </button>
 
           <a
-            href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+            href="{{ url_for('qr_codes.edit_qr_code', qr_id=qr.id) }}"
             class="qr-action-btn edit"
             onclick="event.stopPropagation()"
             title="Edit QR Code"
@@ -1617,7 +1617,7 @@ Management{% endblock %} {% block extra_head %}
     </div>
     <h3>No QR Codes Found</h3>
     <p>No QR codes match your search criteria. Try adjusting your filters.</p>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-primary">
       <i class="fas fa-times"></i>
       Clear Filters
     </a>
@@ -1755,7 +1755,7 @@ Management{% endblock %} {% block extra_head %}
                 </button>
 
                 <a
-                  href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+                  href="{{ url_for('qr_codes.edit_qr_code', qr_id=qr.id) }}"
                   class="qr-action-btn edit"
                   onclick="event.stopPropagation()"
                   title="Edit QR Code"
@@ -1780,7 +1780,7 @@ Management{% endblock %} {% block extra_head %}
             <!-- Show "View All" button if project has more than 20 QR codes -->
               {% if project_qr_codes|length > 12 %}
               <a
-                href="{{ url_for('project_qr_codes', project_id=project.id) }}"
+                href="{{ url_for('dashboard.project_qr_codes', project_id=project.id) }}"
                 class="btn btn-sm btn-primary view-all-qr-btn"
                 onclick="event.stopPropagation()"
               >
@@ -1796,7 +1796,7 @@ Management{% endblock %} {% block extra_head %}
             </div>
             <h4>No QR Codes in this Project</h4>
             <p>Create your first QR code for this project</p>
-            <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary">
+            <a href="{{ url_for('qr_codes.create_qr_code') }}" class="btn btn-primary">
               <i class="fas fa-plus"></i>
               Create QR Code
             </a>
@@ -1916,7 +1916,7 @@ Management{% endblock %} {% block extra_head %}
             </button>
 
             <a
-              href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+              href="{{ url_for('qr_codes.edit_qr_code', qr_id=qr.id) }}"
               class="qr-action-btn edit"
               onclick="event.stopPropagation()"
               title="Edit QR Code"
@@ -1957,7 +1957,7 @@ Management{% endblock %} {% block extra_head %}
       {% if search_name and search_status %} or {% endif %}
       {% if search_status %}try changing the status filter{% endif %}.
     </p>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-primary">
       <i class="fas fa-times"></i>
       Clear Filters
     </a>
@@ -1970,7 +1970,7 @@ Management{% endblock %} {% block extra_head %}
       Get started by creating your first project and QR codes to organize your
       digital assets effectively.
     </p>
-    <a href="{{ url_for('projects') }}" class="btn btn-primary">
+    <a href="{{ url_for('projects.projects') }}" class="btn btn-primary">
       <i class="fas fa-plus"></i>
       Create Your First Project
     </a>

@@ -6,15 +6,19 @@ QR code management and destination handler routes.
 Routes: /qr-codes/create, /qr-codes/bulk-import, /qr-codes/<id>/*,
         /qr/<string:qr_url>
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, current_app
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, current_app, url_for
 from datetime import datetime, date, timedelta, time
 import io, os, base64, re, uuid, json, traceback
 
 from extensions import db, logger_handler
+from models.attendance import AttendanceData
+from models.employee import Employee
+from models.project import Project
+from models.qrcode import QRCode, QRCodeStyle
+from models.user import User
 from werkzeug.utils import secure_filename
 from logger_handler import log_user_activity, log_database_operations
 from utils.helpers import (
-    url_for,
     admin_required,
     detect_device_info,
     generate_default_qr_code,
@@ -37,10 +41,6 @@ import openpyxl
 
 bp = Blueprint('qr_codes', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/qr-codes/create', methods=['GET', 'POST'], endpoint='create_qr_code')
@@ -48,7 +48,6 @@ def _get_models():
 @log_database_operations('qr_code_creation')
 def create_qr_code():
     """Enhanced create QR code with customization options"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     if request.method == 'POST':
         try:
             # Existing form data
@@ -187,7 +186,7 @@ def create_qr_code():
             style_info = f" with custom styling (Fill: {fill_color}, Background: {back_color})"
 
             flash(f'QR Code "{name}" created successfully{project_info}{coord_info}{style_info}! URL: {qr_url}', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
 
         except Exception as e:
             db.session.rollback()
@@ -206,7 +205,6 @@ def create_qr_code():
 @log_database_operations('qr_code_bulk_import')
 def import_bulk_qr_codes():
     """Bulk import QR codes from Excel file"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     
     if request.method == 'GET':
         return render_template('bulk_qr_import.html')
@@ -217,7 +215,7 @@ def import_bulk_qr_codes():
         if proceed_import:
             if 'pending_qr_import_file' not in session or 'pending_qr_import_filename' not in session:
                 flash('Import session expired. Please upload the file again.', 'error')
-                return redirect(url_for('import_bulk_qr_codes'))
+                return redirect(url_for('qr_codes.import_bulk_qr_codes'))
             
             temp_path = session['pending_qr_import_file']
             filename = session['pending_qr_import_filename']
@@ -226,7 +224,7 @@ def import_bulk_qr_codes():
                 flash('Temporary file not found. Please upload the file again.', 'error')
                 session.pop('pending_qr_import_file', None)
                 session.pop('pending_qr_import_filename', None)
-                return redirect(url_for('import_bulk_qr_codes'))
+                return redirect(url_for('qr_codes.import_bulk_qr_codes'))
         else:
             if 'file' not in request.files:
                 flash('No file uploaded.', 'error')
@@ -313,14 +311,13 @@ def import_bulk_qr_codes():
     except Exception as e:
         logger_handler.log_database_error('qr_code_bulk_import', e)
         flash(f'Import failed: {str(e)}', 'error')
-        return redirect(url_for('import_bulk_qr_codes'))
+        return redirect(url_for('qr_codes.import_bulk_qr_codes'))
 
 
 @bp.route('/qr-codes/bulk-import/template', endpoint='download_qr_import_template')
 @login_required
 def download_qr_import_template():
     """Download Excel template for bulk QR code import"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, Alignment, PatternFill
@@ -380,14 +377,13 @@ def download_qr_import_template():
     except Exception as e:
         logger_handler.log_flask_error('qr_import_template_download', str(e))
         flash('Error generating template. Please try again.', 'error')
-        return redirect(url_for('import_bulk_qr_codes'))
+        return redirect(url_for('qr_codes.import_bulk_qr_codes'))
     
 @bp.route('/qr-codes/<int:qr_id>/edit', methods=['GET', 'POST'], endpoint='edit_qr_code')
 @login_required
 @log_database_operations('qr_code_edit')
 def edit_qr_code(qr_id):
     """Enhanced edit QR code with customization support"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
 
@@ -501,7 +497,7 @@ def edit_qr_code(qr_id):
 
             # Success message
             flash(f'QR Code "{qr_code.name}" updated successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
 
         # GET request - render edit form
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
@@ -513,14 +509,13 @@ def edit_qr_code(qr_id):
         db.session.rollback()
         logger_handler.log_database_error('qr_code_edit', e)
         flash('QR Code update failed. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/qr-codes/<int:qr_id>/delete', methods=['GET', 'POST'], endpoint='delete_qr_code')
 @admin_required
 @log_database_operations('qr_code_deletion')
 def delete_qr_code(qr_id):
     """Permanently delete QR code (Admin only) - Hard delete - PRESERVING EXACT ROUTE"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         print(f"✅ Found QR Code: {qr_code.name}")
@@ -554,7 +549,7 @@ def delete_qr_code(qr_id):
             print(f"✅ DELETE SUCCESS! Removed {before_count - after_count} records")
 
             flash(f'QR code "{qr_name}" has been permanently deleted!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
 
         # GET request - show confirmation page
         print("📄 Showing confirmation page")
@@ -567,12 +562,11 @@ def delete_qr_code(qr_id):
         print(f"❌ Exception type: {type(e)}")
         print(f"❌ Traceback: {traceback.format_exc()}")
         flash('Error deleting QR code. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
     
 @bp.route('/qr/<string:qr_url>', endpoint='qr_destination')
 def qr_destination(qr_url):
     """QR code destination page where staff check in - PRESERVING EXACT ROUTE"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
@@ -585,7 +579,7 @@ def qr_destination(qr_url):
                 severity="MEDIUM"
             )
             flash('QR code not found or inactive.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('auth.index'))
 
         # Log QR code access
         logger_handler.log_qr_code_accessed(
@@ -599,7 +593,7 @@ def qr_destination(qr_url):
     except Exception as e:
         logger_handler.log_database_error('qr_code_scan', e)
         flash('Error processing QR code scan.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('auth.index'))
 
 @bp.route('/qr/<string:qr_url>/checkin', methods=['POST'], endpoint='qr_checkin')
 def qr_checkin(qr_url):
@@ -608,7 +602,6 @@ def qr_checkin(qr_url):
     Allows multiple check-ins with minimum interval between them
     PRESERVES coordinate-to-address conversion functionality
     """
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
         print(f"   QR URL: {qr_url}")
@@ -913,7 +906,6 @@ def qr_checkin(qr_url):
 @login_required
 def toggle_qr_status(qr_id):
     """Toggle QR code active/inactive status"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
 
@@ -943,7 +935,6 @@ def toggle_qr_status(qr_id):
 @login_required
 def copy_qr_url(qr_id):
     """Log QR code URL copy action"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         
@@ -967,7 +958,6 @@ def copy_qr_url(qr_id):
 @login_required
 def open_qr_link(qr_id):
     """Log QR code link open action"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         
@@ -991,7 +981,6 @@ def open_qr_link(qr_id):
 @login_required
 def activate_qr_code(qr_id):
     """Activate a QR code"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         qr_code.active_status = True
@@ -1017,7 +1006,6 @@ def activate_qr_code(qr_id):
 @login_required
 def deactivate_qr_code(qr_id):
     """Deactivate a QR code"""
-    QRCode, QRCodeStyle, Project, AttendanceData, Employee, User = _get_models()["QRCode"], _get_models()["QRCodeStyle"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["User"]
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
         qr_code.active_status = False

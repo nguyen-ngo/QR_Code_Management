@@ -12,7 +12,7 @@
   <!-- Page Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('time_attendance_records') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.time_attendance_records') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Records
       </a>
@@ -239,7 +239,7 @@
       </div>
       <div class="section-body">
         <div class="action-grid">
-          <a href="{{ url_for('time_attendance_records', employee_id=record.employee_id) }}" 
+          <a href="{{ url_for('time_attendance.time_attendance_records', employee_id=record.employee_id) }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-user-clock"></i>
@@ -250,7 +250,7 @@
             </div>
           </a>
           
-          <a href="{{ url_for('time_attendance_records', location_name=record.location_name) }}" 
+          <a href="{{ url_for('time_attendance.time_attendance_records', location_name=record.location_name) }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-map-marker-alt"></i>
@@ -262,7 +262,7 @@
           </a>
           
           {% if record.import_batch_id %}
-          <a href="{{ url_for('view_import_batch', batch_id=record.import_batch_id) }}" 
+          <a href="{{ url_for('time_attendance.view_import_batch', batch_id=record.import_batch_id) }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-file-import"></i>
@@ -854,7 +854,7 @@ function submitDelete() {
   // Create form
   const form = document.createElement('form');
   form.method = 'POST';
-  form.action = "{{ url_for('delete_time_attendance_record', record_id=record.id) }}";
+  form.action = "{{ url_for('time_attendance.delete_time_attendance_record', record_id=record.id) }}";
   
   // Add all URL parameters as hidden form inputs
   for (const [key, value] of params.entries()) {

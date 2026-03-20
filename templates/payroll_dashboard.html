@@ -642,7 +642,7 @@
 {% block content %}
 <div class="payroll-container">
     <!-- Back Navigation -->
-    <a href="{{ url_for('dashboard') }}" class="back-nav">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="back-nav">
         <i class="fas fa-arrow-left"></i>
         <span>Back to Dashboard</span>
     </a>
@@ -663,7 +663,7 @@
             Calculation Parameters
         </h3>
 
-        <form method="GET" action="{{ url_for('payroll_dashboard') }}" class="filters-form">
+        <form method="GET" action="{{ url_for('payroll.payroll_dashboard') }}" class="filters-form">
             <div class="form-group">
                 <label for="date_from">Start Date</label>
                 <input type="date" id="date_from" name="date_from" value="{{ date_from }}" required>
@@ -820,7 +820,7 @@
         <!-- Export Actions -->
         <div class="export-actions">
         <!--
-            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+            <form method="POST" action="{{ url_for('payroll.export_payroll_excel') }}" style="display: inline;">
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
@@ -831,7 +831,7 @@
                 </button>
             </form>
 
-            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+            <form method="POST" action="{{ url_for('payroll.export_payroll_excel') }}" style="display: inline;">
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
@@ -842,7 +842,7 @@
                 </button>
             </form>
         -->
-            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+            <form method="POST" action="{{ url_for('payroll.export_payroll_excel') }}" style="display: inline;">
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
@@ -853,7 +853,7 @@
                 </button>
             </form>
         <!--
-            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+            <form method="POST" action="{{ url_for('payroll.export_payroll_excel') }}" style="display: inline;">
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">
@@ -864,7 +864,7 @@
                 </button>
             </form>
 
-            <form method="POST" action="{{ url_for('export_payroll_excel') }}" style="display: inline;">
+            <form method="POST" action="{{ url_for('payroll.export_payroll_excel') }}" style="display: inline;">
                 <input type="hidden" name="date_from" value="{{ date_from }}">
                 <input type="hidden" name="date_to" value="{{ date_to }}">
                 <input type="hidden" name="project_filter" value="{{ project_filter }}">

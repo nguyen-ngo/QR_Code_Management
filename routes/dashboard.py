@@ -6,26 +6,25 @@ Dashboard and related API routes.
 Routes: /dashboard, /project/<id>/qr-codes, /dashboard/search,
         /api/dashboard/stats, /api/dashboard/realtime
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 from datetime import datetime, timedelta, date, time
 
 from extensions import db, logger_handler
+from models.attendance import AttendanceData
+from models.project import Project
+from models.qrcode import QRCode
+from models.user import User
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import url_for, login_required
+from utils.helpers import login_required
 
 bp = Blueprint('dashboard', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/dashboard', endpoint='dashboard')
 @login_required
 def dashboard():
     """Enhanced project-centric dashboard with search filters"""
-    User, QRCode, Project, AttendanceData = _get_models()["User"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["AttendanceData"]
     try:
         user = User.query.get(session['user_id'])
         
@@ -74,7 +73,7 @@ def dashboard():
         logger_handler.log_database_error('dashboard_load', e)
         print(f"Error loading dashboard: {e}")
         flash('Error loading dashboard. Please try again.', 'error')
-        return redirect(url_for('login'))
+        return redirect(url_for('auth.login'))
 
 @bp.route('/project/<int:project_id>/qr-codes', endpoint='project_qr_codes')
 @login_required
@@ -83,7 +82,6 @@ def project_qr_codes(project_id):
     View all QR codes for a specific project with search filters
     Allows filtering by name and status within the project
     """
-    User, QRCode, Project, AttendanceData = _get_models()["User"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["AttendanceData"]
     try:
         # Get the project
         project = Project.query.get_or_404(project_id)
@@ -131,13 +129,12 @@ def project_qr_codes(project_id):
         logger_handler.log_database_error('project_qr_codes_view', e)
         print(f"Error loading project QR codes: {e}")
         flash('Error loading project QR codes. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
     
 @bp.route('/dashboard/search', methods=['GET'], endpoint='search_qr_codes')
 @login_required
 def search_qr_codes():
     """Search QR codes - redirect to dashboard with filters"""
-    User, QRCode, Project, AttendanceData = _get_models()["User"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["AttendanceData"]
     search_name = request.args.get('search_name', '').strip()
     search_status = request.args.get('search_status', '').strip()
     
@@ -148,13 +145,12 @@ def search_qr_codes():
     )
     
     # Redirect to dashboard with search parameters
-    return redirect(url_for('dashboard', search_name=search_name, search_status=search_status))
+    return redirect(url_for('dashboard.dashboard', search_name=search_name, search_status=search_status))
 
 @bp.route('/api/dashboard/stats', endpoint='dashboard_stats_api')
 @login_required
 def dashboard_stats_api():
     """API endpoint for dashboard statistics"""
-    User, QRCode, Project, AttendanceData = _get_models()["User"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["AttendanceData"]
     try:
         # Get current stats
         total_qr_codes = QRCode.query.filter_by(active_status=True).count()
@@ -213,7 +209,6 @@ def dashboard_stats_api():
 @login_required
 def dashboard_realtime_api():
     """API endpoint for real-time dashboard data"""
-    User, QRCode, Project, AttendanceData = _get_models()["User"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["AttendanceData"]
     try:
         # Get recent activity (last 10 check-ins)
         recent_activity = db.session.query(

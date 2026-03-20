@@ -9,14 +9,20 @@ Routes: /attendance, /attendance/<id>/edit, /attendance/add,
         /api/get_project_locations, /verification-review/*,
         /export-configuration, /generate-excel-export
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, url_for
 from datetime import datetime, date, timedelta, time
 import io, os, json, re, traceback
 
 from extensions import db, logger_handler
+from models.attendance import AttendanceData
+from models.employee import Employee
+from models.permissions import UserLocationPermission, UserProjectPermission
+from models.project import Project
+from models.qrcode import QRCode
+from models.user import User
 from sqlalchemy import text
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import (url_for,
+from utils.helpers import (
                            admin_required,
                            get_client_ip,
                            has_admin_privileges,
@@ -31,17 +37,12 @@ from openpyxl.utils import get_column_letter
 
 bp = Blueprint('attendance', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/attendance', endpoint='attendance_report')
 @login_required
 def attendance_report():
     """Safe attendance report with backward compatibility for location_accuracy and fixed datetime handling"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         print("📊 Loading attendance report...")
 
@@ -540,18 +541,17 @@ def attendance_report():
             print(f"⚠️ Additional logging error: {log_error}")
 
         flash('Error loading attendance report. Please check the server logs for details.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/attendance/<int:record_id>/edit', methods=['GET', 'POST'], endpoint='edit_attendance')
 @login_required
 @log_database_operations('attendance_update')
 def edit_attendance(record_id):
     """Edit attendance record (Admin and Payroll only)"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     # Check if user has permission to edit attendance records
     if session.get('role') not in ['admin', 'payroll', 'accounting']:
         flash('Access denied. Only administrators and accounting staff can edit attendance records.', 'error')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
 
     try:
         attendance_record = AttendanceData.query.get_or_404(record_id)
@@ -676,7 +676,7 @@ def edit_attendance(record_id):
                 print(f"[LOG] Edit reason: {edit_note}")
 
             flash(f'Attendance record for {new_employee_id} updated successfully! Edit reason logged for audit.', 'success')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
 
         # GET request - show edit form
         # Get available projects for the dropdown
@@ -695,7 +695,7 @@ def edit_attendance(record_id):
         logger_handler.log_database_error('attendance_update', e)
         print(f"[LOG] Error updating attendance record {record_id}: {e}")
         flash('Error updating attendance record. Please try again.', 'error')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
 
 @bp.route('/attendance/add', methods=['GET'], endpoint='add_manual_attendance')
 @login_required
@@ -705,14 +705,13 @@ def add_manual_attendance():
     Display form to manually add attendance record
     Only accessible by admin and accounting roles
     """
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         user_role = session.get('role')
         
         # Check authorization
         if user_role not in ['admin', 'accounting']:
             flash('You do not have permission to manually add attendance records.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
         
         # Get all active projects
         projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
@@ -731,7 +730,7 @@ def add_manual_attendance():
     except Exception as e:
         logger_handler.logger.error(f"Error loading manual attendance form: {e}")
         flash('Error loading form. Please try again.', 'error')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
 
 
 @bp.route('/attendance/save_manual', methods=['POST'], endpoint='save_manual_attendance')
@@ -743,7 +742,6 @@ def save_manual_attendance():
     Save manually created attendance record
     Only accessible by admin and accounting roles
     """
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         user_role = session.get('role')
         
@@ -763,19 +761,19 @@ def save_manual_attendance():
         # Validate required fields
         if not all([employee_id, location_id, check_date, check_time]):
             flash('All fields are required.', 'error')
-            return redirect(url_for('add_manual_attendance'))
+            return redirect(url_for('attendance.add_manual_attendance'))
         
         # Validate employee exists
         employee = Employee.query.filter_by(id=int(employee_id)).first()
         if not employee:
             flash(f'Employee with ID {employee_id} not found.', 'error')
-            return redirect(url_for('add_manual_attendance'))
+            return redirect(url_for('attendance.add_manual_attendance'))
         
         # Get QR code (location)
         qr_code = QRCode.query.get(int(location_id))
         if not qr_code:
             flash('Selected location not found.', 'error')
-            return redirect(url_for('add_manual_attendance'))
+            return redirect(url_for('attendance.add_manual_attendance'))
         
         # Parse date and time
         try:
@@ -784,7 +782,7 @@ def save_manual_attendance():
         except ValueError as e:
             flash('Invalid date or time format.', 'error')
             logger_handler.logger.error(f"Date/time parsing error: {e}")
-            return redirect(url_for('add_manual_attendance'))
+            return redirect(url_for('attendance.add_manual_attendance'))
         
         # Check if record already exists for this employee, location, date, and time
         existing_record = AttendanceData.query.filter_by(
@@ -796,7 +794,7 @@ def save_manual_attendance():
         
         if existing_record:
             flash('An attendance record already exists for this employee at this location, date, and time.', 'warning')
-            return redirect(url_for('add_manual_attendance'))
+            return redirect(url_for('attendance.add_manual_attendance'))
         
         # Create new attendance record
         # Use QR code's location address for both QR address and check-in address
@@ -839,14 +837,14 @@ def save_manual_attendance():
         )
         
         flash(f'Attendance record successfully created for {employee.firstName} {employee.lastName}.', 'success')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
     
     except Exception as e:
         db.session.rollback()
         logger_handler.logger.error(f"Error saving manual attendance record: {e}")
         logger_handler.logger.error(f"Traceback: {traceback.format_exc()}")
         flash('Error saving attendance record. Please try again.', 'error')
-        return redirect(url_for('add_manual_attendance'))
+        return redirect(url_for('attendance.add_manual_attendance'))
 
 
 @bp.route('/api/time-attendance/locations', endpoint='time_attendance_locations_api')
@@ -854,7 +852,6 @@ def save_manual_attendance():
 def time_attendance_locations_api():
     """Return distinct location_name values from time_attendance, optionally filtered by project_id.
     Used by the time attendance records page to dynamically scope the location dropdown."""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         project_id = request.args.get('project_id', '').strip()
 
@@ -896,7 +893,6 @@ def time_attendance_locations_api():
 def attendance_locations_api():
     """Return distinct location_name values from attendance_data, optionally filtered by project_id.
     Used by the attendance report page to dynamically scope the location dropdown when a project is selected."""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         project_id = request.args.get('project_id', '').strip()
 
@@ -943,7 +939,6 @@ def search_employees_api():
     in attendance_data that have no Employee record — so unregistered IDs
     that have attendance records can still be filtered on the attendance page.
     """
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         search_query = request.args.get('q', '').strip()
 
@@ -1016,7 +1011,6 @@ def get_project_locations_api():
     API endpoint to get locations for a specific project
     Returns JSON with location list
     """
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         project_id = request.args.get('project_id', '').strip()
         
@@ -1062,7 +1056,6 @@ def get_project_locations_api():
 @log_database_operations('attendance_delete')
 def delete_attendance(record_id):
     """Delete attendance record (Admin and Payroll only)"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     # Check if user has permission to delete attendance records
     if session.get('role') not in ['admin', 'payroll', 'accounting']:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1072,7 +1065,7 @@ def delete_attendance(record_id):
             }), 403
         else:
             flash('Access denied. Only administrators and payroll staff can delete attendance records.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
 
     try:
         attendance_record = AttendanceData.query.get_or_404(record_id)
@@ -1110,7 +1103,7 @@ def delete_attendance(record_id):
             })
         else:
             flash(f'Attendance record for {employee_id} deleted successfully!', 'success')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
 
     except Exception as e:
         db.session.rollback()
@@ -1124,18 +1117,17 @@ def delete_attendance(record_id):
             }), 500
         else:
             flash('Error deleting attendance record. Please try again.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
         
 @bp.route('/verification-review', endpoint='verification_review')
 @login_required
 def verification_review():
     """Admin page to review pending photo verifications"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         # Only admins can access
         if session.get('role') not in ['admin', 'payroll', 'accounting']:
             flash('Unauthorized access.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
         
         # Get filter parameters
         status_filter = request.args.get('status', 'pending')
@@ -1253,14 +1245,13 @@ def verification_review():
     except Exception as e:
         logger_handler.logger.error(f"Error in verification review: {e}")
         flash('Error loading verification review.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/verification-review/<int:record_id>/update', methods=['POST'], endpoint='update_verification_status')
 @login_required
 @log_database_operations('verification_update')
 def update_verification_status(record_id):
     """Update verification status (approve/reject)"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         # Only admins can update
         if session.get('role') not in ['admin', 'payroll', 'accounting']:
@@ -1311,7 +1302,6 @@ def update_verification_status(record_id):
 @login_required
 def get_verification_details(record_id):
     """API endpoint to get verification details for a specific record"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         # Get the attendance record with verification data
         record = AttendanceData.query.get_or_404(record_id)
@@ -1397,12 +1387,11 @@ def get_verification_details(record_id):
 @login_required
 def verification_review_detail(record_id):
     """Review a single verification photo on a dedicated page"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         # Check permissions
         if session.get('role') not in ['admin', 'payroll', 'accounting']:
             flash('Access denied. Only administrators, payroll, and accounting staff can review verification photos.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
         
         # Get the attendance record
         record = AttendanceData.query.get_or_404(record_id)
@@ -1410,7 +1399,7 @@ def verification_review_detail(record_id):
         # Check if this record has verification
         if not record.verification_required:
             flash('This record does not require verification.', 'warning')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
         
         # Get the QR code information for additional context
         qr_code = QRCode.query.get(record.qr_code_id) if record.qr_code_id else None
@@ -1459,13 +1448,12 @@ def verification_review_detail(record_id):
     except Exception as e:
         logger_handler.logger.error(f"Error loading verification review detail: {e}")
         flash('Error loading verification details.', 'error')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
 
 @bp.route('/api/attendance/stats', endpoint='attendance_stats_api')
 @admin_required
 def attendance_stats_api():
     """API endpoint for attendance statistics"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         # Daily stats for the last 7 days
         daily_stats = db.session.execute(text("""
@@ -1516,13 +1504,12 @@ def attendance_stats_api():
 @login_required
 def export_configuration():
     """Display export configuration page for customizing Excel exports"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         user_role = session.get('role')
         if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized access to export configuration")
             flash('Access denied. Only administrators and payroll staff can access export configuration.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
 
         # Log export configuration access using your existing logger
         try:
@@ -1546,7 +1533,6 @@ def export_configuration():
         project_name = None
         if filters.get('project_filter'):
             try:
-                from models.project import Project
                 project = Project.query.get(int(filters['project_filter']))
                 if project:
                     project_name = project.name
@@ -1611,19 +1597,18 @@ def export_configuration():
             print(f"⚠️ Could not log error: {log_error}")
 
         flash('Error loading export configuration page.', 'error')
-        return redirect(url_for('attendance_report'))
+        return redirect(url_for('attendance.attendance_report'))
 
 @bp.route('/generate-excel-export', methods=['POST'], endpoint='generate_excel_export')
 @login_required
 def generate_excel_export():
     """Generate and download Excel file with selected columns in specified order"""
-    AttendanceData, QRCode, Employee, Project, User, UserProjectPermission, UserLocationPermission = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Employee"], _get_models()["Project"], _get_models()["User"], _get_models()["UserProjectPermission"], _get_models()["UserLocationPermission"]
     try:
         user_role = session.get('role')
         if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized Excel export")
             flash('Access denied. Only administrators and payroll staff can export data.', 'error')
-            return redirect(url_for('attendance_report'))
+            return redirect(url_for('attendance.attendance_report'))
 
         print("📊 Excel export generation started")
 
@@ -1662,7 +1647,7 @@ def generate_excel_export():
 
         if not selected_columns:
             flash('Please select at least one column to export.', 'error')
-            return redirect(url_for('export_configuration'))
+            return redirect(url_for('attendance.export_configuration'))
 
         column_names = {}
         for column in selected_columns:
@@ -1695,7 +1680,6 @@ def generate_excel_export():
             project_name_for_filename = ''
             if filters.get('project_filter'):
                 try:
-                    from models.project import Project
                     project = Project.query.get(int(filters['project_filter']))
                     if project:
                         # Replace spaces and special characters with underscores
@@ -1750,7 +1734,7 @@ def generate_excel_export():
             )
         else:
             flash('Error generating Excel file.', 'error')
-            return redirect(url_for('export_configuration'))
+            return redirect(url_for('attendance.export_configuration'))
 
     except Exception as e:
         print(f"❌ Error in generate_excel_export route: {e}")
@@ -1767,11 +1751,10 @@ def generate_excel_export():
             print(f"⚠️ Could not log error: {log_error}")
 
         flash('Error generating Excel export.', 'error')
-        return redirect(url_for('export_configuration'))
+        return redirect(url_for('attendance.export_configuration'))
 
 def create_excel_export(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data - Updated to include employee names"""
-    AttendanceData, Employee, QRCode = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["QRCode"]
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns")
 
@@ -2068,7 +2051,6 @@ def format_employee_id_for_excel(employee_id):
     
 def create_excel_export_ordered(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data in specified column order"""
-    AttendanceData, Employee, QRCode = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["QRCode"]
     try:
         print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
 

@@ -367,13 +367,13 @@ endblock %} {% block extra_head %}
     </div>
 
     <div class="confirmation-actions">
-      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="btn btn-secondary">
         <i class="fas fa-arrow-left"></i>
         Cancel & Go Back
       </a>
 
       <a
-        href="{{ url_for('deactivate_qr_code', qr_id=qr_code.id) }}"
+        href="{{ url_for('qr_codes.deactivate_qr_code', qr_id=qr_code.id) }}"
         class="btn btn-warning"
       >
         <i class="fas fa-pause"></i>

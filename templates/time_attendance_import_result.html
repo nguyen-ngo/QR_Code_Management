@@ -12,7 +12,7 @@
   <!-- Page Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('import_time_attendance') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Import
       </a>
@@ -39,13 +39,13 @@
     
     <div class="header-actions">
       {% if import_result.success %}
-      <a href="{{ url_for('time_attendance_records', import_batch=import_result.batch_id) }}" 
+      <a href="{{ url_for('time_attendance.time_attendance_records', import_batch=import_result.batch_id) }}" 
          class="btn btn-primary">
         <i class="fas fa-eye"></i>
         View Imported Records
       </a>
       {% endif %}
-      <a href="{{ url_for('time_attendance_dashboard') }}" class="btn btn-secondary">
+      <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="btn btn-secondary">
         <i class="fas fa-tachometer-alt"></i>
         Dashboard
       </a>
@@ -157,7 +157,7 @@
           What's Next?
         </h3>
         <div class="action-grid">
-          <a href="{{ url_for('time_attendance_records', import_batch=import_result.batch_id) }}" 
+          <a href="{{ url_for('time_attendance.time_attendance_records', import_batch=import_result.batch_id) }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-eye"></i>
@@ -168,7 +168,7 @@
             </div>
           </a>
           
-          <a href="{{ url_for('time_attendance_records') }}" 
+          <a href="{{ url_for('time_attendance.time_attendance_records') }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-search"></i>
@@ -179,7 +179,7 @@
             </div>
           </a>
           
-          <a href="{{ url_for('import_time_attendance') }}" 
+          <a href="{{ url_for('time_attendance.import_time_attendance') }}" 
              class="action-card">
             <div class="action-icon">
               <i class="fas fa-plus"></i>
@@ -231,7 +231,7 @@
         </div>
         
         <div class="retry-buttons">
-          <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
+          <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="btn btn-primary">
             <i class="fas fa-upload"></i>
             Try Import Again
           </a>

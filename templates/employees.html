@@ -11,7 +11,7 @@ extra_head %}
   <div class="employees-header">
     <div class="header-content">
       <div class="header-navigation">
-        <a href="{{ url_for('dashboard') }}" class="back-button">
+        <a href="{{ url_for('dashboard.dashboard') }}" class="back-button">
           <i class="fas fa-arrow-left"></i>
           Back to Dashboard
         </a>
@@ -25,7 +25,7 @@ extra_head %}
 
     <div class="header-actions">
       {% if session.role in ['admin', 'payroll'] %}
-      <a href="{{ url_for('create_employee') }}" class="btn btn-primary">
+      <a href="{{ url_for('employees.create_employee') }}" class="btn btn-primary">
         <i class="fas fa-plus"></i>
         Add Employee
       </a>
@@ -95,7 +95,7 @@ extra_head %}
         </button>
         {% if search %}
         <a
-          href="{{ url_for('employees') }}"
+          href="{{ url_for('employees.employees') }}"
           class="clear-search-btn"
           title="Clear search"
         >
@@ -170,7 +170,7 @@ extra_head %}
             <td class="actions">
               <div class="action-buttons">
                 <a
-                  href="{{ url_for('employee_detail', employee_index=employee.index) }}"
+                  href="{{ url_for('employees.employee_detail', employee_index=employee.index) }}"
                   class="btn btn-sm btn-info"
                   title="View Details"
                 >
@@ -179,7 +179,7 @@ extra_head %}
 
                 {% if session.role in ['admin', 'payroll'] %}
                 <a
-                  href="{{ url_for('edit_employee', employee_index=employee.index) }}"
+                  href="{{ url_for('employees.edit_employee', employee_index=employee.index) }}"
                   class="btn btn-sm btn-warning"
                   title="Edit Employee"
                 >
@@ -212,7 +212,7 @@ extra_head %}
           {% if employees.has_prev %}
           <li>
             <a
-              href="{{ url_for('employees', page=employees.prev_num, search=search) }}"
+              href="{{ url_for('employees.employees', page=employees.prev_num, search=search) }}"
               class="pagination-link"
             >
               <i class="fas fa-chevron-left"></i>
@@ -226,7 +226,7 @@ extra_head %}
           page_num != employees.page %}
           <li>
             <a
-              href="{{ url_for('employees', page=page_num, search=search) }}"
+              href="{{ url_for('employees.employees', page=page_num, search=search) }}"
               class="pagination-link"
             >
               {{ page_num }}
@@ -246,7 +246,7 @@ extra_head %}
           {% if employees.has_next %}
           <li>
             <a
-              href="{{ url_for('employees', page=employees.next_num, search=search) }}"
+              href="{{ url_for('employees.employees', page=employees.next_num, search=search) }}"
               class="pagination-link"
             >
               Next
@@ -271,9 +271,9 @@ extra_head %}
       </h3>
       <p>
         {% if search %} Try adjusting your search terms or
-        <a href="{{ url_for('employees') }}">view all employees</a>. {% else %}
+        <a href="{{ url_for('employees.employees') }}">view all employees</a>. {% else %}
         Get started by
-        <a href="{{ url_for('create_employee') }}">adding your first employee</a
+        <a href="{{ url_for('employees.create_employee') }}">adding your first employee</a
         >. {% endif %}
       </p>
     </div>

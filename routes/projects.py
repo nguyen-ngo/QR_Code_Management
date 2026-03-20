@@ -6,41 +6,37 @@ Project CRUD and related API routes.
 Routes: /projects, /projects/create, /projects/<id>/edit,
         /projects/<id>/toggle, /api/projects/active
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 import json
 from datetime import datetime
 
 from extensions import db, logger_handler
+from models.project import Project
+from models.user import User
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import url_for, admin_required, login_required, staff_or_admin_required
+from utils.helpers import admin_required, login_required, staff_or_admin_required
 
 bp = Blueprint('projects', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/projects', endpoint='projects')
 @admin_required
 def projects():
     """Display all projects"""
-    Project, QRCode, User = _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         projects = Project.query.order_by(Project.created_date.desc()).all()
         return render_template('projects.html', projects=projects)
     except Exception as e:
         logger_handler.log_database_error('projects_list', e)
         flash('Error loading projects list.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/projects/create', methods=['GET', 'POST'], endpoint='create_project')
 @admin_required
 @log_database_operations('project_creation')
 def create_project():
     """Create new project"""
-    Project, QRCode, User = _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     if request.method == 'POST':
         try:
             name = request.form['name']
@@ -65,7 +61,7 @@ def create_project():
             logger_handler.logger.info(f"User {session['username']} created new project: {name}")
 
             flash(f'Project "{name}" created successfully.', 'success')
-            return redirect(url_for('projects'))
+            return redirect(url_for('projects.projects'))
 
         except Exception as e:
             db.session.rollback()
@@ -79,7 +75,6 @@ def create_project():
 @log_database_operations('project_edit')
 def edit_project(project_id):
     """Edit existing project"""
-    Project, QRCode, User = _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         project = Project.query.get_or_404(project_id)
 
@@ -103,7 +98,7 @@ def edit_project(project_id):
                 logger_handler.logger.info(f"User {session['username']} updated project {project_id}: {json.dumps(changes)}")
 
             flash(f'Project "{project.name}" updated successfully.', 'success')
-            return redirect(url_for('projects'))
+            return redirect(url_for('projects.projects'))
 
         return render_template('edit_project.html', project=project)
 
@@ -111,14 +106,13 @@ def edit_project(project_id):
         db.session.rollback()
         logger_handler.log_database_error('project_edit', e)
         flash('Project update failed. Please try again.', 'error')
-        return redirect(url_for('projects'))
+        return redirect(url_for('projects.projects'))
 
 @bp.route('/projects/<int:project_id>/toggle', methods=['POST'], endpoint='toggle_project')
 @admin_required
 @log_database_operations('project_toggle')
 def toggle_project(project_id):
     """Toggle project active status"""
-    Project, QRCode, User = _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         project = Project.query.get_or_404(project_id)
         old_status = project.active_status
@@ -137,14 +131,13 @@ def toggle_project(project_id):
         logger_handler.log_database_error('project_toggle', e)
         flash('Failed to update project status.', 'error')
 
-    return redirect(url_for('projects'))
+    return redirect(url_for('projects.projects'))
 
 # API ENDPOINTS FOR DROPDOWN FUNCTIONALITY
 @bp.route('/api/projects/active', endpoint='api_active_projects')
 @login_required
 def api_active_projects():
     """Get active projects for dropdown"""
-    Project, QRCode, User = _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
 

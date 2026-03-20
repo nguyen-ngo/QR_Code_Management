@@ -446,14 +446,14 @@ QR Code Management{% endblock %} {% block extra_head %}
       <i class="fas fa-times"></i>
       Reject Verification
     </button>
-    <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
+    <a href="{{ url_for('attendance.attendance_report') }}" class="btn btn-back">
       <i class="fas fa-arrow-left"></i>
       Back to Attendance
     </a>
   </div>
   {% else %}
   <div class="action-buttons">
-    <a href="{{ url_for('attendance_report') }}" class="btn btn-back">
+    <a href="{{ url_for('attendance.attendance_report') }}" class="btn btn-back">
       <i class="fas fa-arrow-left"></i>
       Back to Attendance
     </a>
@@ -509,7 +509,7 @@ QR Code Management{% endblock %} {% block extra_head %}
               console.log(`[LOG] Successfully updated verification status to ${status}`);
               alert(`Verification ${status} successfully!`);
               // Redirect back to attendance report
-              window.location.href = '{{ url_for('attendance_report') }}';
+              window.location.href = '{{ url_for('attendance.attendance_report') }}';
           } else {
               throw new Error(data.message || 'Failed to update verification status');
           }
@@ -578,7 +578,7 @@ QR Code Management{% endblock %} {% block extra_head %}
       const distance = '{% if record.location_accuracy %}{{ "%.3f"|format(record.location_accuracy) }} miles{% else %}N/A{% endif %}';
       const deviceInfo = '{{ record.device_info or "Unknown" }}';
       const recordId = '{{ record.id }}';
-      const recordUrl = window.location.origin + '{{ url_for("verification_review_detail", record_id=record.id) }}';
+      const recordUrl = window.location.origin + '{{ url_for("attendance.verification_review_detail", record_id=record.id) }}';
 
       // Build email subject
       const subject = encodeURIComponent(`Verification Review - Employee ${employeeId} (${employeeName}) - ${checkInDate}`);

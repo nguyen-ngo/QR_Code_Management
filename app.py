@@ -70,13 +70,7 @@ def create_app() -> Flask:
          Employee, TimeAttendance, UserProjectPermission,
          UserLocationPermission) = set_db(db)
 
-        app.config['_models'] = {
-            'User': User, 'QRCode': QRCode, 'QRCodeStyle': QRCodeStyle,
-            'Project': Project, 'AttendanceData': AttendanceData,
-            'Employee': Employee, 'TimeAttendance': TimeAttendance,
-            'UserProjectPermission': UserProjectPermission,
-            'UserLocationPermission': UserLocationPermission,
-        }
+
 
     # ------------------------------------------------------------------
     # Logger initialization
@@ -108,9 +102,7 @@ def create_app() -> Flask:
     from extensions import logger_handler as _lh
     create_location_logging_routes(app, db, _lh)
 
-    # Patch Jinja2's url_for global so templates also use the compatibility shim
-    from utils.helpers import url_for as _compat_url_for
-    app.jinja_env.globals['url_for'] = _compat_url_for
+
 
     # ------------------------------------------------------------------
     # Template filters (global — must be on app, not blueprints)
@@ -155,9 +147,8 @@ def create_app() -> Flask:
 
     def get_qr_code_checkin_count(qr_code_id):
         """Helper function to get total check-ins count for a QR code"""
-        from flask import current_app
+        from models.attendance import AttendanceData
         try:
-            AttendanceData = current_app.config['_models']['AttendanceData']
             count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
             return count
         except Exception as e:
@@ -325,7 +316,7 @@ def create_tables():
     try:
         _db.create_all()
         from flask import current_app
-        User = current_app.config['_models']['User']
+        from models.user import User
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             default_password = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'admin123')
@@ -359,7 +350,7 @@ def update_existing_qr_codes():
     from utils.helpers import generate_qr_code, get_qr_styling, generate_qr_url
     from flask import current_app, request
     try:
-        QRCode = current_app.config['_models']['QRCode']
+        from models.qrcode import QRCode
         qr_codes = QRCode.query.filter_by(active_status=True).all()
         updated_count = 0
         for qr_code in qr_codes:

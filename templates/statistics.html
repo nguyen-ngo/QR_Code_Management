@@ -39,7 +39,7 @@
                 </h3>
             </div>
             <div class="filters-form">
-                <form method="GET" action="{{ url_for('qr_statistics') }}" id="statisticsFilters">
+                <form method="GET" action="{{ url_for('statistics.qr_statistics') }}" id="statisticsFilters">
                     <div class="filter-row">
                         <!-- Date Range -->
                         <div class="filter-group">
@@ -106,7 +106,7 @@
                             <i class="fas fa-search"></i>
                             Apply Filters
                         </button>
-                        <a href="{{ url_for('qr_statistics') }}" class="btn btn-outline">
+                        <a href="{{ url_for('statistics.qr_statistics') }}" class="btn btn-outline">
                             <i class="fas fa-times"></i>
                             Clear Filters
                         </a>

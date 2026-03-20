@@ -1,43 +1,4 @@
 
-# ---------------------------------------------------------------------------
-# url_for compatibility shim
-# ---------------------------------------------------------------------------
-# Flask Blueprints prefix endpoint names (e.g. 'attendance.attendance_report').
-# The original codebase uses bare names (e.g. url_for('attendance_report')).
-# This wrapper resolves bare names by searching registered blueprints,
-# so zero url_for() calls in routes or templates need to change.
-#
-# IMPORTANT: Flask's url_for is aliased as _flask_url_for to avoid shadowing
-# this function. Decorators in this module that redirect (login_required etc.)
-# also use _flask_url_for directly since they only redirect to known bare names
-# that this shim already handles.
-# ---------------------------------------------------------------------------
-
-import flask.helpers as _flask_helpers
-# Capture Flask's original url_for BEFORE any shadowing
-_flask_url_for = _flask_helpers.url_for
-
-
-def url_for(endpoint, **values):
-    """
-    Drop-in replacement for flask.url_for that resolves bare endpoint names
-    across Blueprints. Qualified names (containing '.') pass through unchanged.
-    """
-    from flask import current_app
-    if '.' in endpoint:
-        return _flask_url_for(endpoint, **values)
-    try:
-        return _flask_url_for(endpoint, **values)
-    except Exception:
-        pass
-    for bp_name in sorted(current_app.blueprints.keys()):
-        try:
-            return _flask_url_for(f'{bp_name}.{endpoint}', **values)
-        except Exception:
-            pass
-    return _flask_url_for(endpoint, **values)  # raises Flask's normal BuildError
-
-
 """
 utils/helpers.py
 ================
@@ -360,7 +321,7 @@ def get_employee_checkin_history(employee_id, qr_code_id, date_filter=None):
             date_filter = date.today()
         # AttendanceData imported at call site to avoid circular import
         from flask import current_app
-        AttendanceData = current_app.config.get('_models', {}).get('AttendanceData')
+        from models.attendance import AttendanceData
         if AttendanceData:
             checkins = AttendanceData.query.filter_by(
                 employee_id=employee_id.upper(),

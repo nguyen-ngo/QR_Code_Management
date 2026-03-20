@@ -244,7 +244,7 @@
   <!-- Page Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('time_attendance_dashboard') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Dashboard
       </a>
@@ -262,7 +262,7 @@
     
     <div class="header-actions">
       {% if session.role == 'admin' %}
-      <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
+      <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="btn btn-primary">
         <i class="fas fa-upload"></i>
         Import Data
       </a>
@@ -288,7 +288,7 @@
         </h3>
       </div>
       <div class="filters-form">
-        <form method="GET" action="{{ url_for('time_attendance_records') }}">
+        <form method="GET" action="{{ url_for('time_attendance.time_attendance_records') }}">
           <div class="filter-row">
 
             <div class="filter-group">
@@ -499,7 +499,7 @@
             <!-- Actions -->
             <td class="actions-cell">
               <div class="action-buttons">
-                <a href="{{ url_for('time_attendance_record_detail', record_id=record.id, **request.args) }}" 
+                <a href="{{ url_for('time_attendance.time_attendance_record_detail', record_id=record.id, **request.args) }}" 
                   class="action-btn view">
                   <i class="fas fa-eye"></i>
                   View
@@ -527,7 +527,7 @@
       </div>
       <div class="pagination-controls">
         {% if records.has_prev %}
-        <a href="{{ url_for('time_attendance_records', page=records.prev_num, 
+        <a href="{{ url_for('time_attendance.time_attendance_records', page=records.prev_num, 
                    employee_id=request.args.get('employee_id', ''),
                    location_name=request.args.get('location_name', ''),
                    project_id=request.args.get('project_id', ''),
@@ -542,7 +542,7 @@
         {% for page_num in records.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
           {% if page_num %}
             {% if page_num != records.page %}
-            <a href="{{ url_for('time_attendance_records', page=page_num,
+            <a href="{{ url_for('time_attendance.time_attendance_records', page=page_num,
                        employee_id=request.args.get('employee_id', ''),
                        location_name=request.args.get('location_name', ''),
                        project_id=request.args.get('project_id', ''),
@@ -560,7 +560,7 @@
         {% endfor %}
         
         {% if records.has_next %}
-        <a href="{{ url_for('time_attendance_records', page=records.next_num,
+        <a href="{{ url_for('time_attendance.time_attendance_records', page=records.next_num,
                    employee_id=request.args.get('employee_id', ''),
                    location_name=request.args.get('location_name', ''),
                    project_id=request.args.get('project_id', ''),
@@ -905,7 +905,7 @@ document.addEventListener('keydown', function(event) {
     chipsWrapper.closest('form').submit();
   };
   window.taClearAllFilters = function () {
-    window.location.href = '{{ url_for("time_attendance_records") }}';
+    window.location.href = '{{ url_for("time_attendance.time_attendance_records") }}';
   };
 }());
 

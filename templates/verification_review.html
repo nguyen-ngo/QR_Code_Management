@@ -48,7 +48,7 @@
 
   <!-- Filters Section -->
   <div class="filter-section">
-    <form method="GET" action="{{ url_for('verification_review') }}">
+    <form method="GET" action="{{ url_for('attendance.verification_review') }}">
       <div class="filter-grid">
         <div class="filter-group">
           <label for="status">Status</label>
@@ -104,7 +104,7 @@
           <button type="submit" class="btn-filter">
             <i class="fas fa-filter"></i> Apply Filters
           </button>
-          <a href="{{ url_for('verification_review') }}" class="btn-reset">
+          <a href="{{ url_for('attendance.verification_review') }}" class="btn-reset">
             <i class="fas fa-undo"></i> Reset
           </a>
         </div>
@@ -193,7 +193,7 @@
               <button type="button" class="btn-photo email" onclick="sendByEmail({{ record.id }}, '{{ record.employee_id }}', '{{ employee_names.get(record.employee_id) or 'Unknown' }}', '{{ record.check_in_date.strftime('%b %d, %Y') }}', '{{ record.check_in_time.strftime('%I:%M %p') }}', '{{ record.location_name }}', '{{ record.qr_code.location_event if record.qr_code and record.qr_code.location_event else 'N/A' }}', '{{ record.verification_status }}', '{{ record.qr_code.location_address if record.qr_code and record.qr_code.location_address else 'N/A' }}', '{{ record.address or 'N/A' }}', '{{ '%.3f'|format(record.location_accuracy) if record.location_accuracy else 'N/A' }}', '{{ record.device_info or 'Unknown' }}')" title="Send by Email">
                 <i class="fas fa-envelope"></i>
               </button>
-              <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" class="btn-photo view" title="View Details">
+              <a href="{{ url_for('attendance.verification_review_detail', record_id=record.id) }}" class="btn-photo view" title="View Details">
                 <i class="fas fa-expand"></i>
               </a>
             </div>

@@ -19,12 +19,12 @@
     
     <div class="header-actions">
       {% if session.role in ['admin', 'payroll', 'accounting'] %}
-      <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
+      <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="btn btn-primary">
         <i class="fas fa-upload"></i>
         Import Excel Data
       </a>
       {% endif %}
-      <a href="{{ url_for('time_attendance_records') }}" class="btn btn-secondary">
+      <a href="{{ url_for('time_attendance.time_attendance_records') }}" class="btn btn-secondary">
         <i class="fas fa-search"></i>
         View All Records
       </a>
@@ -201,7 +201,7 @@
         <span>Showing {{ recent_records|length }} of {{ "{:,}".format(total_records) }} total records</span>
       </div>
       <div class="table-actions">
-        <a href="{{ url_for('time_attendance_records') }}" class="btn btn-primary">
+        <a href="{{ url_for('time_attendance.time_attendance_records') }}" class="btn btn-primary">
           <i class="fas fa-list"></i>
           View All Records
         </a>
@@ -257,11 +257,11 @@
             </td>
             <td>
               <div class="record-actions">
-                <a href="{{ url_for('time_attendance_records', import_batch=import_batch.import_batch_id) }}" 
+                <a href="{{ url_for('time_attendance.time_attendance_records', import_batch=import_batch.import_batch_id) }}" 
                   class="action-btn btn-view" title="View Records">
                   <i class="fas fa-eye"></i>
                 </a>
-                <a href="{{ url_for('view_import_batch', batch_id=import_batch.import_batch_id) }}" 
+                <a href="{{ url_for('time_attendance.view_import_batch', batch_id=import_batch.import_batch_id) }}" 
                   class="action-btn btn-info" title="Batch Details">
                   <i class="fas fa-info-circle"></i>
                 </a>
@@ -294,7 +294,7 @@
     </p>
     {% if session.role == 'admin' %}
     <div class="empty-actions">
-      <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary">
+      <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="btn btn-primary">
         <i class="fas fa-upload"></i>
         Import Your First File
       </a>
@@ -510,7 +510,7 @@
 <script>
 // View record details
 function viewRecord(recordId) {
-  window.location.href = "{{ url_for('time_attendance_record_detail', record_id=0) }}".replace('0', recordId);
+  window.location.href = "{{ url_for('time_attendance.time_attendance_record_detail', record_id=0) }}".replace('0', recordId);
 }
 
 // Delete record with confirmation
@@ -518,7 +518,7 @@ function deleteRecord(recordId, employeeName, date) {
   if (confirm(`Are you sure you want to delete the attendance record for ${employeeName} on ${date}?`)) {
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = "{{ url_for('delete_time_attendance_record', record_id=0) }}".replace('0', recordId);
+    form.action = "{{ url_for('time_attendance.delete_time_attendance_record', record_id=0) }}".replace('0', recordId);
     document.body.appendChild(form);
     form.submit();
   }

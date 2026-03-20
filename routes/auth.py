@@ -5,36 +5,31 @@ Authentication and user-profile routes.
 
 Routes: /, /register, /login, /logout, /profile
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 from datetime import datetime
 import json
 
 from extensions import db, logger_handler
+from models.user import User
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import url_for, admin_required, login_required, staff_or_admin_required
+from utils.helpers import admin_required, login_required, staff_or_admin_required
 from turnstile_utils import turnstile_utils
 
 bp = Blueprint('auth', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/', endpoint='index')
 def index():
     """Home page - redirect to login if not authenticated"""
-    User = _get_models()["User"]
     if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+        return redirect(url_for('dashboard.dashboard'))
+    return redirect(url_for('auth.login'))
 
 @bp.route('/register', methods=['GET', 'POST'], endpoint='register')
 @log_user_activity('user_registration')
 def register():
     """User registration endpoint"""
-    User = _get_models()["User"]
     if request.method == 'POST':
         try:
             full_name = request.form['full_name']
@@ -67,7 +62,7 @@ def register():
             logger_handler.logger.info(f"New user registered: {username} ({email})")
 
             flash('Registration successful! Please log in.', 'success')
-            return redirect(url_for('login'))
+            return redirect(url_for('auth.login'))
 
         except Exception as e:
             db.session.rollback()
@@ -79,7 +74,6 @@ def register():
 @bp.route('/login', methods=['GET', 'POST'], endpoint='login')
 def login():
     """Enhanced user authentication with Turnstile and comprehensive logging"""
-    User = _get_models()["User"]
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
@@ -151,7 +145,7 @@ def login():
 
                 # Redirect to intended page or dashboard
                 next_page = request.args.get('next')
-                return redirect(next_page) if next_page else redirect(url_for('attendance_report'))
+                return redirect(next_page) if next_page else redirect(url_for('attendance.attendance_report'))
 
             else:
                 # Invalid credentials - log failed attempt
@@ -176,7 +170,6 @@ def login():
 @bp.route('/logout', endpoint='logout')
 def logout():
     """User logout endpoint with session duration logging"""
-    User = _get_models()["User"]
     user_id = session.get('user_id')
     username = session.get('username')
     login_time_str = session.get('login_time')
@@ -200,14 +193,13 @@ def logout():
 
     session.clear()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
+    return redirect(url_for('auth.login'))
 
 @bp.route('/profile', methods=['GET', 'POST'], endpoint='profile')
 @login_required
 @log_user_activity('profile_update')
 def profile():
     """User profile management with logging"""
-    User = _get_models()["User"]
     try:
         user = User.query.get(session['user_id'])
 
@@ -269,4 +261,4 @@ def profile():
     except Exception as e:
         logger_handler.log_database_error('profile_update', e)
         flash('Profile update failed. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))

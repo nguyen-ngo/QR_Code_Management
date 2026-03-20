@@ -5,7 +5,7 @@ Admin panel and log management routes.
 
 Routes: /admin/logs, /admin/health/google-maps, /api/logs/*
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 from datetime import datetime, timedelta
 import json, math
 
@@ -13,14 +13,10 @@ from extensions import db, logger_handler
 from sqlalchemy import text
 from utils.geocoding import gmaps_client
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import url_for, admin_required, login_required
+from utils.helpers import admin_required, login_required
 
 bp = Blueprint('admin', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/admin/logs', endpoint='admin_logs')
@@ -34,7 +30,7 @@ def admin_logs():
     except Exception as e:
         logger_handler.log_database_error('admin_logs_load', e)
         flash('Error loading log statistics.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 def check_google_maps_health():
     """Check if Google Maps services are working properly"""

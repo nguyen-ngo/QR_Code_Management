@@ -93,7 +93,7 @@
   <!-- Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('time_attendance_dashboard') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Dashboard
       </a>
@@ -110,7 +110,7 @@
     </div>
     
     <div class="header-actions">
-      <a href="{{ url_for('time_attendance_records', import_batch=batch_summary.batch_id) }}" 
+      <a href="{{ url_for('time_attendance.time_attendance_records', import_batch=batch_summary.batch_id) }}" 
          class="btn btn-primary">
         <i class="fas fa-eye"></i>
         View All Records

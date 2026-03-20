@@ -5,28 +5,26 @@ Statistics dashboard and export routes.
 
 Routes: /statistics, /api/statistics/export
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, make_response, current_app
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, make_response, current_app, url_for
 from datetime import datetime, date, timedelta
 import io, json, traceback
 
 from extensions import db, logger_handler
+from models.employee import Employee
+from models.project import Project
+from models.user import User
 from sqlalchemy import text
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import url_for, login_required, staff_or_admin_required
+from utils.helpers import login_required, staff_or_admin_required
 
 bp = Blueprint('statistics', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/statistics', endpoint='qr_statistics')
 @login_required
 def qr_statistics():
     """QR Code Statistics Dashboard with comprehensive analytics"""
-    AttendanceData, QRCode, Project, Employee, User = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["Employee"], _get_models()["User"]
     try:
         # Log statistics page access
         logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed QR code statistics dashboard")
@@ -208,14 +206,13 @@ def qr_statistics():
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         flash('Error loading statistics. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 
 @bp.route('/api/statistics/export', endpoint='export_statistics')
 @login_required
 def export_statistics():
     """Export statistics data to CSV/Excel"""
-    AttendanceData, QRCode, Project, Employee, User = _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["Project"], _get_models()["Employee"], _get_models()["User"]
     try:
         # Check permissions
         if session.get('role') not in ['admin', 'payroll', 'accounting']:
@@ -310,6 +307,6 @@ def export_statistics():
         print(f"❌ Traceback: {traceback.format_exc()}")
         
         flash('Error loading statistics. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 # EMPLOYEE MANAGEMENT ROUTES

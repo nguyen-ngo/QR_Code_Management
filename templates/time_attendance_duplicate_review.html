@@ -315,7 +315,7 @@
   <!-- Page Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('import_time_attendance') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Import
       </a>
@@ -366,7 +366,7 @@
 
   <!-- Duplicates List -->
   {% if analysis.duplicate_records > 0 %}
-  <form id="duplicateReviewForm" method="POST" action="{{ url_for('import_time_attendance') }}">
+  <form id="duplicateReviewForm" method="POST" action="{{ url_for('time_attendance.import_time_attendance') }}">
     <input type="hidden" name="analyze_duplicates" value="false">
     <input type="hidden" name="skip_duplicates" value="true">
     <input type="hidden" name="import_source" value="Import with Duplicates - {{ filename }}">
@@ -522,7 +522,7 @@
     <!-- Action Buttons -->
     <div class="action-buttons">
       <div class="left-actions">
-        <a href="{{ url_for('cancel_pending_import') }}" class="btn btn-secondary">
+        <a href="{{ url_for('time_attendance.cancel_pending_import') }}" class="btn btn-secondary">
           <i class="fas fa-times"></i>
           Cancel Import
         </a>
@@ -549,7 +549,7 @@
     <i class="fas fa-check-circle"></i>
     <h3>No Duplicates Found</h3>
     <p>All records in the file are unique. You can proceed with the import.</p>
-    <a href="{{ url_for('import_time_attendance') }}" class="btn btn-primary" style="margin-top: 1rem;">
+    <a href="{{ url_for('time_attendance.import_time_attendance') }}" class="btn btn-primary" style="margin-top: 1rem;">
       <i class="fas fa-arrow-left"></i>
       Back to Import
     </a>

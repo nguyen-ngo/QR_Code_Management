@@ -17,7 +17,7 @@ Code Management{% endblock %} {% block extra_head %}
     </div>
 
     <div class="header-actions">
-      <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+      <a href="{{ url_for('users.create_user') }}" class="btn btn-primary">
         <i class="fas fa-user-plus"></i>
         Add New User
       </a>
@@ -280,7 +280,7 @@ Code Management{% endblock %} {% block extra_head %}
             <div class="action-buttons">
               <!-- Edit Button -->
               <a
-                href="{{ url_for('edit_user', user_id=user.id) }}"
+                href="{{ url_for('users.edit_user', user_id=user.id) }}"
                 class="btn btn-sm btn-primary"
                 title="Edit User"
               >
@@ -290,7 +290,7 @@ Code Management{% endblock %} {% block extra_head %}
               {% if user.role != 'admin' %}
               <!-- Promote to Admin -->
               <a
-                href="{{ url_for('promote_user', user_id=user.id) }}"
+                href="{{ url_for('users.promote_user', user_id=user.id) }}"
                 class="btn btn-sm btn-success"
                 title="Promote to Admin"
                 onclick="return confirm('Are you sure you want to promote {{ user.full_name }} to admin?')"
@@ -303,7 +303,7 @@ Code Management{% endblock %} {% block extra_head %}
               'admin')|selectattr('active_status', 'equalto', True)|list|length
               > 1 %}
               <a
-                href="{{ url_for('demote_user', user_id=user.id) }}"
+                href="{{ url_for('users.demote_user', user_id=user.id) }}"
                 class="btn btn-sm btn-warning"
                 title="Demote from Admin"
                 onclick="return confirm('Are you sure you want to demote {{ user.full_name }} from admin?')"
@@ -353,7 +353,7 @@ Code Management{% endblock %} {% block extra_head %}
       <i class="fas fa-users"></i>
       <h3>No Users Found</h3>
       <p>There are currently no users in the system.</p>
-      <a href="{{ url_for('create_user') }}" class="btn btn-primary">
+      <a href="{{ url_for('users.create_user') }}" class="btn btn-primary">
         <i class="fas fa-user-plus"></i>
         Create First User
       </a>

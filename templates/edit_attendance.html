@@ -144,7 +144,7 @@
     </p>
   </div>
 
-  <form method="POST" action="{{ url_for('edit_attendance', record_id=attendance_record.id) }}">
+  <form method="POST" action="{{ url_for('attendance.edit_attendance', record_id=attendance_record.id) }}">
     
     <!-- Audit Note Section -->
     <div class="audit-note-section">
@@ -299,7 +299,7 @@
         Update Record
       </button>
       {% endif %}
-      <a href="{{ url_for('attendance_report') }}" class="btn btn-secondary">
+      <a href="{{ url_for('attendance.attendance_report') }}" class="btn btn-secondary">
         <i class="fas fa-times"></i>
         Cancel
       </a>

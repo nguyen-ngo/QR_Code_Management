@@ -41,7 +41,7 @@
             
             <!-- NEW: Manual Add Record Button -->
             {% if session.role in ['admin', 'accounting'] %}
-            <button onclick="window.location.href='{{ url_for('add_manual_attendance') }}'" class="btn btn-primary">
+            <button onclick="window.location.href='{{ url_for('attendance.add_manual_attendance') }}'" class="btn btn-primary">
                 <i class="fas fa-plus-circle"></i>
                 Add Record
             </button>
@@ -67,7 +67,7 @@
                 </h3>
             </div>
             <div class="filters-form">
-                <form method="GET" action="{{ url_for('attendance_report') }}">
+                <form method="GET" action="{{ url_for('attendance.attendance_report') }}">
                     <!-- Hidden field to preserve fullscreen state -->
                     <input type="hidden" id="fullscreenState" name="fullscreen" value="">
                     <div class="filter-row">
@@ -297,7 +297,7 @@
                             {% if record.verification_required and record.verification_status == 'pending' %}
                                 <!-- Show Review Needed badge with link to review page -->
                                 <div class="location-accuracy-info">
-                                    <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" 
+                                    <a href="{{ url_for('attendance.verification_review_detail', record_id=record.id) }}" 
                                        class="location-accuracy-badge badge-review-needed" 
                                        style="cursor: pointer; text-decoration: none;"
                                        title="Click to review verification photo - Distance: {{ '%.3f'|format(record.location_accuracy) }} miles">
@@ -368,7 +368,7 @@
                             <div class="record-actions">
                                 {% if record.verification_required and record.verification_status == 'pending' %}
                                     <!-- Show Review button linking to review page -->
-                                    <a href="{{ url_for('verification_review_detail', record_id=record.id) }}" 
+                                    <a href="{{ url_for('attendance.verification_review_detail', record_id=record.id) }}" 
                                        class="action-btn btn-review"
                                        title="Review Verification Photo">
                                         <i class="fas fa-camera"></i>
@@ -487,9 +487,9 @@ function clearFilters() {
     
     // Redirect to clean URL with only fullscreen parameter if active
     if (fullscreenState === '1') {
-        window.location.href = '{{ url_for('attendance_report') }}?fullscreen=1';
+        window.location.href = '{{ url_for('attendance.attendance_report') }}?fullscreen=1';
     } else {
-        window.location.href = '{{ url_for('attendance_report') }}';
+        window.location.href = '{{ url_for('attendance.attendance_report') }}';
     }
 }
 

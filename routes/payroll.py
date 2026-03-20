@@ -6,14 +6,19 @@ Payroll dashboard and Excel export routes.
 Routes: /payroll, /payroll/export-excel, /api/working-hours/calculate,
         /api/employee/<id>/miss-punch-details
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, url_for
 from datetime import datetime, date, timedelta, time
 import io, json, traceback, os
 
 from extensions import db, logger_handler
+from models.attendance import AttendanceData
+from models.employee import Employee
+from models.project import Project
+from models.qrcode import QRCode
+from models.user import User
 from sqlalchemy import text
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import (url_for,
+from utils.helpers import (
                            admin_required,
                            has_admin_privileges,
                            has_staff_level_access,
@@ -25,24 +30,19 @@ from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
 
 bp = Blueprint('payroll', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/payroll', endpoint='payroll_dashboard')
 @login_required
 def payroll_dashboard():
     """Payroll dashboard for calculating and exporting working hours"""
-    AttendanceData, Employee, Project, TimeAttendance, QRCode, User = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["Project"], _get_models()["TimeAttendance"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Check if user has payroll access
         user_role = session.get('role')
         if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted to access payroll dashboard without permissions")
             flash('Access denied. Only administrators and payroll staff can access payroll features.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
 
         print("📊 Loading payroll dashboard")
 
@@ -176,21 +176,20 @@ def payroll_dashboard():
         )
 
         flash('Error loading payroll dashboard. Please check the server logs.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/payroll/export-excel', methods=['POST'], endpoint='export_payroll_excel')
 @login_required
 @log_database_operations('payroll_excel_export')
 def export_payroll_excel():
     """Export payroll report to Excel with working hours calculations including SP/PW support"""
-    AttendanceData, Employee, Project, TimeAttendance, QRCode, User = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["Project"], _get_models()["TimeAttendance"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Check permissions
         user_role = session.get('role')
         if user_role not in ['admin', 'payroll', 'accounting']:
             logger_handler.logger.warning(f"User {session.get('username', 'unknown')} (role: {user_role}) attempted unauthorized payroll Excel export")
             flash('Access denied. Only administrators and payroll staff can export payroll data.', 'error')
-            return redirect(url_for('payroll_dashboard'))
+            return redirect(url_for('payroll.payroll_dashboard'))
 
         print("📊 Payroll Excel export started")
 
@@ -202,14 +201,14 @@ def export_payroll_excel():
 
         if not date_from or not date_to:
             flash('Please provide both start and end dates for the export.', 'error')
-            return redirect(url_for('payroll_dashboard'))
+            return redirect(url_for('payroll.payroll_dashboard'))
 
         try:
             start_date = datetime.strptime(date_from, '%Y-%m-%d')
             end_date = datetime.strptime(date_to, '%Y-%m-%d')
         except ValueError:
             flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
-            return redirect(url_for('payroll_dashboard'))
+            return redirect(url_for('payroll.payroll_dashboard'))
 
         # Get attendance records with project filter and QR code data
         query = db.session.query(AttendanceData, QRCode).join(QRCode, AttendanceData.qr_code_id == QRCode.id)
@@ -240,7 +239,7 @@ def export_payroll_excel():
 
         if not attendance_records:
             flash('No attendance records found for the selected date range and project.', 'warning')
-            return redirect(url_for('payroll_dashboard'))
+            return redirect(url_for('payroll.payroll_dashboard'))
 
         print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
 
@@ -404,7 +403,7 @@ def export_payroll_excel():
             )
         else:
             flash('Error generating payroll Excel file.', 'error')
-            return redirect(url_for('payroll_dashboard'))
+            return redirect(url_for('payroll.payroll_dashboard'))
 
     except Exception as e:
         print(f"❌ Error in export_payroll_excel route: {e}")
@@ -418,14 +417,13 @@ def export_payroll_excel():
         )
 
         flash('Error generating payroll Excel export. Please check the server logs.', 'error')
-        return redirect(url_for('payroll_dashboard'))
+        return redirect(url_for('payroll.payroll_dashboard'))
 
 @bp.route('/api/working-hours/calculate', methods=['POST'], endpoint='calculate_working_hours_api')
 @login_required
 @log_database_operations('working_hours_api_calculation')
 def calculate_working_hours_api():
     """API endpoint for calculating working hours"""
-    AttendanceData, Employee, Project, TimeAttendance, QRCode, User = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["Project"], _get_models()["TimeAttendance"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Check permissions
         user_role = session.get('role')
@@ -503,7 +501,6 @@ def calculate_working_hours_api():
 @log_database_operations('miss_punch_details_api')
 def get_miss_punch_details(employee_id):
     """API endpoint to get detailed miss punch information for an employee"""
-    AttendanceData, Employee, Project, TimeAttendance, QRCode, User = _get_models()["AttendanceData"], _get_models()["Employee"], _get_models()["Project"], _get_models()["TimeAttendance"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Check permissions
         user_role = session.get('role')
@@ -667,7 +664,6 @@ def get_miss_punch_details(employee_id):
 
 def get_employee_name(employee_id):
     """Helper function to get employee full name by ID"""
-    Employee = _get_models()["Employee"]
     try:
         result = db.session.execute(text("""
             SELECT CONCAT(firstName, ' ', lastName) as full_name 
@@ -684,7 +680,6 @@ def get_employee_name(employee_id):
 
 def get_qr_code_checkin_count(qr_code_id):
     """Helper function to get total check-ins count for a QR code"""
-    AttendanceData = _get_models()["AttendanceData"]
     try:
         count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
         logger_handler.logger.info(f"QR Code {qr_code_id} total check-ins: {count}")

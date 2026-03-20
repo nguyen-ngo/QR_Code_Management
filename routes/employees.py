@@ -6,12 +6,17 @@ Employee CRUD and search routes.
 Routes: /employees, /employees/create, /employees/<id>/edit,
         /employees/<id>/delete, /api/employees/search, /employees/<id>
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, url_for
 from datetime import datetime, date
 
 from extensions import db, logger_handler
+from models.attendance import AttendanceData
+from models.employee import Employee
+from models.project import Project
+from models.qrcode import QRCode
+from models.user import User
 from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import (url_for,
+from utils.helpers import (
                            admin_required,
                            has_admin_privileges,
                            has_staff_level_access,
@@ -20,17 +25,12 @@ from utils.helpers import (url_for,
 
 bp = Blueprint('employees', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/employees', endpoint='employees')
 @login_required
 def employees():
     """Display employee management page with search and pagination"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Log user accessing employee management
         try:
@@ -87,14 +87,13 @@ def employees():
     except Exception as e:
         logger_handler.log_database_error('employee_list', e)
         flash('Error loading employee list. Please try again.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/employees/create', methods=['GET', 'POST'], endpoint='create_employee')
 @login_required
 @log_database_operations('employee_creation')
 def create_employee():
     """Create new employee (Admin only)"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     if request.method == 'POST':
         try:
             # Get form data
@@ -147,7 +146,7 @@ def create_employee():
                 print(f"⚠️ Logging error (non-critical): {log_error}")
             
             flash(f'Employee "{first_name} {last_name}" (ID: {employee_id}) created successfully.', 'success')
-            return redirect(url_for('employees'))
+            return redirect(url_for('employees.employees'))
             
         except Exception as e:
             db.session.rollback()
@@ -165,7 +164,6 @@ def create_employee():
 @log_database_operations('employee_update')
 def edit_employee(employee_index):
     """Edit existing employee (Admin only)"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Get employee by index (primary key)
         employee = Employee.query.get_or_404(employee_index)
@@ -227,7 +225,7 @@ def edit_employee(employee_index):
                 print(f"⚠️ Logging error (non-critical): {log_error}")
             
             flash(f'Employee "{first_name} {last_name}" updated successfully.', 'success')
-            return redirect(url_for('employees'))
+            return redirect(url_for('employees.employees'))
         
         # GET request - load the form with projects
         projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
@@ -237,14 +235,13 @@ def edit_employee(employee_index):
         db.session.rollback()
         logger_handler.log_database_error('employee_update', e)
         flash('Error updating employee. Please try again.', 'error')
-        return redirect(url_for('employees'))
+        return redirect(url_for('employees.employees'))
 
 @bp.route('/employees/<int:employee_index>/delete', methods=['POST'], endpoint='delete_employee')
 @login_required
 @log_database_operations('employee_deletion')
 def delete_employee(employee_index):
     """Delete employee (Admin only) - Enhanced with better logging"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         print(f"🗑️ DELETE REQUEST: Employee index {employee_index}")
         print(f"📋 Request method: {request.method}")
@@ -265,7 +262,6 @@ def delete_employee(employee_index):
         }
         
         # Check if employee has attendance records
-        from models.attendance import AttendanceData
         attendance_count = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
         print(f"📊 Attendance records found: {attendance_count}")
         
@@ -273,7 +269,7 @@ def delete_employee(employee_index):
             error_msg = f'Cannot delete employee "{employee.full_name}". Employee has {attendance_count} attendance records. Please contact system administrator.'
             print(f"❌ DELETION BLOCKED: {error_msg}")
             flash(error_msg, 'error')
-            return redirect(url_for('employees'))
+            return redirect(url_for('employees.employees'))
         
         # Proceed with deletion
         print(f"🗑️ Proceeding with deletion of employee: {employee_data['firstName']} {employee_data['lastName']}")
@@ -293,7 +289,7 @@ def delete_employee(employee_index):
         flash(success_msg, 'success')
         print(f"✅ SUCCESS: {success_msg}")
         
-        return redirect(url_for('employees'))
+        return redirect(url_for('employees.employees'))
         
     except Exception as e:
         db.session.rollback()
@@ -302,13 +298,12 @@ def delete_employee(employee_index):
         print(f"❌ ERROR in delete_employee: {e}")
         print(f"❌ Exception type: {type(e)}")
         flash(error_msg, 'error')
-        return redirect(url_for('employees'))
+        return redirect(url_for('employees.employees'))
 
 @bp.route('/api/employees/search', endpoint='api_employees_search')
 @login_required
 def api_employees_search():
     """API endpoint for employee search (for AJAX)"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         search = request.args.get('q', '').strip()
         limit = request.args.get('limit', 10, type=int)
@@ -332,13 +327,11 @@ def api_employees_search():
 @login_required
 def employee_detail(employee_index):
     """View employee details with attendance summary"""
-    Employee, AttendanceData, Project, QRCode, User = _get_models()["Employee"], _get_models()["AttendanceData"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Get employee by index (primary key)
         employee = Employee.query.outerjoin(Project, Employee.contractId == Project.id).filter(Employee.index == employee_index).first_or_404()
         
         # Get attendance statistics for this employee
-        from models.attendance import AttendanceData
         
         # Total attendance records
         total_attendance = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
@@ -387,4 +380,4 @@ def employee_detail(employee_index):
     except Exception as e:
         logger_handler.log_database_error('employee_detail', e)
         flash('Error loading employee details. Please try again.', 'error')
-        return redirect(url_for('employees'))
+        return redirect(url_for('employees.employees'))

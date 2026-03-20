@@ -9,17 +9,21 @@ Routes: /time-attendance, /time-attendance/import/*,
         /time-attendance/record/<id>, /time-attendance/delete/<id>,
         /api/time-attendance/*
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, Response, g, current_app
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, Response, g, current_app, url_for
 from datetime import datetime, date, timedelta, time
 import io, os, json, re, uuid, traceback
 import time as _time
 
 from extensions import db, logger_handler
+from models.employee import Employee
+from models.project import Project
+from models.qrcode import QRCode
+from models.time_attendance import TimeAttendance
+from models.user import User
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from logger_handler import log_user_activity, log_database_operations
 from utils.helpers import (
-    url_for,
     admin_required,
     has_admin_privileges,
     has_staff_level_access,
@@ -35,10 +39,6 @@ import openpyxl.cell.cell
 
 bp = Blueprint('time_attendance', __name__)
 
-def _get_models():
-    """Return model classes from the current app context."""
-    from flask import current_app
-    return current_app.config['_models']
 
 
 @bp.route('/time-attendance', endpoint='time_attendance_dashboard')
@@ -46,7 +46,6 @@ def _get_models():
 @log_user_activity('time_attendance_view')
 def time_attendance_dashboard():
     """Display time attendance dashboard with table layout"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Initialize default values
         total_records = 0
@@ -59,7 +58,6 @@ def time_attendance_dashboard():
         
         # Try to get data from TimeAttendance model if it exists
         try:
-            from models.time_attendance import TimeAttendance
             
             # Get summary statistics
             total_records = TimeAttendance.query.count()
@@ -114,14 +112,13 @@ def time_attendance_dashboard():
     except Exception as e:
         logger_handler.logger.error(f"Error in time attendance dashboard: {e}")
         flash('Error loading time attendance dashboard.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
 @bp.route('/time-attendance/import', methods=['GET', 'POST'], endpoint='import_time_attendance')
 @login_required
 @log_database_operations('time_attendance_import')
 def import_time_attendance():
     """Enhanced import with duplicate review"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     if request.method == 'GET':
         # Load active projects for dropdown
         projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
@@ -141,7 +138,7 @@ def import_time_attendance():
                 # Retrieve file from session
                 if 'pending_import_file' not in session or 'pending_import_filename' not in session:
                     flash('Session expired. Please upload the file again.', 'error')
-                    return redirect(url_for('import_time_attendance'))
+                    return redirect(url_for('time_attendance.import_time_attendance'))
                 
                 temp_path = session['pending_import_file']
                 filename = session['pending_import_filename']
@@ -151,7 +148,7 @@ def import_time_attendance():
                     flash('Temporary file not found. Please upload the file again.', 'error')
                     session.pop('pending_import_file', None)
                     session.pop('pending_import_filename', None)
-                    return redirect(url_for('import_time_attendance'))
+                    return redirect(url_for('time_attendance.import_time_attendance'))
                 
                 print(f"✅ Retrieved file from session: {filename}")
                 print(f"✅ Temp path exists: {os.path.exists(temp_path)}")
@@ -377,7 +374,7 @@ def import_time_attendance():
                     print(f"   Total imported: {all_results['total_imported']}")
                     print(f"   Total duplicates: {all_results['total_duplicates']}")
                     
-                    return redirect(url_for('time_attendance_dashboard'))
+                    return redirect(url_for('time_attendance.time_attendance_dashboard'))
 
                 # Check if this is coming from duplicate review
                 force_import_hashes = request.form.getlist('force_import_hashes[]')
@@ -528,7 +525,6 @@ def import_time_attendance():
 @login_required
 def analyze_import_duplicates():
     """AJAX endpoint to analyze file for duplicates"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -594,7 +590,6 @@ def analyze_import_duplicates():
 @login_required
 def analyze_import_invalid():
     """AJAX endpoint to analyze file for invalid rows"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -686,7 +681,6 @@ def start_import_job():
     progress file, then returns a job_id.  The actual import runs inside the
     SSE stream endpoint so no background thread or shared memory is needed.
     """
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         if 'files' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded.'}), 400
@@ -739,7 +733,6 @@ def stream_import_progress(job_id):
     the browser.  Works across multiple gunicorn workers because all state is
     stored on disk (no in-memory job store).
     """
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     # Capture upload_dir HERE in the request context — current_app is NOT
     # available inside the background thread (_run) or after context teardown.
     upload_dir = current_app.config.get('UPLOAD_FOLDER', '/tmp')
@@ -896,7 +889,6 @@ def stream_import_progress(job_id):
 @login_required
 def cancel_pending_import():
     """Cancel pending import and cleanup temp file"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         if 'pending_import_file' in session:
             temp_path = session['pending_import_file']
@@ -911,7 +903,7 @@ def cancel_pending_import():
     except Exception as e:
         logger_handler.logger.error(f"Error cancelling import: {e}")
     
-    return redirect(url_for('import_time_attendance'))
+    return redirect(url_for('time_attendance.import_time_attendance'))
 
 
 
@@ -919,7 +911,6 @@ def cancel_pending_import():
 @login_required
 def validate_import_file():
     """AJAX endpoint to validate Excel file before import"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -967,14 +958,13 @@ def validate_import_file():
 @log_user_activity('view_import_batch')
 def view_import_batch(batch_id):
     """View details of a specific import batch"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         import_service = TimeAttendanceImportService(db, logger_handler)
         batch_summary = import_service.get_import_summary(batch_id)
         
         if not batch_summary:
             flash('Import batch not found.', 'error')
-            return redirect(url_for('time_attendance_dashboard'))
+            return redirect(url_for('time_attendance.time_attendance_dashboard'))
         
         return render_template('time_attendance_batch_detail.html',
                              batch_summary=batch_summary)
@@ -982,7 +972,7 @@ def view_import_batch(batch_id):
     except Exception as e:
         logger_handler.logger.error(f"Error viewing batch {batch_id}: {e}")
         flash('Error loading batch details.', 'error')
-        return redirect(url_for('time_attendance_dashboard'))
+        return redirect(url_for('time_attendance.time_attendance_dashboard'))
 
 
 @bp.route('/time-attendance/import/batch/<batch_id>/delete', methods=['POST'], endpoint='delete_import_batch')
@@ -990,7 +980,6 @@ def view_import_batch(batch_id):
 @log_database_operations('delete_import_batch')
 def delete_import_batch(batch_id):
     """Delete an entire import batch"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         import_service = TimeAttendanceImportService(db, logger_handler)
         result = import_service.delete_import_batch(batch_id, deleted_by=session['user_id'])
@@ -1004,19 +993,18 @@ def delete_import_batch(batch_id):
         else:
             flash(result['message'], 'error')
         
-        return redirect(url_for('time_attendance_dashboard'))
+        return redirect(url_for('time_attendance.time_attendance_dashboard'))
     
     except Exception as e:
         logger_handler.logger.error(f"Error deleting batch {batch_id}: {e}")
         flash('Error deleting import batch.', 'error')
-        return redirect(url_for('time_attendance_dashboard'))
+        return redirect(url_for('time_attendance.time_attendance_dashboard'))
 
 
 @bp.route('/time-attendance/import/download-template', endpoint='download_import_template')
 @login_required
 def download_import_template():
     """Download Excel template for time attendance import"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         import io
         from openpyxl import Workbook
@@ -1119,14 +1107,13 @@ def download_import_template():
     except Exception as e:
         logger_handler.logger.error(f"Error generating template: {e}")
         flash('Error generating template file.', 'error')
-        return redirect(url_for('import_time_attendance'))
+        return redirect(url_for('time_attendance.import_time_attendance'))
     
 @bp.route('/time-attendance/export', endpoint='export_time_attendance')
 @login_required
 @log_user_activity('time_attendance_export')
 def export_time_attendance():
     """Export time attendance records to CSV or Excel"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         export_format = request.args.get('format', 'excel').lower()
         
@@ -1139,7 +1126,6 @@ def export_time_attendance():
         project_filter = request.args.get('project_id')
         
         # Build query with same filters as the view
-        from models.time_attendance import TimeAttendance
         query = TimeAttendance.query
         
         # Apply filters — employee_id supports comma-separated multi-employee values
@@ -1169,7 +1155,7 @@ def export_time_attendance():
                 query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
             except ValueError:
                 flash('Invalid start date format.', 'error')
-                return redirect(url_for('time_attendance_records'))
+                return redirect(url_for('time_attendance.time_attendance_records'))
 
         if end_date:
             try:
@@ -1183,7 +1169,7 @@ def export_time_attendance():
                 query = query.filter(TimeAttendance.attendance_date <= end_date_obj + timedelta(days=1))
             except ValueError:
                 flash('Invalid end date format.', 'error')
-                return redirect(url_for('time_attendance_records'))
+                return redirect(url_for('time_attendance.time_attendance_records'))
 
         if import_batch:
             query = query.filter(TimeAttendance.import_batch_id == import_batch)
@@ -1199,13 +1185,12 @@ def export_time_attendance():
 
         if not records:
             flash('No records found to export.', 'warning')
-            return redirect(url_for('time_attendance_records'))
+            return redirect(url_for('time_attendance.time_attendance_records'))
 
         # Get project name if project filter exists
         project_name_for_filename = ''
         if project_filter:
             try:
-                from models.project import Project
                 project = Project.query.get(int(project_filter))
                 if project:
                     # Replace spaces and special characters with underscores
@@ -1261,7 +1246,7 @@ def export_time_attendance():
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records: {e}")
         flash('Error generating export file. Please try again.', 'error')
-        return redirect(url_for('time_attendance_records'))
+        return redirect(url_for('time_attendance.time_attendance_records'))
 
 
 def calculate_possible_violation(distance_value):
@@ -1333,7 +1318,6 @@ def _qtr(decimal_hours: float) -> float:
 
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None):
     """Generate Excel export with template format matching the provided template"""
-    Employee, Project, QRCode, TimeAttendance = _get_models()["Employee"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["TimeAttendance"]
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
@@ -2504,16 +2488,14 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
 @log_user_activity('time_attendance_excel_export')
 def excel_export_time_attendance():
     """Excel export with current page filters"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     # Redirect to main export with Excel format
-    return redirect(url_for('export_time_attendance', format='excel', **request.args))
+    return redirect(url_for('time_attendance.export_time_attendance', format='excel', **request.args))
 
 @bp.route('/time-attendance/export-by-building', endpoint='export_time_attendance_by_building')
 @login_required
 @log_user_activity('time_attendance_export_by_building')
 def export_time_attendance_by_building():
     """Export time attendance records grouped by building/location to Excel"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Get filter parameters (same as records page)
         employee_filter = request.args.get('employee_id')
@@ -2524,7 +2506,6 @@ def export_time_attendance_by_building():
         project_filter = request.args.get('project_id')
         
         # Build query with same filters as the view
-        from models.time_attendance import TimeAttendance
         query = TimeAttendance.query
         
         # Apply filters — employee_id supports comma-separated multi-employee values
@@ -2554,7 +2535,7 @@ def export_time_attendance_by_building():
                 query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
             except ValueError:
                 flash('Invalid start date format.', 'error')
-                return redirect(url_for('time_attendance_records'))
+                return redirect(url_for('time_attendance.time_attendance_records'))
 
         if end_date:
             try:
@@ -2567,7 +2548,7 @@ def export_time_attendance_by_building():
                 query = query.filter(TimeAttendance.attendance_date <= end_date_obj + timedelta(days=1))
             except ValueError:
                 flash('Invalid end date format.', 'error')
-                return redirect(url_for('time_attendance_records'))
+                return redirect(url_for('time_attendance.time_attendance_records'))
 
         if import_batch:
             query = query.filter(TimeAttendance.import_batch_id == import_batch)
@@ -2584,13 +2565,12 @@ def export_time_attendance_by_building():
 
         if not records:
             flash('No records found to export.', 'warning')
-            return redirect(url_for('time_attendance_records'))
+            return redirect(url_for('time_attendance.time_attendance_records'))
 
         # Get project name if project filter exists
         project_name_for_filename = ''
         if project_filter:
             try:
-                from models.project import Project
                 project = Project.query.get(int(project_filter))
                 if project:
                     # Replace spaces and special characters with underscores
@@ -2636,11 +2616,10 @@ def export_time_attendance_by_building():
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records by building: {e}")
         flash('Error generating export file. Please try again.', 'error')
-        return redirect(url_for('time_attendance_records'))
+        return redirect(url_for('time_attendance.time_attendance_records'))
     
 def export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date_filter=None, end_date_filter=None):
     """Generate Excel export grouped by building/location with template format"""
-    Employee, Project, QRCode, TimeAttendance = _get_models()["Employee"], _get_models()["Project"], _get_models()["QRCode"], _get_models()["TimeAttendance"]
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
@@ -3388,7 +3367,6 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
 @log_user_activity('time_attendance_records_view')
 def time_attendance_records():
     """Display time attendance records with filtering options"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         # Get filter parameters
         employee_filter = request.args.get('employee_id', '')
@@ -3539,14 +3517,13 @@ def time_attendance_records():
     except Exception as e:
         logger_handler.logger.error(f"Error displaying time attendance records: {e}")
         flash('Error loading attendance records.', 'error')
-        return redirect(url_for('time_attendance_dashboard'))
+        return redirect(url_for('time_attendance.time_attendance_dashboard'))
 
 @bp.route('/time-attendance/record/<int:record_id>', endpoint='time_attendance_record_detail')
 @login_required
 @log_user_activity('time_attendance_record_detail')
 def time_attendance_record_detail(record_id):
     """Display detailed view of a time attendance record"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         record = TimeAttendance.query.get_or_404(record_id)
         return render_template('time_attendance_record_detail.html', record=record)
@@ -3554,14 +3531,13 @@ def time_attendance_record_detail(record_id):
     except Exception as e:
         logger_handler.logger.error(f"Error viewing time attendance record {record_id}: {e}")
         flash('Error loading record details.', 'error')
-        return redirect(url_for('time_attendance_records'))
+        return redirect(url_for('time_attendance.time_attendance_records'))
 
 @bp.route('/time-attendance/delete/<int:record_id>', methods=['POST'], endpoint='delete_time_attendance_record')
 @admin_required
 @log_database_operations('time_attendance_delete')
 def delete_time_attendance_record(record_id):
     """Delete a time attendance record"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         record = TimeAttendance.query.get_or_404(record_id)
         
@@ -3605,13 +3581,12 @@ def delete_time_attendance_record(record_id):
             filter_params[key] = value
     
     # Redirect back with filters preserved
-    return redirect(url_for('time_attendance_records', **filter_params))
+    return redirect(url_for('time_attendance.time_attendance_records', **filter_params))
 
 @bp.route('/api/time-attendance/employee/<employee_id>', endpoint='api_time_attendance_by_employee')
 @login_required
 def api_time_attendance_by_employee(employee_id):
     """API endpoint to get time attendance records for a specific employee"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -3644,7 +3619,6 @@ def api_time_attendance_by_employee(employee_id):
 @login_required
 def api_time_attendance_by_location(location_name):
     """API endpoint to get time attendance records for a specific location"""
-    TimeAttendance, Employee, Project, AttendanceData, QRCode, User = _get_models()["TimeAttendance"], _get_models()["Employee"], _get_models()["Project"], _get_models()["AttendanceData"], _get_models()["QRCode"], _get_models()["User"]
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')

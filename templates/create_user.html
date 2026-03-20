@@ -15,7 +15,7 @@ Code Management{% endblock %} {% block content %}
     <form
       id="createUserForm"
       method="POST"
-      action="{{ url_for('create_user') }}"
+      action="{{ url_for('users.create_user') }}"
     >
       <div class="form-section">
         <h3>
@@ -253,7 +253,7 @@ Code Management{% endblock %} {% block content %}
       </div>
 
       <div class="form-actions">
-        <a href="{{ url_for('users') }}" class="btn btn-secondary">
+        <a href="{{ url_for('users.users') }}" class="btn btn-secondary">
           <i class="fas fa-arrow-left"></i>
           Back to Users
         </a>

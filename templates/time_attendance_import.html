@@ -309,7 +309,7 @@
   <!-- Page Header -->
   <div class="time-attendance-header">
     <div class="header-navigation">
-      <a href="{{ url_for('time_attendance_dashboard') }}" class="back-button">
+      <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Time Attendance
       </a>
@@ -326,7 +326,7 @@
     </div>
     
     <div class="header-actions">
-      <a href="{{ url_for('download_import_template') }}" class="btn btn-secondary">
+      <a href="{{ url_for('time_attendance.download_import_template') }}" class="btn btn-secondary">
         <i class="fas fa-download"></i>
         Download Template
       </a>
@@ -342,7 +342,7 @@
       </h2>
     </div>
     <div class="import-body">
-      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('import_time_attendance') }}">
+      <form id="importForm" method="POST" enctype="multipart/form-data" action="{{ url_for('time_attendance.import_time_attendance') }}">
 
         <!-- Project Selection - REQUIRED (moved to top) -->
         <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -707,12 +707,12 @@
           <strong>Batch ID:</strong> <code>{{ import_result.batch_id }}</code>
         </p>
         <div class="action-buttons">
-          <a href="{{ url_for('time_attendance_records', import_batch=import_result.batch_id) }}" 
+          <a href="{{ url_for('time_attendance.time_attendance_records', import_batch=import_result.batch_id) }}" 
              class="btn btn-primary">
             <i class="fas fa-eye"></i>
             View Imported Records
           </a>
-          <a href="{{ url_for('time_attendance_dashboard') }}" class="btn btn-secondary">
+          <a href="{{ url_for('time_attendance.time_attendance_dashboard') }}" class="btn btn-secondary">
             <i class="fas fa-tachometer-alt"></i>
             Back to Dashboard
           </a>
@@ -883,7 +883,7 @@ importForm.addEventListener('submit', async (e) => {
   // ── Step 1: POST the file to /start → get job_id ──────────────────────
   let jobId;
   try {
-    const resp = await fetch('{{ url_for("start_import_job") }}', {
+    const resp = await fetch('{{ url_for("time_attendance.start_import_job") }}', {
       method: 'POST',
       body: formData
     });
@@ -905,7 +905,7 @@ importForm.addEventListener('submit', async (e) => {
   progressMessage.textContent = 'File received. Starting import...';
 
   // ── Step 2: Open SSE stream for this job ──────────────────────────────
-  const streamUrl = '{{ url_for("stream_import_progress", job_id="__JOB_ID__") }}'.replace('__JOB_ID__', jobId);
+  const streamUrl = '{{ url_for("time_attendance.stream_import_progress", job_id="__JOB_ID__") }}'.replace('__JOB_ID__', jobId);
   const evtSource = new EventSource(streamUrl);
 
   evtSource.onmessage = (event) => {
@@ -942,7 +942,7 @@ importForm.addEventListener('submit', async (e) => {
       // Redirect to records view after a short delay
       if (result.success && result.batch_id) {
         setTimeout(() => {
-          window.location.href = '{{ url_for("time_attendance_records") }}?import_batch=' + result.batch_id;
+          window.location.href = '{{ url_for("time_attendance.time_attendance_records") }}?import_batch=' + result.batch_id;
         }, 2500);
       } else {
         submitBtn.disabled = false;

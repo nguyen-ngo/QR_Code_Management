@@ -212,7 +212,7 @@
             with a fixed distance of 0.010 miles.
         </div>
 
-        <form id="manualAttendanceForm" method="POST" action="{{ url_for('save_manual_attendance') }}">
+        <form id="manualAttendanceForm" method="POST" action="{{ url_for('attendance.save_manual_attendance') }}">
             <!-- Employee Selection with Autocomplete -->
             <div class="form-group">
                 <label for="employee_search">
@@ -307,7 +307,7 @@
 
             <!-- Form Actions -->
             <div class="form-actions">
-                <a href="{{ url_for('attendance_report') }}" class="btn btn-secondary">
+                <a href="{{ url_for('attendance.attendance_report') }}" class="btn btn-secondary">
                     <i class="fas fa-times"></i>
                     Cancel
                 </a>

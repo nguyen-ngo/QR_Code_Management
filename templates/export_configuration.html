@@ -85,7 +85,7 @@
 
     <!-- Export Configuration Form -->
     <div class="export-config-section">
-        <form method="POST" action="{{ url_for('generate_excel_export') }}" id="exportForm">
+        <form method="POST" action="{{ url_for('attendance.generate_excel_export') }}" id="exportForm">
             <!-- Hidden fields for filters -->
             <input type="hidden" name="date_from" value="{{ filters.date_from }}">
             <input type="hidden" name="date_to" value="{{ filters.date_to }}">
@@ -262,7 +262,7 @@ function goBackToReport() {
     if (employeeFilter) params.append('employee', employeeFilter);
     if (projectFilter) params.append('project', projectFilter);
     
-    const url = "{{ url_for('attendance_report') }}" + (params.toString() ? '?' + params.toString() : '');
+    const url = "{{ url_for('attendance.attendance_report') }}" + (params.toString() ? '?' + params.toString() : '');
     window.location.href = url;
 }
 

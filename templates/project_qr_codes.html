@@ -688,7 +688,7 @@
         <p class="project-qr-description">{{ project.description }}</p>
         {% endif %}
       </div>
-      <a href="{{ url_for('dashboard') }}" class="back-button">
+      <a href="{{ url_for('dashboard.dashboard') }}" class="back-button">
         <i class="fas fa-arrow-left"></i>
         Back to Dashboard
       </a>
@@ -712,7 +712,7 @@
 
   <!-- QR Code Search Section -->
   <div class="search-section">
-    <form action="{{ url_for('project_qr_codes', project_id=project.id) }}" method="GET" class="search-form">
+    <form action="{{ url_for('dashboard.project_qr_codes', project_id=project.id) }}" method="GET" class="search-form">
       <div class="search-inputs">
         <div class="search-input-group">
           <label for="search_name">
@@ -745,7 +745,7 @@
             Search
           </button>
           {% if search_name or search_status %}
-          <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-outline">
+          <a href="{{ url_for('dashboard.project_qr_codes', project_id=project.id) }}" class="btn btn-outline">
             <i class="fas fa-times"></i>
             Clear
           </a>
@@ -766,7 +766,7 @@
         {% if search_status %} - Status: <strong>{{ search_status|title }}</strong>{% endif %}
         ({{ qr_codes|length }} QR code{{ 's' if qr_codes|length != 1 else '' }} found)
       </span>
-      <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-sm btn-outline">
+      <a href="{{ url_for('dashboard.project_qr_codes', project_id=project.id) }}" class="btn btn-sm btn-outline">
         <i class="fas fa-times"></i>
         Clear Filters
       </a>
@@ -846,7 +846,7 @@
           <i class="fas fa-download"></i>
         </button>
 
-        <a href="{{ url_for('edit_qr_code', qr_id=qr.id) }}"
+        <a href="{{ url_for('qr_codes.edit_qr_code', qr_id=qr.id) }}"
            class="qr-action-btn edit"
            onclick="event.stopPropagation()"
            title="Edit QR Code">
@@ -876,7 +876,7 @@
       {% if search_name and search_status %} or {% endif %}
       {% if search_status %}try changing the status filter{% endif %}.
     </p>
-    <a href="{{ url_for('project_qr_codes', project_id=project.id) }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
+    <a href="{{ url_for('dashboard.project_qr_codes', project_id=project.id) }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
       <i class="fas fa-times"></i>
       Clear Filters
     </a>
@@ -885,7 +885,7 @@
     <h3>No QR Codes Found</h3>
     <p>This project doesn't have any QR codes yet.</p>
     {% if session.role == 'admin' %}
-    <a href="{{ url_for('create_qr_code') }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
+    <a href="{{ url_for('qr_codes.create_qr_code') }}" class="btn btn-primary" style="margin-top: var(--spacing-4)">
       <i class="fas fa-plus"></i> Create QR Code
     </a>
     {% endif %}
