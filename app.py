@@ -21,6 +21,8 @@ import time as _time
 load_dotenv()
 
 from extensions import db, init_logger
+from config import get_config
+from utils.template_helpers import register_template_helpers
 from logger_handler import log_database_operations
 from models import set_db
 from turnstile_utils import turnstile_utils
@@ -43,21 +45,9 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Configuration
     # ------------------------------------------------------------------
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = os.environ.get('SQLALCHEMY_TRACK_MODIFICATIONS')
-    app.config['TEMPLATES_AUTO_RELOAD'] = os.environ.get('TEMPLATES_AUTO_RELOAD')
-
-    # Session / cookie configuration
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-    app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
-    app.config['SESSION_COOKIE_HTTPONLY'] = os.environ.get('SESSION_COOKIE_HTTPONLY', 'true').lower() == 'true'
-    app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE')
-
-    # Photo verification
-    app.config['PHOTO_VERIFICATION_ENABLED'] = os.environ.get('ENABLE_PHOTO_VERIFICATION', 'true').lower() == 'true'
-    app.config['DISTANCE_THRESHOLD_FOR_VERIFICATION'] = float(os.environ.get('PHOTO_VERIFICATION_DISTANCE_THRESHOLD', '0.3'))
-    app.config['VERIFICATION_PHOTO_MAX_SIZE'] = int(os.environ.get('VERIFICATION_PHOTO_MAX_SIZE', str(5 * 1024 * 1024)))
+    # Load configuration from config.py (single source of truth for env vars)
+    cfg = get_config()
+    app.config.from_object(cfg)
 
     # ------------------------------------------------------------------
     # Database initialization
@@ -129,51 +119,8 @@ def create_app() -> Flask:
             'turnstile_site_key': turnstile_utils.get_site_key()
         }
 
-    # Helper functions for context processors
-    def get_employee_name(employee_id):
-        """Helper function to get employee full name by ID"""
-        from sqlalchemy import text as sa_text
-        try:
-            result = db.session.execute(sa_text("""
-                SELECT CONCAT(firstName, ' ', lastName) as full_name
-                FROM employee
-                WHERE id = :employee_id
-            """), {'employee_id': employee_id})
-            row = result.fetchone()
-            return row[0] if row else f"Employee {employee_id}"
-        except Exception as e:
-            print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
-            return f"Employee {employee_id}"
-
-    def get_qr_code_checkin_count(qr_code_id):
-        """Helper function to get total check-ins count for a QR code"""
-        from models.attendance import AttendanceData
-        try:
-            count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
-            return count
-        except Exception as e:
-            from extensions import logger_handler as _lh
-            _lh.logger.error(f"Error getting check-ins count for QR {qr_code_id}: {e}")
-            return 0
-
-    @app.context_processor
-    def inject_payroll_utils():
-        """Inject payroll utility functions into templates"""
-        from working_hours_calculator import convert_minutes_to_base100, round_base100_hours
-        return {
-            'convert_minutes_to_base100': convert_minutes_to_base100,
-            'round_base100_hours': round_base100_hours,
-            'get_employee_name': get_employee_name,
-            'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
-        }
-
-    @app.context_processor
-    def inject_dashboard_utils():
-        """Inject dashboard utility functions into templates"""
-        return {
-            'now': datetime.utcnow,
-            'get_qr_code_checkin_count': get_qr_code_checkin_count
-        }
+    # Register template helper context processors (from utils/template_helpers.py)
+    register_template_helpers(app)
 
     @app.template_filter('strftime')
     def strftime_filter(value, format='%m/%d/%Y'):
@@ -319,7 +266,8 @@ def create_tables():
         from models.user import User
         admin = User.query.filter_by(username='admin').first()
         if not admin:
-            default_password = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'admin123')
+            from config import Config as _Cfg
+            default_password = _Cfg.DEFAULT_ADMIN_PASSWORD
             admin = User(
                 full_name='System Administrator',
                 email='admin@example.com',
@@ -436,9 +384,10 @@ if __name__ == '__main__':
             print(f"❌ Application startup failed: {e}")
             raise
 
+    from config import Config as _Cfg
     app.run(
-        debug=os.environ.get('DEBUG'),
-        host=os.environ.get('FLASK_HOST'),
-        port=os.environ.get('FLASK_PORT'),
-        threaded=os.environ.get('THREADED')
+        debug=_Cfg.DEBUG,
+        host=_Cfg.FLASK_HOST,
+        port=_Cfg.FLASK_PORT,
+        threaded=_Cfg.THREADED
     )

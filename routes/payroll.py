@@ -6,7 +6,7 @@ Payroll dashboard and Excel export routes.
 Routes: /payroll, /payroll/export-excel, /api/working-hours/calculate,
         /api/employee/<id>/miss-punch-details
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, url_for
+from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, url_for, current_app
 from datetime import datetime, date, timedelta, time
 import io, json, traceback, os
 
@@ -292,7 +292,7 @@ def export_payroll_excel():
             print("📊 Creating enhanced payroll report with SP/PW support")
             try:
                 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
-                exporter = EnhancedPayrollExcelExporter(company_name=os.environ.get('COMPANY_NAME', 'Your Company'))
+                exporter = EnhancedPayrollExcelExporter(company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'))
                 excel_file = exporter.create_enhanced_payroll_report(
                     start_date, end_date, attendance_records, employee_names, project_name
                 )
@@ -302,8 +302,8 @@ def export_payroll_excel():
                 print("⚠️ Enhanced exporter not available, falling back to standard exporter")
                 # Fall back to standard exporter
                 exporter = PayrollExcelExporter(
-                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                    company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
+                    contract_name=current_app.config.get('CONTRACT_NAME', 'Default Contract')
                 )
                 excel_file = exporter.create_payroll_report(
                     start_date, end_date, attendance_records, employee_names
@@ -313,8 +313,8 @@ def export_payroll_excel():
                 print(f"⚠️ Error with enhanced exporter: {e}, falling back to standard exporter")
                 # Fall back to standard exporter
                 exporter = PayrollExcelExporter(
-                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                    company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
+                    contract_name=current_app.config.get('CONTRACT_NAME', 'Default Contract')
                 )
                 excel_file = exporter.create_payroll_report(
                     start_date, end_date, attendance_records, employee_names
@@ -326,7 +326,7 @@ def export_payroll_excel():
             print("📊 Creating detailed SP/PW daily breakdown report")
             try:
                 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
-                exporter = EnhancedPayrollExcelExporter(company_name=os.environ.get('COMPANY_NAME', 'Your Company'))
+                exporter = EnhancedPayrollExcelExporter(company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'))
                 excel_file = exporter.create_detailed_sp_pw_report(
                     start_date, end_date, attendance_records, employee_names
                 )
@@ -336,8 +336,8 @@ def export_payroll_excel():
                 print("⚠️ Enhanced exporter not available, falling back to detailed hours report")
                 # Fall back to standard detailed report
                 exporter = PayrollExcelExporter(
-                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                    company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
+                    contract_name=current_app.config.get('CONTRACT_NAME', 'Default Contract')
                 )
                 excel_file = exporter.create_detailed_hours_report(
                     start_date, end_date, attendance_records, employee_names
@@ -347,8 +347,8 @@ def export_payroll_excel():
                 print(f"⚠️ Error with enhanced exporter: {e}, falling back to detailed hours report")
                 # Fall back to standard detailed report
                 exporter = PayrollExcelExporter(
-                    company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-                    contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                    company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
+                    contract_name=current_app.config.get('CONTRACT_NAME', 'Default Contract')
                 )
                 excel_file = exporter.create_detailed_hours_report(
                     start_date, end_date, attendance_records, employee_names
@@ -358,8 +358,8 @@ def export_payroll_excel():
         else:
             # Use standard exporter for existing report types
             exporter = PayrollExcelExporter(
-                company_name=os.environ.get('COMPANY_NAME', 'Your Company'),
-                contract_name=os.environ.get('CONTRACT_NAME', 'Default Contract')
+                company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
+                contract_name=current_app.config.get('CONTRACT_NAME', 'Default Contract')
             )
 
             if report_type == 'detailed':

@@ -633,7 +633,7 @@ def qr_checkin(qr_url):
         # Check for recent check-ins with 30-minute interval validation
         today = date.today()
         current_time = datetime.now()
-        time_interval = int(os.environ.get('TIME_INTERVAL'))
+        time_interval = current_app.config.get('TIME_INTERVAL', 30)
         the_last_checkin_time = current_time - timedelta(minutes=time_interval)
 
         # Find the most recent check-in for this employee at this location today
