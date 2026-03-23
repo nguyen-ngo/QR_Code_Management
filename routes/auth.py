@@ -141,7 +141,7 @@ def login():
                     )
 
                 flash(f'Welcome back, {user.full_name}!', 'success')
-                print(f"User {user.username} logged in successfully")
+                logger_handler.logger.info(f"User {user.username} (ID: {user.id}) logged in successfully")
 
                 # Redirect to intended page or dashboard
                 next_page = request.args.get('next')
@@ -158,11 +158,11 @@ def login():
                 )
 
                 flash('Invalid username or password.', 'error')
-                print(f"Failed login attempt for username: {username}")
+                logger_handler.logger.warning(f"Failed login attempt for username: {username}")
 
         except Exception as e:
             logger_handler.log_database_error('user_login', e)
-            print(f"Login error: {e}")
+            logger_handler.logger.error(f"Login error for username '{username}': {e}")
             flash('Login error. Please try again.', 'error')
 
     return render_template('login.html')

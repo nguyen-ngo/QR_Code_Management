@@ -201,21 +201,6 @@ def create_user():
         flash('Error loading form. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
-def get_all_locations_from_qr_codes():
-    """Helper function to get all unique locations from QR codes"""
-    try:
-        result = db.session.execute(text("""
-            SELECT DISTINCT location 
-            FROM qr_codes 
-            WHERE location IS NOT NULL 
-            AND active_status = 1
-            ORDER BY location
-        """))
-        return [row[0] for row in result.fetchall()]
-    except Exception as e:
-        logger_handler.logger.error(f"Error loading locations: {e}")
-        return []
-    
 @bp.route('/users/<int:user_id>/delete', methods=['GET', 'POST'], endpoint='delete_user')
 @admin_required
 def delete_user(user_id):
@@ -244,14 +229,16 @@ def delete_user(user_id):
         user_to_delete.active_status = False
         db.session.commit()
 
+        logger_handler.logger.info(
+            f"Admin {current_user.username} deactivated user: {user_to_delete.username} (ID: {user_to_delete.id})"
+        )
         flash(f'User "{user_to_delete.full_name}" has been deactivated successfully.', 'success')
-        print(f"Admin {current_user.username} deactivated user: {user_to_delete.username}")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error deactivating user: {e}")
+        logger_handler.log_database_error('user_deactivation', e)
         flash('Error deactivating user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -272,14 +259,16 @@ def reactivate_user(user_id):
         else:
             user_to_reactivate.active_status = True
             db.session.commit()
+            logger_handler.logger.info(
+                f"Admin {current_user.username} reactivated user: {user_to_reactivate.username} (ID: {user_to_reactivate.id})"
+            )
             flash(f'User "{user_to_reactivate.full_name}" has been reactivated successfully.', 'success')
-            print(f"Admin {current_user.username} reactivated user: {user_to_reactivate.username}")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error reactivating user: {e}")
+        logger_handler.log_database_error('user_reactivation', e)
         flash('Error reactivating user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -300,14 +289,16 @@ def promote_user(user_id):
         else:
             user_to_promote.role = 'admin'
             db.session.commit()
+            logger_handler.logger.info(
+                f"Admin {current_user.username} promoted user {user_to_promote.username} (ID: {user_to_promote.id}) to admin"
+            )
             flash(f'"{user_to_promote.full_name}" has been promoted to admin.', 'success')
-            print(f"Admin {current_user.username} promoted user {user_to_promote.username} to admin")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error promoting user: {e}")
+        logger_handler.log_database_error('user_promotion', e)
         flash('Error promoting user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -339,14 +330,16 @@ def demote_user(user_id):
         else:
             user_to_demote.role = 'staff'
             db.session.commit()
+            logger_handler.logger.info(
+                f"Admin {current_user.username} demoted user {user_to_demote.username} (ID: {user_to_demote.id}) to staff"
+            )
             flash(f'"{user_to_demote.full_name}" has been demoted to staff.', 'success')
-            print(f"Admin {current_user.username} demoted user {user_to_demote.username} to staff")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error demoting user: {e}")
+        logger_handler.log_database_error('user_demotion', e)
         flash('Error demoting user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -602,9 +595,9 @@ def toggle_user_status(user_id):
         message = f'"{user_to_toggle.full_name}" has been {action} successfully.'
 
         # Log status change
-        logger_handler.logger.info(f"Admin {current_user.username} {action} user {user_to_toggle.username}")
-
-        print(f"Admin {current_user.username} {action} user {user_to_toggle.username}")
+        logger_handler.logger.info(
+            f"Admin {current_user.username} {action} user {user_to_toggle.username} (ID: {user_to_toggle.id})"
+        )
 
         return jsonify({
             'success': True,
@@ -616,7 +609,6 @@ def toggle_user_status(user_id):
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_status_toggle', e)
-        print(f"Error toggling user status: {e}")
         return jsonify({
             'success': False,
             'message': 'Error updating user status. Please try again.'
@@ -641,17 +633,17 @@ def activate_user(user_id):
             db.session.commit()
 
             # Log activation
-            logger_handler.logger.info(f"Admin {current_user.username} activated user {user_to_activate.username}")
+            logger_handler.logger.info(
+                f"Admin {current_user.username} activated user {user_to_activate.username} (ID: {user_to_activate.id})"
+            )
 
             flash(f'"{user_to_activate.full_name}" has been activated.', 'success')
-            print(f"Admin {current_user.username} activated user {user_to_activate.username}")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_activation', e)
-        print(f"Error activating user: {e}")
         flash('Error activating user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -686,17 +678,17 @@ def deactivate_user(user_id):
             db.session.commit()
 
             # Log deactivation
-            logger_handler.logger.info(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
+            logger_handler.logger.info(
+                f"Admin {current_user.username} deactivated user {user_to_deactivate.username} (ID: {user_to_deactivate.id})"
+            )
 
             flash(f'"{user_to_deactivate.full_name}" has been deactivated.', 'success')
-            print(f"Admin {current_user.username} deactivated user {user_to_deactivate.username}")
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_deactivation', e)
-        print(f"Error deactivating user: {e}")
         flash('Error deactivating user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 
@@ -741,7 +733,6 @@ def user_stats_api():
 
     except Exception as e:
         logger_handler.log_database_error('user_stats_api', e)
-        print(f"Error fetching user stats: {e}")
         return jsonify({'error': 'Failed to fetch user statistics'}), 500
     
 @bp.route('/api/locations-by-projects', methods=['POST'], endpoint='get_locations_by_projects')
@@ -802,7 +793,7 @@ def role_permissions_api():
         })
 
     except Exception as e:
-        print(f"Error fetching role permissions: {e}")
+        logger_handler.log_database_error('role_permissions_api', e)
         return jsonify({'error': 'Failed to fetch role permissions'}), 500
 
 @bp.route('/api/geocode', methods=['POST'], endpoint='geocode_address_api')
@@ -820,20 +811,16 @@ def geocode_address_api():
             }), 400
 
         # Log API geocoding request
-        try:
-            logger_handler.log_user_activity('api_geocoding_request', f'API geocoding request: {address[:50]}...')
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.logger.info(f"API geocoding request from user {session.get('username', 'unknown')}: {address[:50]}")
 
         # Use the enhanced function that returns 3 values
         lat, lng, accuracy = get_coordinates_from_address_enhanced(address)
 
         if lat is not None and lng is not None:
-            # Log successful API geocoding
-            try:
-                logger_handler.log_user_activity('api_geocoding_success', f'API geocoding success: {address[:50]}... -> {lat}, {lng} ({accuracy})')
-            except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+            logger_handler.logger.info(
+                f"API geocoding success for user {session.get('username', 'unknown')}: "
+                f"{address[:50]} -> {lat}, {lng} ({accuracy})"
+            )
 
             return jsonify({
                 'success': True,
@@ -847,11 +834,9 @@ def geocode_address_api():
                 'message': f'Address geocoded successfully with {accuracy} accuracy using {"Google Maps" if gmaps_client else "OpenStreetMap"}'
             })
         else:
-            # Log failed API geocoding
-            try:
-                logger_handler.log_user_activity('api_geocoding_failed', f'API geocoding failed: {address[:50]}...')
-            except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+            logger_handler.logger.warning(
+                f"API geocoding failed for user {session.get('username', 'unknown')}: {address[:50]}"
+            )
 
             return jsonify({
                 'success': False,
@@ -859,13 +844,7 @@ def geocode_address_api():
             }), 404
 
     except Exception as e:
-        print(f"❌ Geocoding API error: {e}")
-        
-        # Log API geocoding error
-        try:
-            logger_handler.log_flask_error('api_geocoding_error', f'API geocoding error: {str(e)}')
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.log_flask_error('api_geocoding_error', f'API geocoding error: {str(e)}')
 
         return jsonify({
             'success': False,
@@ -888,10 +867,9 @@ def reverse_geocode_api():
             }), 400
 
         # Log API reverse geocoding request
-        try:
-            logger_handler.log_user_activity('api_reverse_geocoding_request', f'API reverse geocoding: {latitude}, {longitude}')
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.logger.info(
+            f"API reverse geocoding request from user {session.get('username', 'unknown')}: {latitude}, {longitude}"
+        )
 
         # Use the reverse geocoding function
         address = reverse_geocode_coordinates(latitude, longitude)
@@ -913,13 +891,7 @@ def reverse_geocode_api():
             }), 404
 
     except Exception as e:
-        print(f"❌ Reverse geocoding API error: {e}")
-        
-        # Log API reverse geocoding error
-        try:
-            logger_handler.log_flask_error('api_reverse_geocoding_error', f'API reverse geocoding error: {str(e)}')
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.log_flask_error('api_reverse_geocoding_error', f'API reverse geocoding error: {str(e)}')
 
         return jsonify({
             'success': False,
@@ -977,16 +949,21 @@ def permanently_delete_user(user_id):
         db.session.delete(user_to_delete)
         db.session.commit()
 
-        # Updated flash message to reflect QR codes are preserved
-        flash(f'User "{user_name}" has been permanently deleted. {user_qr_count} QR codes created by this user are now orphaned but preserved.', 'success')
-        print(f"Admin {current_user.username} permanently deleted user: {username}, preserved {user_qr_count} QR codes")
+        logger_handler.logger.info(
+            f"Admin {current_user.username} permanently deleted user: {username}, "
+            f"preserved {user_qr_count} QR codes"
+        )
+        flash(
+            f'User "{user_name}" has been permanently deleted. '
+            f'{user_qr_count} QR codes created by this user are now orphaned but preserved.',
+            'success'
+        )
 
         return redirect(url_for('users.users'))
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('user_permanent_deletion', e)
-        print(f"Error permanently deleting user: {e}")
         flash('Error deleting user. Please try again.', 'error')
         return redirect(url_for('users.users'))
 

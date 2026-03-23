@@ -32,11 +32,7 @@ bp = Blueprint('employees', __name__)
 def employees():
     """Display employee management page with search and pagination"""
     try:
-        # Log user accessing employee management
-        try:
-            logger_handler.logger.info(f"User {session['username']} accessed employee management list")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.logger.info(f"User {session['username']} accessed employee management list")
         
         # Get search parameters
         search = request.args.get('search', '').strip()
@@ -138,12 +134,12 @@ def create_employee():
             db.session.commit()
             
             # Log employee creation with project info
-            try:
-                project = Project.query.get(contract_id_int)
-                project_name = project.name if project else f"Project {contract_id_int}"
-                logger_handler.logger.info(f"Admin user {session['username']} created new employee: {employee_id_int} - {first_name} {last_name} assigned to {project_name}")
-            except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+            project = Project.query.get(contract_id_int)
+            project_name = project.name if project else f"Project {contract_id_int}"
+            logger_handler.logger.info(
+                f"User {session['username']} created new employee: "
+                f"{employee_id_int} - {first_name} {last_name} assigned to {project_name}"
+            )
             
             flash(f'Employee "{first_name} {last_name}" (ID: {employee_id}) created successfully.', 'success')
             return redirect(url_for('employees.employees'))
@@ -215,14 +211,14 @@ def edit_employee(employee_index):
             employee.contractId = contract_id_int
             
             db.session.commit()
-            
+
             # Log employee update with project info
-            try:
-                project = Project.query.get(contract_id_int)
-                project_name = project.name if project else f"Project {contract_id_int}"
-                logger_handler.logger.info(f"Admin user {session['username']} updated employee: {employee_index} - {first_name} {last_name} assigned to {project_name}")
-            except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+            project = Project.query.get(contract_id_int)
+            project_name = project.name if project else f"Project {contract_id_int}"
+            logger_handler.logger.info(
+                f"User {session['username']} updated employee: "
+                f"{employee_index} - {first_name} {last_name} assigned to {project_name}"
+            )
             
             flash(f'Employee "{first_name} {last_name}" updated successfully.', 'success')
             return redirect(url_for('employees.employees'))
@@ -241,16 +237,15 @@ def edit_employee(employee_index):
 @login_required
 @log_database_operations('employee_deletion')
 def delete_employee(employee_index):
-    """Delete employee (Admin only) - Enhanced with better logging"""
+    """Delete employee (Admin only)"""
     try:
-        print(f"🗑️ DELETE REQUEST: Employee index {employee_index}")
-        print(f"📋 Request method: {request.method}")
-        print(f"👤 User: {session.get('username', 'Unknown')}")
-        
+        logger_handler.logger.info(
+            f"User {session.get('username', 'Unknown')} initiated delete for employee index {employee_index}"
+        )
+
         # Get employee by index (primary key)
         employee = Employee.query.get_or_404(employee_index)
-        print(f"✅ Found employee: {employee.firstName} {employee.lastName} (ID: {employee.id})")
-        
+
         # Store employee data for logging before deletion
         employee_data = {
             'index': employee.index,
@@ -260,44 +255,42 @@ def delete_employee(employee_index):
             'title': employee.title,
             'contractId': employee.contractId
         }
-        
+
         # Check if employee has attendance records
         attendance_count = AttendanceData.query.filter_by(employee_id=str(employee.id)).count()
-        print(f"📊 Attendance records found: {attendance_count}")
-        
+
         if attendance_count > 0:
-            error_msg = f'Cannot delete employee "{employee.full_name}". Employee has {attendance_count} attendance records. Please contact system administrator.'
-            print(f"❌ DELETION BLOCKED: {error_msg}")
+            error_msg = (
+                f'Cannot delete employee "{employee.full_name}". '
+                f'Employee has {attendance_count} attendance records. '
+                f'Please contact system administrator.'
+            )
+            logger_handler.logger.warning(
+                f"Deletion blocked for employee {employee_data['id']} "
+                f"({employee_data['firstName']} {employee_data['lastName']}): "
+                f"{attendance_count} attendance records exist"
+            )
             flash(error_msg, 'error')
             return redirect(url_for('employees.employees'))
-        
-        # Proceed with deletion
-        print(f"🗑️ Proceeding with deletion of employee: {employee_data['firstName']} {employee_data['lastName']}")
-        
+
         db.session.delete(employee)
         db.session.commit()
-        print("✅ Employee successfully deleted from database")
-        
-        # Log employee deletion
-        try:
-            logger_handler.logger.info(f"Admin user {session['username']} deleted employee: {employee_data['firstName']} {employee_data['lastName']} (ID: {employee_data['id']})")
-            print(f"📋 Deletion logged successfully")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
-        
-        success_msg = f'Employee "{employee_data["firstName"]} {employee_data["lastName"]}" deleted successfully.'
-        flash(success_msg, 'success')
-        print(f"✅ SUCCESS: {success_msg}")
-        
+
+        logger_handler.logger.info(
+            f"User {session['username']} deleted employee: "
+            f"{employee_data['firstName']} {employee_data['lastName']} (ID: {employee_data['id']})"
+        )
+
+        flash(
+            f'Employee "{employee_data["firstName"]} {employee_data["lastName"]}" deleted successfully.',
+            'success'
+        )
         return redirect(url_for('employees.employees'))
-        
+
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('employee_deletion', e)
-        error_msg = f'Error deleting employee. Please try again.'
-        print(f"❌ ERROR in delete_employee: {e}")
-        print(f"❌ Exception type: {type(e)}")
-        flash(error_msg, 'error')
+        flash('Error deleting employee. Please try again.', 'error')
         return redirect(url_for('employees.employees'))
 
 @bp.route('/api/employees/search', endpoint='api_employees_search')
@@ -368,10 +361,9 @@ def employee_detail(employee_index):
         }
         
         # Log employee detail view
-        try:
-            logger_handler.logger.info(f"User {session['username']} viewed employee detail: {employee.full_name} (ID: {employee.id})")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        logger_handler.logger.info(
+            f"User {session['username']} viewed employee detail: {employee.full_name} (ID: {employee.id})"
+        )
         
         return render_template('employee_detail.html', 
                              employee=employee, 

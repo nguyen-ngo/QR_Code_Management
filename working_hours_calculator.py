@@ -23,7 +23,10 @@ from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 import math
 import re
+import logging
 from logger_handler import log_database_operations
+
+_calc_logger = logging.getLogger('qr_attendance_app')
 
 # Constants from Java implementation
 RECORD_GROUPING_MAX_MINUTES = 60 * 6  # 6 hours
@@ -402,7 +405,7 @@ class WorkingHoursCalculator:
             Dictionary containing daily and weekly hour calculations with SP/PW/PT breakdown
         """
         try:
-            print(f"🔍 Calculating hours for base employee {employee_id} with SP/PW/PT support")
+            _calc_logger.debug(f"Calculating hours for base employee {employee_id} with SP/PW/PT support")
             
             # Parse base employee ID
             base_employee_id, _ = parse_employee_id_for_work_type(employee_id)
@@ -460,11 +463,15 @@ class WorkingHoursCalculator:
                         records_by_type[work_type].append(att_record)
                         
                 except Exception as record_error:
-                    print(f"⚠️ Error processing record: {record_error}")
+                    _calc_logger.warning(f"Error processing attendance record: {record_error}")
                     continue
             
             total_records = sum(len(records_by_type[wt]) for wt in records_by_type)
-            print(f"📊 Found {total_records} records - Regular: {len(records_by_type['regular'])}, SP: {len(records_by_type['SP'])}, PW: {len(records_by_type['PW'])}, PT: {len(records_by_type['PT'])}")
+            _calc_logger.debug(
+                f"Employee {employee_id}: {total_records} records found — "
+                f"Regular: {len(records_by_type['regular'])}, SP: {len(records_by_type['SP'])}, "
+                f"PW: {len(records_by_type['PW'])}, PT: {len(records_by_type['PT'])}"
+            )
             
             # Group records by date for each work type
             daily_records_by_type = {wt: {} for wt in ['regular', 'SP', 'PW', 'PT']}
@@ -559,8 +566,10 @@ class WorkingHoursCalculator:
 
                     # Move orphaned early check-outs from Day N+1 → Day N
                     for co in orphaned_early_outs[:len(unmatched_late_ins)]:
-                        print(f"🌙 Overnight shift detected for {work_type} on {date_key}: "
-                              f"moving check-out {co.check_in_time} from {next_date_key} → {date_key}")
+                        _calc_logger.info(
+                            f"Overnight shift detected for work_type={work_type} on {date_key}: "
+                            f"moving check-out {co.check_in_time} from {next_date_key} -> {date_key}"
+                        )
                         daily_records_by_type[work_type][date_key].append(co)
                         daily_records_by_type[work_type][next_date_key].remove(co)
 
@@ -697,7 +706,11 @@ class WorkingHoursCalculator:
             grand_pw_hours       = round_base100_hours(sum(week['pw_hours']       for week in weekly_hours))
             grand_pt_hours       = round_base100_hours(sum(week.get('pt_hours', 0) for week in weekly_hours))
             
-            print(f"✅ Employee {employee_id}: Total: {grand_total_hours:.2f}h (Regular: {grand_regular_hours:.2f}h, OT: {grand_overtime_hours:.2f}h, SP: {grand_sp_hours:.2f}h, PW: {grand_pw_hours:.2f}h, PT: {grand_pt_hours:.2f}h)")
+            _calc_logger.info(
+                f"Employee {employee_id}: Total={grand_total_hours:.2f}h "
+                f"(Regular={grand_regular_hours:.2f}h, OT={grand_overtime_hours:.2f}h, "
+                f"SP={grand_sp_hours:.2f}h, PW={grand_pw_hours:.2f}h, PT={grand_pt_hours:.2f}h)"
+            )
             
             return {
                 'employee_id': employee_id,
@@ -723,9 +736,7 @@ class WorkingHoursCalculator:
             }
             
         except Exception as e:
-            print(f"❌ Error calculating working hours for employee {employee_id}: {e}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
+            _calc_logger.error(f"Error calculating working hours for employee {employee_id}: {e}", exc_info=True)
             raise e
     
     def calculate_all_employees_hours(self, start_date: datetime, end_date: datetime, 
@@ -745,7 +756,7 @@ class WorkingHoursCalculator:
             Dictionary containing hours data for all employees with SP/PW/PT breakdown
         """
         try:
-            print(f"🚀 Starting calculation for all employees with SP/PW/PT consolidation")
+            _calc_logger.info("Starting hours calculation for all employees with SP/PW/PT consolidation")
             
             # Get unique BASE employee IDs (consolidate SP/PW/PT variants)
             base_employee_ids = set()
@@ -762,20 +773,20 @@ class WorkingHoursCalculator:
                             base_employee_ids.add(base_id)
                             
                 except Exception as e:
-                    print(f"⚠️ Error processing employee ID: {e}")
+                    _calc_logger.warning(f"Error processing employee ID during consolidation: {e}")
                     continue
             
-            print(f"👥 Found {len(base_employee_ids)} unique base employees (after consolidation)")
+            _calc_logger.info(f"Found {len(base_employee_ids)} unique base employees (after SP/PW/PT consolidation)")
             
             results = {}
             for base_emp_id in sorted(base_employee_ids):
                 try:
-                    print(f"\n🔄 Processing base employee {base_emp_id}")
+                    _calc_logger.debug(f"Processing base employee {base_emp_id}")
                     results[base_emp_id] = self.calculate_employee_hours(
                         base_emp_id, start_date, end_date, attendance_records
                     )
                 except Exception as e:
-                    print(f"❌ Error processing employee {base_emp_id}: {e}")
+                    _calc_logger.error(f"Error processing employee {base_emp_id}: {e}", exc_info=True)
                     # Return empty result for this employee
                     results[base_emp_id] = {
                         'employee_id': base_emp_id,
@@ -810,7 +821,5 @@ class WorkingHoursCalculator:
             }
             
         except Exception as e:
-            print(f"❌ Error calculating hours for all employees: {e}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
+            _calc_logger.error(f"Error calculating hours for all employees: {e}", exc_info=True)
             raise e
