@@ -161,6 +161,7 @@ def login():
                 logger_handler.logger.warning(f"Failed login attempt for username: {username}")
 
         except Exception as e:
+            db.session.rollback()
             logger_handler.log_database_error('user_login', e)
             logger_handler.logger.error(f"Login error for username '{username}': {e}")
             flash('Login error. Please try again.', 'error')
@@ -201,7 +202,7 @@ def logout():
 def profile():
     """User profile management with logging"""
     try:
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
 
         if request.method == 'POST':
             form_type = request.form.get('form_type')
@@ -259,6 +260,7 @@ def profile():
         return render_template('profile.html', user=user)
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('profile_update', e)
         flash('Profile update failed. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))

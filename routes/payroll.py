@@ -44,7 +44,7 @@ def payroll_dashboard():
             flash('Access denied. Only administrators and payroll staff can access payroll features.', 'error')
             return redirect(url_for('dashboard.dashboard'))
 
-        print("📊 Loading payroll dashboard")
+        logger_handler.logger.debug("Loading payroll dashboard")
 
         # Log payroll dashboard access
         logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed payroll dashboard")
@@ -65,9 +65,9 @@ def payroll_dashboard():
         projects = []
         try:
             projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
-            print(f"📊 Found {len(projects)} active projects for filter")
+            logger_handler.logger.debug(f"Found {len(projects)} active projects for payroll filter")
         except Exception as e:
-            print(f"⚠️ Error loading projects: {e}")
+            logger_handler.logger.warning(f"Error loading projects for payroll filter: {e}")
 
         # Get attendance records for the period
         attendance_records = []
@@ -90,12 +90,12 @@ def payroll_dashboard():
                 # Apply project filter if selected
                 if project_filter and project_filter != '':
                     query = query.filter(QRCode.project_id == int(project_filter))
-                    print(f"📊 Applied project filter: {project_filter}")
+                    logger_handler.logger.debug(f"Applied project filter: {project_filter}")
 
                 query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
 
                 attendance_records = query.all()
-                print(f"📊 Found {len(attendance_records)} attendance records for payroll calculation")
+                logger_handler.logger.debug(f"Found {len(attendance_records)} attendance records for payroll calculation")
 
                 # Calculate working hours if we have records
                 if attendance_records:
@@ -103,13 +103,13 @@ def payroll_dashboard():
                     working_hours_data = calculator.calculate_all_employees_hours(
                         start_date, end_date, attendance_records
                     )
-                    print(f"📊 Calculated hours for {working_hours_data['employee_count']} employees")
+                    logger_handler.logger.debug(f"Calculated hours for {working_hours_data['employee_count']} employees")
 
             except ValueError as e:
-                print(f"⚠️ Invalid date format: {e}")
+                logger_handler.logger.warning(f"Invalid date format in payroll dashboard: {e}")
                 flash('Invalid date format. Please use YYYY-MM-DD format.', 'error')
             except Exception as e:
-                print(f"❌ Error calculating working hours: {e}")
+                logger_handler.logger.error(f"Error calculating working hours: {e}", exc_info=True)
                 logger_handler.log_database_error('payroll_calculation', e)
                 flash('Error calculating working hours. Please check the server logs.', 'error')
 
@@ -136,23 +136,21 @@ def payroll_dashboard():
                         if row[1]:  # Only add if we got a name
                             employee_names[str(row[0])] = row[1]
 
-                print(f"📊 Retrieved names for {len(employee_names)} employees using CAST method")
+                logger_handler.logger.debug(f"Retrieved names for {len(employee_names)} employees")
 
             except Exception as e:
-                print(f"⚠️ Could not load employee names: {e}")
-                import traceback
-                print(f"⚠️ Traceback: {traceback.format_exc()}")
+                logger_handler.logger.warning(f"Could not load employee names: {e}", exc_info=True)
                 # Continue without names - will use employee IDs
 
         # Get selected project name for display
         selected_project_name = ''
         if project_filter:
             try:
-                selected_project = Project.query.get(int(project_filter))
+                selected_project = db.session.get(Project, int(project_filter))
                 if selected_project:
                     selected_project_name = selected_project.name
             except Exception as e:
-                print(f"⚠️ Error getting selected project name: {e}")
+                logger_handler.logger.warning(f"Error getting selected project name: {e}")
 
         return render_template('payroll_dashboard.html',
                              working_hours_data=working_hours_data,
@@ -165,9 +163,7 @@ def payroll_dashboard():
                              user_role=user_role)
 
     except Exception as e:
-        print(f"❌ Error loading payroll dashboard: {e}")
-        import traceback
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error loading payroll dashboard: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
             'payroll_dashboard_error',
@@ -191,7 +187,7 @@ def export_payroll_excel():
             flash('Access denied. Only administrators and payroll staff can export payroll data.', 'error')
             return redirect(url_for('payroll.payroll_dashboard'))
 
-        print("📊 Payroll Excel export started")
+        logger_handler.logger.info(f"Payroll Excel export started by user {session.get('username', 'unknown')}")
 
         # Get parameters from form
         date_from = request.form.get('date_from')
@@ -222,7 +218,7 @@ def export_payroll_excel():
         # Apply project filter if selected
         if project_filter and project_filter != '':
             query = query.filter(QRCode.project_id == int(project_filter))
-            print(f"📊 Applied project filter to export: {project_filter}")
+            logger_handler.logger.debug(f"Applied project filter to export: {project_filter}")
 
         query = query.order_by(AttendanceData.employee_id, AttendanceData.check_in_date, AttendanceData.check_in_time)
 
@@ -235,13 +231,13 @@ def export_payroll_excel():
             attendance_data.qr_code = qr_code
             attendance_records.append(attendance_data)
 
-        print(f"📊 Export: Found {len(attendance_records)} records with QR data")
+        logger_handler.logger.info(f"Payroll export: found {len(attendance_records)} records with QR data")
 
         if not attendance_records:
             flash('No attendance records found for the selected date range and project.', 'warning')
             return redirect(url_for('payroll.payroll_dashboard'))
 
-        print(f"📊 Exporting {len(attendance_records)} attendance records to Excel")
+        logger_handler.logger.info(f"Exporting {len(attendance_records)} attendance records to payroll Excel")
 
         # Get employee names using the same method as dashboard
         employee_names = {}
@@ -264,24 +260,22 @@ def export_payroll_excel():
                     if row[1]:  # Only add if we got a name
                         employee_names[str(row[0])] = row[1]
 
-            print(f"📊 Retrieved names for {len(employee_names)} employees for export using CAST method")
+            logger_handler.logger.debug(f"Retrieved names for {len(employee_names)} employees for export")
 
         except Exception as e:
-            print(f"⚠️ Could not load employee names for export: {e}")
-            import traceback
-            print(f"⚠️ Traceback: {traceback.format_exc()}")
+            logger_handler.logger.warning(f"Could not load employee names for export: {e}", exc_info=True)
 
         # Get project name for enhanced reports and filename
         project_name = None
         project_name_for_filename = ''
         if project_filter:
             try:
-                project = Project.query.get(int(project_filter))
+                project = db.session.get(Project, int(project_filter))
                 if project:
                     project_name = project.name
                     project_name_for_filename = f"_{project.name.replace(' ', '_')}"
             except Exception as e:
-                print(f"⚠️ Error getting project name: {e}")
+                logger_handler.logger.warning(f"Error getting project name for export: {e}")
 
         # Generate Excel file based on report type
         excel_file = None
@@ -289,7 +283,7 @@ def export_payroll_excel():
 
         if report_type == 'enhanced':
             # Use enhanced exporter for SP/PW reports
-            print("📊 Creating enhanced payroll report with SP/PW support")
+            logger_handler.logger.debug("Creating enhanced payroll report with SP/PW support")
             try:
                 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
                 exporter = EnhancedPayrollExcelExporter(company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'))
@@ -297,9 +291,9 @@ def export_payroll_excel():
                     start_date, end_date, attendance_records, employee_names, project_name
                 )
                 filename_prefix = 'enhanced_payroll_report'
-                print("✅ Enhanced payroll report created successfully")
+                logger_handler.logger.info("Enhanced payroll report created successfully")
             except ImportError:
-                print("⚠️ Enhanced exporter not available, falling back to standard exporter")
+                logger_handler.logger.warning("Enhanced exporter not available, falling back to standard exporter")
                 # Fall back to standard exporter
                 exporter = PayrollExcelExporter(
                     company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
@@ -310,7 +304,7 @@ def export_payroll_excel():
                 )
                 filename_prefix = 'payroll_report'
             except Exception as e:
-                print(f"⚠️ Error with enhanced exporter: {e}, falling back to standard exporter")
+                logger_handler.logger.warning(f"Enhanced exporter error: {e} — falling back to standard exporter")
                 # Fall back to standard exporter
                 exporter = PayrollExcelExporter(
                     company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
@@ -323,7 +317,7 @@ def export_payroll_excel():
 
         elif report_type == 'detailed_sp_pw':
             # Detailed daily SP/PW breakdown
-            print("📊 Creating detailed SP/PW daily breakdown report")
+            logger_handler.logger.debug("Creating detailed SP/PW daily breakdown report")
             try:
                 from enhanced_payroll_excel_exporter import EnhancedPayrollExcelExporter
                 exporter = EnhancedPayrollExcelExporter(company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'))
@@ -331,9 +325,9 @@ def export_payroll_excel():
                     start_date, end_date, attendance_records, employee_names
                 )
                 filename_prefix = 'detailed_sp_pw_report'
-                print("✅ Detailed SP/PW report created successfully")
+                logger_handler.logger.info("Detailed SP/PW report created successfully")
             except ImportError:
-                print("⚠️ Enhanced exporter not available, falling back to detailed hours report")
+                logger_handler.logger.warning("Enhanced exporter not available, falling back to detailed hours report")
                 # Fall back to standard detailed report
                 exporter = PayrollExcelExporter(
                     company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
@@ -344,7 +338,7 @@ def export_payroll_excel():
                 )
                 filename_prefix = 'detailed_hours_report'
             except Exception as e:
-                print(f"⚠️ Error with enhanced exporter: {e}, falling back to detailed hours report")
+                logger_handler.logger.warning(f"Enhanced exporter error: {e} — falling back to detailed hours report")
                 # Fall back to standard detailed report
                 exporter = PayrollExcelExporter(
                     company_name=current_app.config.get('COMPANY_NAME', 'QR Code Management System'),
@@ -384,7 +378,7 @@ def export_payroll_excel():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f'{filename_prefix}_{date_from}_to_{date_to}{project_name_for_filename}_{timestamp}.xlsx'
 
-            print(f"📊 Payroll Excel file generated successfully: {filename}")
+            logger_handler.logger.info(f"Payroll Excel file generated successfully: {filename}")
 
             # Log successful export
             logger_handler.logger.info(f"Payroll Excel export generated by user {session.get('username', 'unknown')}: {filename}")
@@ -406,9 +400,7 @@ def export_payroll_excel():
             return redirect(url_for('payroll.payroll_dashboard'))
 
     except Exception as e:
-        print(f"❌ Error in export_payroll_excel route: {e}")
-        import traceback
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error in export_payroll_excel route: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
             'payroll_excel_export_error',
@@ -484,7 +476,7 @@ def calculate_working_hours_api():
         })
 
     except Exception as e:
-        print(f"❌ Error in calculate_working_hours_api: {e}")
+        logger_handler.logger.error(f"Error in calculate_working_hours_api: {e}", exc_info=True)
         logger_handler.log_flask_error(
             'working_hours_api_error',
             str(e),
@@ -541,11 +533,9 @@ def get_miss_punch_details(employee_id):
 
             employee_row = employee_query.fetchone()
             employee_name = employee_row.full_name if employee_row and employee_row.full_name else f"Employee {employee_id}"
-            print(f"📋 Retrieved employee name: {employee_name} for ID: {employee_id}")
+            logger_handler.logger.debug(f"Retrieved employee name for ID {employee_id}: {employee_name}")
         except Exception as e:
-            print(f"⚠️ Could not load employee name for ID {employee_id}: {e}")
-            import traceback
-            print(f"⚠️ Traceback: {traceback.format_exc()}")
+            logger_handler.logger.warning(f"Could not load employee name for ID {employee_id}: {e}", exc_info=True)
             employee_name = f"Employee {employee_id}"
 
         # Get attendance records for the employee within the period
@@ -647,9 +637,7 @@ def get_miss_punch_details(employee_id):
         })
 
     except Exception as e:
-        print(f"❌ Error in get_miss_punch_details: {e}")
-        import traceback
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error in get_miss_punch_details: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
             'miss_punch_details_api_error',
@@ -675,7 +663,7 @@ def get_employee_name(employee_id):
         return row[0] if row else f"Employee {employee_id}"
 
     except Exception as e:
-        print(f"⚠️ Error getting employee name for ID {employee_id}: {e}")
+        logger_handler.logger.warning(f"Error getting employee name for ID {employee_id}: {e}")
         return f"Employee {employee_id}"
 
 def get_qr_code_checkin_count(qr_code_id):

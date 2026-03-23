@@ -44,18 +44,18 @@ bp = Blueprint('attendance', __name__)
 def attendance_report():
     """Safe attendance report with backward compatibility for location_accuracy and fixed datetime handling"""
     try:
-        print("📊 Loading attendance report...")
+        logger_handler.logger.debug("Loading attendance report")
 
         # Log attendance report access
         try:
             user_role = session.get('role', 'unknown')
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed attendance report")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        except Exception:
+            pass
 
         # Check if location_accuracy column exists
         has_location_accuracy = check_location_accuracy_column_exists()
-        print(f"🔍 Location accuracy column exists: {has_location_accuracy}")
+        logger_handler.logger.debug(f"Location accuracy column exists: {has_location_accuracy}")
 
         # Get filter parameters
         date_from = request.args.get('date_from', '')
@@ -98,7 +98,7 @@ def attendance_report():
         
         # Check if user is Project Manager and get their permissions
         if user_role == 'project_manager':
-            print(f"🔒 Project Manager access control enabled for user {session.get('username')}")
+            logger_handler.logger.debug(f"Project Manager access control enabled for user {session.get('username')}")
             
             try:
                 # Get assigned projects
@@ -115,10 +115,9 @@ def attendance_report():
                     f"Projects: {allowed_project_ids}, Locations: {allowed_location_names}"
                 )
                 
-                print(f"🔒 Allowed projects: {allowed_project_ids}")
-                print(f"🔒 Allowed locations: {allowed_location_names}")
+                logger_handler.logger.debug(f"PM allowed projects: {allowed_project_ids}, locations: {allowed_location_names}")
             except Exception as perm_error:
-                print(f"⚠️ Error loading permissions: {perm_error}")
+                logger_handler.logger.warning(f"Error loading PM permissions: {perm_error}")
                 logger_handler.logger.error(f"Error loading Project Manager permissions: {perm_error}")
             
             # If no permissions assigned, user cannot view anything
@@ -278,12 +277,12 @@ def attendance_report():
 
         base_query += " ORDER BY ad.check_in_date DESC, ad.check_in_time DESC LIMIT 1000"
 
-        print(f"🔍 Executing attendance query with filters: {list(query_params.keys())}")
+        logger_handler.logger.debug(f"Executing attendance query with filters: {list(query_params.keys())}")
 
         # Execute query
         result = db.session.execute(text(base_query), query_params)
         records = result.fetchall()
-        print(f"✅ Loaded {len(records)} attendance records")
+        logger_handler.logger.debug(f"Loaded {len(records)} attendance records")
 
         # Process records
         processed_records = []
@@ -322,7 +321,7 @@ def attendance_report():
                     record_dict['accuracy_level'] = 'unknown'
                 processed_records.append(record_dict)
             except Exception as rec_error:
-                print(f"⚠️ Error processing record: {rec_error}")
+                logger_handler.logger.warning(f"Error processing attendance record: {rec_error}")
                 continue
 
         # Get unique locations for filter dropdown
@@ -333,7 +332,7 @@ def attendance_report():
             if user_role == 'project_manager' and allowed_location_names:
                 # Only show locations the PM has access to
                 locations = sorted(allowed_location_names)
-                print(f"✅ Filtered to {len(locations)} locations for Project Manager")
+                logger_handler.logger.debug(f"Filtered to {len(locations)} locations for Project Manager")
             else:
                 # Show all locations for Admin/Staff/Payroll
                 locations_query = db.session.execute(text("""
@@ -343,12 +342,12 @@ def attendance_report():
                     ORDER BY location_name
                 """))
                 locations = [row[0] for row in locations_query.fetchall()]
-                print(f"✅ Found {len(locations)} unique locations")
+                logger_handler.logger.debug(f"Found {len(locations)} unique locations")
             # ============================================================
             # END: FILTER LOCATIONS FOR PROJECT MANAGER
             # ============================================================
         except Exception as e:
-            print(f"⚠️ Error loading locations: {e}")
+            logger_handler.logger.warning(f"Error loading locations filter: {e}")
             locations = []
 
         # Get projects for filter dropdown
@@ -369,7 +368,7 @@ def attendance_report():
                     ORDER BY p.name
                 """))
                 projects = projects_query.fetchall()
-                print(f"✅ Filtered to {len(projects)} projects for Project Manager")
+                logger_handler.logger.debug(f"Filtered to {len(projects)} projects for Project Manager")
             else:
                 # Show all projects for Admin/Staff/Payroll
                 projects = db.session.execute(text("""
@@ -382,18 +381,18 @@ def attendance_report():
                     HAVING COUNT(DISTINCT ad.id) > 0
                     ORDER BY p.name
                 """)).fetchall()
-                print(f"✅ Loaded {len(projects)} projects with attendance data")
+                logger_handler.logger.debug(f"Loaded {len(projects)} projects with attendance data")
             # ============================================================
             # END: FILTER PROJECTS FOR PROJECT MANAGER
             # ============================================================
         except Exception as e:
-            print(f"⚠️ Error loading projects: {e}")
+            logger_handler.logger.warning(f"Error loading projects filter: {e}")
             projects = []
 
         # ============================================================
         # STATISTICS - COMPLETELY REWRITTEN FOR SAFETY
         # ============================================================
-        print("📊 Loading statistics...")
+        logger_handler.logger.debug("Loading attendance statistics")
         
         # Create simple dict for stats (most compatible approach)
         stats_dict = {
@@ -455,15 +454,13 @@ def attendance_report():
                 if stats_conditions:
                     stats_query_text += " AND " + " AND ".join(stats_conditions)
             
-            print(f"📊 Executing stats query...")
-            print(f"📊 Stats params: {list(stats_params.keys())}")
+            logger_handler.logger.debug(f"Executing stats query with params: {list(stats_params.keys())}")
             
             # Execute stats query
             stats_result = db.session.execute(text(stats_query_text), stats_params)
             stats_row = stats_result.fetchone()
             
-            print(f"📊 Stats row type: {type(stats_row)}")
-            print(f"📊 Stats row value: {stats_row}")
+            logger_handler.logger.debug(f"Stats row type: {type(stats_row).__name__}")
             
             # Safely extract stats from row
             if stats_row is not None and len(stats_row) >= 7:
@@ -475,17 +472,15 @@ def attendance_report():
                     stats_dict['records_with_gps'] = int(stats_row[4]) if stats_row[4] is not None else 0
                     stats_dict['records_with_accuracy'] = int(stats_row[5]) if stats_row[5] is not None else 0
                     stats_dict['avg_location_accuracy'] = float(stats_row[6]) if stats_row[6] is not None else 0.0
-                    print(f"✅ Loaded statistics: {stats_dict['total_checkins']} total check-ins")
+                    logger_handler.logger.debug(f"Loaded statistics: {stats_dict['total_checkins']} total check-ins")
                 except (IndexError, TypeError, ValueError) as extract_error:
-                    print(f"⚠️ Error extracting stats values: {extract_error}")
+                    logger_handler.logger.warning(f"Error extracting stats values: {extract_error}")
                     # stats_dict already has default values
             else:
-                print("⚠️ Stats query returned None or insufficient columns, using default stats")
+                logger_handler.logger.warning("Stats query returned None or insufficient columns, using default stats")
                 
         except Exception as stats_error:
-            print(f"❌ Error loading statistics: {stats_error}")
-            import traceback
-            print(f"❌ Stats error traceback: {traceback.format_exc()}")
+            logger_handler.logger.error(f"Error loading statistics: {stats_error}", exc_info=True)
             # stats_dict already has default values
         
         # Convert dict to object-like for template compatibility
@@ -495,7 +490,7 @@ def attendance_report():
                     setattr(self, key, value)
         
         stats = StatsObject(stats_dict)
-        print(f"✅ Stats object created: total_checkins={stats.total_checkins}")
+        logger_handler.logger.debug(f"Stats object created: total_checkins={stats.total_checkins}")
         
         # ============================================================
         # END: STATISTICS
@@ -505,8 +500,7 @@ def attendance_report():
         today_date = datetime.now().strftime('%Y-%m-%d')
         current_date_formatted = datetime.now().strftime('%B %d')
 
-        print("✅ Rendering attendance report template")
-        print(f"✅ Stats object: {stats}")
+        logger_handler.logger.debug("Rendering attendance report template")
 
         return render_template('attendance_report.html',
                      attendance_records=processed_records,
@@ -527,18 +521,17 @@ def attendance_report():
                      user_role=user_role)
 
     except Exception as e:
-        print(f"❌ Error loading attendance report: {e}")
-        print(f"❌ Exception type: {type(e)}")
+        logger_handler.logger.error(f"Error loading attendance report: {e}", exc_info=True)
         
         import traceback
         error_traceback = traceback.format_exc()
-        print(f"❌ Traceback: {error_traceback}")
+
 
         # Log the error
         try:
             logger_handler.log_database_error('attendance_report', e)
         except Exception as log_error:
-            print(f"⚠️ Additional logging error: {log_error}")
+            logger_handler.logger.warning(f"Additional logging error: {log_error}")
 
         flash('Error loading attendance report. Please check the server logs for details.', 'error')
         return redirect(url_for('dashboard.dashboard'))
@@ -595,7 +588,7 @@ def edit_attendance(record_id):
                                      qr_codes=QRCode.query.filter_by(active_status=True).all())
             
             # Validate the QR code exists
-            new_qr_code = QRCode.query.get(int(new_qr_code_id))
+            new_qr_code = db.session.get(QRCode, int(new_qr_code_id))
             if not new_qr_code:
                 flash('Selected location event not found.', 'error')
                 projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
@@ -657,8 +650,10 @@ def edit_attendance(record_id):
                         'editor_username': session.get('username')
                     }
                 )
-                print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} updated attendance record {record_id}: {changes}")
-                print(f"[LOG] Edit reason: {edit_note}")
+                logger_handler.logger.info(
+                    f"User {session.get('username')} ({session.get('role', 'unknown')}) "
+                    f"updated attendance record {record_id}: {changes}, reason: {edit_note}"
+                )
             else:
                 # Log even if no changes were made (for audit purposes)
                 logger_handler.log_security_event(
@@ -672,8 +667,10 @@ def edit_attendance(record_id):
                         'editor_username': session.get('username')
                     }
                 )
-                print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} edited record {record_id} with no changes")
-                print(f"[LOG] Edit reason: {edit_note}")
+                logger_handler.logger.info(
+                    f"User {session.get('username')} ({session.get('role', 'unknown')}) "
+                    f"edited attendance record {record_id} with no changes, reason: {edit_note}"
+                )
 
             flash(f'Attendance record for {new_employee_id} updated successfully! Edit reason logged for audit.', 'success')
             return redirect(url_for('attendance.attendance_report'))
@@ -693,7 +690,7 @@ def edit_attendance(record_id):
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('attendance_update', e)
-        print(f"[LOG] Error updating attendance record {record_id}: {e}")
+        logger_handler.logger.error(f"Error updating attendance record {record_id}: {e}", exc_info=True)
         flash('Error updating attendance record. Please try again.', 'error')
         return redirect(url_for('attendance.attendance_report'))
 
@@ -770,7 +767,7 @@ def save_manual_attendance():
             return redirect(url_for('attendance.add_manual_attendance'))
         
         # Get QR code (location)
-        qr_code = QRCode.query.get(int(location_id))
+        qr_code = db.session.get(QRCode, int(location_id))
         if not qr_code:
             flash('Selected location not found.', 'error')
             return redirect(url_for('attendance.add_manual_attendance'))
@@ -1093,7 +1090,10 @@ def delete_attendance(record_id):
         db.session.delete(attendance_record)
         db.session.commit()
 
-        print(f"[LOG] {session.get('role', 'unknown').title()} {session.get('username')} deleted attendance record {record_id} for employee {employee_id}")
+        logger_handler.logger.info(
+            f"User {session.get('username')} ({session.get('role', 'unknown')}) "
+            f"deleted attendance record {record_id} for employee {employee_id}"
+        )
 
         # Return JSON response for AJAX requests
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1108,7 +1108,7 @@ def delete_attendance(record_id):
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('attendance_delete', e)
-        print(f"[LOG] Error deleting attendance record {record_id}: {e}")
+        logger_handler.logger.error(f"Error deleting attendance record {record_id}: {e}", exc_info=True)
 
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
@@ -1191,7 +1191,7 @@ def verification_review():
                 project_id = record.qr_code.project_id
                 if project_id not in project_names:
                     try:
-                        project = Project.query.get(project_id)
+                        project = db.session.get(Project, project_id)
                         if project:
                             project_names[project_id] = project.name
                         else:
@@ -1307,16 +1307,11 @@ def get_verification_details(record_id):
         record = AttendanceData.query.get_or_404(record_id)
         
         # DEBUG: Log record details
-        print(f"=== VERIFICATION DETAILS DEBUG ===")
-        print(f"Record ID: {record.id}")
-        print(f"Employee: {record.employee_id}")
-        print(f"check_in_date type: {type(record.check_in_date)}")
-        print(f"check_in_date value: {record.check_in_date}")
-        print(f"check_in_time type: {type(record.check_in_time)}")
-        print(f"check_in_time value: {record.check_in_time}")
-        print(f"verification_photo exists: {record.verification_photo is not None}")
-        print(f"verification_status: {record.verification_status}")
-        print(f"==================================")
+        logger_handler.logger.debug(
+            f"Verification details: record={record.id}, employee={record.employee_id}, "
+            f"date={record.check_in_date}, time={record.check_in_time}, "
+            f"has_photo={record.verification_photo is not None}, status={record.verification_status}"
+        )
         
         # Check if user has permission to view
         # Allow admin and payroll staff to view verification details
@@ -1333,13 +1328,13 @@ def get_verification_details(record_id):
         try:
             check_in_date_str = record.check_in_date.strftime('%Y-%m-%d') if record.check_in_date else 'N/A'
         except Exception as e:
-            print(f"Error formatting check_in_date: {e}")
+            logger_handler.logger.warning(f"Error formatting check_in_date for record {record_id}: {e}")
             check_in_date_str = str(record.check_in_date) if record.check_in_date else 'N/A'
         
         try:
             check_in_time_str = record.check_in_time.strftime('%I:%M %p') if record.check_in_time else 'N/A'
         except Exception as e:
-            print(f"Error formatting check_in_time: {e}")
+            logger_handler.logger.warning(f"Error formatting check_in_time for record {record_id}: {e}")
             check_in_time_str = str(record.check_in_time) if record.check_in_time else 'N/A'
         
         # Prepare record data with safe formatting
@@ -1373,11 +1368,8 @@ def get_verification_details(record_id):
         })
     
     except Exception as e:
-        logger_handler.logger.error(f"Error getting verification details for record {record_id}: {e}")
-        print(f"❌ Error in get_verification_details for record {record_id}: {e}")
-        import traceback
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        
+        logger_handler.logger.error(f"Error in get_verification_details for record {record_id}: {e}", exc_info=True)
+
         return jsonify({
             'success': False,
             'message': 'Error loading verification details'
@@ -1402,7 +1394,7 @@ def verification_review_detail(record_id):
             return redirect(url_for('attendance.attendance_report'))
         
         # Get the QR code information for additional context
-        qr_code = QRCode.query.get(record.qr_code_id) if record.qr_code_id else None
+        qr_code = db.session.get(QRCode, record.qr_code_id) if record.qr_code_id else None
         
         # Get employee name from Employee table
         employee_name = None
@@ -1497,7 +1489,7 @@ def attendance_stats_api():
         })
 
     except Exception as e:
-        print(f"Error fetching attendance stats: {e}")
+        logger_handler.logger.error(f"Error fetching attendance stats: {e}", exc_info=True)
         return jsonify({'error': 'Failed to fetch attendance statistics'}), 500
 
 @bp.route('/export-configuration', endpoint='export_configuration')
@@ -1515,8 +1507,8 @@ def export_configuration():
         try:
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} (role: {user_role}) accessed export configuration")
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} accessed export configuration page")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        except Exception:
+            pass
 
         # Get current filters from session or request args
         filters = {
@@ -1527,24 +1519,24 @@ def export_configuration():
             'project_filter': request.args.get('project', '')
         }
 
-        print(f"📊 Filters: {filters}")
+        logger_handler.logger.debug(f"Export config filters: {filters}")
         
         # Get project name if project filter is applied
         project_name = None
         if filters.get('project_filter'):
             try:
-                project = Project.query.get(int(filters['project_filter']))
+                project = db.session.get(Project, int(filters['project_filter']))
                 if project:
                     project_name = project.name
-                    print(f"📊 Project filter: ID={filters['project_filter']}, Name={project_name}")
+                    logger_handler.logger.debug(f"Project filter: ID={filters['project_filter']}, Name={project_name}")
             except Exception as e:
-                print(f"⚠️ Error fetching project name: {e}")
+                logger_handler.logger.warning(f"Error fetching project name for filter: {e}")
 
         # Check if location accuracy feature exists
         try:
             has_location_accuracy = check_location_accuracy_column_exists()
         except Exception as e:
-            print(f"⚠️ Error checking location accuracy column: {e}")
+            logger_handler.logger.warning(f"Error checking location accuracy column: {e}")
             has_location_accuracy = False
 
         # Define all available columns with their default settings
@@ -1574,7 +1566,7 @@ def export_configuration():
                 'enabled': True  # Changed from False to True
             })
 
-        print(f"📊 Rendering export configuration with {len(available_columns)} columns")
+        logger_handler.logger.debug(f"Rendering export configuration with {len(available_columns)} columns")
 
         return render_template('export_configuration.html',
                              available_columns=available_columns,
@@ -1583,8 +1575,7 @@ def export_configuration():
                              has_location_accuracy_feature=has_location_accuracy)
 
     except Exception as e:
-        print(f"❌ Error in export_configuration route: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error in export_configuration route: {e}", exc_info=True)
 
         # Use your existing logger error method with correct parameters
         try:
@@ -1594,7 +1585,7 @@ def export_configuration():
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
-            print(f"⚠️ Could not log error: {log_error}")
+            logger_handler.logger.warning(f"Could not log error: {log_error}")
 
         flash('Error loading export configuration page.', 'error')
         return redirect(url_for('attendance.attendance_report'))
@@ -1610,17 +1601,17 @@ def generate_excel_export():
             flash('Access denied. Only administrators and payroll staff can export data.', 'error')
             return redirect(url_for('attendance.attendance_report'))
 
-        print("📊 Excel export generation started")
+        logger_handler.logger.info(f"Excel export started by user {session.get('username', 'unknown')}")
 
         # Log export action using your existing logger
         try:
             logger_handler.logger.info(f"User {session.get('username', 'unknown')} generated Excel export")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        except Exception:
+            pass
 
         # Get selected columns and custom names from form
         selected_columns_raw = request.form.getlist('selected_columns')
-        print(f"📊 Selected columns (raw): {selected_columns_raw}")
+        logger_handler.logger.debug(f"Selected columns (raw): {selected_columns_raw}")
 
         # Get column order from form
         column_order_json = request.form.get('column_order', '[]')
@@ -1629,7 +1620,7 @@ def generate_excel_export():
         except (json.JSONDecodeError, TypeError):
             column_order = []
 
-        print(f"📊 Column order from form: {column_order}")
+        logger_handler.logger.debug(f"Column order from form: {column_order}")
 
         # Determine final column order
         if column_order:
@@ -1643,7 +1634,7 @@ def generate_excel_export():
             # Fallback to raw selection order
             selected_columns = selected_columns_raw
 
-        print(f"📊 Final column order: {selected_columns}")
+        logger_handler.logger.debug(f"Final column order: {selected_columns}")
 
         if not selected_columns:
             flash('Please select at least one column to export.', 'error')
@@ -1662,8 +1653,7 @@ def generate_excel_export():
             'project_filter': request.form.get('project_filter')
         }
 
-        print(f"📊 Export filters: {filters}")
-        print(f"📊 Column names: {column_names}")
+        logger_handler.logger.debug(f"Export filters: {filters}")
 
         # Save user preferences in session for next time
         session['export_preferences'] = {
@@ -1680,13 +1670,13 @@ def generate_excel_export():
             project_name_for_filename = ''
             if filters.get('project_filter'):
                 try:
-                    project = Project.query.get(int(filters['project_filter']))
+                    project = db.session.get(Project, int(filters['project_filter']))
                     if project:
                         # Replace spaces and special characters with underscores
                         project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
                         project_name_for_filename = f"{project_name_safe}_"
                 except Exception as e:
-                    print(f"⚠️ Error getting project name for filename: {e}")
+                    logger_handler.logger.warning(f"Error getting project name for filename: {e}")
             
             # Format dates for filename (MMDDYYYY format)
             date_from_formatted = ''
@@ -1717,14 +1707,13 @@ def generate_excel_export():
             
             filename = f'{project_name_for_filename}attendance_report_{date_range_str}.xlsx'
 
-            print(f"📊 Excel file generated successfully: {filename}")
-            print(f"📊 Column order in export: {selected_columns}")
+            logger_handler.logger.info(f"Excel export generated successfully: {filename}")
 
             # Log successful export using your existing logger
             try:
                 logger_handler.logger.info(f"Excel export generated successfully with {len(selected_columns)} columns in custom order by user {session.get('username', 'unknown')}: {filename}")
-            except Exception as log_error:
-                print(f"⚠️ Logging error (non-critical): {log_error}")
+            except Exception:
+                pass
 
             return send_file(
                 excel_file,
@@ -1737,8 +1726,7 @@ def generate_excel_export():
             return redirect(url_for('attendance.export_configuration'))
 
     except Exception as e:
-        print(f"❌ Error in generate_excel_export route: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error in generate_excel_export route: {e}", exc_info=True)
 
         # Use your existing logger error method with correct parameters
         try:
@@ -1748,7 +1736,7 @@ def generate_excel_export():
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
-            print(f"⚠️ Could not log error: {log_error}")
+            logger_handler.logger.warning(f"Could not log error: {log_error}")
 
         flash('Error generating Excel export.', 'error')
         return redirect(url_for('attendance.export_configuration'))
@@ -1756,7 +1744,7 @@ def generate_excel_export():
 def create_excel_export(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data - Updated to include employee names"""
     try:
-        print(f"📊 Creating Excel export with {len(selected_columns)} columns")
+        logger_handler.logger.info(f"Creating Excel export with {len(selected_columns)} columns")
 
         # Import openpyxl modules
         try:
@@ -1764,8 +1752,7 @@ def create_excel_export(selected_columns, column_names, filters):
             from openpyxl.styles import Font, Alignment, PatternFill
             from openpyxl.utils import get_column_letter
         except ImportError as e:
-            print(f"❌ openpyxl import error: {e}")
-            print("💡 Install openpyxl: pip install openpyxl")
+            logger_handler.logger.error(f"openpyxl import error: {e}. Run: pip install openpyxl")
             return None
 
         # Build query based on filters - JOIN with QRCode to get location_event and location_address
@@ -1781,22 +1768,22 @@ def create_excel_export(selected_columns, column_names, filters):
             try:
                 date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
                 query = query.filter(AttendanceData.check_in_date >= date_from)
-                print(f"📊 Applied date_from filter: {date_from}")
+                logger_handler.logger.debug(f"Applied date_from filter: {date_from}")
             except ValueError as e:
-                print(f"⚠️ Invalid date_from format: {e}")
+                logger_handler.logger.warning(f"Invalid date_from format: {e}")
 
         if filters.get('date_to'):
             try:
                 date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
                 query = query.filter(AttendanceData.check_in_date <= date_to)
-                print(f"📊 Applied date_to filter: {date_to}")
+                logger_handler.logger.debug(f"Applied date_to filter: {date_to}")
             except ValueError as e:
-                print(f"⚠️ Invalid date_to format: {e}")
+                logger_handler.logger.warning(f"Invalid date_to format: {e}")
 
         # Apply location filter
         if filters.get('location_filter'):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
-            print(f"📊 Applied location filter: {filters['location_filter']}")
+            logger_handler.logger.debug(f"Applied location filter: {filters['location_filter']}")
 
         # Apply employee filter — supports comma-separated multi-employee values
         if filters.get('employee_filter'):
@@ -1805,26 +1792,26 @@ def create_excel_export(selected_columns, column_names, filters):
                 query = query.filter(AttendanceData.employee_id == emp_ids[0])
             elif len(emp_ids) > 1:
                 query = query.filter(AttendanceData.employee_id.in_(emp_ids))
-            print(f"📊 Applied employee filter: {emp_ids}")
+            logger_handler.logger.debug(f"Applied employee filter: {emp_ids}")
 
         # Apply project filter
         if filters.get('project_filter'):
             try:
                 project_id = int(filters['project_filter'])
                 query = query.filter(QRCode.project_id == project_id)
-                print(f"📊 Applied project filter: {project_id}")
+                logger_handler.logger.debug(f"Applied project filter: {project_id}")
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Invalid project filter: {e}")
+                logger_handler.logger.warning(f"Invalid project filter: {e}")
 
         # Order by date and time
         query = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc())
 
         # Execute query
         results = query.all()
-        print(f"📊 Query returned {len(results)} records")
+        logger_handler.logger.debug(f"Query returned {len(results)} records for export")
 
         if not results:
-            print("⚠️ No records found for export")
+            logger_handler.logger.warning("No records found for export")
             return None
 
         # Create workbook
@@ -1890,10 +1877,10 @@ def create_excel_export(selected_columns, column_names, filters):
                                         lng_formatted = f"{float(qr_record.address_longitude):.10f}"
                                         hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
-                                        print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
+                                        logger_handler.logger.debug(f"Added QR address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
-                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                    logger_handler.logger.debug(f"Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                                 else:
                                     # Lower accuracy - use actual check-in address with hyperlink
                                     address_text = attendance_record.address or ''
@@ -1903,10 +1890,10 @@ def create_excel_export(selected_columns, column_names, filters):
                                         lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                         hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
-                                        print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
+                                        logger_handler.logger.debug(f"Added check-in address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
-                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                    logger_handler.logger.debug(f"Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                             except (ValueError, TypeError):
                                 # If accuracy can't be converted to float, use check-in address with hyperlink
                                 address_text = attendance_record.address or ''
@@ -1916,7 +1903,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                     lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                     hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                     cell.value = hyperlink_formula
-                                    print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
+                                    logger_handler.logger.debug(f"Added check-in address hyperlink (fallback) for employee {attendance_record.employee_id}")
                                 else:
                                     cell.value = address_text
                         else:
@@ -1928,7 +1915,7 @@ def create_excel_export(selected_columns, column_names, filters):
                                 lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                 hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                 cell.value = hyperlink_formula
-                                print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
+                                logger_handler.logger.debug(f"Added check-in address hyperlink (no accuracy data) for employee {attendance_record.employee_id}")
                             else:
                                 cell.value = address_text
                     elif column_key == 'device_info':
@@ -1948,7 +1935,7 @@ def create_excel_export(selected_columns, column_names, filters):
                     else:
                         cell.value = ''
                 except Exception as cell_error:
-                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
+                    logger_handler.logger.warning(f"Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
 
         # Auto-adjust column widths based on content and header
@@ -2007,26 +1994,25 @@ def create_excel_export(selected_columns, column_names, filters):
             
             ws.column_dimensions[column_letter].width = adjusted_width
             
-            print(f"📏 Column {column_letter} ({column_key}): set width to {adjusted_width} (content: {max_length} chars)")
+            logger_handler.logger.debug(f"Column {column_letter} ({column_key}): width={adjusted_width} (max_content={max_length})")
 
         # Save to BytesIO
         excel_buffer = io.BytesIO()
         wb.save(excel_buffer)
         excel_buffer.seek(0)
 
-        print("📊 Excel file created successfully with employee names")
+        logger_handler.logger.info("Excel file created successfully with employee names")
         
         # Log export action with employee name column
         try:
             logger_handler.logger.info(f"Excel export with employee names generated by user {session.get('username', 'unknown')}")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        except Exception:
+            pass
             
         return excel_buffer
 
     except Exception as e:
-        print(f"❌ Error creating Excel export: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error creating Excel export: {e}", exc_info=True)
         
         # Log error
         try:
@@ -2036,7 +2022,7 @@ def create_excel_export(selected_columns, column_names, filters):
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
-            print(f"⚠️ Could not log error: {log_error}")
+            logger_handler.logger.warning(f"Could not log error: {log_error}")
             
         return None
 
@@ -2052,7 +2038,7 @@ def format_employee_id_for_excel(employee_id):
 def create_excel_export_ordered(selected_columns, column_names, filters):
     """Create Excel file with selected attendance data in specified column order"""
     try:
-        print(f"📊 Creating Excel export with {len(selected_columns)} columns in order: {selected_columns}")
+        logger_handler.logger.info(f"Creating Excel export with {len(selected_columns)} columns")
 
         # Import openpyxl modules
         try:
@@ -2060,8 +2046,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             from openpyxl.styles import Font, Alignment, PatternFill
             from openpyxl.utils import get_column_letter
         except ImportError as e:
-            print(f"❌ openpyxl import error: {e}")
-            print("💡 Install openpyxl: pip install openpyxl")
+            logger_handler.logger.error(f"openpyxl import error: {e}. Run: pip install openpyxl")
             return None
 
         # Build query based on filters - JOIN with QRCode to get location_event and location_address
@@ -2077,22 +2062,22 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             try:
                 date_from = datetime.strptime(filters['date_from'], '%Y-%m-%d').date()
                 query = query.filter(AttendanceData.check_in_date >= date_from)
-                print(f"📊 Applied date_from filter: {date_from}")
+                logger_handler.logger.debug(f"Applied date_from filter: {date_from}")
             except ValueError as e:
-                print(f"⚠️ Invalid date_from format: {e}")
+                logger_handler.logger.warning(f"Invalid date_from format: {e}")
 
         if filters.get('date_to'):
             try:
                 date_to = datetime.strptime(filters['date_to'], '%Y-%m-%d').date()
                 query = query.filter(AttendanceData.check_in_date <= date_to)
-                print(f"📊 Applied date_to filter: {date_to}")
+                logger_handler.logger.debug(f"Applied date_to filter: {date_to}")
             except ValueError as e:
-                print(f"⚠️ Invalid date_to format: {e}")
+                logger_handler.logger.warning(f"Invalid date_to format: {e}")
 
         # Apply location filter
         if filters.get('location_filter'):
             query = query.filter(AttendanceData.location_name.like(f"%{filters['location_filter']}%"))
-            print(f"📊 Applied location filter: {filters['location_filter']}")
+            logger_handler.logger.debug(f"Applied location filter: {filters['location_filter']}")
 
         # Apply employee filter — supports comma-separated multi-employee values
         if filters.get('employee_filter'):
@@ -2101,26 +2086,26 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 query = query.filter(AttendanceData.employee_id == emp_ids[0])
             elif len(emp_ids) > 1:
                 query = query.filter(AttendanceData.employee_id.in_(emp_ids))
-            print(f"📊 Applied employee filter: {emp_ids}")
+            logger_handler.logger.debug(f"Applied employee filter: {emp_ids}")
 
         # Apply project filter
         if filters.get('project_filter'):
             try:
                 project_id = int(filters['project_filter'])
                 query = query.filter(QRCode.project_id == project_id)
-                print(f"📊 Applied project filter: {project_id}")
+                logger_handler.logger.debug(f"Applied project filter: {project_id}")
             except (ValueError, TypeError) as e:
-                print(f"⚠️ Invalid project filter: {e}")
+                logger_handler.logger.warning(f"Invalid project filter: {e}")
 
         # Order by date and time
         query = query.order_by(AttendanceData.check_in_date.desc(), AttendanceData.check_in_time.desc())
 
         # Execute query
         results = query.all()
-        print(f"📊 Query returned {len(results)} records")
+        logger_handler.logger.debug(f"Query returned {len(results)} records for export")
 
         if not results:
-            print("⚠️ No records found for export")
+            logger_handler.logger.warning("No records found for export")
             return None
 
         # Create workbook
@@ -2192,10 +2177,10 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                         lng_formatted = f"{float(qr_record.address_longitude):.10f}"
                                         hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
-                                        print(f"📍 Added QR address hyperlink for employee {attendance_record.employee_id}")
+                                        logger_handler.logger.debug(f"Added QR address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
-                                    print(f"📍 Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                    logger_handler.logger.debug(f"Using QR address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                                 else:
                                     # Lower accuracy - use actual check-in address with hyperlink
                                     address_text = attendance_record.address or ''
@@ -2205,10 +2190,10 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                         lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                         hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                         cell.value = hyperlink_formula
-                                        print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id}")
+                                        logger_handler.logger.debug(f"Added check-in address hyperlink for employee {attendance_record.employee_id}")
                                     else:
                                         cell.value = address_text
-                                    print(f"📍 Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
+                                    logger_handler.logger.debug(f"Using check-in address for employee {attendance_record.employee_id} (accuracy: {accuracy_value:.3f} miles)")
                             except (ValueError, TypeError):
                                 # If accuracy can't be converted to float, use check-in address with hyperlink
                                 address_text = attendance_record.address or ''
@@ -2218,7 +2203,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                     lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                     hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                     cell.value = hyperlink_formula
-                                    print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (fallback)")
+                                    logger_handler.logger.debug(f"Added check-in address hyperlink (fallback) for employee {attendance_record.employee_id}")
                                 else:
                                     cell.value = address_text
                         else:
@@ -2230,7 +2215,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                 lng_formatted = f"{float(attendance_record.longitude):.10f}"
                                 hyperlink_formula = f'=HYPERLINK("http://maps.google.com/maps?q={lat_formatted},{lng_formatted}","{address_text.strip()}")'
                                 cell.value = hyperlink_formula
-                                print(f"📍 Added check-in address hyperlink for employee {attendance_record.employee_id} (no accuracy data)")
+                                logger_handler.logger.debug(f"Added check-in address hyperlink (no accuracy data) for employee {attendance_record.employee_id}")
                             else:
                                 cell.value = address_text
                     elif column_key == 'device_info':
@@ -2259,7 +2244,7 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     else:
                         cell.value = ''
                 except Exception as cell_error:
-                    print(f"⚠️ Error setting cell value for {column_key}: {cell_error}")
+                    logger_handler.logger.warning(f"Error setting cell value for {column_key}: {cell_error}")
                     cell.value = ''
 
         # Auto-adjust column widths based on content and header
@@ -2318,26 +2303,25 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
             
             ws.column_dimensions[column_letter].width = adjusted_width
             
-            print(f"📏 Column {column_letter} ({column_key}): set width to {adjusted_width} (content: {max_length} chars)")
+            logger_handler.logger.debug(f"Column {column_letter} ({column_key}): width={adjusted_width} (max_content={max_length})")
 
         # Save to BytesIO
         excel_buffer = io.BytesIO()
         wb.save(excel_buffer)
         excel_buffer.seek(0)
 
-        print("📊 Excel file created successfully with employee names and verification status coloring")
+        logger_handler.logger.info("Excel file created successfully with employee names and verification status coloring")
         
         # Log export action with employee name column and verification status coloring
         try:
             logger_handler.logger.info(f"Excel export with employee names and verification status coloring generated by user {session.get('username', 'unknown')}")
-        except Exception as log_error:
-            print(f"⚠️ Logging error (non-critical): {log_error}")
+        except Exception:
+            pass
             
         return excel_buffer
 
     except Exception as e:
-        print(f"❌ Error creating Excel export: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error creating Excel export: {e}", exc_info=True)
         
         # Log error
         try:
@@ -2347,6 +2331,6 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                 stack_trace=traceback.format_exc()
             )
         except Exception as log_error:
-            print(f"⚠️ Could not log error: {log_error}")
+            logger_handler.logger.warning(f"Could not log error: {log_error}")
             
         return None

@@ -120,6 +120,180 @@ def _qtr(decimal_hours: float) -> float:
     base100 = convert_minutes_to_base100(rounded_minutes)
     return round_base100_hours(base100)
 
+# ---------------------------------------------------------------------------
+# Private export helpers — shared by both export functions below.
+# ---------------------------------------------------------------------------
+
+def _resolve_date_range(start_date_filter, end_date_filter, records, export_label='TA Excel export'):
+    """
+    Resolve and validate the export date range.
+
+    Returns (start_date, end_date, filtered_records) where:
+    - start_date / end_date are date objects
+    - filtered_records is the input list capped to end_date + 1 day (overnight buffer)
+    - end_date is capped to a maximum 14-day window
+    Returns None when there are no records and no date filters.
+    """
+    MAX_EXPORT_DAYS = 14
+
+    if start_date_filter and end_date_filter:
+        if isinstance(start_date_filter, str):
+            start_date = datetime.strptime(start_date_filter, '%Y-%m-%d').date()
+        else:
+            start_date = start_date_filter
+        if isinstance(end_date_filter, str):
+            end_date = datetime.strptime(end_date_filter, '%Y-%m-%d').date()
+        else:
+            end_date = end_date_filter
+    elif records:
+        start_date = min(r.attendance_date for r in records)
+        end_date   = max(r.attendance_date for r in records)
+    else:
+        return None
+
+    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
+        capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
+        logger_handler.logger.info(
+            f"{export_label}: date range [{start_date} \u2013 {end_date}] exceeds "
+            f"{MAX_EXPORT_DAYS} days; capping end_date to {capped_end_date}."
+        )
+        end_date = capped_end_date
+
+    # Preserve one extra calendar day so early-morning check-out records
+    # stored on Day N+1 remain available for overnight pairing detection.
+    # Display range is still controlled by dates_with_records (capped to end_date).
+    filtered_records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
+
+    return start_date, end_date, filtered_records
+
+
+def _convert_ta_records(records):
+    """
+    Convert TimeAttendance ORM records to the lightweight anonymous-class
+    format expected by WorkingHoursCalculator and the Excel rendering loops.
+
+    Returns a list of converted record objects.
+    """
+    from working_hours_calculator import parse_employee_id_for_work_type
+
+    converted = []
+    for record in records:
+        distance_value = getattr(record, 'distance', None)
+
+        record_type = 'check_in'
+        if hasattr(record, 'action_description') and record.action_description:
+            action_lower = record.action_description.lower()
+            if 'out' in action_lower or 'checkout' in action_lower:
+                record_type = 'check_out'
+
+        _, work_type = parse_employee_id_for_work_type(str(record.employee_id))
+
+        base_location_name = record.location_name
+        if work_type and work_type in ('PT', 'SP', 'PW'):
+            display_location_name = f"{base_location_name} ({work_type})"
+        else:
+            display_location_name = base_location_name
+
+        converted_record = type('Record', (), {
+            'id':                   record.id,
+            'employee_id':          str(record.employee_id),
+            'employee_name':        getattr(record, 'employee_name', ''),
+            'check_in_date':        record.attendance_date,
+            'check_in_time':        record.attendance_time,
+            'location_name':        display_location_name,
+            'original_location_name': base_location_name,
+            'work_type':            work_type,
+            'latitude':             None,
+            'longitude':            None,
+            'distance':             distance_value,
+            'record_type':          record_type,
+            'action_description':   record.action_description,
+            'event_description':    record.event_description or '',
+            'recorded_address':     record.recorded_address or '',
+            'qr_code':              type('QRCode', (), {
+                'location':         base_location_name,
+                'location_address': record.recorded_address or '',
+                'project':          None
+            })()
+        })()
+        converted.append(converted_record)
+
+    return converted
+
+
+def _build_employee_name_map(records):
+    """
+    Build a {base_employee_id: "Lastname, Firstname"} map for export headers.
+
+    Looks up the Employee table by numeric base ID so work-type suffixes
+    (e.g. '3937SP') in the stored employee_name column do not pollute labels.
+    Falls back to the stored employee_name on lookup failure.
+    """
+    from working_hours_calculator import parse_employee_id_for_work_type
+
+    employee_names = {}
+    for record in records:
+        base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
+        if base_id not in employee_names:
+            try:
+                emp = Employee.query.filter_by(id=int(base_id)).first()
+                if emp:
+                    employee_names[base_id] = f"{emp.lastName}, {emp.firstName}"
+                else:
+                    employee_names[base_id] = getattr(record, 'employee_name', f'Employee {base_id}')
+                    logger_handler.logger.warning(
+                        f"Employee ID {base_id} not found in employee table during export; "
+                        f"using stored name."
+                    )
+            except Exception as e:
+                employee_names[base_id] = getattr(record, 'employee_name', f'Employee {base_id}')
+                logger_handler.logger.warning(
+                    f"Could not lookup employee name for ID {base_id} during export: {e}"
+                )
+    return employee_names
+
+
+def _make_export_styles():
+    """
+    Return a dict of openpyxl style objects shared by both export functions.
+
+    Keys: header_font, header_fill, data_font, bold_font, italic_bold_font,
+          border, missed_punch_fill, border_day_middle, border_day_last,
+          border_day_single, border_day_first, amber_fill
+    """
+    header_font      = Font(name='Aptos Narrow', size=11, bold=True, color='FFFFFF')
+    header_fill      = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+    data_font        = Font(name='Aptos Narrow', size=11)
+    bold_font        = Font(name='Aptos Narrow', size=11, bold=True)
+    italic_bold_font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
+    amber_fill        = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
+    border_day_middle = Border()
+    border_day_last   = Border(bottom=Side(style='thin'))
+    border_day_single = Border(bottom=Side(style='thin'))
+    border_day_first  = Border()
+    return {
+        'header_font':      header_font,
+        'header_fill':      header_fill,
+        'data_font':        data_font,
+        'bold_font':        bold_font,
+        'italic_bold_font': italic_bold_font,
+        'border':           border,
+        'missed_punch_fill': missed_punch_fill,
+        'amber_fill':       amber_fill,
+        'border_day_middle': border_day_middle,
+        'border_day_last':   border_day_last,
+        'border_day_single': border_day_single,
+        'border_day_first':  border_day_first,
+    }
+
+
 def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
@@ -132,105 +306,17 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     ws = wb.active
     ws.title = "Sheet0"
     
-    # Get date range for calculations
-    if start_date_filter and end_date_filter:
-        # Convert string dates to date objects if needed
-        if isinstance(start_date_filter, str):
-            start_date = datetime.strptime(start_date_filter, '%Y-%m-%d').date()
-        else:
-            start_date = start_date_filter
-        
-        if isinstance(end_date_filter, str):
-            end_date = datetime.strptime(end_date_filter, '%Y-%m-%d').date()
-        else:
-            end_date = end_date_filter
-    elif records:
-        # Fallback to calculating from records if no filter dates provided
-        start_date = min(r.attendance_date for r in records)
-        end_date = max(r.attendance_date for r in records)
-    else:
+    # Resolve date range and cap to 14-day window
+    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA Excel export')
+    if result is None:
         return None
-
-    # Enforce maximum 2-week (14-day) export window.
-    # If the selected range exceeds 14 days, cap end_date to start_date + 13 days.
-    MAX_EXPORT_DAYS = 14
-    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
-        capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
-        logger_handler.logger.info(
-            f"TA Excel export: date range [{start_date} – {end_date}] exceeds {MAX_EXPORT_DAYS} days; "
-            f"capping end_date to {capped_end_date}."
-        )
-        end_date = capped_end_date
-        # Drop records that fall outside the capped window
-                # Preserve one extra calendar day so early-morning check-out records
-        # stored on Day N+1 remain available for overnight pairing detection.
-        # Display range is still controlled by dates_with_records (capped to end_date).
-        records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
+    start_date, end_date, records = result
 
     # Import parse function at the beginning for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
     
     # Convert TimeAttendance records to format expected by calculator
-    converted_records = []
-    for record in records:
-        # Get distance value from the record
-        distance_value = getattr(record, 'distance', None)
-        
-        # CRITICAL: Determine record_type from action_description
-        record_type = 'check_in'  # Default
-        if hasattr(record, 'action_description') and record.action_description:
-            action_lower = record.action_description.lower()
-            if 'out' in action_lower or 'checkout' in action_lower:
-                record_type = 'check_out'
-        
-        # Extract work type (PT, SP, PW) from employee_id for location display in Excel
-        _, work_type = parse_employee_id_for_work_type(str(record.employee_id))
-        
-        # Create display location name with work type suffix if applicable
-        base_location_name = record.location_name
-        if work_type and work_type in ('PT', 'SP', 'PW'):
-            display_location_name = f"{base_location_name} ({work_type})"
-        else:
-            display_location_name = base_location_name
-        
-        converted_record = type('Record', (), {
-            'id': record.id,
-            'employee_id': str(record.employee_id),
-            'check_in_date': record.attendance_date,
-            'check_in_time': record.attendance_time,
-            'location_name': display_location_name,  # Use display name with work type for Excel export
-            'original_location_name': base_location_name,  # Keep original for internal grouping
-            'work_type': work_type,  # Store work type for reference
-            'latitude': None,
-            'longitude': None,
-            'distance': distance_value,
-            'record_type': record_type,
-            'action_description': record.action_description,
-            'event_description': record.event_description or '',
-            'recorded_address': record.recorded_address or '',
-            'qr_code': type('QRCode', (), {
-                'location': base_location_name,  # Keep original for QR code matching
-                'location_address': record.recorded_address or '',
-                'project': None
-            })()
-        })()
-        converted_records.append(converted_record)
-    
-    # Log count of records with work types for audit trail
-    work_type_counts = {'PT': 0, 'SP': 0, 'PW': 0, 'Regular': 0}
-    for r in converted_records:
-        wt = getattr(r, 'work_type', None)
-        if wt in work_type_counts:
-            work_type_counts[wt] += 1
-        else:
-            work_type_counts['Regular'] += 1
-    
-    if any(work_type_counts[wt] > 0 for wt in ['PT', 'SP', 'PW']):
-        logger_handler.logger.info(
-            f"Excel Export: Processing records with work types - "
-            f"Regular: {work_type_counts['Regular']}, PT: {work_type_counts['PT']}, "
-            f"SP: {work_type_counts['SP']}, PW: {work_type_counts['PW']}"
-        )
+    converted_records = _convert_ta_records(records)
     
     # Calculate working hours using WorkingHoursCalculator
     calculator = WorkingHoursCalculator()
@@ -240,53 +326,23 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         converted_records
     )
     
-    # Get employee names - map BASE employee IDs to names for consolidated display
-    # Look up from Employee table using the numeric base_id to get the correct name,
-    # regardless of what is stored in the employee_name column (which may contain
-    # work type characters such as 'Employee 3937SP' if imported with a decorated ID).
-    from working_hours_calculator import parse_employee_id_for_work_type
-    employee_names = {}
-    for record in records:
-        base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
-        if base_id not in employee_names:
-            try:
-                emp = Employee.query.filter_by(id=int(base_id)).first()
-                if emp:
-                    employee_names[base_id] = f"{emp.lastName}, {emp.firstName}"
-                else:
-                    # Fallback: use stored name if Employee table lookup fails
-                    employee_names[base_id] = record.employee_name
-                    logger_handler.logger.warning(f"Employee ID {base_id} not found in employee table during export; using stored name.")
-            except Exception as e:
-                employee_names[base_id] = record.employee_name
-                logger_handler.logger.warning(f"Could not lookup employee name for ID {base_id} during export: {e}")
+    # Build employee name map (Lastname, Firstname keyed by base employee ID)
+    employee_names = _build_employee_name_map(records)
     
-    # Setup styles
-    # White bold text on black background for column header row (no border)
-    header_font = Font(name='Aptos Narrow', size=11, bold=True, color='FFFFFF')
-    header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
-    data_font = Font(name='Aptos Narrow', size=11)
-    bold_font = Font(name='Aptos Narrow', size=11, bold=True)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
-    # CHANGED: Sample format uses ONLY a bottom border on the last row of each day group.
-    # Intermediate rows and first rows have no borders at all (no left/right/top).
-    border_day_middle = Border()  # No borders on intermediate rows
-
-    border_day_last = Border(
-        bottom=Side(style='thin')  # Only bottom border on the last row of a day group
-    )
-
-    border_day_single = Border(
-        bottom=Side(style='thin')  # Single-row days also get only bottom border
-    )
-
-    # border_day_first is same as middle (no borders) — kept for compatibility
-    border_day_first = Border()
+    # Setup styles (shared objects)
+    _styles           = _make_export_styles()
+    header_font       = _styles['header_font']
+    header_fill       = _styles['header_fill']
+    data_font         = _styles['data_font']
+    bold_font         = _styles['bold_font']
+    italic_bold_font  = _styles['italic_bold_font']
+    border            = _styles['border']
+    missed_punch_fill = _styles['missed_punch_fill']
+    amber_fill        = _styles['amber_fill']
+    border_day_middle = _styles['border_day_middle']
+    border_day_last   = _styles['border_day_last']
+    border_day_single = _styles['border_day_single']
+    border_day_first  = _styles['border_day_first']
 
     def get_day_border(row_position, total_rows):
         """
@@ -511,8 +567,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         del daily_location_data[_ndk][_co_loc]
                 if _ndk in daily_location_data and not daily_location_data[_ndk]:
                     del daily_location_data[_ndk]
-                print(f"\U0001f319 [TA Export] Overnight: moved checkout {_co.check_in_time} "
-                      f"from {_ndk} to {_dk} for employee {employee_id}")
+                logger_handler.logger.info(
+                    f"TA Export overnight shift: moved checkout {_co.check_in_time} "
+                    f"from {_ndk} to {_dk} for employee {employee_id}"
+                )
         # -------------------------------------------------------------------
         # END OVERNIGHT SHIFT DETECTION
         # -------------------------------------------------------------------
@@ -855,7 +913,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             'work_type': wt,   # None means regular
                             'used': False
                         })
-                        print(f"  Record at {record.check_in_time}: action='{record.action_description}', is_out={is_out}, work_type={wt}")
+                        logger_handler.logger.debug(f"TA Export record: time={record.check_in_time}, action='{record.action_description}', is_out={is_out}, work_type={wt}")
 
                     ins  = [ri for ri in record_info if not ri['is_out']]
                     outs = [ri for ri in record_info if     ri['is_out']]
@@ -975,7 +1033,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                                     'effective_work_type': ri['work_type']
                                 })
 
-                    print(f"  Created {len(pairs_to_write)} pairs")
+                    logger_handler.logger.debug(f"TA Export: created {len(pairs_to_write)} pairs for export")
 
                     # Sort pairs chronologically by the anchor record's time so that
                     # orphaned records (assembled last in Steps 2-3) appear in the
@@ -1300,82 +1358,16 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
     ws = wb.active
     ws.title = "Sheet0"
     
-    # Get date range for calculations
-    if start_date_filter and end_date_filter:
-        if isinstance(start_date_filter, str):
-            start_date = datetime.strptime(start_date_filter, '%Y-%m-%d').date()
-        else:
-            start_date = start_date_filter
-        
-        if isinstance(end_date_filter, str):
-            end_date = datetime.strptime(end_date_filter, '%Y-%m-%d').date()
-        else:
-            end_date = end_date_filter
-    elif records:
-        start_date = min(r.attendance_date for r in records)
-        end_date = max(r.attendance_date for r in records)
-    else:
+    # Resolve date range and cap to 14-day window
+    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA by-building Excel export')
+    if result is None:
         return None
+    start_date, end_date, records = result
 
-    # Enforce maximum 2-week (14-day) export window.
-    MAX_EXPORT_DAYS = 14
-    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
-        capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
-        logger_handler.logger.info(
-            f"TA by-building Excel export: date range [{start_date} – {end_date}] exceeds {MAX_EXPORT_DAYS} days; "
-            f"capping end_date to {capped_end_date}."
-        )
-        end_date = capped_end_date
-                # Preserve one extra calendar day so early-morning check-out records
-        # stored on Day N+1 remain available for overnight pairing detection.
-        # Display range is still controlled by dates_with_records (capped to end_date).
-        records = [r for r in records if r.attendance_date <= end_date + timedelta(days=1)]
-
-    # Import parse function for work type detection
     from working_hours_calculator import parse_employee_id_for_work_type
     
     # Convert TimeAttendance records to format expected by calculator
-    converted_records = []
-    for record in records:
-        distance_value = getattr(record, 'distance', None)
-        
-        record_type = 'check_in'
-        if hasattr(record, 'action_description') and record.action_description:
-            action_lower = record.action_description.lower()
-            if 'out' in action_lower or 'checkout' in action_lower:
-                record_type = 'check_out'
-        
-        _, work_type = parse_employee_id_for_work_type(str(record.employee_id))
-        
-        base_location_name = record.location_name
-        if work_type and work_type in ('PT', 'SP', 'PW'):
-            display_location_name = f"{base_location_name} ({work_type})"
-        else:
-            display_location_name = base_location_name
-        
-        converted_record = type('Record', (), {
-            'id': record.id,
-            'employee_id': str(record.employee_id),
-            'employee_name': record.employee_name,
-            'check_in_date': record.attendance_date,
-            'check_in_time': record.attendance_time,
-            'location_name': display_location_name,
-            'original_location_name': base_location_name,
-            'work_type': work_type,
-            'latitude': None,
-            'longitude': None,
-            'distance': distance_value,
-            'record_type': record_type,
-            'action_description': record.action_description,
-            'event_description': record.event_description or '',
-            'recorded_address': record.recorded_address or '',
-            'qr_code': type('QRCode', (), {
-                'location': base_location_name,
-                'location_address': record.recorded_address or '',
-                'project': None
-            })()
-        })()
-        converted_records.append(converted_record)
+    converted_records = _convert_ta_records(records)
     
     # Group records by location (building)
     location_groups = {}
@@ -1401,43 +1393,21 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
         converted_records
     )
     
-    # Get employee names map
-    # Look up from Employee table using the numeric base_id to get the correct name,
-    # regardless of what is stored in the employee_name column (which may contain
-    # work type characters such as 'Employee 3937SP' if imported with a decorated ID).
-    employee_names = {}
-    for record in records:
-        base_id, _ = parse_employee_id_for_work_type(str(record.employee_id))
-        if base_id not in employee_names:
-            try:
-                emp = Employee.query.filter_by(id=int(base_id)).first()
-                if emp:
-                    employee_names[base_id] = f"{emp.lastName}, {emp.firstName}"
-                else:
-                    # Fallback: use stored name if Employee table lookup fails
-                    employee_names[base_id] = record.employee_name
-                    logger_handler.logger.warning(f"Employee ID {base_id} not found in employee table during export (by-building); using stored name.")
-            except Exception as e:
-                employee_names[base_id] = record.employee_name
-                logger_handler.logger.warning(f"Could not lookup employee name for ID {base_id} during export (by-building): {e}")
+    # Build employee name map (Lastname, Firstname keyed by base employee ID)
+    employee_names = _build_employee_name_map(records)
     
-    # Setup styles
-    header_font = Font(name='Aptos Narrow', size=11, bold=True, color='FFFFFF')
-    header_fill = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
-    data_font = Font(name='Aptos Narrow', size=11)
-    bold_font = Font(name='Aptos Narrow', size=11, bold=True)
-    italic_bold_font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
-    missed_punch_fill = PatternFill(start_color='FFC000', end_color='FFC000', fill_type='solid')
-    # Bottom-only border on the last row of each day group (matches normal TA export).
-    # Intermediate rows within a day have no borders.
-    border_day_middle = Border()  # No borders on intermediate rows
-    border_day_last   = Border(bottom=Side(style='thin'))  # Bottom border on last row of day
+    # Setup styles (shared objects)
+    _styles          = _make_export_styles()
+    header_font      = _styles['header_font']
+    header_fill      = _styles['header_fill']
+    data_font        = _styles['data_font']
+    bold_font        = _styles['bold_font']
+    italic_bold_font = _styles['italic_bold_font']
+    border           = _styles['border']
+    missed_punch_fill = _styles['missed_punch_fill']
+    amber_fill       = _styles['amber_fill']
+    border_day_middle = _styles['border_day_middle']
+    border_day_last   = _styles['border_day_last']
     
     # Write main headers
     current_row = 1

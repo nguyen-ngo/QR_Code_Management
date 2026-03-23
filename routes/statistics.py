@@ -202,9 +202,6 @@ def qr_statistics():
     except Exception as e:
         # Log the error using the correct method
         logger_handler.log_database_error('statistics_page_error', e)
-        print(f"❌ Error loading statistics: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        
         flash('Error loading statistics. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))
 
@@ -297,15 +294,11 @@ def export_statistics():
         
     except Exception as e:
         logger_handler.log_database_error('statistics_export_error', e)
-        print(f"❌ Error exporting statistics: {e}")
         return jsonify({'error': 'Export failed'}), 500
 
     except Exception as e:
         # Log the error
         logger_handler.log_database_error('statistics_page_error', e)
-        print(f"❌ Error loading statistics: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
-        
         flash('Error loading statistics. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))
 

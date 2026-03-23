@@ -104,7 +104,7 @@ def time_attendance_dashboard():
             pass
         except Exception as e:
             # Database table doesn't exist yet or other error - use defaults
-            print(f"TimeAttendance query error: {e}")
+            logger_handler.logger.error(f"TimeAttendance query error: {e}", exc_info=True)
             pass
         
         return render_template('time_attendance_dashboard.html',
@@ -137,9 +137,10 @@ def import_time_attendance():
             coming_from_invalid_review = request.form.get('from_invalid_review', 'false').lower() == 'true'
             coming_from_duplicate_review = request.form.get('from_duplicate_review', 'false').lower() == 'true'
 
-            print(f"\n🔍 IMPORT FLOW DEBUG:")
-            print(f"   Coming from invalid review: {coming_from_invalid_review}")
-            print(f"   Coming from duplicate review: {coming_from_duplicate_review}")
+            logger_handler.logger.debug(
+                f"Import flow: coming_from_invalid={coming_from_invalid_review}, "
+                f"coming_from_duplicate={coming_from_duplicate_review}"
+            )
 
             if coming_from_invalid_review or coming_from_duplicate_review:
                 # Retrieve file from session
@@ -157,8 +158,7 @@ def import_time_attendance():
                     session.pop('pending_import_filename', None)
                     return redirect(url_for('time_attendance.import_time_attendance'))
                 
-                print(f"✅ Retrieved file from session: {filename}")
-                print(f"✅ Temp path exists: {os.path.exists(temp_path)}")
+                logger_handler.logger.debug(f"Retrieved file from session: {filename}, exists={os.path.exists(temp_path)}")
                 
             else:
                 # Normal file upload flow - now supports multiple files
@@ -199,8 +199,7 @@ def import_time_attendance():
                     temp_paths.append(temp_path)
                     filenames.append(filename)
                     
-                    print(f"✅ Uploaded file {len(temp_paths)}: {filename}")
-                    print(f"✅ Saved to: {temp_path}")
+                    logger_handler.logger.debug(f"Uploaded file {len(temp_paths)}: {filename} saved to {temp_path}")
                 
                 if len(temp_paths) == 0:
                     flash('No valid files selected.', 'error')
@@ -214,7 +213,7 @@ def import_time_attendance():
                 temp_path = temp_paths[0] if len(temp_paths) == 1 else temp_paths
                 filename = filenames[0] if len(filenames) == 1 else ', '.join(filenames)
                 
-                print(f"✅ Total files uploaded: {len(temp_paths)}")
+                logger_handler.logger.debug(f"Total files uploaded: {len(temp_paths)}")
 
             # Determine if we're processing multiple files
             is_multiple_files = session.get('pending_import_files_multiple', False)
@@ -230,7 +229,7 @@ def import_time_attendance():
                 # Single file mode (existing behavior)
                 files_to_process = [(temp_path, filename)]
             
-            print(f"📁 Processing {len(files_to_process)} file(s)")
+            logger_handler.logger.info(f"Processing {len(files_to_process)} file(s) for time attendance import")
             
             try:
                 import_service = TimeAttendanceImportService(db, logger_handler)
@@ -241,12 +240,11 @@ def import_time_attendance():
                 analyze_duplicates = request.form.get('analyze_duplicates', 'false').lower() == 'true'
                 analyze_invalid = request.form.get('analyze_invalid', 'false').lower() == 'true'
                 
-                print(f"📋 Import Options:")
-                print(f"   Skip duplicates: {skip_duplicates}")
-                print(f"   Validate only: {validate_only}")
-                print(f"   Analyze duplicates: {analyze_duplicates}")
-                print(f"   Analyze invalid: {analyze_invalid}")
-                print(f"   Coming from invalid review: {coming_from_invalid_review}")
+                logger_handler.logger.debug(
+                    f"Import options: skip_duplicates={skip_duplicates}, validate_only={validate_only}, "
+                    f"analyze_duplicates={analyze_duplicates}, analyze_invalid={analyze_invalid}, "
+                    f"coming_from_invalid={coming_from_invalid_review}"
+                )
                 
                 # Store combined results for multiple files
                 all_results = {
@@ -263,14 +261,14 @@ def import_time_attendance():
                 
                 # Process each file
                 for file_index, (current_temp_path, current_filename) in enumerate(files_to_process, 1):
-                    print(f"\n📄 Processing file {file_index}/{len(files_to_process)}: {current_filename}")
+                    logger_handler.logger.info(f"Processing file {file_index}/{len(files_to_process)}: {current_filename}")
                     
                     import_result = None  # Initialize to prevent reference errors
                     
                     try:
                         # For multiple files, skip review screens and import directly
                         if is_multiple_files:
-                            print(f"   📦 Batch mode: processing directly without review screens")
+                            logger_handler.logger.debug("Batch mode: processing directly without review screens")
                             
                             # Validate the file first
                             validation_result = import_service.validate_excel_file(current_temp_path)
@@ -309,7 +307,7 @@ def import_time_attendance():
                                 'imported': import_result.get('imported_records', 0),
                                 'batch_id': import_result.get('batch_id', '')
                             })
-                            print(f"   ✅ Imported {import_result.get('imported_records', 0)} records")
+                            logger_handler.logger.info(f"Imported {import_result.get('imported_records', 0)} records from {current_filename}")
                         elif import_result:
                             # Import ran but failed
                             all_results['failed_files'] += 1
@@ -322,7 +320,7 @@ def import_time_attendance():
                             })
                         
                     except Exception as file_error:
-                        print(f"❌ Error processing file {current_filename}: {file_error}")
+                        logger_handler.logger.error(f"Error processing file {current_filename}: {file_error}", exc_info=True)
                         logger_handler.logger.error(f"Error processing file {current_filename}: {file_error}")
                         all_results['failed_files'] += 1
                         all_results['errors'].append(f"{current_filename}: {str(file_error)}")
@@ -338,9 +336,9 @@ def import_time_attendance():
                         if is_multiple_files and os.path.exists(current_temp_path):
                             try:
                                 os.remove(current_temp_path)
-                                print(f"   🗑️ Cleaned up temp file")
+                                logger_handler.logger.debug(f"Cleaned up temp file: {current_temp_path}")
                             except Exception as cleanup_error:
-                                print(f"   ⚠️ Failed to cleanup temp file: {cleanup_error}")
+                                logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
                 
                 # After processing all files
                 if is_multiple_files:
@@ -374,12 +372,11 @@ def import_time_attendance():
                     session.pop('pending_import_filename', None)
                     session.pop('pending_import_files_multiple', None)
                     
-                    print(f"\n📊 Batch Import Summary:")
-                    print(f"   Total files: {all_results['total_files']}")
-                    print(f"   Successful: {all_results['successful_files']}")
-                    print(f"   Failed: {all_results['failed_files']}")
-                    print(f"   Total imported: {all_results['total_imported']}")
-                    print(f"   Total duplicates: {all_results['total_duplicates']}")
+                    logger_handler.logger.info(
+                        f"Batch import summary: files={all_results['total_files']}, "
+                        f"successful={all_results['successful_files']}, failed={all_results['failed_files']}, "
+                        f"imported={all_results['total_imported']}, duplicates={all_results['total_duplicates']}"
+                    )
                     
                     return redirect(url_for('time_attendance.time_attendance_dashboard'))
 
@@ -388,50 +385,66 @@ def import_time_attendance():
                 
                 # If analyzing for duplicates, show review page (but not if coming from invalid/duplicate review)
                 if analyze_duplicates and not force_import_hashes and not coming_from_invalid_review and not coming_from_duplicate_review:
-                    print("🔍 Analyzing for duplicates...")
-                    duplicate_analysis = import_service.analyze_for_duplicates(temp_path)
-                    
+                    logger_handler.logger.debug("Analyzing for duplicates")
+                    project_id_for_analysis = request.form.get('project_id')
+                    project_id_for_analysis = int(project_id_for_analysis) if project_id_for_analysis and project_id_for_analysis != '' else None
+                    duplicate_analysis = import_service.analyze_for_duplicates(temp_path, project_id=project_id_for_analysis)
+
+                    # Surface project-mismatch errors immediately
+                    if duplicate_analysis.get('errors'):
+                        for err in duplicate_analysis['errors']:
+                            flash(err, 'error')
+                        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                        return render_template('time_attendance_import.html', projects=projects)
+
                     if duplicate_analysis['duplicate_records'] > 0:
-                        print(f"⚠️ Found {duplicate_analysis['duplicate_records']} duplicates")
-                        # Get project_id from form
-                        project_id = request.form.get('project_id')
+                        logger_handler.logger.info(f"Found {duplicate_analysis['duplicate_records']} duplicates")
                         # Show duplicate review page
                         return render_template('time_attendance_duplicate_review.html',
                                             analysis=duplicate_analysis,
                                             filename=filename,
-                                            project_id=project_id)
+                                            project_id=project_id_for_analysis)
                     else:
-                        print("✅ No duplicates found")
+                        logger_handler.logger.debug("No duplicates found")
                         flash('No duplicates found. Proceeding with import.', 'info')
                 
                 # Check for invalid rows and show review if any (but not if coming from invalid review)
                 if analyze_invalid and not coming_from_invalid_review:
-                    print("🔍 Analyzing for invalid rows...")
-                    invalid_analysis = import_service.analyze_for_invalid_rows(temp_path)
-                    
+                    logger_handler.logger.debug("Analyzing for invalid rows")
+                    project_id_for_analysis = request.form.get('project_id')
+                    project_id_for_analysis = int(project_id_for_analysis) if project_id_for_analysis and project_id_for_analysis != '' else None
+                    invalid_analysis = import_service.analyze_for_invalid_rows(temp_path, project_id=project_id_for_analysis)
+
+                    # Surface project-mismatch errors immediately
+                    if invalid_analysis.get('errors'):
+                        for err in invalid_analysis['errors']:
+                            flash(err, 'error')
+                        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                        return render_template('time_attendance_import.html', projects=projects)
+
                     if invalid_analysis['invalid_rows'] > 0:
-                        print(f"⚠️ Found {invalid_analysis['invalid_rows']} invalid rows")
-                        # Get project_id from form
-                        project_id = request.form.get('project_id')
+                        logger_handler.logger.info(f"Found {invalid_analysis['invalid_rows']} invalid rows")
                         # Show invalid row review page
                         return render_template('time_attendance_invalid_review.html',
                                             analysis=invalid_analysis,
                                             filename=filename,
-                                            project_id=project_id)
+                                            project_id=project_id_for_analysis)
                     else:
-                        print("✅ All rows are valid")
+                        logger_handler.logger.debug("All rows are valid")
                         flash('All rows are valid. Proceeding with import.', 'info')
                 
                 # If coming from invalid review, skip validation (already done)
                 if not coming_from_invalid_review:
-                    print("🔍 Validating file...")
+                    logger_handler.logger.debug("Validating file")
                     # Validate file
                     validation_result = import_service.validate_excel_file(temp_path)
                     
                     if not validation_result['valid']:
-                        print(f"❌ Validation failed: {validation_result['errors']}")
+                        logger_handler.logger.warning(f"Validation failed: {validation_result['errors']}")
                         flash(f"File validation failed: {'; '.join(validation_result['errors'])}", 'error')
-                        return render_template('time_attendance_import.html', 
+                        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                        return render_template('time_attendance_import.html',
+                                             projects=projects,
                                              validation_result=validation_result)
                     
                     if validation_result['warnings']:
@@ -439,15 +452,17 @@ def import_time_attendance():
                             flash(warning, 'warning')
                     
                     if validate_only:
-                        print(f"✅ Validation successful: {validation_result['valid_rows']} valid records")
+                        logger_handler.logger.info(f"Validation successful: {validation_result['valid_rows']} valid records")
                         flash(f"File validation successful! Found {validation_result['valid_rows']} valid records.", 'success')
-                        return render_template('time_attendance_import.html', 
+                        projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                        return render_template('time_attendance_import.html',
+                                             projects=projects,
                                              validation_result=validation_result)
                 else:
-                    print("⏭️ Skipping validation (already validated)")
+                    logger_handler.logger.debug("Skipping validation (already validated)")
                 
                 # Proceed with import
-                print("🚀 Starting import process...")
+                logger_handler.logger.info("Starting import process")
                 import_source = request.form.get('import_source', f"Manual Import - {filename}")
                 project_id = request.form.get('project_id')
                 project_id = int(project_id) if project_id and project_id != '' else None
@@ -462,11 +477,11 @@ def import_time_attendance():
                 )
                 
                 if import_result['success']:
-                    print(f"✅ Import successful!")
-                    print(f"   Batch ID: {import_result['batch_id']}")
-                    print(f"   Imported: {import_result['imported_records']}/{import_result['total_records']}")
-                    print(f"   Duplicates: {import_result['duplicate_records']}")
-                    print(f"   Failed: {import_result['failed_records']}")
+                    logger_handler.logger.info(
+                        f"Import successful: batch_id={import_result['batch_id']}, "
+                        f"imported={import_result['imported_records']}/{import_result['total_records']}, "
+                        f"duplicates={import_result['duplicate_records']}, failed={import_result['failed_records']}"
+                    )
                     
                     logger_handler.logger.info(
                         f"User {session['username']} successfully imported time attendance data - "
@@ -496,36 +511,36 @@ def import_time_attendance():
                             os.remove(temp_path)
                             session.pop('pending_import_file', None)
                             session.pop('pending_import_filename', None)
-                            print("🗑️ Cleaned up temp file")
+                            logger_handler.logger.debug(f"Cleaned up temp file: {temp_path}")
                         except Exception as cleanup_error:
-                            print(f"⚠️ Failed to cleanup temp file: {cleanup_error}")
+                            logger_handler.logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
                     
                     return render_template('time_attendance_import_result.html', 
                                          import_result=import_result)
                 else:
-                    print(f"❌ Import failed: {import_result['errors']}")
+                    logger_handler.logger.error(f"Import failed: {import_result['errors']}")
                     flash(f"Import failed: {'; '.join(import_result['errors'][:3])}", 'error')
                     if len(import_result['errors']) > 3:
                         flash(f"...and {len(import_result['errors']) - 3} more errors", 'warning')
-                    return render_template('time_attendance_import.html', 
+                    projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+                    return render_template('time_attendance_import.html',
+                                         projects=projects,
                                          import_result=import_result)
                 
             except Exception as import_error:
-                print(f"❌ Import exception: {import_error}")
-                import traceback
-                print(f"❌ Traceback: {traceback.format_exc()}")
+                logger_handler.logger.error(f"Import exception: {import_error}", exc_info=True)
                 raise
                 
         except Exception as e:
             logger_handler.log_database_error('time_attendance_import', e)
-            print(f"❌ Top-level exception: {e}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
+            logger_handler.logger.error(f"Top-level import exception: {e}", exc_info=True)
             flash('Import failed due to an unexpected error.', 'error')
-            return render_template('time_attendance_import.html')
+            projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+            return render_template('time_attendance_import.html', projects=projects)
     
     # GET request
-    return render_template('time_attendance_import.html')
+    projects = Project.query.filter_by(active_status=True).order_by(Project.name).all()
+    return render_template('time_attendance_import.html', projects=projects)
 
 
 @bp.route('/time-attendance/import/analyze-duplicates', methods=['POST'], endpoint='analyze_import_duplicates')
@@ -1198,13 +1213,13 @@ def export_time_attendance():
         project_name_for_filename = ''
         if project_filter:
             try:
-                project = Project.query.get(int(project_filter))
+                project = db.session.get(Project, int(project_filter))
                 if project:
                     # Replace spaces and special characters with underscores
                     project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
                     project_name_for_filename = f"{project_name_safe}_"
             except Exception as e:
-                print(f"⚠️ Error getting project name for filename: {e}")
+                logger_handler.logger.warning(f"Error getting project name for filename: {e}")
 
         # Log export
         logger_handler.logger.info(
@@ -1343,13 +1358,13 @@ def export_time_attendance_by_building():
         project_name_for_filename = ''
         if project_filter:
             try:
-                project = Project.query.get(int(project_filter))
+                project = db.session.get(Project, int(project_filter))
                 if project:
                     # Replace spaces and special characters with underscores
                     project_name_safe = project.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
                     project_name_for_filename = f"{project_name_safe}_"
             except Exception as e:
-                print(f"⚠️ Error getting project name for filename: {e}")
+                logger_handler.logger.warning(f"Error getting project name for filename: {e}")
 
         # Log export
         logger_handler.logger.info(

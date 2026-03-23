@@ -118,7 +118,7 @@ def create_user():
                         try:
                             project_id = int(pid)
                             # Verify project exists
-                            if Project.query.get(project_id):
+                            if db.session.get(Project, project_id):
                                 valid_project_ids.append(project_id)
                         except (ValueError, TypeError):
                             logger_handler.logger.warning(f"Invalid project ID received: {pid}")
@@ -206,8 +206,8 @@ def create_user():
 def delete_user(user_id):
     """Deactivate user (Admin only) - Fixed with proper validation"""
     try:
-        user_to_delete = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_delete = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_delete:
             flash('User not found.', 'error')
@@ -247,8 +247,8 @@ def delete_user(user_id):
 def reactivate_user(user_id):
     """Reactivate a deactivated user (Admin only)"""
     try:
-        user_to_reactivate = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_reactivate = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_reactivate:
             flash('User not found.', 'error')
@@ -277,8 +277,8 @@ def reactivate_user(user_id):
 def promote_user(user_id):
     """Promote a staff user to admin (Admin only)"""
     try:
-        user_to_promote = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_promote = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_promote:
             flash('User not found.', 'error')
@@ -307,8 +307,8 @@ def promote_user(user_id):
 def demote_user(user_id):
     """Demote an admin user to staff (Admin only)"""
     try:
-        user_to_demote = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_demote = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_demote:
             flash('User not found.', 'error')
@@ -437,7 +437,7 @@ def edit_user(user_id):
                         try:
                             project_id = int(pid)
                             # Verify project exists
-                            if Project.query.get(project_id):
+                            if db.session.get(Project, project_id):
                                 valid_project_ids.append(project_id)
                         except (ValueError, TypeError):
                             logger_handler.logger.warning(f"Invalid project ID received: {pid}")
@@ -561,8 +561,8 @@ def edit_user(user_id):
 def toggle_user_status(user_id):
     """Toggle user active status via AJAX (Admin only)"""
     try:
-        user_to_toggle = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_toggle = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_toggle:
             return jsonify({
@@ -619,8 +619,8 @@ def toggle_user_status(user_id):
 def activate_user(user_id):
     """Activate a user (Admin only) - Alternative route"""
     try:
-        user_to_activate = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_activate = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_activate:
             flash('User not found.', 'error')
@@ -652,8 +652,8 @@ def activate_user(user_id):
 def deactivate_user(user_id):
     """Deactivate a user (Admin only) - Alternative route"""
     try:
-        user_to_deactivate = User.query.get(user_id)
-        current_user = User.query.get(session['user_id'])
+        user_to_deactivate = db.session.get(User, user_id)
+        current_user = db.session.get(User, session['user_id'])
 
         if not user_to_deactivate:
             flash('User not found.', 'error')
@@ -904,7 +904,7 @@ def permanently_delete_user(user_id):
     """Permanently delete user but preserve associated QR codes (Admin only)"""
     try:
         user_to_delete = User.query.get_or_404(user_id)
-        current_user = User.query.get(session['user_id'])
+        current_user = db.session.get(User, session['user_id'])
 
         # Security checks
         if user_to_delete.id == current_user.id:

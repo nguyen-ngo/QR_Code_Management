@@ -25,7 +25,7 @@ import os
 import traceback
 from datetime import datetime, date, timedelta
 from functools import wraps
-from flask import request, session, g, render_template, has_request_context
+from flask import request, session, g, render_template, has_request_context, current_app
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 import uuid
@@ -169,7 +169,7 @@ class AppLogger:
                 self.db.session.commit()
                 
         except Exception as e:
-            print(f"Warning: Could not create log_events table: {e}")
+            logging.getLogger('qr_attendance_app').warning(f"Could not create log_events table: {e}")
     
     def _register_error_handlers(self):
         """Register Flask error handlers for automatic logging"""
@@ -258,7 +258,7 @@ class AppLogger:
             
         except Exception as e:
             # Don't let logging errors break the application
-            print(f"Database logging error: {e}")
+            logging.getLogger('qr_attendance_app').warning(f"Database logging error (non-fatal): {e}")
             try:
                 self.db.session.rollback()
             except:
@@ -618,10 +618,10 @@ class AppLogger:
             try:
                 table_check = self.db.session.execute(text("SHOW TABLES LIKE 'log_events'")).fetchone()
                 if not table_check:
-                    print("⚠️ log_events table does not exist")
+                    self.logger.warning("get_log_statistics: log_events table does not exist")
                     return stats
             except Exception as table_error:
-                print(f"⚠️ Cannot check if log_events table exists: {table_error}")
+                self.logger.warning(f"get_log_statistics: cannot check table existence: {table_error}")
                 return stats
             
             # Get total events count
@@ -635,9 +635,9 @@ class AppLogger:
                 total_result = self.db.session.execute(text(total_sql), {'cutoff_date': cutoff_date}).fetchone()
                 if total_result:
                     stats['total_events'] = total_result.total_events
-                    print(f"✅ Found {stats['total_events']} total events in last {days} days")
+                    self.logger.debug(f"get_log_statistics: {stats['total_events']} total events in last {days} days")
             except Exception as total_error:
-                print(f"⚠️ Error getting total events: {total_error}")
+                self.logger.warning(f"get_log_statistics: error getting total events: {total_error}")
             
             # Get events by category
             try:
@@ -655,7 +655,7 @@ class AppLogger:
                 for row in category_result:
                     category = row.event_category
                     count = row.event_count
-                    print(f"✅ Found {count} events in category: {category}")
+                    self.logger.debug(f"get_log_statistics: {count} events in category: {category}")
                     
                     # Map categories to stats keys
                     if category == 'security':
@@ -672,13 +672,13 @@ class AppLogger:
                         stats['system_events'] = count
                         
             except Exception as category_error:
-                print(f"⚠️ Error getting category stats: {category_error}")
+                self.logger.warning(f"get_log_statistics: error getting category stats: {category_error}")
             
-            print(f"📊 Final stats: {stats}")
+            self.logger.debug(f"get_log_statistics result: {stats}")
             return stats
             
         except Exception as e:
-            print(f"❌ Error in get_log_statistics: {e}")
+            self.logger.error(f"Error in get_log_statistics: {e}", exc_info=True)
             self.log_database_error('get_log_statistics', e)
             return {
                 'total_events': 0,
@@ -695,16 +695,16 @@ class AppLogger:
         try:
             from datetime import datetime, timedelta  # Import here as backup
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-            print(f"🧹 Starting log cleanup: removing entries older than {cutoff_date}")
+            self.logger.info(f"Starting log cleanup: removing entries older than {cutoff_date}")
             
             # Check if table exists first
             try:
                 table_check = self.db.session.execute(text("SHOW TABLES LIKE 'log_events'")).fetchone()
                 if not table_check:
-                    print("⚠️ log_events table does not exist")
+                    self.logger.warning("cleanup_old_logs: log_events table does not exist")
                     return 0
             except Exception as table_error:
-                print(f"⚠️ Cannot check if log_events table exists: {table_error}")
+                self.logger.warning(f"cleanup_old_logs: cannot check table existence: {table_error}")
                 return 0
             
             # First, count how many records will be deleted
@@ -719,14 +719,14 @@ class AppLogger:
                 count_result = self.db.session.execute(text(count_sql), {'cutoff_date': cutoff_date}).fetchone()
                 count_to_delete = count_result.count_to_delete if count_result else 0
                 
-                print(f"📊 Found {count_to_delete} records to delete")
+                self.logger.debug(f"cleanup_old_logs: {count_to_delete} records to delete")
                 
                 if count_to_delete == 0:
-                    print("✅ No old records found to cleanup")
+                    self.logger.info("cleanup_old_logs: no old records found to cleanup")
                     return 0
                     
             except Exception as count_error:
-                print(f"⚠️ Error counting records to delete: {count_error}")
+                self.logger.warning(f"cleanup_old_logs: error counting records: {count_error}")
                 return 0
             
             # Perform the cleanup - exclude critical logs
@@ -741,7 +741,7 @@ class AppLogger:
                 deleted_count = result.rowcount
                 self.db.session.commit()
                 
-                print(f"🗑️ Successfully deleted {deleted_count} old log entries")
+                self.logger.info(f"cleanup_old_logs: deleted {deleted_count} old log entries")
                 
                 # Log the cleanup operation
                 self.logger.info(f"Log cleanup completed: {deleted_count} entries removed (keeping entries newer than {days_to_keep} days)")
@@ -749,12 +749,12 @@ class AppLogger:
                 return deleted_count
                 
             except Exception as delete_error:
-                print(f"❌ Error during deletion: {delete_error}")
+                self.logger.error(f"cleanup_old_logs: error during deletion: {delete_error}", exc_info=True)
                 self.db.session.rollback()
                 return 0
             
         except Exception as e:
-            print(f"❌ Error in cleanup_old_logs: {e}")
+            self.logger.error(f"Error in cleanup_old_logs: {e}", exc_info=True)
             self.db.session.rollback()
             self.log_database_error('cleanup_old_logs', e)
             return 0
@@ -819,7 +819,7 @@ class AppLogger:
             
         except Exception as e:
             self.log_database_error('get_recent_logs', e)
-            print(f"Error in get_recent_logs: {e}")
+            self.logger.error(f"Error in get_recent_logs: {e}", exc_info=True)
             return []
 
     def log_system_event(self, event_type, description, severity='INFO', additional_data=None):
@@ -873,15 +873,15 @@ class AppLogger:
             """
             result = self.db.session.execute(text(check_table_sql)).fetchone()
             if result.table_exists == 0:
-                print("⚠️ log_events table does not exist. Creating it now...")
+                self.logger.warning("log_events table does not exist — creating it now")
                 self._create_log_table()
                 return True
             count_sql = "SELECT COUNT(*) as record_count FROM log_events"
             count_result = self.db.session.execute(text(count_sql)).fetchone()
-            print(f"✅ log_events table exists with {count_result.record_count} records")
+            self.logger.debug(f"log_events table exists with {count_result.record_count} records")
             return True
         except Exception as e:
-            print(f"❌ Error verifying log table: {e}")
+            self.logger.error(f"Error verifying log table: {e}", exc_info=True)
             return False
 
     def log_modal_interaction(self, event_type, description, additional_data=None):
@@ -904,66 +904,76 @@ class AppLogger:
                 severity='INFO'
             )
         except Exception as e:
-            print(f"Error logging modal interaction: {e}")
+            self.logger.warning(f"Error logging modal interaction: {e}")
 
 # DECORATOR FUNCTIONS FOR AUTOMATIC LOGGING
 
 def log_user_activity(activity_type):
-    """Decorator to automatically log user activities"""
+    """Decorator to automatically log user activities to file and database."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
                 result = f(*args, **kwargs)
-                
-                # Log successful activity
-                if hasattr(g, 'app') and hasattr(g.app, 'logger_handler'):
-                    logger = g.app.logger_handler
-                    logger.logger.info(json.dumps({
-                        'event': f'user_activity_{activity_type}',
-                        'data': {
-                            'user_id': session.get('user_id'),
-                            'username': session.get('username'),
-                            'activity': activity_type,
-                            'timestamp': datetime.now().isoformat()
-                        }
-                    }))
-                
+
+                # Log successful activity via the AppLogger instance on current_app
+                try:
+                    lh = current_app.logger_handler
+                    lh.log_user_activity(
+                        activity_type=activity_type,
+                        description=(
+                            f"User '{session.get('username', 'anonymous')}' "
+                            f"completed activity: {activity_type}"
+                        )
+                    )
+                except Exception as log_error:
+                    # Logging must never break the decorated route
+                    logging.getLogger('qr_attendance_app').warning(
+                        f"log_user_activity decorator failed for '{activity_type}': {log_error}"
+                    )
+
                 return result
-                
+
             except Exception as e:
-                # Log error
-                if hasattr(g, 'app') and hasattr(g.app, 'logger_handler'):
-                    logger = g.app.logger_handler
-                    logger.log_flask_error(
+                # Log the error, then re-raise so Flask handles it normally
+                try:
+                    lh = current_app.logger_handler
+                    lh.log_flask_error(
                         error_type=f"activity_error_{activity_type}",
                         error_message=str(e),
                         stack_trace=traceback.format_exc()
                     )
+                except Exception as log_error:
+                    logging.getLogger('qr_attendance_app').warning(
+                        f"log_user_activity error-branch failed for '{activity_type}': {log_error}"
+                    )
                 raise
-        
+
         return decorated_function
     return decorator
 
 def log_database_operations(operation_name):
-    """Decorator to automatically log database operations"""
+    """Decorator to automatically log database operation errors."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
-                result = f(*args, **kwargs)
-                return result
-                
+                return f(*args, **kwargs)
+
             except Exception as e:
-                # Log database error
-                if hasattr(g, 'app') and hasattr(g.app, 'logger_handler'):
-                    logger = g.app.logger_handler
-                    logger.log_database_error(
+                # Log the database error via the AppLogger instance on current_app
+                try:
+                    lh = current_app.logger_handler
+                    lh.log_database_error(
                         operation=operation_name,
                         error=e
                     )
+                except Exception as log_error:
+                    logging.getLogger('qr_attendance_app').warning(
+                        f"log_database_operations decorator failed for '{operation_name}': {log_error}"
+                    )
                 raise
-        
+
         return decorated_function
     return decorator
 

@@ -927,11 +927,17 @@ importForm.addEventListener('submit', async (e) => {
       const result = msg.result;
       setProgress(result.total_records, result.total_records, 'Import finished.');
 
-      let summary = '✅ Imported ' + result.imported_records + ' of ' + result.total_records + ' records.';
-      if (result.duplicate_records > 0)
-        summary += '  Skipped ' + result.duplicate_records + ' duplicates.';
-      if (result.failed_records > 0)
-        summary += '  ⚠️ ' + result.failed_records + ' records failed.';
+      let summary;
+      if (!result.success && result.total_records === 0) {
+        // Validation failed before any records were processed (e.g. project mismatch)
+        summary = '❌ Import was rejected before processing any records.';
+      } else {
+        summary = (result.success ? '✅' : '❌') + ' Imported ' + result.imported_records + ' of ' + result.total_records + ' records.';
+        if (result.duplicate_records > 0)
+          summary += '  Skipped ' + result.duplicate_records + ' duplicates.';
+        if (result.failed_records > 0)
+          summary += '  ⚠️ ' + result.failed_records + ' records failed.';
+      }
 
       const errors = (!result.success && result.errors && result.errors.length > 0)
         ? result.errors

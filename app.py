@@ -326,7 +326,6 @@ def update_existing_qr_codes():
             lh.logger.info(f"Updated {updated_count} existing QR codes with missing URLs/images")
     except Exception as e:
         lh.log_database_error('update_existing_qr_codes', e)
-        print(f"Error updating existing QR codes: {e}")
 
 
 def log_slow_query_performance(app_instance):
@@ -368,15 +367,15 @@ if __name__ == '__main__':
             create_tables()
             log_slow_query_performance(app)
 
-            print("🚀 Initializing performance optimizations...")
             from extensions import logger_handler
+            logger_handler.logger.info("Initializing performance optimizations")
             cached_query = initialize_performance_optimizations(app, db, logger_handler)
             performance_monitor = PerformanceMonitor(app, db, logger_handler)
 
             if cached_query:
-                print("✅ Performance optimizations completed successfully")
+                logger_handler.logger.info("Performance optimizations completed successfully")
             else:
-                print("⚠️ Performance optimizations completed with warnings")
+                logger_handler.logger.warning("Performance optimizations completed with warnings")
 
             logger_handler.logger.info("QR Attendance Management System started successfully")
 

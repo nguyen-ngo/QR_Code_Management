@@ -134,7 +134,7 @@ def create_employee():
             db.session.commit()
             
             # Log employee creation with project info
-            project = Project.query.get(contract_id_int)
+            project = db.session.get(Project, contract_id_int)
             project_name = project.name if project else f"Project {contract_id_int}"
             logger_handler.logger.info(
                 f"User {session['username']} created new employee: "
@@ -213,7 +213,7 @@ def edit_employee(employee_index):
             db.session.commit()
 
             # Log employee update with project info
-            project = Project.query.get(contract_id_int)
+            project = db.session.get(Project, contract_id_int)
             project_name = project.name if project else f"Project {contract_id_int}"
             logger_handler.logger.info(
                 f"User {session['username']} updated employee: "

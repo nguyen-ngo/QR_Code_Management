@@ -26,7 +26,7 @@ bp = Blueprint('dashboard', __name__)
 def dashboard():
     """Enhanced project-centric dashboard with search filters"""
     try:
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
         
         # Get search parameters from URL
         search_name = request.args.get('search_name', '').strip()
@@ -71,7 +71,6 @@ def dashboard():
     
     except Exception as e:
         logger_handler.log_database_error('dashboard_load', e)
-        print(f"Error loading dashboard: {e}")
         flash('Error loading dashboard. Please try again.', 'error')
         return redirect(url_for('auth.login'))
 
@@ -127,7 +126,6 @@ def project_qr_codes(project_id):
     
     except Exception as e:
         logger_handler.log_database_error('project_qr_codes_view', e)
-        print(f"Error loading project QR codes: {e}")
         flash('Error loading project QR codes. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))
     

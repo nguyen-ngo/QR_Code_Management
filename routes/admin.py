@@ -77,8 +77,10 @@ def api_recent_logs():
         severity = request.args.get('severity', '')
         search = request.args.get('search', '')
 
-        print(f"📊 API request - Days: {days}, Limit: {limit}, Page: {page}")
-        print(f"📊 Filters - Category: {category}, Severity: {severity}, Search: {search}")
+        logger_handler.logger.debug(
+            f"api_recent_logs: days={days}, limit={limit}, page={page}, "
+            f"category={category!r}, severity={severity!r}, search={search!r}"
+        )
 
         cutoff_date = datetime.now() - timedelta(days=days)
 
@@ -164,7 +166,7 @@ def api_recent_logs():
                 'ip_address': row.ip_address or '-'
             })
 
-        print(f"📊 Returning {len(logs)} logs out of {total_count} total")
+        logger_handler.logger.debug(f"api_recent_logs: returning {len(logs)} of {total_count} total records")
 
         return jsonify({
             'success': True,
@@ -179,7 +181,6 @@ def api_recent_logs():
 
     except Exception as e:
         logger_handler.log_database_error('api_recent_logs', e)
-        print(f"Error in api_recent_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to fetch recent logs: {str(e)}'
@@ -191,11 +192,11 @@ def api_log_stats():
     """API endpoint to get logging statistics"""
     try:
         days = request.args.get('days', 7, type=int)
-        print(f"📊 Getting log statistics for last {days} days")
+        logger_handler.logger.debug(f"api_log_stats: fetching statistics for last {days} days")
 
         # Get statistics from logger handler
         stats = logger_handler.get_log_statistics(days=days)
-        print(f"📈 Retrieved stats: {stats}")
+
 
         # Ensure all expected keys exist with updated categories
         expected_stats = {
@@ -217,7 +218,6 @@ def api_log_stats():
 
     except Exception as e:
         logger_handler.log_database_error('api_log_stats', e)
-        print(f"❌ Error in api_log_stats: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to fetch log statistics: {str(e)}',
@@ -240,25 +240,21 @@ def api_cleanup_logs():
         # Get JSON data
         data = request.get_json()
         if not data:
-            print("❌ No JSON data provided")
             return jsonify({
                 'success': False,
                 'error': 'No JSON data provided'
             }), 400
 
         days_to_keep = data.get('days_to_keep', 90)
-        print(f"🧹 Cleanup request: keep last {days_to_keep} days")
 
         # Validate input
         if not isinstance(days_to_keep, int) or days_to_keep < 7:
-            print(f"❌ Invalid days_to_keep: {days_to_keep}")
             return jsonify({
                 'success': False,
                 'error': 'days_to_keep must be an integer >= 7'
             }), 400
 
         if days_to_keep > 365:
-            print(f"❌ days_to_keep too large: {days_to_keep}")
             return jsonify({
                 'success': False,
                 'error': 'days_to_keep cannot exceed 365 days'
@@ -268,7 +264,10 @@ def api_cleanup_logs():
         deleted_count = logger_handler.cleanup_old_logs(days_to_keep=days_to_keep)
 
         admin_username = session.get('username', 'unknown')
-        print(f"✅ Cleanup completed by {admin_username}: {deleted_count} records deleted")
+        logger_handler.logger.info(
+            f"Admin {admin_username} performed log cleanup: {deleted_count} records deleted "
+            f"(keeping last {days_to_keep} days)"
+        )
 
         # Log the admin action
         logger_handler.log_security_event(
@@ -294,7 +293,6 @@ def api_cleanup_logs():
 
     except Exception as e:
         logger_handler.log_database_error('api_cleanup_logs', e)
-        print(f"❌ Error in api_cleanup_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to cleanup old logs: {str(e)}'
@@ -306,7 +304,7 @@ def api_clear_logs():
     """API endpoint to clear ALL log entries"""
     try:
         admin_username = session.get('username', 'unknown')
-        print(f"🧹 Clear logs request by admin: {admin_username}")
+        logger_handler.logger.info(f"Admin {admin_username} initiated full log clear")
 
         # Count existing logs before deletion
         try:
@@ -314,10 +312,7 @@ def api_clear_logs():
             count_result = db.session.execute(text(count_sql)).fetchone()
             total_logs = count_result.total_logs if count_result else 0
 
-            print(f"📊 Total logs to be cleared: {total_logs}")
-
             if total_logs == 0:
-                print("✅ No logs found to clear")
                 return jsonify({
                     'success': True,
                     'deleted_count': 0,
@@ -325,7 +320,7 @@ def api_clear_logs():
                 })
 
         except Exception as count_error:
-            print(f"⚠️ Error counting logs: {count_error}")
+            logger_handler.logger.warning(f"Error counting logs before clear: {count_error}")
             total_logs = 0
 
         # Perform the clear operation
@@ -335,7 +330,9 @@ def api_clear_logs():
             deleted_count = result.rowcount
             db.session.commit()
 
-            print(f"🗑️ Successfully cleared {deleted_count} log entries")
+            logger_handler.logger.info(
+                f"Admin {admin_username} cleared all log entries: {deleted_count} records deleted"
+            )
 
             # Log the clear operation (this will be the first entry in the new log)
             logger_handler.log_security_event(
@@ -358,7 +355,7 @@ def api_clear_logs():
             })
 
         except Exception as delete_error:
-            print(f"❌ Error during log clearing: {delete_error}")
+            logger_handler.log_database_error('api_clear_logs_delete', delete_error)
             db.session.rollback()
             return jsonify({
                 'success': False,
@@ -367,7 +364,6 @@ def api_clear_logs():
 
     except Exception as e:
         logger_handler.log_database_error('api_clear_logs', e)
-        print(f"❌ Error in api_clear_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to clear logs: {str(e)}'
@@ -381,7 +377,6 @@ def api_clear_old_logs():
         # Get JSON data
         data = request.get_json()
         if not data:
-            print("❌ No JSON data provided")
             return jsonify({
                 'success': False,
                 'error': 'No JSON data provided'
@@ -389,11 +384,9 @@ def api_clear_old_logs():
 
         days_threshold = data.get('days_threshold', 90)
         admin_username = session.get('username', 'unknown')
-        print(f"🧹 Clear old logs request by admin: {admin_username}, threshold: {days_threshold} days")
 
         # Validate input
         if not isinstance(days_threshold, int) or days_threshold not in [30, 60, 90]:
-            print(f"❌ Invalid days_threshold: {days_threshold}")
             return jsonify({
                 'success': False,
                 'error': 'days_threshold must be 30, 60, or 90'
@@ -408,10 +401,7 @@ def api_clear_old_logs():
             count_result = db.session.execute(text(count_sql), {'cutoff_date': cutoff_date}).fetchone()
             total_logs = count_result.total_logs if count_result else 0
 
-            print(f"📊 Total logs older than {days_threshold} days to be cleared: {total_logs}")
-
             if total_logs == 0:
-                print("✅ No old logs found to clear")
                 return jsonify({
                     'success': True,
                     'deleted_count': 0,
@@ -419,7 +409,7 @@ def api_clear_old_logs():
                 })
 
         except Exception as count_error:
-            print(f"⚠️ Error counting old logs: {count_error}")
+            logger_handler.logger.warning(f"Error counting old logs before clear: {count_error}")
             total_logs = 0
 
         # Perform the clear operation
@@ -429,7 +419,9 @@ def api_clear_old_logs():
             deleted_count = result.rowcount
             db.session.commit()
 
-            print(f"🗑️ Successfully cleared {deleted_count} log entries older than {days_threshold} days")
+            logger_handler.logger.info(
+                f"Admin {admin_username} cleared {deleted_count} log entries older than {days_threshold} days"
+            )
 
             # Log the clear operation
             logger_handler.log_security_event(
@@ -455,7 +447,7 @@ def api_clear_old_logs():
             })
 
         except Exception as delete_error:
-            print(f"❌ Error during old log clearing: {delete_error}")
+            logger_handler.log_database_error('api_clear_old_logs_delete', delete_error)
             db.session.rollback()
             return jsonify({
                 'success': False,
@@ -464,7 +456,6 @@ def api_clear_old_logs():
 
     except Exception as e:
         logger_handler.log_database_error('api_clear_old_logs', e)
-        print(f"❌ Error in api_clear_old_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to clear old logs: {str(e)}'
@@ -481,7 +472,10 @@ def api_export_logs():
         search = request.args.get('search', '')
 
         admin_username = session.get('username', 'unknown')
-        print(f"📊 Export logs request by admin: {admin_username}")
+        logger_handler.logger.info(
+            f"Admin {admin_username} initiated log export: last {days} days, "
+            f"category={category!r}, severity={severity!r}"
+        )
 
         cutoff_date = datetime.now() - timedelta(days=days)
 
@@ -578,7 +572,6 @@ def api_export_logs():
 
     except Exception as e:
         logger_handler.log_database_error('api_export_logs', e)
-        print(f"❌ Error in api_export_logs: {e}")
         return jsonify({
             'success': False,
             'error': f'Failed to export logs: {str(e)}'

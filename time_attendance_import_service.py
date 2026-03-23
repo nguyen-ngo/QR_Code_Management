@@ -321,13 +321,16 @@ class TimeAttendanceImportService:
                 self.logger.logger.error(f"Failed to get existing record hashes with data: {e}")
             return {}
     
-    def analyze_for_duplicates(self, file_path: str) -> Dict[str, Any]:
+    def analyze_for_duplicates(self, file_path: str, project_id: int = None) -> Dict[str, Any]:
         """
-        Analyze file for potential duplicates WITHOUT importing
-        
+        Analyze file for potential duplicates WITHOUT importing.
+
         Args:
-            file_path: Path to the Excel file
-            
+            file_path:  Path to the Excel file
+            project_id: Optional project ID — if supplied, every Location Name
+                        in the file is validated against that project's QR code
+                        locations before the duplicate analysis proceeds.
+
         Returns:
             Dictionary containing duplicate analysis
         """
@@ -355,7 +358,47 @@ class TimeAttendanceImportService:
             # Remove empty rows
             df = df.dropna(how='all')
             analysis_result['total_records'] = len(df)
-            
+
+            # ── Project-location validation ──────────────────────────────
+            if project_id:
+                try:
+                    from models.qrcode import QRCode
+                    from models.project import Project
+                    file_locations = set(
+                        str(loc).strip()
+                        for loc in df['Location Name'].dropna().unique()
+                        if str(loc).strip()
+                    )
+                    project_locations = set(
+                        qr.location
+                        for qr in QRCode.query.filter_by(project_id=project_id)
+                                              .with_entities(QRCode.location).all()
+                    )
+                    unmatched = next(
+                        (loc for loc in sorted(file_locations) if loc not in project_locations),
+                        None
+                    )
+                    if unmatched:
+                        project_obj = self.db.session.get(Project, project_id)
+                        project_name = project_obj.name if project_obj else f'ID {project_id}'
+                        error_msg = (
+                            f"The data in the file does not belong to the project '{project_name}'. "
+                            f"Please verify the selected project or correct the file."
+                        )
+                        analysis_result['errors'].append(error_msg)
+                        if self.logger:
+                            self.logger.logger.warning(f"Project-location mismatch during duplicate analysis: {error_msg}")
+                        return analysis_result
+                    if self.logger:
+                        self.logger.logger.info(
+                            f"Project-location validation passed (duplicate analysis): "
+                            f"all {len(file_locations)} location(s) belong to project ID {project_id}."
+                        )
+                except Exception as e:
+                    if self.logger:
+                        self.logger.logger.warning(f"Could not perform project-location validation (duplicate analysis): {e}")
+            # ── End project-location validation ──────────────────────────
+
             # Get existing record hashes
             existing_hashes = self._get_existing_record_hashes_with_data()
             
@@ -445,13 +488,16 @@ class TimeAttendanceImportService:
         
         return analysis_result
     
-    def analyze_for_invalid_rows(self, file_path: str) -> Dict[str, Any]:
+    def analyze_for_invalid_rows(self, file_path: str, project_id: int = None) -> Dict[str, Any]:
         """
-        Analyze file for invalid rows with detailed error information
-        
+        Analyze file for invalid rows with detailed error information.
+
         Args:
-            file_path: Path to the Excel file
-            
+            file_path:  Path to the Excel file
+            project_id: Optional project ID — if supplied, every Location Name
+                        in the file is validated against that project's QR code
+                        locations before the row analysis proceeds.
+
         Returns:
             Dictionary containing invalid row analysis
         """
@@ -479,6 +525,46 @@ class TimeAttendanceImportService:
             # Remove empty rows
             df = df.dropna(how='all')
             analysis_result['total_rows'] = len(df)
+
+            # ── Project-location validation ──────────────────────────────
+            if project_id:
+                try:
+                    from models.qrcode import QRCode
+                    from models.project import Project
+                    file_locations = set(
+                        str(loc).strip()
+                        for loc in df['Location Name'].dropna().unique()
+                        if str(loc).strip()
+                    )
+                    project_locations = set(
+                        qr.location
+                        for qr in QRCode.query.filter_by(project_id=project_id)
+                                              .with_entities(QRCode.location).all()
+                    )
+                    unmatched = next(
+                        (loc for loc in sorted(file_locations) if loc not in project_locations),
+                        None
+                    )
+                    if unmatched:
+                        project_obj = self.db.session.get(Project, project_id)
+                        project_name = project_obj.name if project_obj else f'ID {project_id}'
+                        error_msg = (
+                            f"The data in the file does not belong to the project '{project_name}'. "
+                            f"Please verify the selected project or correct the file."
+                        )
+                        analysis_result['errors'].append(error_msg)
+                        if self.logger:
+                            self.logger.logger.warning(f"Project-location mismatch during invalid-row analysis: {error_msg}")
+                        return analysis_result
+                    if self.logger:
+                        self.logger.logger.info(
+                            f"Project-location validation passed (invalid-row analysis): "
+                            f"all {len(file_locations)} location(s) belong to project ID {project_id}."
+                        )
+                except Exception as e:
+                    if self.logger:
+                        self.logger.logger.warning(f"Could not perform project-location validation (invalid-row analysis): {e}")
+            # ── End project-location validation ──────────────────────────
             
             # Analyze each row
             invalid_list = []
@@ -663,12 +749,21 @@ class TimeAttendanceImportService:
                         if str(loc).strip()
                     )
 
-                    # Fetch all location names that belong to the selected project
+                    # Fetch all location names that belong to the selected project.
+                    # Strip each value — DB entries may have trailing whitespace.
                     project_locations = set(
-                        qr.location
+                        qr.location.strip()
                         for qr in QRCode.query.filter_by(project_id=project_id)
                                               .with_entities(QRCode.location).all()
+                        if qr.location
                     )
+
+                    if self.logger:
+                        self.logger.logger.info(
+                            f"Project-location validation: project_id={project_id}, "
+                            f"file_locations={sorted(file_locations)}, "
+                            f"project_locations={sorted(project_locations)}"
+                        )
 
                     # Find the first location in the file that is not in the project
                     unmatched = next(
@@ -677,10 +772,11 @@ class TimeAttendanceImportService:
                     )
 
                     if unmatched:
-                        project_obj = Project.query.get(project_id)
+                        project_obj = self.db.session.get(Project, project_id)
                         project_name = project_obj.name if project_obj else f'ID {project_id}'
                         error_msg = (
                             f"The data in the file does not belong to the project '{project_name}'. "
+                            f"Location '{unmatched}' was not found in this project. "
                             f"Please verify the selected project or correct the file."
                         )
                         import_results['errors'].append(error_msg)
@@ -697,10 +793,16 @@ class TimeAttendanceImportService:
                         )
 
                 except Exception as e:
+                    # Fail closed: if validation cannot be performed, block the import.
+                    # This prevents a DB or import error from silently bypassing the check.
+                    error_msg = f"Project-location validation could not be completed: {e}"
+                    import_results['errors'].append(error_msg)
                     if self.logger:
-                        self.logger.logger.warning(
-                            f"Could not perform project-location validation: {e}"
+                        self.logger.logger.error(
+                            f"Project-location validation error (failing closed): {e}",
+                            exc_info=True
                         )
+                    return import_results
             # ── End project-location validation ──────────────────────────────────
 
             # Track duplicates using hash

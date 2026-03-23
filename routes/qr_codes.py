@@ -86,9 +86,9 @@ def create_qr_code():
                     address_latitude = float(latitude)
                     address_longitude = float(longitude)
                     has_coordinates = True
-                    print(f"✓ Coordinates received: {address_latitude}, {address_longitude}")
+                    logger_handler.logger.debug(f"Coordinates received: {address_latitude}, {address_longitude}")
                 except (ValueError, TypeError) as e:
-                    print(f"⚠️ Invalid coordinates format: {e}")
+                    logger_handler.logger.warning(f"Invalid coordinates format: {e}")
                     address_latitude = None
                     address_longitude = None
                     has_coordinates = False
@@ -98,7 +98,7 @@ def create_qr_code():
             if project_id:
                 try:
                     project_id = int(project_id)
-                    project = Project.query.get(project_id)
+                    project = db.session.get(Project, project_id)
                     if not project or not project.active_status:
                         flash('Selected project is not valid or inactive.', 'error')
                         return render_template('create_qr_code.html',
@@ -192,7 +192,7 @@ def create_qr_code():
             db.session.rollback()
             logger_handler.log_database_error('qr_code_creation', e)
             flash('QR Code creation failed. Please try again.', 'error')
-            print(f"❌ QR Code creation error: {e}")
+            logger_handler.logger.error(f"QR Code creation error: {e}", exc_info=True)
 
     # Get active projects and styles for dropdown
     projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
@@ -435,7 +435,7 @@ def edit_qr_code(qr_id):
             if new_project_id and new_project_id.strip():
                 try:
                     new_project_id = int(new_project_id)
-                    project = Project.query.get(new_project_id)
+                    project = db.session.get(Project, new_project_id)
                     if project and project.active_status:
                         qr_code.project_id = new_project_id
                     else:
@@ -518,16 +518,16 @@ def delete_qr_code(qr_id):
     """Permanently delete QR code (Admin only) - Hard delete - PRESERVING EXACT ROUTE"""
     try:
         qr_code = QRCode.query.get_or_404(qr_id)
-        print(f"✅ Found QR Code: {qr_code.name}")
+        logger_handler.logger.debug(f"Found QR Code for delete: {qr_code.name} (ID: {qr_id})")
 
         if request.method == 'POST':
             qr_name = qr_code.name
             qr_code_id = qr_code.id
-            print(f"🗑️ ATTEMPTING TO DELETE: {qr_name}")
+            logger_handler.logger.info(f"User {session.get('username', 'unknown')} attempting to delete QR code: {qr_name} (ID: {qr_id})")
 
             # Check if QR exists before delete
             before_count = QRCode.query.count()
-            print(f"📊 QR count before delete: {before_count}")
+            logger_handler.logger.debug(f"QR count before delete: {before_count}")
 
             # Log QR code deletion before actual deletion
             logger_handler.log_qr_code_deleted(
@@ -538,29 +538,27 @@ def delete_qr_code(qr_id):
 
             # Delete the QR code
             db.session.delete(qr_code)
-            print("💾 Called db.session.delete()")
+
 
             db.session.commit()
-            print("💾 Called db.session.commit()")
+
 
             # Check count after delete
             after_count = QRCode.query.count()
-            print(f"📊 QR count after delete: {after_count}")
-            print(f"✅ DELETE SUCCESS! Removed {before_count - after_count} records")
+            logger_handler.logger.debug(f"QR count after delete: {after_count}")
+            logger_handler.logger.info(f"QR code deleted successfully: {qr_name} (ID: {qr_id}), removed {before_count - after_count} records")
 
             flash(f'QR code "{qr_name}" has been permanently deleted!', 'success')
             return redirect(url_for('dashboard.dashboard'))
 
         # GET request - show confirmation page
-        print("📄 Showing confirmation page")
+        logger_handler.logger.debug(f"Showing delete confirmation page for QR code ID: {qr_id}")
         return render_template('confirm_delete_qr.html', qr_code=qr_code)
 
     except Exception as e:
         db.session.rollback()
         logger_handler.log_database_error('qr_code_deletion', e)
-        print(f"❌ ERROR in delete route: {e}")
-        print(f"❌ Exception type: {type(e)}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        logger_handler.logger.error(f"Error in QR code delete route (ID: {qr_id}): {e}", exc_info=True)
         flash('Error deleting QR code. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))
     
@@ -603,23 +601,19 @@ def qr_checkin(qr_url):
     PRESERVES coordinate-to-address conversion functionality
     """
     try:
-        print(f"\n🚀 STARTING ENHANCED CHECK-IN PROCESS")
-        print(f"   QR URL: {qr_url}")
-        print(f"   Timestamp: {datetime.now()}")
+        logger_handler.logger.debug(f"Starting check-in process for QR URL: {qr_url}")
 
         # Find QR code by URL
         qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
 
         if not qr_code:
-            print(f"❌ QR code not found or inactive: {qr_url}")
+            logger_handler.logger.warning(f"QR code not found or inactive: {qr_url}")
             return jsonify({
                 'success': False,
                 'message': 'QR code not found or inactive.'
             }), 404
 
-        print(f"✅ Found QR code: {qr_code.name} (ID: {qr_code.id})")
-        print(f"   Location: {qr_code.location}")
-        print(f"   QR Address: {qr_code.location_address}")
+        logger_handler.logger.debug(f"Found QR code: {qr_code.name} (ID: {qr_code.id}), location: {qr_code.location}")
 
         # Get and validate employee ID
         employee_id = request.form.get('employee_id', '').strip()
@@ -650,9 +644,7 @@ def qr_checkin(qr_url):
             # Check if 30 minutes have passed since the last check-in
             if recent_checkin_datetime > the_last_checkin_time:
                 minutes_remaining = time_interval - int((current_time - recent_checkin_datetime).total_seconds() / 60)
-                print(f"⚠️ Too soon for another {qr_code.location_event} for {employee_id}")
-                print(f"   Last {qr_code.location_event}: {recent_checkin.check_in_time.strftime('%H:%M')}")
-                print(f"   Minutes remaining: {minutes_remaining}")
+                logger_handler.logger.info(f"Too soon for another {qr_code.location_event} for employee {employee_id}: {minutes_remaining} minutes remaining")
 
                 return jsonify({
                     'success': False,
@@ -660,9 +652,9 @@ def qr_checkin(qr_url):
                                f"Puedes volver a registrarte en {minutes_remaining} minutos. El último registro fue a las {recent_checkin.check_in_time.strftime("%H:%M")}."
                 }), 400
             else:
-                print(f"✅ {time_interval}-minute interval satisfied. Allowing new {qr_code.location_event} for {employee_id}")
+                logger_handler.logger.debug(f"{time_interval}-minute interval satisfied for employee {employee_id}")
         else:
-            print(f"✅ First {qr_code.location_event} today for {employee_id}")
+            logger_handler.logger.debug(f"First {qr_code.location_event} today for employee {employee_id}")
 
         # Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
@@ -672,12 +664,10 @@ def qr_checkin(qr_url):
         device_info = detect_device_info(user_agent_string)
         client_ip = get_client_ip()
 
-        print(f"📱 Device Info: {device_info}")
-        print(f"🌐 IP Address: {client_ip}")
-        print(f"📍 Location Data: {location_data}")
+        logger_handler.logger.debug(f"Check-in device: {device_info}, IP: {client_ip}")
 
         # Create attendance record
-        print(f"\n💾 CREATING ATTENDANCE RECORD:")
+        logger_handler.logger.debug("Creating attendance record")
 
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
@@ -699,39 +689,29 @@ def qr_checkin(qr_url):
             verification_status=None
         )
 
-        print(f"✅ Created base attendance record")
+        logger_handler.logger.debug("Created base attendance record")
 
-        # ENHANCED DEBUG: Calculate location accuracy with detailed logging
-        print(f"\n🎯 CALCULATING LOCATION ACCURACY WITH ENHANCED DEBUG...")
-        print(f"   📊 QR Code Details:")
-        print(f"      ID: {qr_code.id}")
-        print(f"      Name: {qr_code.name}")
-        print(f"      Location: {qr_code.location}")
-        print(f"      Location Address: {qr_code.location_address}")
-        print(f"      Has location_address: {qr_code.location_address is not None}")
-        print(f"      Location Address Length: {len(qr_code.location_address) if qr_code.location_address else 0}")
-
-        print(f"   📍 Check-in Data:")
-        print(f"      Latitude: {location_data['latitude']}")
-        print(f"      Longitude: {location_data['longitude']}")
-        print(f"      GPS Accuracy: {location_data['accuracy']}")
-        print(f"      Address: {location_data['address']}")
-        print(f"      Address Length: {len(location_data['address']) if location_data['address'] else 0}")
-        print(f"      Source: {location_data['source']}")
+        # Calculate location accuracy
+        logger_handler.logger.debug(
+            f"Location accuracy check: QR='{qr_code.name}' (ID={qr_code.id}), "
+            f"lat={location_data['latitude']}, lng={location_data['longitude']}, "
+            f"source={location_data['source']}"
+        )
 
         location_accuracy = None
 
         try:
             # Check if we have the required data
             if not qr_code.location_address:
-                print(f"❌ QR code location_address is empty or None")
-                print(f"   QR Code location_address value: '{qr_code.location_address}'")
+                logger_handler.logger.warning(f"QR code location_address is empty or None for QR ID: {qr_code.id}")
             elif not location_data['address'] and not (location_data['latitude'] and location_data['longitude']):
-                print(f"❌ No check-in address or coordinates available")
-                print(f"   Check-in address: '{location_data['address']}'")
-                print(f"   Check-in coords: {location_data['latitude']}, {location_data['longitude']}")
+                logger_handler.logger.warning(
+                    f"No check-in address or coordinates available: "
+                    f"address={location_data['address']!r}, "
+                    f"coords={location_data['latitude']}, {location_data['longitude']}"
+                )
             else:
-                print(f"✅ Required data available, proceeding with calculation...")
+                logger_handler.logger.debug("Required location data available, proceeding with accuracy calculation")
 
                 location_accuracy = calculate_location_accuracy_enhanced(
                     qr_address=qr_code.location_address,
@@ -740,30 +720,28 @@ def qr_checkin(qr_url):
                     checkin_lng=location_data['longitude']
                 )
 
-                print(f"📐 Location accuracy calculation result: {location_accuracy}")
+                logger_handler.logger.debug(f"Location accuracy calculation result: {location_accuracy}")
 
                 if location_accuracy is not None:
                     attendance.location_accuracy = location_accuracy
                     accuracy_level = get_location_accuracy_level_enhanced(location_accuracy)
-                    print(f"✅ Location accuracy set successfully: {location_accuracy:.4f} miles ({accuracy_level})")
-                    print(f"📊 Final attendance.location_accuracy value: {attendance.location_accuracy}")
+                    logger_handler.logger.debug(f"Location accuracy set: {location_accuracy:.4f} miles ({accuracy_level})")
                 else:
-                    print(f"⚠️ Could not calculate location accuracy - calculation returned None")
+                    logger_handler.logger.warning("Could not calculate location accuracy — calculation returned None")
 
                 # CHECK DISTANCE THRESHOLD FOR PHOTO VERIFICATION
-                print(f"\n📸 CHECKING PHOTO VERIFICATION REQUIREMENT:")
-                print(f"   Photo Verification Enabled: {current_app.config.get('PHOTO_VERIFICATION_ENABLED', True)}")
+                logger_handler.logger.debug(f"Photo verification enabled: {current_app.config.get('PHOTO_VERIFICATION_ENABLED', True)}")
                 requires_verification = False
                 verification_photo_data = None
                 
                 if current_app.config.get('PHOTO_VERIFICATION_ENABLED', True) and location_accuracy is not None and location_accuracy > current_app.config.get('DISTANCE_THRESHOLD_FOR_VERIFICATION', 0.3):
-                    print(f"⚠️ Distance ({location_accuracy:.3f} mi) exceeds threshold ({current_app.config.get('DISTANCE_THRESHOLD_FOR_VERIFICATION', 0.3)} mi)")
+                    logger_handler.logger.info(f"Distance ({location_accuracy:.3f} mi) exceeds verification threshold for employee {employee_id}")
                     
                     # Check if photo was provided
                     verification_photo_data = request.form.get('verification_photo', None)
                     
                     if verification_photo_data:
-                        print(f"✅ Verification photo provided (size: {len(verification_photo_data)} chars)")
+                        logger_handler.logger.debug(f"Verification photo provided (size: {len(verification_photo_data)} chars)")
                         
                         # Validate photo data (basic validation)
                         if verification_photo_data.startswith('data:image/'):
@@ -771,16 +749,16 @@ def qr_checkin(qr_url):
                             attendance.verification_required = True
                             attendance.verification_status = 'pending'
                             attendance.verification_timestamp = datetime.now()
-                            print(f"✅ Photo verification set to PENDING status")
+                            logger_handler.logger.info(f"Photo verification set to PENDING for employee {employee_id}")
                         else:
-                            print(f"⚠️ Invalid photo format provided")
+                            logger_handler.logger.warning(f"Invalid photo format provided for employee {employee_id}")
                             return jsonify({
                                 'success': False,
                                 'message': 'Invalid photo format. Please try again.',
                                 'requires_verification': True
                             }), 400
                     else:
-                        print(f"❌ Photo verification REQUIRED but not provided")
+                        logger_handler.logger.warning(f"Photo verification required but not provided for employee {employee_id}")
                         return jsonify({
                             'success': False,
                             'message': 'Photo verification required. Distance from location is too far.',
@@ -789,22 +767,14 @@ def qr_checkin(qr_url):
                             'threshold': current_app.config.get('DISTANCE_THRESHOLD_FOR_VERIFICATION', 0.3)
                         }), 400
                 else:
-                    print(f"✅ Distance within threshold - no verification needed")
+                    logger_handler.logger.debug(f"Distance within threshold for employee {employee_id} — no verification needed")
 
         except Exception as e:
-            print(f"❌ Error in location accuracy calculation: {e}")
-            print(f"❌ Full traceback: {traceback.format_exc()}")
+            logger_handler.logger.error(f"Error in location accuracy calculation: {e}", exc_info=True)
 
         # ENHANCED DEBUG: Save to database with verification
         try:
-            print(f"\n💾 SAVING TO DATABASE...")
-            print(f"   Attendance object before save:")
-            print(f"      Employee ID: {attendance.employee_id}")
-            print(f"      Location: {attendance.location_name}")
-            print(f"      Latitude: {attendance.latitude}")
-            print(f"      Longitude: {attendance.longitude}")
-            print(f"      Address: {attendance.address}")
-            print(f"      Location Accuracy: {attendance.location_accuracy}")
+            logger_handler.logger.debug(f"Saving attendance record: employee={attendance.employee_id}, location={attendance.location_name}, accuracy={attendance.location_accuracy}")
 
             db.session.add(attendance)
             db.session.commit()
@@ -819,14 +789,11 @@ def qr_checkin(qr_url):
                 )
 
             # VERIFICATION: Read back from database
-            saved_record = AttendanceData.query.get(attendance.id)
-            print(f"✅ Successfully saved attendance record with ID: {attendance.id}")
-            print(f"📊 Verification - location accuracy in database: {saved_record.location_accuracy}")
+            saved_record = db.session.get(AttendanceData, attendance.id)
+            logger_handler.logger.info(f"Saved attendance record ID: {attendance.id}, db accuracy: {saved_record.location_accuracy}")
 
             if saved_record.location_accuracy != attendance.location_accuracy:
-                print(f"⚠️ WARNING: Database value differs from object value!")
-                print(f"   Object value: {attendance.location_accuracy}")
-                print(f"   Database value: {saved_record.location_accuracy}")
+                logger_handler.logger.warning(f"DB accuracy mismatch: object={attendance.location_accuracy}, db={saved_record.location_accuracy}")
 
             # Add enhanced logging for location accuracy save
             if attendance.location_accuracy is not None:
@@ -844,8 +811,7 @@ def qr_checkin(qr_url):
             checkin_sequence_text = f"{qr_code.location_event} details"
 
         except Exception as e:
-            print(f"❌ Database error: {e}")
-            print(f"❌ Full traceback: {traceback.format_exc()}")
+            logger_handler.logger.error(f"Database error saving attendance record: {e}", exc_info=True)
             db.session.rollback()
             logger_handler.log_database_error('checkin_save', e)
             return jsonify({
@@ -879,14 +845,11 @@ def qr_checkin(qr_url):
             response_data['data']['coordinates'] = f"{location_data['latitude']:.10f}, {location_data['longitude']:.10f}"
 
         # Enhanced logging for successful check-in with all details
-        print(f"✅ Check-in completed successfully")
-        print(f"   Employee ID: {attendance.employee_id}")
-        print(f"   Time: {attendance.check_in_time.strftime('%I:%M %p')}")
-        print(f"   Date: {attendance.check_in_date.strftime('%B %d, %Y')}")
-        print(f"   Location: {attendance.location_name}")
-        print(f"   Action: {qr_code.location_event}")
-        print(f"   Address: {attendance.address}")
-        print(f"   Today's count: {today_checkin_count}")
+        logger_handler.logger.info(
+            f"Check-in completed: employee={attendance.employee_id}, "
+            f"action={qr_code.location_event}, location={attendance.location_name}, "
+            f"time={attendance.check_in_time.strftime('%H:%M')}, count_today={today_checkin_count}"
+        )
         
         # Log to database for audit trail
         logger_handler.logger.info(f"Check-in success - Employee: {attendance.employee_id}, Location: {attendance.location_name}, Time: {attendance.check_in_time}, Action: {qr_code.location_event}")
@@ -894,8 +857,8 @@ def qr_checkin(qr_url):
         return jsonify(response_data), 200
 
     except Exception as e:
-        print(f"❌ Unexpected error in check-in process: {e}")
-        print(f"❌ Traceback: {traceback.format_exc()}")
+        db.session.rollback()
+        logger_handler.logger.error(f"Unexpected error in check-in process (QR: {qr_url}): {e}", exc_info=True)
 
         return jsonify({
             'success': False,
@@ -925,7 +888,7 @@ def toggle_qr_status(qr_id):
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error toggling QR status: {e}")
+        logger_handler.logger.error(f"Error toggling QR status (ID: {qr_id}): {e}", exc_info=True)
         return jsonify({
             'success': False,
             'message': 'Error updating QR code status. Please try again.'
@@ -996,7 +959,7 @@ def activate_qr_code(qr_id):
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error activating QR code: {e}")
+        logger_handler.logger.error(f"Error activating QR code (ID: {qr_id}): {e}", exc_info=True)
         return jsonify({
             'success': False,
             'message': 'Error activating QR code. Please try again.'
@@ -1021,7 +984,7 @@ def deactivate_qr_code(qr_id):
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error deactivating QR code: {e}")
+        logger_handler.logger.error(f"Error deactivating QR code (ID: {qr_id}): {e}", exc_info=True)
         return jsonify({
             'success': False,
             'message': 'Error deactivating QR code. Please try again.'
