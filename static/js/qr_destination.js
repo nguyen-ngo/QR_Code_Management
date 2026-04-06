@@ -241,7 +241,12 @@ function proceedWithCheckin() {
   // ADDED: For dynamic QR codes, require a location to be selected before proceeding
   var selLocField = document.getElementById("selected_location_name");
   var locationSelectCard = document.getElementById("locationSelectCard");
-  if (locationSelectCard && selLocField && !selLocField.value.trim()) {
+  var dropdown = document.getElementById("locationDropdown");
+  var hasLocationSelected = (window._dynamicQRSelectedName && window._dynamicQRSelectedName.trim()) ||
+                            (selLocField && selLocField.value.trim()) ||
+                            (dropdown && dropdown.value.trim());
+
+  if (locationSelectCard && !hasLocationSelected) {
     // No location selected — redirect employee back to Step 1
     document.getElementById("checkinFormCard").style.display = "none";
     locationSelectCard.style.display = "block";
@@ -321,14 +326,42 @@ function submitCheckin() {
   formData.append("location_source", userLocation.source || "manual");
   formData.append("address", userLocation.address || "");
 
-  // ADDED: Forward the employee-selected location for dynamic QR check-in
-  const selLocName = document.getElementById("selected_location_name");
-  const selLocAddr = document.getElementById("selected_location_address");
-  if (selLocName && selLocName.value.trim()) {
-    formData.append("selected_location_name", selLocName.value.trim());
+  // ADDED: Forward the employee-selected location for dynamic QR check-in.
+  // Priority: window globals (set by confirmLocationSelection) → hidden field → dropdown.
+  var locationNameValue = (window._dynamicQRSelectedName && window._dynamicQRSelectedName.trim())
+    ? window._dynamicQRSelectedName.trim()
+    : "";
+  var locationAddrValue = (window._dynamicQRSelectedAddress && window._dynamicQRSelectedAddress.trim())
+    ? window._dynamicQRSelectedAddress.trim()
+    : "";
+
+  // Fallback to hidden fields
+  if (!locationNameValue) {
+    var _hn = document.getElementById("selected_location_name");
+    var _ha = document.getElementById("selected_location_address");
+    if (_hn && _hn.value.trim()) {
+      locationNameValue = _hn.value.trim();
+      locationAddrValue = (_ha && _ha.value.trim()) ? _ha.value.trim() : "";
+    }
   }
-  if (selLocAddr && selLocAddr.value.trim()) {
-    formData.append("selected_location_address", selLocAddr.value.trim());
+
+  // Final fallback to dropdown directly
+  if (!locationNameValue) {
+    var _dd = document.getElementById("locationDropdown");
+    if (_dd && _dd.value.trim()) {
+      locationNameValue = _dd.value.trim();
+      var _so = _dd.options[_dd.selectedIndex];
+      locationAddrValue = _so ? (_so.getAttribute("data-address") || "") : "";
+    }
+  }
+
+  console.log("📍 [qr_destination.js] Location — name:", locationNameValue, "| addr:", locationAddrValue);
+
+  if (locationNameValue) {
+    formData.append("selected_location_name", locationNameValue);
+  }
+  if (locationAddrValue) {
+    formData.append("selected_location_address", locationAddrValue);
   }
 
   const currentUrl = window.location.pathname;

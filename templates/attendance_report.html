@@ -5,6 +5,16 @@
 {% block extra_head %}
 <!-- Attendance-specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+<style>
+/* Dynamic QR record row — subtle left accent to distinguish from standard records */
+tr.dynamic-qr-record {
+    border-left: 3px solid #3b5bdb;
+    background-color: rgba(59, 91, 219, 0.03);
+}
+tr.dynamic-qr-record:hover {
+    background-color: rgba(59, 91, 219, 0.07) !important;
+}
+</style>
 <!-- Fullscreen CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/attendance_fullscreen.css') }}">
 <!-- Chart.js for analytics -->
@@ -221,7 +231,9 @@
                 </thead>
                 <tbody>
                     {% for record in attendance_records %}
-                    <tr data-record-id="{{ record.id }}" class="{% if record.updated_timestamp > record.created_timestamp %}modified-record{% endif %}">
+                    <tr data-record-id="{{ record.id }}"
+    data-is-dynamic="{{ '1' if (record.get('is_dynamic_qr') or record.location_name == 'Dynamic') else '0' }}"
+    class="{% if record.updated_timestamp > record.created_timestamp %}modified-record{% endif %}{% if record.get('is_dynamic_qr') or record.location_name == 'Dynamic' %} dynamic-qr-record{% endif %}">
                         <td>{{ loop.index }}</td>
                         <td>
                             <div class="employee-info">
@@ -237,7 +249,7 @@
                         <td>
                             <div class="location-info">
                                 <i class="fas fa-map-marker-alt"></i>
-                                {{ record.location_name }}
+                                {{ record.location_name if record.location_name != 'Dynamic' else '(No location recorded)' }}
                             </div>
                         </td>
                         <td>
@@ -1082,4 +1094,5 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 }());
 </script>
+
 {% endblock %}

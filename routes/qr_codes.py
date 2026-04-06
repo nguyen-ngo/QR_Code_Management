@@ -701,6 +701,21 @@ def qr_checkin(qr_url):
         selected_location_name    = request.form.get('selected_location_name', '').strip()
         selected_location_address = request.form.get('selected_location_address', '').strip()
 
+        # Server-side guard: if this is a dynamic QR and no location was submitted,
+        # reject the check-in so "Dynamic" is never stored as location_name.
+        if getattr(qr_code, 'qr_type', 'standard') == 'dynamic' and not selected_location_name:
+            logger_handler.logger.warning(
+                f"DYNAMIC check-in REJECTED: employee={employee_id}, "
+                f"qr_id={qr_code.id} — no location selected"
+            )
+            return jsonify({
+                'success': False,
+                'message': (
+                    'Please select a location before checking in. / '
+                    'Por favor seleccione una ubicación antes de registrarse.'
+                )
+            }), 400
+
         if getattr(qr_code, 'qr_type', 'standard') == 'dynamic' and selected_location_name:
             effective_location_name    = selected_location_name
             effective_location_address = selected_location_address or ''
@@ -800,11 +815,10 @@ def qr_checkin(qr_url):
         # Create attendance record
         logger_handler.logger.debug("Creating attendance record")
 
-        # For dynamic QR: append tag to location_name so reports distinguish the source
+        # Flag whether this check-in came from a dynamic QR scan
         is_dynamic = getattr(qr_code, 'qr_type', 'standard') == 'dynamic' and bool(selected_location_name)
-        record_location_name = (
-            f"{effective_location_name} (Dynamic QR)" if is_dynamic else effective_location_name
-        )
+        # Store clean location_name (no suffix) so filtering/export works normally
+        record_location_name = effective_location_name
         # For dynamic QR: store the selected location's address as the QR-side address
         record_qr_address = effective_location_address if is_dynamic else None
 
@@ -818,6 +832,7 @@ def qr_checkin(qr_url):
             ip_address=client_ip,
             location_name=record_location_name,
             qr_address=record_qr_address,
+            is_dynamic_qr=is_dynamic,
             latitude=location_data['latitude'],
             longitude=location_data['longitude'],
             accuracy=location_data['accuracy'],

@@ -148,7 +148,7 @@ function applyFilters() {
       record.event.toLowerCase().includes(searchTerm);
 
     const matchesLocation =
-      !locationFilter || record.location === locationFilter;
+      !locationFilter || (record.location && record.location.trim() === locationFilter.trim());
     const matchesEmployee =
       employeeFilterIds.length === 0 ||
       employeeFilterIds.some(function(id) {
@@ -514,6 +514,7 @@ function loadTableData() {
               ? cells[10].textContent.trim()
               : "",
           isModified: row.classList.contains('modified-record'),
+          isDynamic: row.dataset.isDynamic === '1',
           verification_required: verificationData.required,
           verification_status: verificationData.status
       };
@@ -628,6 +629,10 @@ function createTableRow(record, displayIndex) {
   // Apply highlighting if record was modified
   if (record.isModified) {
       row.classList.add('modified-record');
+  }
+  // Apply blue-border highlight for Dynamic QR records
+  if (record.isDynamic) {
+      row.classList.add('dynamic-qr-record');
   }
 
   // Debug logging for first few records

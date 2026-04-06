@@ -35,6 +35,8 @@ class AttendanceData(base.db.Model):
     address = base.db.Column(base.db.String(500), nullable=True)
     # Stores the QR-side address for dynamic QR check-ins (overrides qr_codes.location_address join)
     qr_address = base.db.Column(base.db.Text, nullable=True)
+    # True when this record was created via a Dynamic QR code scan
+    is_dynamic_qr = base.db.Column(base.db.Boolean, default=False, nullable=False)
     verification_photo = base.db.Column(base.db.Text, nullable=True)  # Base64 encoded image
     verification_required = base.db.Column(base.db.Boolean, default=False)
     verification_status = base.db.Column(base.db.String(20), nullable=True)  # 'pending', 'approved', 'rejected'

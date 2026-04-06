@@ -107,8 +107,43 @@ def run_migration():
         else:
             print("\u2139\ufe0f   Column attendance_data.qr_address already exists \u2014 skipped.")
 
+        # ----------------------------------------------------------------
+        # Step 5: Add is_dynamic_qr column to attendance_data if absent
+        # Flags records that came from a Dynamic QR code scan
+        # ----------------------------------------------------------------
+        if 'is_dynamic_qr' not in att_cols:
+            with db.engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE attendance_data "
+                    "ADD COLUMN is_dynamic_qr TINYINT(1) NOT NULL DEFAULT 0"
+                ))
+                conn.commit()
+            print("\u2705  Added column: attendance_data.is_dynamic_qr")
+        else:
+            print("\u2139\ufe0f   Column attendance_data.is_dynamic_qr already exists \u2014 skipped.")
+
+        # ----------------------------------------------------------------
+        # Step 6: Backfill is_dynamic_qr=1 on old broken records
+        # Records created before this migration where location_name='Dynamic'
+        # are legacy dynamic QR check-ins that were saved with the wrong name.
+        # Mark them so the badge shows correctly in the attendance report.
+        # ----------------------------------------------------------------
+        with db.engine.connect() as conn:
+            result = conn.execute(text(
+                "UPDATE attendance_data "
+                "SET is_dynamic_qr = 1 "
+                "WHERE location_name = 'Dynamic' AND is_dynamic_qr = 0"
+            ))
+            conn.commit()
+            updated = result.rowcount
+        if updated > 0:
+            print(f"\u2705  Backfilled is_dynamic_qr=1 on {updated} legacy 'Dynamic' record(s)")
+        else:
+            print("\u2139\ufe0f   No legacy 'Dynamic' records to backfill.")
+
         print("\nMigration complete.")
         print("All existing QR codes remain fully unaffected (qr_type = 'standard').")
+        print("All existing attendance records default to is_dynamic_qr = 0 (False).")
 
 
 if __name__ == '__main__':

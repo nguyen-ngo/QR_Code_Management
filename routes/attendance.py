@@ -180,7 +180,8 @@ def attendance_report():
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name,
                     ad.verification_required,
                     ad.verification_status,
-                    ad.verification_photo
+                    ad.verification_photo,
+                    COALESCE(ad.is_dynamic_qr, 0) as is_dynamic_qr
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
                 LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
@@ -208,7 +209,8 @@ def attendance_report():
                     CONCAT(e.firstName, ' ', e.lastName) as employee_name,
                     ad.verification_required,
                     ad.verification_status,
-                    ad.verification_photo
+                    ad.verification_photo,
+                    COALESCE(ad.is_dynamic_qr, 0) as is_dynamic_qr
                 FROM attendance_data ad
                 LEFT JOIN qr_codes qc ON ad.qr_code_id = qc.id
                 LEFT JOIN employee e ON CAST(ad.employee_id AS UNSIGNED) = e.id
@@ -250,6 +252,7 @@ def attendance_report():
             query_params['date_to'] = date_to
 
         if location_filter:
+            # Exact match — dropdown value IS the exact location_name string
             filter_conditions.append("ad.location_name = :location")
             query_params['location'] = location_filter
 
@@ -268,7 +271,19 @@ def attendance_report():
             )
 
         if project_filter:
-            filter_conditions.append("qc.project_id = :project")
+            # For standard QR records: match by the QR code's project_id directly.
+            # For dynamic QR records: the dynamic QR itself may not be in any project,
+            # but the employee-selected location corresponds to a standard QR in that
+            # project. Match those by checking if attendance_data.location_name
+            # appears in the locations of QR codes belonging to the selected project.
+            filter_conditions.append(
+                "(qc.project_id = :project OR "
+                "(ad.is_dynamic_qr = 1 AND ad.location_name IN ("
+                "  SELECT DISTINCT qc2.location FROM qr_codes qc2 "
+                "  WHERE qc2.project_id = :project AND qc2.qr_type = 'standard' "
+                "  AND qc2.location IS NOT NULL AND qc2.location != ''"
+                ")))"
+            )
             query_params['project'] = project_filter
 
         # Combine query with filters
@@ -307,7 +322,8 @@ def attendance_report():
                     'employee_name': record[15] or 'Unknown Employee',
                     'verification_required': record[16] if len(record) > 16 else False,
                     'verification_status': record[17] if len(record) > 17 else None,
-                    'verification_photo': record[18] if len(record) > 18 else None
+                    'verification_photo': record[18] if len(record) > 18 else None,
+                    'is_dynamic_qr': bool(record[19]) if len(record) > 19 else False
                 }
                 
                 # Calculate accuracy_level for template display
@@ -339,6 +355,8 @@ def attendance_report():
                     SELECT DISTINCT location_name 
                     FROM attendance_data 
                     WHERE location_name IS NOT NULL 
+                      AND location_name != 'Dynamic'
+                      AND location_name != ''
                     ORDER BY location_name
                 """))
                 locations = [row[0] for row in locations_query.fetchall()]
@@ -1861,7 +1879,13 @@ def create_excel_export(selected_columns, column_names, filters):
                     elif column_key == 'check_in_time':
                         cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
                     elif column_key == 'qr_address':
-                        cell.value = qr_record.location_address if qr_record else ''
+                        # Use attendance-level qr_address first (set for dynamic QR check-ins),
+                        # fall back to the QR code's location_address for standard QR.
+                        cell.value = (
+                            getattr(attendance_record, 'qr_address', None)
+                            or (qr_record.location_address if qr_record else '')
+                            or ''
+                        )
                     elif column_key == 'address':
                         # Check-in address logic based on location accuracy WITH HYPERLINKS
                         # If location accuracy < 0.3 miles, use QR address; otherwise use actual check-in address
@@ -1870,7 +1894,11 @@ def create_excel_export(selected_columns, column_names, filters):
                                 accuracy_value = float(attendance_record.location_accuracy)
                                 if accuracy_value < 0.3:
                                     # High accuracy - use QR code ADDRESS (not location) with hyperlink
-                                    address_text = qr_record.location_address if qr_record and qr_record.location_address else ''
+                                    address_text = (
+                                        getattr(attendance_record, 'qr_address', None)
+                                        or (qr_record.location_address if qr_record and qr_record.location_address else '')
+                                        or ''
+                                    )
                                     if address_text and hasattr(qr_record, 'address_latitude') and hasattr(qr_record, 'address_longitude') and qr_record.address_latitude and qr_record.address_longitude:
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(qr_record.address_latitude):.10f}"
@@ -2161,7 +2189,13 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                     elif column_key == 'check_in_time':
                         cell.value = attendance_record.check_in_time.strftime('%H:%M:%S') if attendance_record.check_in_time else ''
                     elif column_key == 'qr_address':
-                        cell.value = qr_record.location_address if qr_record else ''
+                        # Use attendance-level qr_address first (set for dynamic QR check-ins),
+                        # fall back to the QR code's location_address for standard QR.
+                        cell.value = (
+                            getattr(attendance_record, 'qr_address', None)
+                            or (qr_record.location_address if qr_record else '')
+                            or ''
+                        )
                     elif column_key == 'address':
                         # Check-in address logic based on location accuracy WITH HYPERLINKS
                         # If location accuracy < 0.3 miles, use QR address; otherwise use actual check-in address
@@ -2170,7 +2204,11 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
                                 accuracy_value = float(attendance_record.location_accuracy)
                                 if accuracy_value < 0.3:
                                     # High accuracy - use QR code ADDRESS (not location) with hyperlink
-                                    address_text = qr_record.location_address if qr_record and qr_record.location_address else ''
+                                    address_text = (
+                                        getattr(attendance_record, 'qr_address', None)
+                                        or (qr_record.location_address if qr_record and qr_record.location_address else '')
+                                        or ''
+                                    )
                                     if address_text and hasattr(qr_record, 'address_latitude') and hasattr(qr_record, 'address_longitude') and qr_record.address_latitude and qr_record.address_longitude:
                                         # Format coordinates with 10 decimal places
                                         lat_formatted = f"{float(qr_record.address_latitude):.10f}"

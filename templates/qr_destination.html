@@ -1333,6 +1333,11 @@
       </div>
     </div>  
     <!-- Enhanced JavaScript with preserved functionality -->
+    <!-- Dynamic QR: expose selected location to qr_destination.js via window globals -->
+    <script>
+      window._dynamicQRSelectedName    = "";
+      window._dynamicQRSelectedAddress = "";
+    </script>
     <script src="{{ url_for('static', filename='js/qr_destination.js') }}"></script>
     <script src="{{ url_for('static', filename='js/android_location_handler.js') }}"></script>
     <script>
@@ -1547,7 +1552,11 @@
         // FIX 2: For dynamic QR codes, block submission if no location was selected
         var selLocField = document.getElementById("selected_location_name");
         var locationSelectCard = document.getElementById("locationSelectCard");
-        if (locationSelectCard && selLocField && !selLocField.value.trim()) {
+        var _guardDropdown = document.getElementById("locationDropdown");
+        var _hasLocation = (selLocField && selLocField.value.trim()) ||
+                           (_guardDropdown && _guardDropdown.value.trim());
+
+        if (locationSelectCard && !_hasLocation) {
           // No location selected — send employee back to Step 1
           document.getElementById("checkinFormCard").style.display = "none";
           locationSelectCard.style.display = "block";
@@ -1597,14 +1606,30 @@
         const formData = new FormData();
         formData.append("employee_id", employeeId);
 
-        // ADDED: forward employee-selected location for dynamic QR check-in
-        const selLocName = document.getElementById("selected_location_name");
-        const selLocAddr = document.getElementById("selected_location_address");
-        if (selLocName && selLocName.value) {
-          formData.append("selected_location_name", selLocName.value);
+        // Read selected location — window globals (most reliable), then hidden field, then dropdown
+        var _selLocName = window._dynamicQRSelectedName    || "";
+        var _selLocAddr = window._dynamicQRSelectedAddress || "";
+        var _hiddenName  = document.getElementById("selected_location_name");
+        var _hiddenAddr  = document.getElementById("selected_location_address");
+        var _dropdown    = document.getElementById("locationDropdown");
+
+        if (!_selLocName && _hiddenName && _hiddenName.value.trim()) {
+          _selLocName = _hiddenName.value.trim();
+          _selLocAddr = (_hiddenAddr && _hiddenAddr.value.trim()) ? _hiddenAddr.value.trim() : "";
         }
-        if (selLocAddr && selLocAddr.value) {
-          formData.append("selected_location_address", selLocAddr.value);
+        if (!_selLocName && _dropdown && _dropdown.value.trim()) {
+          _selLocName = _dropdown.value.trim();
+          var _opt = _dropdown.options[_dropdown.selectedIndex];
+          _selLocAddr = _opt ? (_opt.getAttribute("data-address") || "") : "";
+        }
+
+        console.log("📍 [inline] Location — name:", _selLocName, "| addr:", _selLocAddr);
+
+        if (_selLocName) {
+          formData.append("selected_location_name", _selLocName);
+        }
+        if (_selLocAddr) {
+          formData.append("selected_location_address", _selLocAddr);
         }
 
         // Add location data to form submission
@@ -1806,9 +1831,13 @@
         var selOpt  = dropdown.options[dropdown.selectedIndex];
         var address = selOpt ? (selOpt.getAttribute("data-address") || "") : "";
 
-        // Store selection in hidden fields
+        // Store selection in hidden fields AND window globals
+        // (window globals are read by qr_destination.js's submitCheckin)
         document.getElementById("selected_location_name").value    = name;
         document.getElementById("selected_location_address").value = address;
+        window._dynamicQRSelectedName    = name;
+        window._dynamicQRSelectedAddress = address;
+        console.log("✅ confirmLocationSelection: stored location =", name);
 
         // FIX 1: Update the page header .location-info to show the selected location
         var locationInfoEl = document.querySelector(".location-info");
@@ -1834,9 +1863,11 @@
       }
 
       function backToLocationSelect() {
-        // Clear selection
+        // Clear selection from hidden fields and window globals
         document.getElementById("selected_location_name").value    = "";
         document.getElementById("selected_location_address").value = "";
+        window._dynamicQRSelectedName    = "";
+        window._dynamicQRSelectedAddress = "";
         var badge = document.getElementById("selectedLocationBadge");
         if (badge) badge.style.display = "none";
 
