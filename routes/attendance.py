@@ -20,7 +20,7 @@ from models.permissions import UserLocationPermission, UserProjectPermission
 from models.project import Project
 from models.qrcode import QRCode
 from models.user import User
-from sqlalchemy import text
+from sqlalchemy import text, or_, and_
 from logger_handler import log_user_activity, log_database_operations
 from utils.helpers import (
                            admin_required,
@@ -1816,7 +1816,29 @@ def create_excel_export(selected_columns, column_names, filters):
         if filters.get('project_filter'):
             try:
                 project_id = int(filters['project_filter'])
-                query = query.filter(QRCode.project_id == project_id)
+                # For standard QR records: match by the QR code's own project_id.
+                # For dynamic QR records: the dynamic QR may not belong to any project,
+                # but the employee-selected location corresponds to a standard QR in that
+                # project. Include them by matching location_name against standard QRs
+                # in the selected project.
+                query = query.filter(
+                    or_(
+                        QRCode.project_id == project_id,
+                        and_(
+                            AttendanceData.is_dynamic_qr == True,
+                            AttendanceData.location_name.in_(
+                                db.session.query(QRCode.location)
+                                .filter(
+                                    QRCode.project_id == project_id,
+                                    QRCode.qr_type == 'standard',
+                                    QRCode.location.isnot(None),
+                                    QRCode.location != ''
+                                )
+                                .subquery()
+                            )
+                        )
+                    )
+                )
                 logger_handler.logger.debug(f"Applied project filter: {project_id}")
             except (ValueError, TypeError) as e:
                 logger_handler.logger.warning(f"Invalid project filter: {e}")
@@ -2120,7 +2142,29 @@ def create_excel_export_ordered(selected_columns, column_names, filters):
         if filters.get('project_filter'):
             try:
                 project_id = int(filters['project_filter'])
-                query = query.filter(QRCode.project_id == project_id)
+                # For standard QR records: match by the QR code's own project_id.
+                # For dynamic QR records: the dynamic QR may not belong to any project,
+                # but the employee-selected location corresponds to a standard QR in that
+                # project. Include them by matching location_name against standard QRs
+                # in the selected project.
+                query = query.filter(
+                    or_(
+                        QRCode.project_id == project_id,
+                        and_(
+                            AttendanceData.is_dynamic_qr == True,
+                            AttendanceData.location_name.in_(
+                                db.session.query(QRCode.location)
+                                .filter(
+                                    QRCode.project_id == project_id,
+                                    QRCode.qr_type == 'standard',
+                                    QRCode.location.isnot(None),
+                                    QRCode.location != ''
+                                )
+                                .subquery()
+                            )
+                        )
+                    )
+                )
                 logger_handler.logger.debug(f"Applied project filter: {project_id}")
             except (ValueError, TypeError) as e:
                 logger_handler.logger.warning(f"Invalid project filter: {e}")
