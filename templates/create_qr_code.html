@@ -595,6 +595,26 @@
               </div>
             </div>
 
+            <!-- ===== ADDED: QR Code Type selector — shown first so user picks type before entering location ===== -->
+            <div class="form-group">
+              <label for="qr_type">
+                <i class="fas fa-qrcode"></i>
+                QR Code Type
+                <span style="color: var(--error-color)">*</span>
+              </label>
+              <select id="qr_type" name="qr_type" class="form-control" onchange="toggleQRTypeSection()">
+                <option value="standard" selected>Standard — Fixed Location</option>
+                <option value="dynamic">Dynamic — Employee Selects Location</option>
+              </select>
+              <small class="form-help">
+                <strong>Standard:</strong> employee checks in at one fixed location.<br>
+                <strong>Dynamic:</strong> employee picks a location from a list when scanning.
+              </small>
+            </div>
+            <!-- ===== END ADDED ===== -->
+
+            <!-- ADDED: wrapper to hide/show standard-only location field -->
+            <div id="standardLocationNameGroup">
             <div class="form-group">
               <label for="location">
                 <i class="fas fa-map-marker-alt"></i>
@@ -616,6 +636,7 @@
                 <span id="locationCounter">0/100</span>
               </div>
             </div>
+            </div><!-- end standardLocationNameGroup -->
 
             <div class="form-group">
               <label for="project_id">
@@ -637,7 +658,8 @@
             </div>
           </div>
 
-          <!-- Location Details Section -->
+          <!-- Location Details Section — hidden when Dynamic QR type is selected -->
+          <div id="standardLocationDetailsSection">
           <div class="form-section">
             <div class="section-header">
               <h3>
@@ -721,6 +743,11 @@
               </div>
             </div>
 
+          </div>
+          </div><!-- end standardLocationDetailsSection -->
+
+          <!-- Event or Purpose — always visible for both Standard and Dynamic QR -->
+          <div class="form-section">
             <div class="form-group">
               <label for="location_event">
                 <i class="fas fa-calendar-alt"></i>
@@ -741,6 +768,7 @@
                 >Select the event type for this QR code</small
               >
             </div>
+
           </div>
 
           <!-- QR Code Customization Section -->
@@ -1404,5 +1432,29 @@
         clearBtn.addEventListener('click', clearCoordinates);
       });
     </script>
+
+    <!-- ===== Dynamic QR Type Toggle ===== -->
+    <script>
+      function toggleQRTypeSection() {
+        var type      = document.getElementById('qr_type').value;
+        var stdName   = document.getElementById('standardLocationNameGroup');
+        var stdDetails= document.getElementById('standardLocationDetailsSection');
+        var locInput  = document.getElementById('location');
+        var addrInput = document.getElementById('location_address');
+
+        if (type === 'dynamic') {
+          if (stdName)   stdName.style.display    = 'none';
+          if (stdDetails)stdDetails.style.display = 'none';
+          if (locInput)  locInput.removeAttribute('required');
+          if (addrInput) addrInput.removeAttribute('required');
+        } else {
+          if (stdName)   stdName.style.display    = 'block';
+          if (stdDetails)stdDetails.style.display = 'block';
+          if (locInput)  locInput.setAttribute('required', '');
+          if (addrInput) addrInput.setAttribute('required', '');
+        }
+      }
+    </script>
+    <!-- ===== END Dynamic QR Type Toggle ===== -->
   </body>
 </html>

@@ -56,9 +56,9 @@ def create_app() -> Flask:
 
     with app.app_context():
         # Unpack model classes and store on app for shared access
-        (User, QRCode, QRCodeStyle, Project, AttendanceData,
+        (User, QRCode, QRCodeStyle, QRCodeLocation, Project, AttendanceData,
          Employee, TimeAttendance, UserProjectPermission,
-         UserLocationPermission) = set_db(db)
+         UserLocationPermission) = set_db(db)  # ADDED: QRCodeLocation
 
 
 

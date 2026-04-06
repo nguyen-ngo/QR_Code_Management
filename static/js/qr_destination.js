@@ -238,6 +238,18 @@ function proceedWithCheckin() {
     return;
   }
 
+  // ADDED: For dynamic QR codes, require a location to be selected before proceeding
+  var selLocField = document.getElementById("selected_location_name");
+  var locationSelectCard = document.getElementById("locationSelectCard");
+  if (locationSelectCard && selLocField && !selLocField.value.trim()) {
+    // No location selected — redirect employee back to Step 1
+    document.getElementById("checkinFormCard").style.display = "none";
+    locationSelectCard.style.display = "block";
+    showLocalizedStatusMessage("invalidId", "error");
+    console.log("❌ Dynamic QR: no location selected, returning to Step 1");
+    return;
+  }
+
   const employeeId = document.getElementById("employee_id")?.value?.trim();
 
   if (!employeeId) {
@@ -308,6 +320,16 @@ function submitCheckin() {
   formData.append("altitude", userLocation.altitude || "");
   formData.append("location_source", userLocation.source || "manual");
   formData.append("address", userLocation.address || "");
+
+  // ADDED: Forward the employee-selected location for dynamic QR check-in
+  const selLocName = document.getElementById("selected_location_name");
+  const selLocAddr = document.getElementById("selected_location_address");
+  if (selLocName && selLocName.value.trim()) {
+    formData.append("selected_location_name", selLocName.value.trim());
+  }
+  if (selLocAddr && selLocAddr.value.trim()) {
+    formData.append("selected_location_address", selLocAddr.value.trim());
+  }
 
   const currentUrl = window.location.pathname;
   const checkinUrl = `${currentUrl}/checkin`;

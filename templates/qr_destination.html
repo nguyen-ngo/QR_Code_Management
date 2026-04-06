@@ -1068,7 +1068,67 @@
       </div>
 
       <!-- Check-in Form with Dynamic Styling and Color-Coded Instructions -->
-      <div class="checkin-card fade-transition active">
+
+      <!-- ===== Step 1 — Location Dropdown Selector (Dynamic QR only) ===== -->
+      {% if qr_code.qr_type == 'dynamic' %}
+      <div class="checkin-card fade-transition active" id="locationSelectCard">
+        <div class="checkin-header">
+          <div class="bilingual-container">
+            <p>
+              <span class="english-text">
+                <i class="fas fa-map-marker-alt"></i> Please select your work location.
+              </span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Por favor seleccione su ubicación de trabajo.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:1rem;">
+          <select id="locationDropdown" class="form-control"
+                  style="font-size:1rem;padding:0.75rem;height:auto;">
+            <option value="">-- Select a location / Seleccione una ubicación --</option>
+            {% for loc in locations %}
+            <option
+              value="{{ loc.location | e }}"
+              data-address="{{ (loc.location_address or '') | e }}"
+            >{{ loc.location }}</option>
+            {% else %}
+            <option value="" disabled>No locations configured</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="button" class="btn btn-primary"
+                id="confirmLocationBtn"
+                style="width:100%;margin-top:0.75rem;padding:0.9rem;font-size:1rem;"
+                onclick="confirmLocationSelection()">
+          <i class="fas fa-check" style="margin-right:0.5rem;"></i>
+          <span class="english-text">Confirm Location</span>
+          <span class="language-separator">/</span>
+          <span class="spanish-text">Confirmar Ubicación</span>
+        </button>
+
+        <div id="locationSelectError" style="display:none;margin-top:0.5rem;">
+          <div class="bilingual-container" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
+            <p style="margin:0;color:#dc2626;">
+              <i class="fas fa-exclamation-circle"></i>
+              <span class="english-text">Please select a location before continuing.</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Por favor seleccione una ubicación.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <!-- ===== END Step 1 ===== -->
+
+      <!-- Step 2 (or sole step for Standard QR): Employee ID form -->
+      <div
+        class="checkin-card fade-transition {% if qr_code.qr_type != 'dynamic' %}active{% endif %}"
+        id="checkinFormCard"
+        {% if qr_code.qr_type == 'dynamic' %}style="display:none;"{% endif %}
+      >
         <div class="checkin-header">
           <div class="bilingual-container">
             <p>
@@ -1082,6 +1142,34 @@
         </div>
 
         <form id="checkinForm" onsubmit="return false;">
+          <!-- ADDED: carries the employee-selected location to the backend -->
+          <input type="hidden" id="selected_location_name" name="selected_location_name" value="" />
+          <input type="hidden" id="selected_location_address" name="selected_location_address" value="" />
+
+          <!-- ADDED: selected location confirmation badge (dynamic QR only) -->
+          {% if qr_code.qr_type == 'dynamic' %}
+          <div id="selectedLocationBadge"
+               class="bilingual-container"
+               style="display:none;margin-bottom:1rem;background:rgba(37,99,235,0.07);border:1px solid rgba(37,99,235,0.28);">
+            <p style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin:0;">
+              <span>
+                <i class="fas fa-map-marker-alt" style="color:#2563eb;"></i>
+                <strong id="selectedLocationDisplay" style="margin-left:0.4rem;"></strong>
+              </span>
+              <button
+                type="button"
+                onclick="backToLocationSelect()"
+                style="background:none;border:1px solid #2563eb;color:#2563eb;border-radius:4px;padding:3px 12px;cursor:pointer;font-size:0.85rem;"
+              >
+                <i class="fas fa-arrow-left"></i>
+                <span class="english-text">Change</span>
+                <span class="language-separator">/</span>
+                <span class="spanish-text">Cambiar</span>
+              </button>
+            </p>
+          </div>
+          {% endif %}
+
           <div class="form-group">
             <label for="employee_id">
               <i class="fas fa-id-card"></i>
@@ -1456,6 +1544,20 @@
         const employeeId = document.getElementById("employee_id").value.trim();
         const submitButton = document.getElementById("submitButton");
 
+        // FIX 2: For dynamic QR codes, block submission if no location was selected
+        var selLocField = document.getElementById("selected_location_name");
+        var locationSelectCard = document.getElementById("locationSelectCard");
+        if (locationSelectCard && selLocField && !selLocField.value.trim()) {
+          // No location selected — send employee back to Step 1
+          document.getElementById("checkinFormCard").style.display = "none";
+          locationSelectCard.style.display = "block";
+          showStatusMessage(
+            "Please select a location first / Por favor seleccione una ubicación primero",
+            "error"
+          );
+          return;
+        }
+
         if (!employeeId) {
           showStatusMessage(
             "Please enter your Employee ID / Por favor ingrese su ID de empleado",
@@ -1494,6 +1596,16 @@
         // Prepare form data with location information
         const formData = new FormData();
         formData.append("employee_id", employeeId);
+
+        // ADDED: forward employee-selected location for dynamic QR check-in
+        const selLocName = document.getElementById("selected_location_name");
+        const selLocAddr = document.getElementById("selected_location_address");
+        if (selLocName && selLocName.value) {
+          formData.append("selected_location_name", selLocName.value);
+        }
+        if (selLocAddr && selLocAddr.value) {
+          formData.append("selected_location_address", selLocAddr.value);
+        }
 
         // Add location data to form submission
         if (currentUserLocation.latitude !== null) {
@@ -1594,44 +1706,38 @@
 
       // Enhanced success display with bilingual details (renamed to avoid conflicts)
       function showEnhancedSuccessCard(data) {
-        const successCard = document.getElementById("successCard");
-        const checkinCard = document.querySelector(".checkin-card");
+        const successCard    = document.getElementById("successCard");
+        const checkinCard    = document.querySelector(".checkin-card");
         const successDetails = document.getElementById("successDetails");
 
-        // Hide check-in form
-        checkinCard.style.display = "none";
+        // Hide the check-in form card
+        if (checkinCard) checkinCard.style.display = "none";
 
-        // Get employee ID from form input (since data.employee_id might be undefined)
+        // Employee ID — prefer server response, fall back to input field
         const employeeIdInput = document.getElementById("employee_id");
         const employeeId =
-          data.employee_id ||
+          (data.data && data.data.employee_id) ||
           (employeeIdInput ? employeeIdInput.value.trim() : "N/A");
 
-        // Use QR code location instead of GPS address for main location display
-        const qrLocationElement = document.querySelector(".location-info");
-        let qrLocationName = "Unknown Location";
-        if (qrLocationElement) {
-          // Extract text content, removing the icon
-          const locationText =
-            qrLocationElement.textContent || qrLocationElement.innerText;
-          qrLocationName = locationText.trim();
+        // Location name — prefer server response (handles dynamic QR correctly),
+        // fall back to the .location-info element shown on the page header.
+        let qrLocationName = (data.data && data.data.location) || null;
+        if (!qrLocationName) {
+          const el = document.querySelector(".location-info");
+          if (el) qrLocationName = el.textContent.trim();
         }
+        if (!qrLocationName) qrLocationName = "Unknown Location";
 
-        // Get location event (Check In or Check Out)
-        const isCheckOut = document.body.classList.contains("check-out");
-        const locationEvent = isCheckOut ? "Check Out" : "Check In";
-        const locationEventSpanish = isCheckOut ? "Salida" : "Entrada";
+        // Location event — prefer server response (handles dynamic QR correctly),
+        // fall back to body class set by Jinja for standard QR codes.
+        const serverEvent    = (data.data && data.data.event) || null;
+        const isCheckOut     = document.body.classList.contains("check-out");
+        const locationEvent  = serverEvent || (isCheckOut ? "Check Out" : "Check In");
+        const locationEventSpanish = (locationEvent === "Check Out") ? "Salida" : "Entrada";
 
-        // Alternative: try to get from page title or header
-        if (qrLocationName === "Unknown Location") {
-          const headerElement = document.querySelector(
-            ".destination-header h1"
-          );
-          if (headerElement) {
-            // Extract just the location event part (Check In/Check Out)
-            qrLocationName = data.location || "Check-in Location";
-          }
-        }
+        // Build success detail rows
+        const checkInTime = (data.data && data.data.check_in_time) || new Date().toLocaleTimeString();
+        const checkInDate = (data.data && data.data.check_in_date) || new Date().toLocaleDateString();
 
         successDetails.innerHTML = `
           <div class="detail-row">
@@ -1656,13 +1762,19 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">
+              <span class="english-text">Date</span>
+              <span class="language-separator">/</span>
+              <span class="spanish-text">Fecha</span>
+            </span>
+            <span class="detail-value">${checkInDate}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">
               <span class="english-text">Time</span>
               <span class="language-separator">/</span>
               <span class="spanish-text">Hora</span>
             </span>
-            <span class="detail-value">${
-              data.timestamp || new Date().toLocaleString()
-            }</span>
+            <span class="detail-value">${checkInTime}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">
@@ -1677,6 +1789,72 @@
         // Show success card
         successCard.classList.add("show");
       }
+
+      // ===== Dynamic QR location step handlers =====
+      function confirmLocationSelection() {
+        var dropdown = document.getElementById("locationDropdown");
+        var errorDiv = document.getElementById("locationSelectError");
+
+        // Validate a location has been chosen
+        if (!dropdown || !dropdown.value) {
+          if (errorDiv) errorDiv.style.display = "block";
+          return;
+        }
+        if (errorDiv) errorDiv.style.display = "none";
+
+        var name    = dropdown.value;
+        var selOpt  = dropdown.options[dropdown.selectedIndex];
+        var address = selOpt ? (selOpt.getAttribute("data-address") || "") : "";
+
+        // Store selection in hidden fields
+        document.getElementById("selected_location_name").value    = name;
+        document.getElementById("selected_location_address").value = address;
+
+        // FIX 1: Update the page header .location-info to show the selected location
+        var locationInfoEl = document.querySelector(".location-info");
+        if (locationInfoEl) {
+          locationInfoEl.innerHTML = "<i class=\"fas fa-map-marker-alt\"></i> " + name;
+        }
+
+        // Show the selected location badge on the ID form
+        var display = document.getElementById("selectedLocationDisplay");
+        var badge   = document.getElementById("selectedLocationBadge");
+        if (display) display.textContent = name;
+        if (badge)   badge.style.display = "block";
+
+        // Transition: hide Step 1, show Step 2
+        document.getElementById("locationSelectCard").style.display = "none";
+        var formCard = document.getElementById("checkinFormCard");
+        formCard.style.display = "block";
+        formCard.classList.add("active");
+
+        // Auto-focus Employee ID input for faster mobile entry
+        var empInput = document.getElementById("employee_id");
+        if (empInput) { setTimeout(function () { empInput.focus(); }, 120); }
+      }
+
+      function backToLocationSelect() {
+        // Clear selection
+        document.getElementById("selected_location_name").value    = "";
+        document.getElementById("selected_location_address").value = "";
+        var badge = document.getElementById("selectedLocationBadge");
+        if (badge) badge.style.display = "none";
+
+        // Reset dropdown
+        var dropdown = document.getElementById("locationDropdown");
+        if (dropdown) dropdown.value = "";
+
+        // Reset header back to blank while no location is selected
+        var locationInfoEl = document.querySelector(".location-info");
+        if (locationInfoEl) {
+          locationInfoEl.innerHTML = "<i class=\"fas fa-map-marker-alt\"></i> ";
+        }
+
+        // Transition: hide Step 2, show Step 1
+        document.getElementById("checkinFormCard").style.display  = "none";
+        document.getElementById("locationSelectCard").style.display = "block";
+      }
+      // ===== END Dynamic QR location step handlers =====
     </script>
   </body>
 </html>

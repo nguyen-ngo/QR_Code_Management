@@ -14,7 +14,7 @@ from extensions import db, logger_handler
 from models.attendance import AttendanceData
 from models.employee import Employee
 from models.project import Project
-from models.qrcode import QRCode, QRCodeStyle
+from models.qrcode import QRCode, QRCodeStyle, QRCodeLocation  # ADDED: QRCodeLocation for dynamic QR
 from models.user import User
 from werkzeug.utils import secure_filename
 from logger_handler import log_user_activity, log_database_operations
@@ -42,6 +42,37 @@ import openpyxl
 bp = Blueprint('qr_codes', __name__)
 
 
+# --- ADDED: helper — returns distinct (location, location_address) pairs from
+#     all standard QR codes, used to auto-populate the dynamic QR location list ---
+def get_unique_qr_locations():
+    """
+    Query all unique (location, location_address) pairs from the qr_codes table
+    (standard QR codes only).  Returns a list of dicts:
+        [{'name': str, 'address': str}, ...]
+    Sorted alphabetically by name, duplicates removed.
+    """
+    rows = (
+        db.session.query(QRCode.location, QRCode.location_address)
+        .filter(
+            QRCode.qr_type == 'standard',
+            QRCode.location.isnot(None),
+            QRCode.location != ''
+        )
+        .distinct()
+        .order_by(QRCode.location.asc())
+        .all()
+    )
+    seen = set()
+    result = []
+    for loc, addr in rows:
+        key = loc.strip().lower()
+        if key not in seen:
+            seen.add(key)
+            result.append({'name': loc.strip(), 'address': (addr or '').strip()})
+    return result
+# --- END ADDED ---
+
+
 
 @bp.route('/qr-codes/create', methods=['GET', 'POST'], endpoint='create_qr_code')
 @login_required
@@ -52,8 +83,26 @@ def create_qr_code():
         try:
             # Existing form data
             name = request.form['name']
-            location = request.form['location']
-            location_address = request.form['location_address']
+            qr_type = request.form.get('qr_type', 'standard')  # read type first
+
+            # For dynamic QR codes, location/address are auto-managed (not user-entered)
+            if qr_type == 'dynamic':
+                location = 'Dynamic'          # placeholder — selectable locations come from standard QR codes at scan time
+                location_address = ''         # no single fixed address
+            else:
+                location = request.form.get('location', '').strip()
+                location_address = request.form.get('location_address', '').strip()
+                if not location:
+                    flash('Location Name is required for Standard QR codes.', 'error')
+                    return render_template('create_qr_code.html',
+                                         projects=Project.query.filter_by(active_status=True).all(),
+                                         styles=QRCodeStyle.query.all())
+                if not location_address:
+                    flash('Address is required for Standard QR codes.', 'error')
+                    return render_template('create_qr_code.html',
+                                         projects=Project.query.filter_by(active_status=True).all(),
+                                         styles=QRCodeStyle.query.all())
+
             location_event = request.form.get('location_event', '')
             project_id = request.form.get('project_id')
 
@@ -124,6 +173,7 @@ def create_qr_code():
                 address_longitude=address_longitude,
                 coordinate_accuracy=coordinate_accuracy if has_coordinates else None,
                 coordinates_updated_date=datetime.utcnow() if has_coordinates else None,
+                qr_type=qr_type,  # ADDED: store QR type
                 # NEW: Customization fields (only if columns exist)
                 **({
                     'fill_color': fill_color,
@@ -407,8 +457,19 @@ def edit_qr_code(qr_id):
             # Update QR code fields
             new_name = request.form['name']
             qr_code.name = new_name
-            qr_code.location = request.form['location']
-            qr_code.location_address = request.form['location_address']
+
+            # --- ADDED: for dynamic QR codes, location/address are auto-managed ---
+            new_qr_type = request.form.get('qr_type', 'standard')
+            qr_code.qr_type = new_qr_type
+
+            if new_qr_type == 'dynamic':
+                qr_code.location = 'Dynamic'   # placeholder — selectable locations come from standard QR codes at scan time
+                qr_code.location_address = ''  # no single fixed address
+            else:
+                qr_code.location = request.form.get('location', '').strip()
+                qr_code.location_address = request.form.get('location_address', '').strip()
+            # --- END ADDED ---
+
             qr_code.location_event = request.form.get('location_event', '')
 
             # Handle coordinates
@@ -502,8 +563,8 @@ def edit_qr_code(qr_id):
         # GET request - render edit form
         projects = Project.query.filter_by(active_status=True).order_by(Project.name.asc()).all()
         styles = QRCodeStyle.query.order_by(QRCodeStyle.name.asc()).all()
-
-        return render_template('edit_qr_code.html', qr_code=qr_code, projects=projects, styles=styles)
+        return render_template('edit_qr_code.html', qr_code=qr_code,
+                               projects=projects, styles=styles)
 
     except Exception as e:
         db.session.rollback()
@@ -586,7 +647,25 @@ def qr_destination(qr_url):
             access_method='scan'
         )
 
-        return render_template('qr_destination.html', qr_code=qr_code)
+        # Load selectable locations for dynamic QR — auto-generated from all
+        # active standard QR codes' unique (location, location_address) pairs.
+        locations = []
+        if getattr(qr_code, 'qr_type', 'standard') == 'dynamic':
+            locations = (
+                db.session.query(QRCode.location, QRCode.location_address)
+                .filter(
+                    QRCode.qr_type == 'standard',
+                    QRCode.active_status == True,
+                    QRCode.location.isnot(None),
+                    QRCode.location != '',
+                    QRCode.location != 'Dynamic'
+                )
+                .distinct()
+                .order_by(QRCode.location.asc())
+                .all()
+            )
+
+        return render_template('qr_destination.html', qr_code=qr_code, locations=locations)
 
     except Exception as e:
         logger_handler.log_database_error('qr_code_scan', e)
@@ -618,6 +697,53 @@ def qr_checkin(qr_url):
         # Get and validate employee ID
         employee_id = request.form.get('employee_id', '').strip()
 
+        # --- ADDED: dynamic QR — resolve effective location from the employee's selection ---
+        selected_location_name    = request.form.get('selected_location_name', '').strip()
+        selected_location_address = request.form.get('selected_location_address', '').strip()
+
+        if getattr(qr_code, 'qr_type', 'standard') == 'dynamic' and selected_location_name:
+            effective_location_name    = selected_location_name
+            effective_location_address = selected_location_address or ''
+
+            # Look up the matching standard QR code so we can inherit its
+            # location_event, coordinates, and exact address — this ensures all
+            # calculations (GPS accuracy, interval messages, success labels) behave
+            # exactly as if the employee had scanned that standard QR directly.
+            matching_qr = QRCode.query.filter_by(
+                location=selected_location_name,
+                qr_type='standard',
+                active_status=True
+            ).first()
+
+            if matching_qr:
+                # Use the standard QR's address if the selection has none
+                if not effective_location_address:
+                    effective_location_address = matching_qr.location_address or ''
+                effective_location_event = matching_qr.location_event or qr_code.location_event or 'Check In'
+                effective_address_latitude  = matching_qr.address_latitude
+                effective_address_longitude = matching_qr.address_longitude
+                logger_handler.logger.info(
+                    f"DYNAMIC check-in: employee={employee_id}, "
+                    f"selected='{selected_location_name}', "
+                    f"matched standard QR #{matching_qr.id} '{matching_qr.name}'"
+                )
+            else:
+                # No matching standard QR — use whatever the dynamic QR has
+                effective_location_event    = qr_code.location_event or 'Check In'
+                effective_address_latitude  = None
+                effective_address_longitude = None
+                logger_handler.logger.info(
+                    f"DYNAMIC check-in: employee={employee_id}, "
+                    f"selected='{selected_location_name}', no matching standard QR found"
+                )
+        else:
+            effective_location_name     = qr_code.location
+            effective_location_address  = qr_code.location_address
+            effective_location_event    = qr_code.location_event
+            effective_address_latitude  = qr_code.address_latitude
+            effective_address_longitude = qr_code.address_longitude
+        # --- END ADDED ---
+
         if not employee_id:
             return jsonify({
                 'success': False,
@@ -644,17 +770,22 @@ def qr_checkin(qr_url):
             # Check if 30 minutes have passed since the last check-in
             if recent_checkin_datetime > the_last_checkin_time:
                 minutes_remaining = time_interval - int((current_time - recent_checkin_datetime).total_seconds() / 60)
-                logger_handler.logger.info(f"Too soon for another {qr_code.location_event} for employee {employee_id}: {minutes_remaining} minutes remaining")
+                logger_handler.logger.info(f"Too soon for another {effective_location_event} for employee {employee_id}: {minutes_remaining} minutes remaining")
 
+                checkin_time_str = recent_checkin.check_in_time.strftime('%H:%M')
                 return jsonify({
                     'success': False,
-                    'message': f"You can {qr_code.location_event} again in {minutes_remaining} minutes. Last {qr_code.location_event} was at {recent_checkin.check_in_time.strftime("%H:%M")}. \n"
-                               f"Puedes volver a registrarte en {minutes_remaining} minutos. El último registro fue a las {recent_checkin.check_in_time.strftime("%H:%M")}."
+                    'message': (
+                        f'You can {effective_location_event} again in {minutes_remaining} minutes. '
+                        f'Last {effective_location_event} was at {checkin_time_str}. \n'
+                        f'Puedes volver a registrarte en {minutes_remaining} minutos. '
+                        f'El ultimo registro fue a las {checkin_time_str}.'
+                    )
                 }), 400
             else:
                 logger_handler.logger.debug(f"{time_interval}-minute interval satisfied for employee {employee_id}")
         else:
-            logger_handler.logger.debug(f"First {qr_code.location_event} today for employee {employee_id}")
+            logger_handler.logger.debug(f"First {effective_location_event} today for employee {employee_id}")
 
         # Process location data with coordinate-to-address conversion
         location_data = process_location_data_enhanced(request.form)
@@ -669,6 +800,14 @@ def qr_checkin(qr_url):
         # Create attendance record
         logger_handler.logger.debug("Creating attendance record")
 
+        # For dynamic QR: append tag to location_name so reports distinguish the source
+        is_dynamic = getattr(qr_code, 'qr_type', 'standard') == 'dynamic' and bool(selected_location_name)
+        record_location_name = (
+            f"{effective_location_name} (Dynamic QR)" if is_dynamic else effective_location_name
+        )
+        # For dynamic QR: store the selected location's address as the QR-side address
+        record_qr_address = effective_location_address if is_dynamic else None
+
         attendance = AttendanceData(
             qr_code_id=qr_code.id,
             employee_id=employee_id.upper(),
@@ -677,7 +816,8 @@ def qr_checkin(qr_url):
             device_info=device_info,
             user_agent=user_agent_string,
             ip_address=client_ip,
-            location_name=qr_code.location,
+            location_name=record_location_name,
+            qr_address=record_qr_address,
             latitude=location_data['latitude'],
             longitude=location_data['longitude'],
             accuracy=location_data['accuracy'],
@@ -702,7 +842,8 @@ def qr_checkin(qr_url):
 
         try:
             # Check if we have the required data
-            if not qr_code.location_address:
+            # CHANGED: use effective_location_address (respects dynamic QR selection)
+            if not effective_location_address:
                 logger_handler.logger.warning(f"QR code location_address is empty or None for QR ID: {qr_code.id}")
             elif not location_data['address'] and not (location_data['latitude'] and location_data['longitude']):
                 logger_handler.logger.warning(
@@ -714,7 +855,7 @@ def qr_checkin(qr_url):
                 logger_handler.logger.debug("Required location data available, proceeding with accuracy calculation")
 
                 location_accuracy = calculate_location_accuracy_enhanced(
-                    qr_address=qr_code.location_address,
+                    qr_address=effective_location_address,  # CHANGED: dynamic QR uses selected location address
                     checkin_address=location_data['address'],
                     checkin_lat=location_data['latitude'],
                     checkin_lng=location_data['longitude']
@@ -808,7 +949,7 @@ def qr_checkin(qr_url):
                 check_in_date=today
             ).count()
 
-            checkin_sequence_text = f"{qr_code.location_event} details"
+            checkin_sequence_text = f"{effective_location_event} details"
 
         except Exception as e:
             logger_handler.logger.error(f"Database error saving attendance record: {e}", exc_info=True)
@@ -825,11 +966,11 @@ def qr_checkin(qr_url):
             'message': f'Check-in successful! {checkin_sequence_text} for today.',
             'data': {
                 'employee_id': attendance.employee_id,
-                'location': qr_code.location_address,
-                'location_event': qr_code.location_event,
-                'event': qr_code.location_event,  # Add both for compatibility
-                'check_in_time': attendance.check_in_time.strftime('%I:%M %p'),  # 12-hour format
-                'check_in_date': attendance.check_in_date.strftime('%B %d, %Y'),  # Full date format
+                'location': effective_location_name,                    # CHANGED: use selected location name
+                'location_event': effective_location_event,             # CHANGED: use resolved event
+                'event': effective_location_event,                      # CHANGED: use resolved event
+                'check_in_time': attendance.check_in_time.strftime('%I:%M %p'),
+                'check_in_date': attendance.check_in_date.strftime('%B %d, %Y'),
                 'device_info': attendance.device_info,
                 'ip_address': attendance.ip_address,
                 'location_accuracy': location_accuracy,
@@ -864,6 +1005,58 @@ def qr_checkin(qr_url):
             'success': False,
             'message': 'An unexpected error occurred during check-in.'
         }), 500
+
+# --- ADDED: API endpoint returning selectable locations for a dynamic QR code ---
+@bp.route('/qr/<string:qr_url>/locations', methods=['GET'], endpoint='qr_get_locations')
+def qr_get_locations(qr_url):
+    """
+    Return JSON list of active selectable locations for a dynamic QR code.
+    Used by the scan page to populate the location selector.
+    """
+    try:
+        qr_code = QRCode.query.filter_by(qr_url=qr_url, active_status=True).first()
+        if not qr_code:
+            return jsonify({'success': False, 'message': 'QR code not found or inactive.'}), 404
+
+        if getattr(qr_code, 'qr_type', 'standard') != 'dynamic':
+            return jsonify({'success': False, 'message': 'Not a dynamic QR code.'}), 400
+
+        locations = (
+            db.session.query(QRCode.location, QRCode.location_address)
+            .filter(
+                QRCode.qr_type == 'standard',
+                QRCode.active_status == True,
+                QRCode.location.isnot(None),
+                QRCode.location != '',
+                QRCode.location != 'Dynamic'
+            )
+            .distinct()
+            .order_by(QRCode.location.asc())
+            .all()
+        )
+
+        logger_handler.logger.info(
+            f"qr_get_locations: QR '{qr_url}' returned {len(locations)} locations"
+        )
+
+        return jsonify({
+            'success': True,
+            'locations': [
+                {
+                    'name': loc.location,
+                    'address': loc.location_address or ''
+                }
+                for loc in locations
+            ]
+        }), 200
+
+    except Exception as e:
+        logger_handler.logger.error(
+            f"Error fetching locations for QR '{qr_url}': {e}", exc_info=True
+        )
+        return jsonify({'success': False, 'message': 'Server error fetching locations.'}), 500
+# --- END ADDED ---
+
 
 @bp.route('/qr-codes/<int:qr_id>/toggle-status', methods=['POST'], endpoint='toggle_qr_status')
 @login_required

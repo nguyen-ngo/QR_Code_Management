@@ -33,6 +33,8 @@ class AttendanceData(base.db.Model):
     altitude = base.db.Column(base.db.Float, nullable=True)
     location_source = base.db.Column(base.db.String(50), default='manual')
     address = base.db.Column(base.db.String(500), nullable=True)
+    # Stores the QR-side address for dynamic QR check-ins (overrides qr_codes.location_address join)
+    qr_address = base.db.Column(base.db.Text, nullable=True)
     verification_photo = base.db.Column(base.db.Text, nullable=True)  # Base64 encoded image
     verification_required = base.db.Column(base.db.Boolean, default=False)
     verification_status = base.db.Column(base.db.String(20), nullable=True)  # 'pending', 'approved', 'rejected'

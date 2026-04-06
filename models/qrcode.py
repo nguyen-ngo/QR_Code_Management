@@ -1,6 +1,6 @@
 """
-QRCode and QRCodeStyle Models for QR Attendance Management System
-================================================================
+QRCode, QRCodeStyle, and QRCodeLocation Models for QR Attendance Management System
+===================================================================================
 
 QRCode models to manage QR code records and metadata with customization options.
 Extracted from app.py for better code organization.
@@ -17,8 +17,9 @@ class QRCode(base.db.Model):
     
     id = base.db.Column(base.db.Integer, primary_key=True)
     name = base.db.Column(base.db.String(100), nullable=False)
-    location = base.db.Column(base.db.String(100), nullable=False)
-    location_address = base.db.Column(base.db.Text, nullable=False)
+    # nullable=True for dynamic QR codes which have no single fixed location/address
+    location = base.db.Column(base.db.String(100), nullable=True)
+    location_address = base.db.Column(base.db.Text, nullable=True)
     location_event = base.db.Column(base.db.String(200), nullable=False)
     qr_code_image = base.db.Column(base.db.Text, nullable=False)  # Base64 encoded image
     created_by = base.db.Column(base.db.Integer, base.db.ForeignKey('users.id'), nullable=True)
@@ -38,7 +39,11 @@ class QRCode(base.db.Model):
     border = base.db.Column(base.db.Integer, default=4)
     error_correction = base.db.Column(base.db.String(1), default='L')
     style_id = base.db.Column(base.db.Integer, base.db.ForeignKey('qr_code_styles.id'), nullable=True)
-    
+    # --- ADDED: QR Code Type ---
+    # 'standard' = fixed single location (existing behavior, default)
+    # 'dynamic'  = employee selects location from a list at scan time
+    qr_type = base.db.Column(base.db.String(20), nullable=False, default='standard')
+
     # Relationship to style
     style = base.db.relationship('QRCodeStyle', backref='qr_codes')
 
@@ -79,3 +84,33 @@ class QRCodeStyle(base.db.Model):
     
     def __repr__(self):
         return f'<QRCodeStyle {self.name}>'
+
+
+# --- ADDED: QRCodeLocation model ---
+class QRCodeLocation(base.db.Model):
+    """
+    Selectable locations for dynamic QR codes.
+    Each record represents one location option displayed to the employee at scan time.
+    Only relevant when the parent QRCode.qr_type == 'dynamic'.
+    """
+    __tablename__ = 'qr_code_locations'
+
+    id = base.db.Column(base.db.Integer, primary_key=True)
+    qr_code_id = base.db.Column(
+        base.db.Integer,
+        base.db.ForeignKey('qr_codes.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    location_name = base.db.Column(base.db.String(100), nullable=False)
+    location_address = base.db.Column(base.db.Text, nullable=True)
+    address_latitude = base.db.Column(base.db.Float, nullable=True)
+    address_longitude = base.db.Column(base.db.Float, nullable=True)
+    sort_order = base.db.Column(base.db.Integer, default=0, nullable=False)
+    active_status = base.db.Column(base.db.Boolean, default=True, nullable=False)
+    created_date = base.db.Column(base.db.DateTime, default=datetime.utcnow)
+
+    # Back-reference: qr_code_instance.locations → list of QRCodeLocation rows
+    qr_code = base.db.relationship('QRCode', backref='locations')
+
+    def __repr__(self):
+        return f'<QRCodeLocation "{self.location_name}" (QR #{self.qr_code_id})>'

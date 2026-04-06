@@ -14,11 +14,11 @@ def set_db(database):
     
     # Now import all models (they will use base.db)
     from .user import User
-    from .qrcode import QRCode, QRCodeStyle
+    from .qrcode import QRCode, QRCodeStyle, QRCodeLocation  # ADDED: QRCodeLocation
     from .project import Project
     from .attendance import AttendanceData
     from .employee import Employee
     from .time_attendance import TimeAttendance
     from .permissions import UserProjectPermission, UserLocationPermission
 
-    return User, QRCode, QRCodeStyle, Project, AttendanceData, Employee, TimeAttendance, UserProjectPermission, UserLocationPermission
+    return User, QRCode, QRCodeStyle, QRCodeLocation, Project, AttendanceData, Employee, TimeAttendance, UserProjectPermission, UserLocationPermission
