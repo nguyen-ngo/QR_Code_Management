@@ -11,9 +11,9 @@ Contains:
   - export_time_attendance_excel()          (single-employee / all-employees)
   - export_time_attendance_by_building_excel()
 """
-from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, Response, g, current_app, url_for
+from flask import send_file, g, current_app
 from datetime import datetime, date, timedelta, time
-import io, os, json, re, uuid, traceback
+import io, os, json, re
 import time as _time
 
 from extensions import db, logger_handler
@@ -21,19 +21,8 @@ from models.employee import Employee
 from models.project import Project
 from models.qrcode import QRCode
 from models.time_attendance import TimeAttendance
-from models.user import User
 from sqlalchemy import text
-from werkzeug.utils import secure_filename
-from logger_handler import log_user_activity, log_database_operations
-from utils.helpers import (
-    admin_required,
-    has_admin_privileges,
-    has_staff_level_access,
-    login_required,
-    staff_or_admin_required)
-from utils.geocoding import calculate_location_accuracy_enhanced
 from working_hours_calculator import WorkingHoursCalculator, round_time_to_quarter_hour, convert_minutes_to_base100, round_base100_hours
-from time_attendance_import_service import TimeAttendanceImportService
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
 from openpyxl.utils import get_column_letter
@@ -506,10 +495,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             _day_outs_non_early = [r for r in _day_outs if r.check_in_time.hour > 3]
 
             # Day N must have an unmatched late check-in (more INs than non-early OUTs,
-            # with at least one IN at or after 20:00)
+            # with at least one IN at or after 12:00 PM)
             if len(_day_ins) <= len(_day_outs_non_early):
                 continue
-            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 19]
+            _late_ins = [r for r in _day_ins if r.check_in_time.hour >= 12]
             if not _late_ins:
                 continue
 
@@ -519,22 +508,22 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                 continue
 
             # Determine whether the early OUT belongs to Day N or Day N+1.
-            # It belongs to Day N when Day N+1 has no non-evening (< 18:00) check-in
+            # It belongs to Day N when Day N+1 has no morning (< 12:00) check-in
             # that could own it, OR when OUTs outnumber INs on Day N+1.
             # This handles both cases:
-            #   Case A: Day N+1 has only evening INs (all >= 18:00) -> early OUT is Day N's
+            #   Case A: Day N+1 has only afternoon/evening INs (all >= 12:00) -> early OUT is Day N's
             #   Case B: Day N+1 has more OUTs than INs overall -> early OUT is unmatched
-            # A non-evening IN on Day N+1 can only own an early OUT when that IN
+            # A morning IN on Day N+1 can only own an early OUT when that IN
             # occurs STRICTLY BEFORE the early OUT's time (IN → OUT is time-ordered).
             # An IN that starts AFTER the early OUT cannot own it and must NOT block
             # the overnight move (e.g. 01:55 AM IN cannot own a 01:00 AM OUT).
             _nxt_non_evening_ins = [
                 r for r in _nxt_ins
-                if r.check_in_time.hour < 18
+                if r.check_in_time.hour < 12
                 and any(r.check_in_time < eo.check_in_time for eo in _early_outs)
             ]
             if _nxt_non_evening_ins and len(_nxt_outs) <= len(_nxt_ins):
-                # Day N+1 has a non-evening IN that can own the early OUT, and counts
+                # Day N+1 has a morning IN that can own the early OUT, and counts
                 # are balanced -> do NOT move
                 continue
 
@@ -649,7 +638,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                         _in_t_d  = _in_r.check_in_time
                         _out_t_d = _out_r.check_in_time
                         if _out_t_d.hour <= 3:
-                            if _in_t_d.hour < 18:
+                            if _in_t_d.hour < 12:
                                 continue
                             # Orphan guard: an early-morning OUT whose check_in_date
                             # matches the current day is an orphan from the PREVIOUS
@@ -709,7 +698,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                     _cb_in_t  = _cb_in.check_in_time
                     _cb_out_t = _cb_out.check_in_time
                     if _cb_out_t.hour <= 3:
-                        if _cb_in_t.hour < 18:
+                        if _cb_in_t.hour < 12:
                             continue
                         # Orphan guard: same-day early-morning OUT is from previous
                         # overnight shift — skip it.  Only moved OUTs (check_in_date
@@ -924,15 +913,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             if out_ri['used']:
                                 continue
                             # Guard: time-only pairing rule.
-                            # An early-morning OUT (hour<=3) is only valid for an evening IN (hour>=18).
+                            # An early-morning OUT (hour<=3) is only valid for an afternoon/evening IN (hour>=12).
                             # For all other OUTs, the OUT time must be strictly after the IN time.
                             # Using time-only (not datetime) avoids false positives from moved overnight
                             # OUT records whose check_in_date is still a later date.
                             _in_t  = in_ri['record'].check_in_time
                             _out_t = out_ri['record'].check_in_time
                             if _out_t.hour <= 3:
-                                if _in_t.hour < 18:
-                                    continue  # early-morning OUT cannot pair with non-evening IN
+                                if _in_t.hour < 12:
+                                    continue  # early-morning OUT cannot pair with morning IN
                                 # Orphan guard: same-day early-morning OUT is from a
                                 # previous overnight shift — not a valid partner for
                                 # this evening IN.  Only moved OUTs (check_in_date
@@ -976,7 +965,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             _in_t2  = in_ri['record'].check_in_time
                             _out_t2 = out_ri['record'].check_in_time
                             if _out_t2.hour <= 3:
-                                if _in_t2.hour < 18:
+                                if _in_t2.hour < 12:
                                     continue
                                 # Orphan guard: same-day early-morning OUT is from a
                                 # previous overnight shift — not a valid partner for
@@ -1585,22 +1574,22 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 # Exclude early-morning OUTs on Day N from the balance check:
                 # they are overnight orphans from Day N-1, not Day N regulars.
                 _bb_day_outs_non_early = [r for r in _bb_day_outs if r.check_in_time.hour > 3]
-                # Day N must have an unmatched late check-in (>= 19:00)
+                # Day N must have an unmatched late check-in (>= 12:00 PM)
                 if len(_bb_day_ins) <= len(_bb_day_outs_non_early):
                     continue
-                _bb_late_ins = [r for r in _bb_day_ins if r.check_in_time.hour >= 19]
+                _bb_late_ins = [r for r in _bb_day_ins if r.check_in_time.hour >= 12]
                 if not _bb_late_ins:
                     continue
                 # Find early-morning OUTs (<= 03:00) on Day N+1
                 _bb_early_outs = [r for r in _bb_nxt_outs if r.check_in_time.hour <= 3]
                 if not _bb_early_outs:
                     continue
-                # Non-evening INs guard: do NOT move if Day N+1 has a non-evening
-                # IN that precedes the early OUT (i.e. it can own the early OUT)
+                # Non-morning INs guard: do NOT move if Day N+1 has a morning
+                # IN (< 12:00) that precedes the early OUT (i.e. it can own the early OUT)
                 # and the counts are balanced.
                 _bb_nxt_non_evening_ins = [
                     r for r in _bb_nxt_ins
-                    if r.check_in_time.hour < 18
+                    if r.check_in_time.hour < 12
                     and any(r.check_in_time < eo.check_in_time for eo in _bb_early_outs)
                 ]
                 if _bb_nxt_non_evening_ins and len(_bb_nxt_outs) <= len(_bb_nxt_ins):
@@ -1697,7 +1686,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     latest_in   = ins_sorted[-1]
                     excess_ins  = ins_sorted[:-1]
 
-                    # Orphan guard: when the latest IN is evening (>=18h), skip
+                    # Orphan guard: when the latest IN is afternoon/evening (>=12h), skip
                     # early-morning OUTs (<=3h) whose check_in_date matches the
                     # current day — they are orphans from a previous overnight shift.
                     _oi_in_hour = latest_in['record'].check_in_time.hour
@@ -1705,7 +1694,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                     _oi_skip = []
                     for _oi_ri in outs_sorted:
                         if (earliest_out is None
-                                and _oi_in_hour >= 18
+                                and _oi_in_hour >= 12
                                 and _oi_ri['record'].check_in_time.hour <= 3):
                             _oi_out_d = _oi_ri['record'].check_in_date
                             if hasattr(_oi_out_d, 'date'):
@@ -1752,8 +1741,8 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                                 if record_info[j]['used']:
                                     continue
                                 if record_info[j]['is_out']:
-                                    # Orphan guard: when this IN is an evening
-                                    # check-in (>=18h) and the candidate OUT is
+                                    # Orphan guard: when this IN is an afternoon/evening
+                                    # check-in (>=12h) and the candidate OUT is
                                     # early-morning (<=3h), the OUT is only a
                                     # valid partner if it was moved in by overnight
                                     # detection (check_in_date > current day).
@@ -1761,7 +1750,7 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                                     # a previous overnight shift.
                                     _in_rec  = record_info[i]['record']
                                     _out_rec = record_info[j]['record']
-                                    if (_in_rec.check_in_time.hour >= 18
+                                    if (_in_rec.check_in_time.hour >= 12
                                             and _out_rec.check_in_time.hour <= 3):
                                         _out_bb_date = _out_rec.check_in_date
                                         if hasattr(_out_bb_date, 'date'):

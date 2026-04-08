@@ -200,6 +200,7 @@ def qr_statistics():
                              today_date=datetime.now().strftime('%Y-%m-%d'))
 
     except Exception as e:
+        db.session.rollback()
         # Log the error using the correct method
         logger_handler.log_database_error('statistics_page_error', e)
         flash('Error loading statistics. Please try again.', 'error')
@@ -293,13 +294,8 @@ def export_statistics():
         return response
         
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('statistics_export_error', e)
         return jsonify({'error': 'Export failed'}), 500
-
-    except Exception as e:
-        # Log the error
-        logger_handler.log_database_error('statistics_page_error', e)
-        flash('Error loading statistics. Please try again.', 'error')
-        return redirect(url_for('dashboard.dashboard'))
 
 # EMPLOYEE MANAGEMENT ROUTES

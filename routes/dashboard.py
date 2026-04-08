@@ -70,6 +70,7 @@ def dashboard():
                              search_status=search_status)
     
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('dashboard_load', e)
         flash('Error loading dashboard. Please try again.', 'error')
         return redirect(url_for('auth.login'))
@@ -125,6 +126,7 @@ def project_qr_codes(project_id):
                              search_status=search_status)
     
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('project_qr_codes_view', e)
         flash('Error loading project QR codes. Please try again.', 'error')
         return redirect(url_for('dashboard.dashboard'))
@@ -197,6 +199,7 @@ def dashboard_stats_api():
         })
         
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('dashboard_stats_api', e)
         return jsonify({
             'success': False,
@@ -235,6 +238,7 @@ def dashboard_realtime_api():
         })
         
     except Exception as e:
+        db.session.rollback()
         logger_handler.log_database_error('dashboard_realtime_api', e)
         return jsonify({
             'success': False,

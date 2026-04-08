@@ -7,6 +7,7 @@ This model interfaces with the existing employee table structure.
 """
 
 from datetime import datetime
+from sqlalchemy import cast, String
 from . import base
 
 class Employee(base.db.Model):
@@ -54,7 +55,7 @@ class Employee(base.db.Model):
                 cls.firstName.like(search_pattern),
                 cls.lastName.like(search_pattern),
                 cls.title.like(search_pattern),
-                cls.id.like(search_pattern)
+                cast(cls.id, String).like(search_pattern)
             )
         ).all()
     

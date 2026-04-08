@@ -163,6 +163,7 @@ def payroll_dashboard():
                              user_role=user_role)
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.logger.error(f"Error loading payroll dashboard: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
@@ -400,6 +401,7 @@ def export_payroll_excel():
             return redirect(url_for('payroll.payroll_dashboard'))
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.logger.error(f"Error in export_payroll_excel route: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
@@ -476,6 +478,7 @@ def calculate_working_hours_api():
         })
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.logger.error(f"Error in calculate_working_hours_api: {e}", exc_info=True)
         logger_handler.log_flask_error(
             'working_hours_api_error',
@@ -637,6 +640,7 @@ def get_miss_punch_details(employee_id):
         })
 
     except Exception as e:
+        db.session.rollback()
         logger_handler.logger.error(f"Error in get_miss_punch_details: {e}", exc_info=True)
 
         logger_handler.log_flask_error(
@@ -649,5 +653,3 @@ def get_miss_punch_details(employee_id):
             'success': False,
             'message': 'Internal server error. Please check the server logs.'
         }), 500
-
-
