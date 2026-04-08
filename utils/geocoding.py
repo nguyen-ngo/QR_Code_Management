@@ -34,6 +34,16 @@ except Exception as e:
     gmaps_client = None
     print(f"❌ Error initializing Google Maps client: {e}")
 
+
+def is_gmaps_available():
+    """Return True if the Google Maps client is initialized and usable.
+
+    Always call this (or check ``if gmaps_client:``) before calling any
+    method on ``gmaps_client`` to prevent AttributeError when the API key
+    is absent.
+    """
+    return gmaps_client is not None
+
 # ---------------------------------------------------------------------------
 # Geocoding cache
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ class AttendanceData(base.db.Model):
     qr_code_id = base.db.Column(base.db.Integer, base.db.ForeignKey('qr_codes.id', ondelete='CASCADE'), nullable=False)
     employee_id = base.db.Column(base.db.String(50), nullable=False)
     check_in_date = base.db.Column(base.db.Date, nullable=False, default=datetime.today)
-    check_in_time = base.db.Column(base.db.Time, nullable=False, default=datetime.now().time)
+    check_in_time = base.db.Column(base.db.Time, nullable=False, default=lambda: datetime.now().time())
     device_info = base.db.Column(base.db.String(200))
     user_agent = base.db.Column(base.db.Text)
     ip_address = base.db.Column(base.db.String(45))

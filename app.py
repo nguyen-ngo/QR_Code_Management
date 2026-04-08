@@ -175,7 +175,10 @@ def create_app() -> Flask:
 
     @app.before_request
     def log_request_info():
-        """Log request information for security monitoring"""
+        """Record request start time and scan for suspicious user agents"""
+        # Always record start time for slow-query detection in after_request
+        g.start_time = _time.time()
+
         if (request.endpoint and
                 (request.endpoint.startswith('static') or
                  request.path.startswith('/api/logs'))):
@@ -198,14 +201,24 @@ def create_app() -> Flask:
 
     @app.after_request
     def log_response_info(response):
-        """Log response information for performance monitoring"""
+        """Log slow requests and error responses for performance and health monitoring"""
         from extensions import logger_handler as lh
         if request.endpoint and request.endpoint.startswith('static'):
             return response
-        if hasattr(request, 'start_time'):
-            duration = _time.time() - request.start_time
-            if duration > 5.0:
-                lh.logger.warning(f"Slow request: {request.path} took {duration:.2f} seconds")
+        if hasattr(g, 'start_time'):
+            duration = _time.time() - g.start_time
+            if duration > 2.0:
+                lh.log_system_event(
+                    event_type="slow_query_detected",
+                    description=f"Slow request: {request.endpoint} took {duration:.2f}s",
+                    severity="WARNING",
+                    additional_data={
+                        'duration': duration,
+                        'endpoint': request.endpoint,
+                        'method': request.method,
+                        'user': session.get('username', 'anonymous')
+                    }
+                )
         if response.status_code >= 400:
             lh.logger.warning(
                 f"Error response: {response.status_code} for {request.path} "
@@ -217,37 +230,22 @@ def create_app() -> Flask:
     # Error handlers
     # ------------------------------------------------------------------
 
+    @app.errorhandler(403)
+    def forbidden(error):
+        """Handle forbidden access errors"""
+        return render_template('errors/403.html'), 403
+
+    @app.errorhandler(404)
+    def not_found(error):
+        """Handle page not found errors"""
+        return render_template('errors/404.html'), 404
+
     @app.errorhandler(500)
     def internal_error(error):
         """Handle internal server errors with user-friendly page"""
         if app.debug:
             return None
-        return '''
-        <!DOCTYPE html>
-        <html>
-        <head><title>Server Error</title></head>
-        <body style="font-family: Arial; text-align: center; margin-top: 100px;">
-            <h1>🔧 Something went wrong</h1>
-            <p>We're working to fix this issue. Please try again later.</p>
-            <a href="/" style="color: #2563eb;">← Back to Home</a>
-        </body>
-        </html>
-        ''', 500
-
-    @app.errorhandler(404)
-    def not_found(error):
-        """Handle page not found errors"""
-        return '''
-        <!DOCTYPE html>
-        <html>
-        <head><title>Page Not Found</title></head>
-        <body style="font-family: Arial; text-align: center; margin-top: 100px;">
-            <h1>🔍 Page Not Found</h1>
-            <p>The page you're looking for doesn't exist.</p>
-            <a href="/" style="color: #2563eb;">← Back to Home</a>
-        </body>
-        </html>
-        ''', 404
+        return render_template('errors/500.html'), 500
 
     return app
 
@@ -293,13 +291,30 @@ def create_tables():
 
 
 def update_existing_qr_codes():
-    """Update existing QR codes with URLs and regenerate QR images with logging"""
+    """Update existing QR codes with missing URLs or images at startup.
+
+    Regenerates qr_url slugs without needing a request context.
+    For qr_code_image, constructs the base URL from FLASK_HOST/FLASK_PORT
+    config so this can run safely outside any HTTP request.
+    """
     from extensions import db as _db, logger_handler as lh
     from utils.helpers import generate_qr_code, get_qr_styling, generate_qr_url
-    from flask import current_app, request
+    from config import Config as _Cfg
     try:
         from models.qrcode import QRCode
         qr_codes = QRCode.query.filter_by(active_status=True).all()
+        if not qr_codes:
+            return
+
+        # Build a base URL that does not require an active request context.
+        host = os.environ.get('FLASK_HOST', '0.0.0.0')
+        # 0.0.0.0 is a bind address, not a reachable hostname — default to localhost
+        if host in ('0.0.0.0', ''):
+            host = 'localhost'
+        port = os.environ.get('FLASK_PORT', '5000')
+        scheme = 'https' if _Cfg.SESSION_COOKIE_SECURE else 'http'
+        base_url = f"{scheme}://{host}:{port}/"
+
         updated_count = 0
         for qr_code in qr_codes:
             if not qr_code.qr_url or not qr_code.qr_code_image:
@@ -307,7 +322,7 @@ def update_existing_qr_codes():
                     if not qr_code.qr_url:
                         qr_code.qr_url = generate_qr_url(qr_code.name, qr_code.id)
                     if not qr_code.qr_code_image:
-                        qr_data = f"{request.url_root}qr/{qr_code.qr_url}"
+                        qr_data = f"{base_url}qr/{qr_code.qr_url}"
                         styling = get_qr_styling(qr_code)
                         qr_code.qr_code_image = generate_qr_code(
                             data=qr_data,
@@ -323,37 +338,10 @@ def update_existing_qr_codes():
                     continue
         if updated_count > 0:
             _db.session.commit()
-            lh.logger.info(f"Updated {updated_count} existing QR codes with missing URLs/images")
+            lh.logger.info(f"Startup: updated {updated_count} QR codes with missing URLs/images")
     except Exception as e:
         lh.log_database_error('update_existing_qr_codes', e)
-
-
-def log_slow_query_performance(app_instance):
-    """Register slow-query monitoring hooks on the given app instance"""
-    from extensions import logger_handler as lh
-
-    @app_instance.before_request
-    def before_request():
-        g.start_time = _time.time()
-
-    @app_instance.after_request
-    def after_request(response):
-        if hasattr(g, 'start_time'):
-            duration = _time.time() - g.start_time
-            if duration > 2.0:
-                lh.log_system_event(
-                    event_type="slow_query_detected",
-                    description=f"Slow request: {request.endpoint} took {duration:.2f}s",
-                    severity="WARNING",
-                    additional_data={
-                        'duration': duration,
-                        'endpoint': request.endpoint,
-                        'method': request.method,
-                        'user': session.get('username', 'anonymous')
-                    }
-                )
-        return response
-
+        
 
 # ---------------------------------------------------------------------------
 # Entry point
@@ -365,7 +353,7 @@ if __name__ == '__main__':
     with app.app_context():
         try:
             create_tables()
-            log_slow_query_performance(app)
+            update_existing_qr_codes()
 
             from extensions import logger_handler
             logger_handler.logger.info("Initializing performance optimizations")

@@ -34,6 +34,16 @@ class Config:
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
     # ------------------------------------------------------------------ #
+    # SQLAlchemy connection pool (read from .env; safe defaults)
+    # ------------------------------------------------------------------ #
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size':    int(os.environ.get('SQLALCHEMY_ENGINE_OPTIONS_POOL_SIZE',    '10')),
+        'pool_timeout': int(os.environ.get('SQLALCHEMY_ENGINE_OPTIONS_POOL_TIMEOUT', '20')),
+        'pool_recycle': int(os.environ.get('SQLALCHEMY_ENGINE_OPTIONS_POOL_RECYCLE', '3600')),
+        'max_overflow': int(os.environ.get('SQLALCHEMY_ENGINE_OPTIONS_MAX_OVERFLOW', '20')),
+    }
+
+    # ------------------------------------------------------------------ #
     # Session / cookies
     # ------------------------------------------------------------------ #
     PERMANENT_SESSION_LIFETIME = timedelta(days=30)

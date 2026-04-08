@@ -650,43 +650,4 @@ def get_miss_punch_details(employee_id):
             'message': 'Internal server error. Please check the server logs.'
         }), 500
 
-def get_employee_name(employee_id):
-    """Helper function to get employee full name by ID"""
-    try:
-        result = db.session.execute(text("""
-            SELECT CONCAT(firstName, ' ', lastName) as full_name 
-            FROM employee 
-            WHERE id = :employee_id
-        """), {'employee_id': employee_id})
 
-        row = result.fetchone()
-        return row[0] if row else f"Employee {employee_id}"
-
-    except Exception as e:
-        logger_handler.logger.warning(f"Error getting employee name for ID {employee_id}: {e}")
-        return f"Employee {employee_id}"
-
-def get_qr_code_checkin_count(qr_code_id):
-    """Helper function to get total check-ins count for a QR code"""
-    try:
-        count = AttendanceData.query.filter_by(qr_code_id=qr_code_id).count()
-        logger_handler.logger.info(f"QR Code {qr_code_id} total check-ins: {count}")
-        return count
-    except Exception as e:
-        logger_handler.logger.error(f"Error getting check-ins count for QR {qr_code_id}: {e}")
-        return 0
-    
-@bp.context_processor
-def inject_payroll_utils():
-    """Inject payroll utility functions into templates"""
-    return {
-        'get_employee_name': get_employee_name,
-        'format_hours': lambda hours: f"{hours:.2f}" if hours else "0.00"
-    }
-
-@bp.context_processor
-def inject_dashboard_utils():
-    """Inject dashboard utility functions into templates"""
-    return {
-        'get_qr_code_checkin_count': get_qr_code_checkin_count
-    }

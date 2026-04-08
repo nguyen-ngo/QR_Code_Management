@@ -53,6 +53,7 @@ class User(base.db.Model):
         """Check if user has staff-level permissions (includes new roles)"""
         return self.role in STAFF_LEVEL_ROLES
     
+    @staticmethod
     def has_export_permissions(user_role):
         """Check if user role has export permissions"""
         return user_role in ['admin', 'payroll']

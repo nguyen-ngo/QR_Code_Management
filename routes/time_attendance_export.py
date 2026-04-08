@@ -11,17 +11,6 @@ Contains:
   - export_time_attendance_excel()          (single-employee / all-employees)
   - export_time_attendance_by_building_excel()
 """
-"""
-routes/time_attendance.py
-=========================
-Time attendance dashboard, import pipeline, export (Excel / by-building),
-and records management routes.
-
-Routes: /time-attendance, /time-attendance/import/*,
-        /time-attendance/export*, /time-attendance/records,
-        /time-attendance/record/<id>, /time-attendance/delete/<id>,
-        /api/time-attendance/*
-"""
 from flask import Blueprint, render_template, request, redirect, flash, session, jsonify, send_file, Response, g, current_app, url_for
 from datetime import datetime, date, timedelta, time
 import io, os, json, re, uuid, traceback
