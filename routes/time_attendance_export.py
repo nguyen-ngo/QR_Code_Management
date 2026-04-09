@@ -564,6 +564,10 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
         cross_type_sp_hours = 0.0
         cross_type_pw_hours = 0.0
         cross_type_pt_hours = 0.0
+        # Accumulate raw (uncapped) hours from regular (non-SP/PW/PT) pairs only.
+        # Used to populate the "Regular" summary row when an employee also has
+        # special work-type hours (SP/PW/PT).
+        regular_only_hours = 0.0
         
         # Get all dates that have records (not all weekdays)
         dates_with_records = sorted([
@@ -1056,6 +1060,15 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
                             elif _ewt == 'PT':
                                 cross_type_pt_hours += pair_hours
 
+                        # Accumulate raw regular-only hours (non-SP/PW/PT completed pairs).
+                        # This feeds the "Regular" summary row shown when an employee also
+                        # has SP/PW/PT hours.  Cross-type pairs are excluded here because
+                        # their effective_work_type is SP/PW/PT, not regular.
+                        if not is_miss_punch and isinstance(pair_hours, (int, float)):
+                            _pair_ewt = pair_data.get('effective_work_type')
+                            if _pair_ewt not in ('SP', 'PW', 'PT'):
+                                regular_only_hours += pair_hours
+
                         # Determine whether this is an overnight pair:
                         # check-in is late evening (>= 20:00) AND check-out is early morning (<= 03:00)
                         # Both records share the same check_in_date in the DB for this scenario.
@@ -1241,38 +1254,46 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
             grand_ot_hours += week_overtime
             current_row += 1
         
-        # Write extra working hours rows (SP/PW/PT) if employee has any
+        # Write extra working hours rows (SP/PW/PT) if employee has any.
         # Get extra hours from emp_data grand_totals, then add any cross-type hours
         # accumulated during rendering (pairs the calculator could not detect).
         grand_totals = emp_data.get('grand_totals', {})
         sp_hours = grand_totals.get('sp_hours', 0.0) + cross_type_sp_hours
         pw_hours = grand_totals.get('pw_hours', 0.0) + cross_type_pw_hours
         pt_hours = grand_totals.get('pt_hours', 0.0) + cross_type_pt_hours
-        
-        # Write SP row if hours > 0
+
+        _has_special_hours = sp_hours > 0 or pw_hours > 0 or pt_hours > 0
+        _summary_font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
+
+        # Write SP row if hours > 0 (abbreviated label in col 8, hours in col 9)
         if sp_hours > 0:
-            ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            # Log SP hours export
+            ws.cell(row=current_row, column=8, value='SP').font = _summary_font
+            ws.cell(row=current_row, column=9, value=_qtr(sp_hours)).font = _summary_font
             logger_handler.logger.info(f"Export: Employee {employee_id} SP hours: {sp_hours:.2f}")
             current_row += 1
-        
+
         # Write PW row if hours > 0
         if pw_hours > 0:
-            ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            # Log PW hours export
+            ws.cell(row=current_row, column=8, value='PW').font = _summary_font
+            ws.cell(row=current_row, column=9, value=_qtr(pw_hours)).font = _summary_font
             logger_handler.logger.info(f"Export: Employee {employee_id} PW hours: {pw_hours:.2f}")
             current_row += 1
-        
+
         # Write PT row if hours > 0
         if pt_hours > 0:
-            ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = Font(name='Aptos Narrow', size=11, bold=True, italic=True)
-            # Log PT hours export
+            ws.cell(row=current_row, column=8, value='PT').font = _summary_font
+            ws.cell(row=current_row, column=9, value=_qtr(pt_hours)).font = _summary_font
             logger_handler.logger.info(f"Export: Employee {employee_id} PT hours: {pt_hours:.2f}")
             current_row += 1
-        
+
+        # Write Regular row — only when the employee has at least one special
+        # work-type (SP/PW/PT).  Shows raw accumulated hours from non-special pairs.
+        if _has_special_hours:
+            ws.cell(row=current_row, column=8, value='Regular').font = _summary_font
+            ws.cell(row=current_row, column=9, value=_qtr(regular_only_hours)).font = _summary_font
+            logger_handler.logger.info(f"Export: Employee {employee_id} Regular hours: {regular_only_hours:.2f}")
+            current_row += 1
+
         # Write GRAND TOTAL row
         ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
         ws.cell(row=current_row, column=9, value=_qtr(grand_regular_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
@@ -1615,6 +1636,10 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
             current_week_start = None
             grand_regular_hours = 0
             grand_ot_hours = 0
+            # Accumulate raw regular-only (non-SP/PW/PT) pair hours.
+            # Used for the "Regular" summary row when the employee also has
+            # special work-type hours.
+            regular_only_hours = 0.0
             
             # Sort dates (re-sort after overnight detection may have removed buckets).
             # CRITICAL: cap to end_date — daily_records may contain the +1 buffer day
@@ -1799,6 +1824,13 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                         # 24h guard: reject implausible durations (data errors)
                         if _bb_dur <= 24:
                             daily_hours += _bb_dur
+                            # Accumulate regular-only hours: pairs where neither record
+                            # carries a special work type (SP/PW/PT).
+                            _bb_in_wt  = getattr(pair['check_in'],  'work_type', None)
+                            _bb_out_wt = getattr(pair['check_out'], 'work_type', None)
+                            _bb_eff_wt = _bb_out_wt or _bb_in_wt  # prefer OUT's type (mirrors main export)
+                            if _bb_eff_wt not in ('SP', 'PW', 'PT'):
+                                regular_only_hours += _bb_dur
                 
                 daily_hours = round(daily_hours, 2)
                 weekly_total_hours += daily_hours
@@ -1891,38 +1923,45 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
                 current_row += 1
             
             # ================================================================
-            # Write extra working hours rows (SP/PW/PT) if employee has any
-            # This matches the behavior of the regular Export to Excel
+            # Write extra working hours rows (SP/PW/PT) if employee has any.
+            # Abbreviated label in col 8, hours in col 9.
+            # A "Regular" row follows whenever at least one special type is present.
             # ================================================================
-            
+
+            _has_special_hours = sp_hours > 0 or pw_hours > 0 or pt_hours > 0
+
             # Write SP row if hours > 0
             if sp_hours > 0:
-                ws.cell(row=current_row, column=7, value='Special Project (SP): ').font = italic_bold_font
-                ws.cell(row=current_row, column=9, value=round(sp_hours, 2)).font = italic_bold_font
-                # Log SP hours export
+                ws.cell(row=current_row, column=8, value='SP').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(sp_hours)).font = italic_bold_font
                 logger_handler.logger.info(f"Export by Building: Employee {employee_id} SP hours: {sp_hours:.2f}")
                 current_row += 1
-            
+
             # Write PW row if hours > 0
             if pw_hours > 0:
-                ws.cell(row=current_row, column=7, value='Periodic Work (PW): ').font = italic_bold_font
-                ws.cell(row=current_row, column=9, value=round(pw_hours, 2)).font = italic_bold_font
-                # Log PW hours export
+                ws.cell(row=current_row, column=8, value='PW').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(pw_hours)).font = italic_bold_font
                 logger_handler.logger.info(f"Export by Building: Employee {employee_id} PW hours: {pw_hours:.2f}")
                 current_row += 1
-            
+
             # Write PT row if hours > 0
             if pt_hours > 0:
-                ws.cell(row=current_row, column=7, value='Project Team (PT): ').font = italic_bold_font
-                ws.cell(row=current_row, column=9, value=round(pt_hours, 2)).font = italic_bold_font
-                # Log PT hours export
+                ws.cell(row=current_row, column=8, value='PT').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(pt_hours)).font = italic_bold_font
                 logger_handler.logger.info(f"Export by Building: Employee {employee_id} PT hours: {pt_hours:.2f}")
                 current_row += 1
-            
+
+            # Write Regular row — only when the employee has special work-type hours.
+            if _has_special_hours:
+                ws.cell(row=current_row, column=8, value='Regular').font = italic_bold_font
+                ws.cell(row=current_row, column=9, value=_qtr(regular_only_hours)).font = italic_bold_font
+                logger_handler.logger.info(f"Export by Building: Employee {employee_id} Regular hours: {regular_only_hours:.2f}")
+                current_row += 1
+
             # ================================================================
             # End of extra working hours section
             # ================================================================
-            
+
             # Write GRAND TOTAL row
             ws.cell(row=current_row, column=7, value='GRAND TOTAL: ').font = Font(name='Aptos Narrow', size=11, bold=True)
             ws.cell(row=current_row, column=9, value=_qtr(grand_regular_hours)).font = Font(name='Aptos Narrow', size=11, bold=True)
