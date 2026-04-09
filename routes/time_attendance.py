@@ -1146,6 +1146,8 @@ def export_time_attendance():
         end_date = request.args.get('end_date')
         import_batch = request.args.get('import_batch')
         project_filter = request.args.get('project_id')
+        # unlimited=true skips the 14-day cap; default is capped (2-week) mode
+        unlimited = request.args.get('unlimited', 'false').lower() == 'true'
         
         # Build query with same filters as the view
         query = TimeAttendance.query
@@ -1224,7 +1226,7 @@ def export_time_attendance():
         # Log export
         logger_handler.logger.info(
             f"User {session['username']} exported {len(records)} time attendance records "
-            f"in {export_format.upper()} format"
+            f"in {export_format.upper()} format (unlimited={unlimited})"
         )
         
         # Format dates for filename (MMDDYYYY format)
@@ -1263,7 +1265,7 @@ def export_time_attendance():
         
         filter_str = "_".join(filter_desc) if filter_desc else "all"
         
-        return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date, end_date)
+        return export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date, end_date, unlimited=unlimited)
     
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records: {e}")
@@ -1291,10 +1293,12 @@ def export_time_attendance_by_building():
         end_date = request.args.get('end_date')
         import_batch = request.args.get('import_batch')
         project_filter = request.args.get('project_id')
-        
+        # unlimited=true skips the 14-day cap; default is capped (2-week) mode
+        unlimited = request.args.get('unlimited', 'false').lower() == 'true'
+
         # Build query with same filters as the view
         query = TimeAttendance.query
-        
+
         # Apply filters — employee_id supports comma-separated multi-employee values
         if employee_filter:
             employee_ids_export = [e.strip() for e in employee_filter.split(',') if e.strip()]
@@ -1315,8 +1319,6 @@ def export_time_attendance_by_building():
 
         if location_filter:
             query = query.filter(TimeAttendance.location_name == location_filter)
-
-        if start_date:
             try:
                 start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
                 query = query.filter(TimeAttendance.attendance_date >= start_date_obj)
@@ -1369,7 +1371,7 @@ def export_time_attendance_by_building():
         # Log export
         logger_handler.logger.info(
             f"User {session['username']} exported {len(records)} time attendance records "
-            f"by building in Excel format"
+            f"by building in Excel format (unlimited={unlimited})"
         )
         
         # Format dates for filename (MMDDYYYY format)
@@ -1398,7 +1400,7 @@ def export_time_attendance_by_building():
         elif date_to_formatted:
             date_range_str = f"to_{date_to_formatted}"
         
-        return export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date, end_date)
+        return export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date, end_date, unlimited=unlimited)
     
     except Exception as e:
         logger_handler.logger.error(f"Error exporting time attendance records by building: {e}")
@@ -1690,6 +1692,4 @@ def api_time_attendance_by_location(location_name):
             'error': 'Failed to retrieve time attendance records'
         }), 500
     
-
-
 # Jinja2 filters for better template functionality

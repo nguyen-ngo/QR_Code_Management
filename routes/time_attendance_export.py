@@ -102,14 +102,14 @@ def _qtr(decimal_hours: float) -> float:
 # Private export helpers — shared by both export functions below.
 # ---------------------------------------------------------------------------
 
-def _resolve_date_range(start_date_filter, end_date_filter, records, export_label='TA Excel export'):
+def _resolve_date_range(start_date_filter, end_date_filter, records, export_label='TA Excel export', unlimited=False):
     """
     Resolve and validate the export date range.
 
     Returns (start_date, end_date, filtered_records) where:
     - start_date / end_date are date objects
     - filtered_records is the input list capped to end_date + 1 day (overnight buffer)
-    - end_date is capped to a maximum 14-day window
+    - end_date is capped to a maximum 14-day window unless unlimited=True
     Returns None when there are no records and no date filters.
     """
     MAX_EXPORT_DAYS = 14
@@ -129,7 +129,7 @@ def _resolve_date_range(start_date_filter, end_date_filter, records, export_labe
     else:
         return None
 
-    if (end_date - start_date).days >= MAX_EXPORT_DAYS:
+    if not unlimited and (end_date - start_date).days >= MAX_EXPORT_DAYS:
         capped_end_date = start_date + timedelta(days=MAX_EXPORT_DAYS - 1)
         logger_handler.logger.info(
             f"{export_label}: date range [{start_date} \u2013 {end_date}] exceeds "
@@ -272,7 +272,7 @@ def _make_export_styles():
     }
 
 
-def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None):
+def export_time_attendance_excel(records, project_name_for_filename, date_range_str, filter_str, start_date_filter=None, end_date_filter=None, unlimited=False):
     """Generate Excel export with template format matching the provided template"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -284,8 +284,8 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     ws = wb.active
     ws.title = "Sheet0"
     
-    # Resolve date range and cap to 14-day window
-    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA Excel export')
+    # Resolve date range; skip 14-day cap when unlimited=True
+    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA Excel export', unlimited=unlimited)
     if result is None:
         return None
     start_date, end_date, records = result
@@ -1345,7 +1345,7 @@ def export_time_attendance_excel(records, project_name_for_filename, date_range_
     )
 
 
-def export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date_filter=None, end_date_filter=None):
+def export_time_attendance_by_building_excel(records, project_name_for_filename, date_range_str, start_date_filter=None, end_date_filter=None, unlimited=False):
     """Generate Excel export grouped by building/location with template format"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -1357,8 +1357,8 @@ def export_time_attendance_by_building_excel(records, project_name_for_filename,
     ws = wb.active
     ws.title = "Sheet0"
     
-    # Resolve date range and cap to 14-day window
-    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA by-building Excel export')
+    # Resolve date range; skip 14-day cap when unlimited=True
+    result = _resolve_date_range(start_date_filter, end_date_filter, records, 'TA by-building Excel export', unlimited=unlimited)
     if result is None:
         return None
     start_date, end_date, records = result

@@ -4,6 +4,26 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/time_attendance.css') }}">
 <style>
+/* ── Unlimited export toggle ── */
+.export-unlimited-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.export-unlimited-toggle input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* ── Autocomplete widget styles (mirrors attendance.css — not loaded on this page) ── */
 .autocomplete-container-filter { position: relative; }
 
@@ -267,6 +287,10 @@
         Import Data
       </a>
       {% endif %}
+      <label class="export-unlimited-toggle" title="When checked, exports all dates in the selected range instead of capping at 2 weeks">
+        <input type="checkbox" id="export_unlimited">
+        <span>Unlimited</span>
+      </label>
       <button class="btn btn-secondary" onclick="exportRecords('excel')">
         <i class="fas fa-file-excel"></i>
         Export to Excel
@@ -627,6 +651,7 @@ function exportRecords(format) {
   const projectId = document.querySelector('select[name="project_id"]')?.value || '';
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
   const endDate = document.querySelector('input[name="end_date"]')?.value || '';
+  const unlimited = document.getElementById('export_unlimited')?.checked || false;
   
   // Build query parameters
   const params = new URLSearchParams();
@@ -636,6 +661,7 @@ function exportRecords(format) {
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
   params.append('format', format);
+  if (unlimited) params.append('unlimited', 'true');
   
   // Redirect to export endpoint
   window.location.href = `/time-attendance/export?${params.toString()}`;
@@ -648,6 +674,7 @@ function exportByBuilding() {
   const projectId = document.querySelector('select[name="project_id"]')?.value || '';
   const startDate = document.querySelector('input[name="start_date"]')?.value || '';
   const endDate = document.querySelector('input[name="end_date"]')?.value || '';
+  const unlimited = document.getElementById('export_unlimited')?.checked || false;
   
   // Build query parameters
   const params = new URLSearchParams();
@@ -656,6 +683,7 @@ function exportByBuilding() {
   if (projectId) params.append('project_id', projectId); 
   if (startDate) params.append('start_date', startDate);
   if (endDate) params.append('end_date', endDate);
+  if (unlimited) params.append('unlimited', 'true');
   
   // Redirect to export by building endpoint
   window.location.href = `/time-attendance/export-by-building?${params.toString()}`;
